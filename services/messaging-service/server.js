@@ -297,6 +297,8 @@ ChannelCategory.hasMany(TextChannel, { foreignKey: 'categoryId' });
 ChannelCategory.hasMany(VoiceChannel, { foreignKey: 'categoryId' });
 Conversation.hasMany(PinnedMessage, { foreignKey: 'conversationId' });
 Message.hasOne(PinnedMessage, { foreignKey: 'messageId' });
+PinnedMessage.belongsTo(Message, { foreignKey: 'messageId' });
+PinnedMessage.belongsTo(Conversation, { foreignKey: 'conversationId' });
 
 sequelize.sync();
 
@@ -631,7 +633,7 @@ app.get('/servers/discover', async (req, res) => {
     const { page = 1, limit = 20, search } = req.query;
     const offset = (page - 1) * limit;
 
-    const where = {};
+    const where = { isPublic: true };
     if (search) {
       where.name = { [Op.iLike]: `%${search}%` };
     }
@@ -661,6 +663,7 @@ app.get('/servers/search', async (req, res) => {
 
     const servers = await Server.findAll({
       where: {
+        isPublic: true,
         [Op.or]: [
           { name: { [Op.iLike]: `%${q}%` } },
           { description: { [Op.iLike]: `%${q}%` } }
@@ -683,6 +686,7 @@ app.get('/servers/popular', async (req, res) => {
     const { limit = 10 } = req.query;
 
     const servers = await Server.findAll({
+      where: { isPublic: true },
       order: [['members', 'DESC']],
       limit: parseInt(limit),
       attributes: ['id', 'name', 'description', 'icon', 'members']
@@ -752,20 +756,14 @@ app.post('/servers/:serverId/channels/text', async (req, res) => {
       return res.status(400).json({ error: 'name is required' });
     }
 
-    // Verify user is server owner or has admin role
+    // Verify user is server owner
     const server = await Server.findByPk(serverId);
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
     }
 
     if (server.ownerId !== userId) {
-      const member = await ServerMember.findOne({
-        where: { serverId, userId }
-      });
-      // Would need to check roles here in a complete implementation
-      if (!member) {
-        return res.status(403).json({ error: 'Only server members can create channels' });
-      }
+      return res.status(403).json({ error: 'Only the server owner can create channels' });
     }
 
     const channel = await TextChannel.create({
@@ -792,7 +790,19 @@ app.put('/channels/text/:channelId', async (req, res) => {
     }
 
     const { channelId } = req.params;
-    const updates = req.body;
+    
+    // Whitelist allowed fields
+    const allowedFields = ['name', 'topic', 'position', 'slowModeSeconds'];
+    const updates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
 
     const channel = await TextChannel.findByPk(channelId);
     if (!channel) {
@@ -969,6 +979,30 @@ app.post('/messages/:messageId/pin', async (req, res) => {
       return res.status(404).json({ error: 'Message not found' });
     }
 
+    // Verify user is a participant in the conversation or server member
+    const conversation = await Conversation.findByPk(message.conversationId);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    // Check if user is a participant (for direct/group chats) or server member (for channels)
+    const isParticipant = (conversation.participants || []).includes(userId);
+    
+    if (conversation.serverId) {
+      // For server channels, check server membership
+      const server = await Server.findByPk(conversation.serverId);
+      if (!server) {
+        return res.status(404).json({ error: 'Server not found' });
+      }
+      
+      // Only server owner can pin messages in server channels
+      if (server.ownerId !== userId) {
+        return res.status(403).json({ error: 'Only server owner can pin messages' });
+      }
+    } else if (!isParticipant) {
+      return res.status(403).json({ error: 'Not a participant in this conversation' });
+    }
+
     // Check if already pinned
     const existingPin = await PinnedMessage.findOne({
       where: { messageId, conversationId: message.conversationId }
@@ -1001,12 +1035,35 @@ app.delete('/messages/:messageId/pin', async (req, res) => {
 
     const { messageId } = req.params;
 
+    // Ensure the message exists and retrieve its conversation for scoping
+    const message = await Message.findByPk(messageId);
+    if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    // Scope the pin lookup by both message and conversation
     const pin = await PinnedMessage.findOne({
-      where: { messageId }
+      where: {
+        messageId,
+        conversationId: message.conversationId
+      }
     });
 
     if (!pin) {
       return res.status(404).json({ error: 'Pinned message not found' });
+    }
+
+    // Authorization: only the user who pinned the message can unpin it
+    // or server owner for server channels
+    const conversation = await Conversation.findByPk(message.conversationId);
+    
+    if (conversation && conversation.serverId) {
+      const server = await Server.findByPk(conversation.serverId);
+      if (server && server.ownerId !== userId && pin.pinnedBy !== userId) {
+        return res.status(403).json({ error: 'Not authorized to unpin this message' });
+      }
+    } else if (pin.pinnedBy !== userId) {
+      return res.status(403).json({ error: 'Not authorized to unpin this message' });
     }
 
     await pin.destroy();
@@ -1042,7 +1099,22 @@ app.get('/servers/:serverId/webhooks', async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    res.json(webhooks);
+    // Mask webhook tokens to reduce blast radius
+    const sanitizedWebhooks = webhooks.map((webhook) => {
+      const data = webhook.toJSON ? webhook.toJSON() : webhook;
+      if ('token' in data) {
+        // Only show first and last 4 characters
+        const token = data.token;
+        if (token && token.length > 12) {
+          data.token = `${token.substring(0, 4)}...${token.substring(token.length - 4)}`;
+        } else {
+          data.token = '***masked***';
+        }
+      }
+      return data;
+    });
+
+    res.json(sanitizedWebhooks);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch webhooks' });
