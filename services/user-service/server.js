@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { Sequelize, DataTypes } = require('sequelize');
+const { Sequelize, DataTypes, Op } = require('sequelize');
 const Joi = require('joi');
 require('dotenv').config();
 
@@ -613,7 +613,7 @@ app.post('/pages/:pageId/admins', async (req, res) => {
     }
 
     const requesterAdmin = await PageAdmin.findOne({
-      where: { pageId, userId, role: ['owner', 'admin'] }
+      where: { pageId, userId, role: { [Op.in]: ['owner', 'admin'] } }
     });
 
     if (page.userId !== userId && !requesterAdmin) {
@@ -661,7 +661,7 @@ app.put('/pages/:pageId/admins/:adminId', async (req, res) => {
 
     if (page.userId !== userId) {
       const requesterAdmin = await PageAdmin.findOne({
-        where: { pageId, userId, role: ['owner', 'admin'] }
+        where: { pageId, userId, role: { [Op.in]: ['owner', 'admin'] } }
       });
       if (!requesterAdmin) {
         return res.status(403).json({ error: 'Only page owner or admins can update roles' });

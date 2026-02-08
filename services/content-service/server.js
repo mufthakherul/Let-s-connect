@@ -1,6 +1,7 @@
 const express = require('express');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const Redis = require('ioredis');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
@@ -2812,8 +2813,8 @@ app.post('/streams', async (req, res) => {
       return res.status(400).json({ error: 'title is required' });
     }
 
-    // Generate a placeholder stream key (in production, use secure random)
-    const streamKey = 'stream_' + Date.now() + '_' + Math.random().toString(36).substring(7);
+    // Generate a secure stream key using crypto
+    const streamKey = crypto.randomBytes(32).toString('hex');
 
     const stream = await LiveStream.create({
       userId,
@@ -2848,6 +2849,8 @@ app.get('/posts/sorted', async (req, res) => {
       case 'hot':
         // Hot algorithm: recent posts with high engagement
         // Simple version: score based on likes, comments, shares and recency
+        // Note: For production with large datasets, consider pre-calculating this score
+        // in a separate 'hotScore' field or adding indexes for better performance
         order = [
           [sequelize.literal('(likes + comments * 2 + shares * 3) / EXTRACT(HOUR FROM (NOW() - "Post"."createdAt")) + 1'), 'DESC']
         ];
