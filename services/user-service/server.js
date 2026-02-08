@@ -399,8 +399,19 @@ app.delete('/skills/:id', async (req, res) => {
 // Endorse skill
 app.post('/skills/:skillId/endorse', async (req, res) => {
   try {
-    const { endorserId } = req.body;
     const { skillId } = req.params;
+    
+    // Get authenticated user ID from header set by gateway
+    const endorserId = req.header('x-user-id');
+    if (!endorserId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Verify skill exists first
+    const skill = await Skill.findByPk(skillId);
+    if (!skill) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
 
     // Check if already endorsed
     const existing = await Endorsement.findOne({ where: { skillId, endorserId } });
@@ -412,10 +423,7 @@ app.post('/skills/:skillId/endorse', async (req, res) => {
     await Endorsement.create({ skillId, endorserId });
 
     // Increment endorsement count
-    const skill = await Skill.findByPk(skillId);
-    if (skill) {
-      await skill.increment('endorsements');
-    }
+    await skill.increment('endorsements');
 
     res.status(201).json({ message: 'Skill endorsed successfully' });
   } catch (error) {

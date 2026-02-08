@@ -3,6 +3,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const { Sequelize, DataTypes } = require('sequelize');
 const Redis = require('ioredis');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
@@ -263,17 +264,35 @@ app.get('/conversations/:conversationId/messages', async (req, res) => {
 
 // ========== DISCORD-INSPIRED: SERVERS ==========
 
+// Helper: Generate secure invite code
+function generateInviteCode() {
+  return crypto.randomBytes(6).toString('base64').replace(/[+/=]/g, '').substring(0, 8);
+}
+
 // Create server
 app.post('/servers', async (req, res) => {
   try {
     const { name, description, icon } = req.body;
-    const ownerId = req.user && req.user.id;
-
+    
+    // Get authenticated user ID from header set by gateway
+    const ownerId = req.header('x-user-id');
     if (!ownerId) {
       return res.status(401).json({ error: 'Authentication required to create a server' });
     }
-    // Generate invite code
-    const inviteCode = Math.random().toString(36).substring(7);
+
+    // Generate secure invite code with uniqueness check
+    let inviteCode;
+    let attempts = 0;
+    while (attempts < 5) {
+      inviteCode = generateInviteCode();
+      const existing = await Server.findOne({ where: { inviteCode } });
+      if (!existing) break;
+      attempts++;
+    }
+    
+    if (attempts === 5) {
+      return res.status(500).json({ error: 'Failed to generate unique invite code' });
+    }
 
     const server = await Server.create({
       name,
@@ -310,8 +329,9 @@ app.get('/servers/:id', async (req, res) => {
     const server = await Server.findByPk(req.params.id, {
       include: [
         { model: Conversation },
-        { model: Role, order: [['position', 'DESC']] }
-      ]
+        { model: Role }
+      ],
+      order: [[Role, 'position', 'DESC']]
     });
 
     if (!server) {

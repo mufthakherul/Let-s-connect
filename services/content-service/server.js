@@ -137,6 +137,13 @@ const Reaction = sequelize.define('Reaction', {
     type: DataTypes.ENUM('like', 'love', 'haha', 'wow', 'sad', 'angry'),
     allowNull: false
   }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['postId', 'userId']
+    }
+  ]
 });
 
 // NEW: Twitter-inspired Hashtags Model
@@ -167,6 +174,13 @@ const PostHashtag = sequelize.define('PostHashtag', {
     type: DataTypes.UUID,
     allowNull: false
   }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['postId', 'hashtagId']
+    }
+  ]
 });
 
 // NEW: YouTube-inspired Channels Model
@@ -278,6 +292,13 @@ const Vote = sequelize.define('Vote', {
     type: DataTypes.INTEGER, // 1 for upvote, -1 for downvote
     allowNull: false
   }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['postId', 'userId']
+    }
+  ]
 });
 
 // Relationships
@@ -380,8 +401,8 @@ app.post('/posts', async (req, res) => {
       communityId
     });
 
-    // Extract and save hashtags
-    const tags = extractHashtags(content);
+    // Extract and save hashtags (deduplicate first)
+    const tags = [...new Set(extractHashtags(content))];
     for (const tag of tags) {
       let hashtag = await Hashtag.findOne({ where: { tag } });
       if (!hashtag) {
@@ -488,8 +509,14 @@ app.get('/posts/:postId/comments', async (req, res) => {
 // Add/Update reaction to post
 app.post('/posts/:postId/reactions', async (req, res) => {
   try {
-    const { userId, type } = req.body;
+    const { type } = req.body;
     const { postId } = req.params;
+    
+    // Get authenticated user ID from header set by gateway
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
     // Check if user already reacted
     const existing = await Reaction.findOne({ where: { postId, userId } });
@@ -546,21 +573,22 @@ app.get('/hashtags/:tag/posts', async (req, res) => {
     const tag = req.params.tag.toLowerCase().replace(/^#/, '');
 
     const hashtag = await Hashtag.findOne({ 
-      where: { tag },
-      include: [{
-        model: Post,
-        where: { isPublished: true },
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        order: [['createdAt', 'DESC']]
-      }]
+      where: { tag }
     });
 
     if (!hashtag) {
       return res.json({ tag, posts: [] });
     }
 
-    res.json({ tag, posts: hashtag.Posts || [], total: hashtag.postCount });
+    // Query posts separately with proper ordering and pagination
+    const posts = await hashtag.getPosts({
+      where: { isPublished: true },
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.json({ tag, posts: posts || [], total: hashtag.postCount });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch hashtag posts' });

@@ -361,7 +361,18 @@ app.put('/orders/:id/status', async (req, res) => {
 // Add item to cart
 app.post('/cart', async (req, res) => {
   try {
-    const { userId, productId, quantity = 1 } = req.body;
+    const { productId, quantity = 1 } = req.body;
+    
+    // Get authenticated user ID from header set by gateway
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Validate quantity
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return res.status(400).json({ error: 'Quantity must be a positive integer' });
+    }
 
     // Check if product exists
     const product = await Product.findByPk(productId);
@@ -396,6 +407,17 @@ app.post('/cart', async (req, res) => {
 // Get user's cart
 app.get('/cart/:userId', async (req, res) => {
   try {
+    // Get authenticated user ID from header set by gateway
+    const authUserId = req.header('x-user-id');
+    if (!authUserId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Ensure user can only access their own cart
+    if (authUserId !== req.params.userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
     const cartItems = await CartItem.findAll({
       where: { userId: req.params.userId },
       include: [Product]

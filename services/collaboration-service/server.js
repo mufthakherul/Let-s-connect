@@ -349,7 +349,13 @@ app.get('/tasks', async (req, res) => {
 // Create issue
 app.post('/issues', async (req, res) => {
   try {
-    const { projectId, title, description, creatorId, assigneeId, labels, milestone } = req.body;
+    const { projectId, title, description, assigneeId, labels, milestone } = req.body;
+    
+    // Get authenticated user ID from header set by gateway
+    const creatorId = req.header('x-user-id');
+    if (!creatorId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
     const issue = await Issue.create({
       projectId,
@@ -395,7 +401,8 @@ app.get('/issues', async (req, res) => {
 app.get('/issues/:id', async (req, res) => {
   try {
     const issue = await Issue.findByPk(req.params.id, {
-      include: [{ model: IssueComment, order: [['createdAt', 'ASC']] }]
+      include: [{ model: IssueComment }],
+      order: [[IssueComment, 'createdAt', 'ASC']]
     });
 
     if (!issue) {
@@ -510,8 +517,12 @@ app.get('/projects/:id', async (req, res) => {
   try {
     const project = await Project.findByPk(req.params.id, {
       include: [
-        { model: Issue, order: [['createdAt', 'DESC']] },
-        { model: Task, order: [['createdAt', 'DESC']] }
+        { model: Issue },
+        { model: Task }
+      ],
+      order: [
+        [Issue, 'createdAt', 'DESC'],
+        [Task, 'createdAt', 'DESC']
       ]
     });
 
