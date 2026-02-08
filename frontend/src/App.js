@@ -9,7 +9,7 @@ import {
   Brightness4, Brightness7, Menu as MenuIcon, Home as HomeIcon,
   VideoLibrary, ShoppingCart, Description, Chat as ChatIcon,
   Person, Notifications, ExitToApp, Login as LoginIcon,
-  PersonAdd, Feed as FeedIcon, Group as GroupIcon
+  PersonAdd, Feed as FeedIcon, Group as GroupIcon, Bookmark
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -26,6 +26,7 @@ import Docs from './components/Docs';
 import Chat from './components/Chat';
 import Profile from './components/Profile';
 import Groups from './components/Groups';
+import Bookmarks from './components/Bookmarks';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -108,6 +109,7 @@ function App() {
     { label: 'Docs', path: '/docs', icon: <Description />, public: true },
     { label: 'Feed', path: '/feed', icon: <FeedIcon />, public: false },
     { label: 'Groups', path: '/groups', icon: <GroupIcon />, public: false },
+    { label: 'Bookmarks', path: '/bookmarks', icon: <Bookmark />, public: false },
     { label: 'Chat', path: '/chat', icon: <ChatIcon />, public: false },
     { label: 'Profile', path: '/profile', icon: <Person />, public: false },
   ];
@@ -290,6 +292,10 @@ function App() {
               <Route 
                 path="/groups" 
                 element={internalUser ? <Groups user={internalUser} /> : <Navigate to="/login" />} 
+              />
+              <Route 
+                path="/bookmarks" 
+                element={internalUser ? <Bookmarks user={internalUser} /> : <Navigate to="/login" />} 
               />
               <Route 
                 path="/chat" 
