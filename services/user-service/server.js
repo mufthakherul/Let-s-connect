@@ -230,9 +230,16 @@ app.post('/register', async (req, res) => {
 
     const { username, email, password, firstName, lastName } = req.body;
 
-    const existingUser = await User.findOne({ where: { email } });
-    if (existingUser) {
-      return res.status(409).json({ error: 'User already exists' });
+    // Check for existing email
+    const existingEmail = await User.findOne({ where: { email } });
+    if (existingEmail) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+
+    // Check for existing username
+    const existingUsername = await User.findOne({ where: { username } });
+    if (existingUsername) {
+      return res.status(409).json({ error: 'Username already taken' });
     }
 
     const user = await User.create({
@@ -259,8 +266,8 @@ app.post('/register', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Registration failed' });
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Registration failed. Please try again.' });
   }
 });
 
@@ -430,13 +437,13 @@ app.delete('/skills/:id', async (req, res) => {
 app.post('/skills/:skillId/endorse', async (req, res) => {
   try {
     const { skillId } = req.params;
-    
+
     // Get authenticated user ID from header set by gateway
     const endorserId = req.header('x-user-id');
     if (!endorserId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    
+
     // Verify skill exists first
     const skill = await Skill.findByPk(skillId);
     if (!skill) {

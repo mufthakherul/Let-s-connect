@@ -1,5 +1,5 @@
 const express = require('express');
-const { createProxyMiddleware } = require('http-proxy-middleware');
+const proxy = require('express-http-proxy');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -25,13 +25,13 @@ app.use(limiter);
 // Authentication middleware for private routes
 const authMiddleware = (req, res, next) => {
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader) {
     return res.status(401).json({ error: 'No token provided' });
   }
 
   const token = authHeader.split(' ')[1];
-  
+
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
@@ -77,83 +77,61 @@ const isPublicRoute = (path) => {
 // Proxy middleware with conditional authentication
 const createAuthProxy = (target) => {
   return (req, res, next) => {
-    if (isPublicRoute(req.path)) {
+    if (isPublicRoute(req.originalUrl)) {
       return next();
     }
-    authMiddleware(req, res, next);
+    return authMiddleware(req, res, next);
   };
 };
 
 // User Service routes
-app.use('/api/user', 
-  createAuthProxy(services.user),
-  createProxyMiddleware({ 
-    target: services.user,
-    changeOrigin: true,
-    pathRewrite: { '^/api/user': '' }
-  })
-);
+app.use('/api/user', createAuthProxy(services.user), proxy(services.user, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl.replace('/api/user', '');
+  }
+}));
 
 // Content Service routes
-app.use('/api/content', 
-  createAuthProxy(services.content),
-  createProxyMiddleware({ 
-    target: services.content,
-    changeOrigin: true,
-    pathRewrite: { '^/api/content': '' }
-  })
-);
+app.use('/api/content', createAuthProxy(services.content), proxy(services.content, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl.replace('/api/content', '');
+  }
+}));
 
 // Messaging Service routes
-app.use('/api/messaging', 
-  authMiddleware,
-  createProxyMiddleware({ 
-    target: services.messaging,
-    changeOrigin: true,
-    pathRewrite: { '^/api/messaging': '' },
-    ws: true
-  })
-);
+app.use('/api/messaging', createAuthProxy(services.messaging), proxy(services.messaging, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl.replace('/api/messaging', '');
+  }
+}));
 
 // Collaboration Service routes
-app.use('/api/collaboration', 
-  createAuthProxy(services.collaboration),
-  createProxyMiddleware({ 
-    target: services.collaboration,
-    changeOrigin: true,
-    pathRewrite: { '^/api/collaboration': '' }
-  })
-);
+app.use('/api/collaboration', createAuthProxy(services.collaboration), proxy(services.collaboration, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl.replace('/api/collaboration', '');
+  }
+}));
 
 // Media Service routes
-app.use('/api/media', 
-  createAuthProxy(services.media),
-  createProxyMiddleware({ 
-    target: services.media,
-    changeOrigin: true,
-    pathRewrite: { '^/api/media': '' }
-  })
-);
+app.use('/api/media', createAuthProxy(services.media), proxy(services.media, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl.replace('/api/media', '');
+  }
+}));
 
 // Shop Service routes
-app.use('/api/shop', 
-  createAuthProxy(services.shop),
-  createProxyMiddleware({ 
-    target: services.shop,
-    changeOrigin: true,
-    pathRewrite: { '^/api/shop': '' }
-  })
-);
+app.use('/api/shop', createAuthProxy(services.shop), proxy(services.shop, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl.replace('/api/shop', '');
+  }
+}));
 
 // AI Service routes
-app.use('/api/ai', 
-  authMiddleware,
-  createProxyMiddleware({ 
-    target: services.ai,
-    changeOrigin: true,
-    pathRewrite: { '^/api/ai': '' }
-  })
-);
+app.use('/api/ai', createAuthProxy(services.ai), proxy(services.ai, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl.replace('/api/ai', '');
+  }
+}));
 
 // Error handling
 app.use((err, req, res, next) => {

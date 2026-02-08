@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, TextField, Button, Typography, Alert } from '@mui/material';
-import axios from 'axios';
+import api from '../utils/api';
 
 function Register({ setUser }) {
   const [formData, setFormData] = useState({
@@ -23,7 +23,7 @@ function Register({ setUser }) {
     setError('');
 
     try {
-      const response = await axios.post('/api/user/register', formData);
+      const response = await api.post('/user/register', formData);
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
       setUser(response.data.user);
