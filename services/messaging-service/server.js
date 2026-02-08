@@ -1103,13 +1103,8 @@ app.get('/servers/:serverId/webhooks', async (req, res) => {
     const sanitizedWebhooks = webhooks.map((webhook) => {
       const data = webhook.toJSON ? webhook.toJSON() : webhook;
       if ('token' in data) {
-        // Only show first and last 4 characters
-        const token = data.token;
-        if (token && token.length > 12) {
-          data.token = `${token.substring(0, 4)}...${token.substring(token.length - 4)}`;
-        } else {
-          data.token = '***masked***';
-        }
+        // Always use consistent masking regardless of token length
+        data.token = '***masked***';
       }
       return data;
     });
