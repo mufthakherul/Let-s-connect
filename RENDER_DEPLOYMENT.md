@@ -287,7 +287,7 @@ Deploy each service with its specific settings:
   - Use the "Dockerfile Path" column value (the full path with filename) for "Dockerfile Path"
   - Example: Context = `services/user-service`, Dockerfile Path = `services/user-service/Dockerfile`
 - For **Node.js deployment**: Use the "Docker Context" column value as "Root Directory" and ignore Dockerfile Path
-- All services use the same base environment variables plus their specific PORT and DATABASE_SCHEMA
+- All services share the same base environment variables; each service must define its own `PORT` and `DATABASE_URL` (you can use a different `DATABASE_URL` per service, including schema/search_path, if you want per-service schemas).
 
 **Important for API Gateway:** Add these ADDITIONAL environment variables:
 ```bash
