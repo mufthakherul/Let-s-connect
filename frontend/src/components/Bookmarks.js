@@ -43,7 +43,7 @@ const Bookmarks = ({ user }) => {
       await axios.delete(`${API_URL}/api/content/bookmarks/${bookmarkId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       setBookmarks(bookmarks.filter(b => b.id !== bookmarkId));
       toast.success('Bookmark removed');
     } catch (error) {

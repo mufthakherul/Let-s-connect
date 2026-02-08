@@ -55,7 +55,7 @@ const Groups = ({ user }) => {
         newGroup,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       setGroups([response.data, ...groups]);
       setOpenDialog(false);
       setNewGroup({ name: '', description: '', privacy: 'public', category: 'general' });
@@ -74,9 +74,9 @@ const Groups = ({ user }) => {
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
-      setGroups(groups.map(g => 
-        g.id === groupId 
+
+      setGroups(groups.map(g =>
+        g.id === groupId
           ? { ...g, isMember: true, memberCount: g.memberCount + 1 }
           : g
       ));
@@ -165,17 +165,17 @@ const Groups = ({ user }) => {
                       </Box>
                     </Box>
                   </Box>
-                  
+
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     {group.description || 'No description'}
                   </Typography>
 
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
                     <Chip label={group.category} size="small" variant="outlined" />
-                    <Chip 
-                      label={`${formatNumber(group.memberCount)} members`} 
-                      size="small" 
-                      color="primary" 
+                    <Chip
+                      label={`${formatNumber(group.memberCount)} members`}
+                      size="small"
+                      color="primary"
                       variant="outlined"
                     />
                   </Box>
@@ -191,9 +191,9 @@ const Groups = ({ user }) => {
                       Member
                     </Button>
                   ) : (
-                    <Button 
-                      size="small" 
-                      variant="contained" 
+                    <Button
+                      size="small"
+                      variant="contained"
                       fullWidth
                       onClick={() => handleJoinGroup(group.id)}
                     >
@@ -219,7 +219,7 @@ const Groups = ({ user }) => {
             onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
             sx={{ mb: 2 }}
           />
-          
+
           <TextField
             margin="dense"
             label="Description"
