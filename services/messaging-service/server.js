@@ -266,8 +266,12 @@ app.get('/conversations/:conversationId/messages', async (req, res) => {
 // Create server
 app.post('/servers', async (req, res) => {
   try {
-    const { name, description, ownerId, icon } = req.body;
+    const { name, description, icon } = req.body;
+    const ownerId = req.user && req.user.id;
 
+    if (!ownerId) {
+      return res.status(401).json({ error: 'Authentication required to create a server' });
+    }
     // Generate invite code
     const inviteCode = Math.random().toString(36).substring(7);
 
