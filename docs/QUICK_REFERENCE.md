@@ -123,7 +123,7 @@ GET    /api/content/hashtags/trending        - Trending hashtags
 #### Communities
 ```
 POST   /api/content/communities              - Create community
-POST   /api/communities/:name/join           - Join community
+POST   /api/content/communities/:name/join   - Join community
 GET    /api/content/communities              - List communities
 ```
 
