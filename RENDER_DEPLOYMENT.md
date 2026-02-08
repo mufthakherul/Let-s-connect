@@ -281,7 +281,10 @@ Deploy each service with its specific settings:
 | API Gateway | `services/api-gateway` | `services/api-gateway/Dockerfile` | 8000 | N/A (proxy layer) |
 
 **Notes:**
-- For **Docker deployment**: Use the "Docker Context" column value for both "Docker Build Context Directory" and in the "Dockerfile Path"
+- For **Docker deployment**: 
+  - Use the "Docker Context" column value for "Docker Build Context Directory"
+  - Use the "Dockerfile Path" column value (the full path with filename) for "Dockerfile Path"
+  - Example: Context = `services/user-service`, Dockerfile Path = `services/user-service/Dockerfile`
 - For **Node.js deployment**: Use the "Docker Context" column value as "Root Directory" and ignore Dockerfile Path
 - All services use the same base environment variables plus their specific PORT and DATABASE_SCHEMA
 
@@ -635,7 +638,6 @@ After custom domain is active:
 3. **Dockerfile Path Issues:**
    - Ensure "Docker Build Context Directory" and "Dockerfile Path" are consistent
    - Example: If context is `services/user-service`, Dockerfile path should be `services/user-service/Dockerfile`
-   - Or use `.` as context and `Dockerfile` as path (relative to service directory)
 
 **Docker Container Crashes:**
 
@@ -852,8 +854,7 @@ docker run -p 8001:8001 \
   -e DATABASE_SCHEMA=users \
   lets-connect-user-service
 
-# Test entire stack with docker-compose
-cd /home/runner/work/Let-s-connect/Let-s-connect
+# Test entire stack with docker-compose (run from project root)
 docker-compose up -d
 
 # View logs
