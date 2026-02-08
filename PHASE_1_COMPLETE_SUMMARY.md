@@ -313,7 +313,7 @@ These are expected to be implemented separately as frontend work.
 2. **Voice Channels**: Placeholder only, requires WebRTC implementation
 3. **Video Recommendations**: Simple similarity-based, not ML-powered
 4. **Server Categories**: Basic implementation, can be enhanced
-5. **Webhooks**: Token generation is simple, should use crypto.randomBytes in production
+5. **Webhooks**: Tokens are generated with crypto.randomBytes(32) and masked in list responses; production hardening (token rotation, delivery retries, signature verification) is still recommended
 
 ---
 

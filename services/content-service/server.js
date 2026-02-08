@@ -876,7 +876,12 @@ function extractHashtags(content) {
 // Create post (requires auth via gateway) - Updated with hashtag support
 app.post('/posts', async (req, res) => {
   try {
-    const { userId, content, type, mediaUrls, visibility, communityId, groupId, pageId, flairId, characterLimit } = req.body;
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { content, type, mediaUrls, visibility, communityId, groupId, pageId, flairId, characterLimit } = req.body;
 
     // Twitter-style character limit validation (default 280, can be overridden)
     const limit = characterLimit || 280;
@@ -2338,8 +2343,10 @@ app.post('/pages/:pageId/posts', async (req, res) => {
       return res.status(400).json({ error: 'content is required' });
     }
 
-    // Note: Page verification would need to be done against user-service
-    // For now, we'll create the post and let the API gateway handle auth
+    // Verify page exists (Note: In a full implementation, this would verify via user-service
+    // that the user is an admin of the page. For now, we create the post assuming the
+    // API gateway or a separate middleware handles page admin verification.)
+    
     const post = await Post.create({
       userId,
       pageId,
@@ -2359,7 +2366,18 @@ app.post('/pages/:pageId/posts', async (req, res) => {
 // User Reaction History - Get all reactions by a user
 app.get('/users/:userId/reactions', async (req, res) => {
   try {
+    const requesterId = req.header('x-user-id');
+    if (!requesterId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { userId } = req.params;
+    
+    // Only allow users to fetch their own reaction history
+    if (requesterId !== userId) {
+      return res.status(403).json({ error: 'Forbidden: Can only view your own reaction history' });
+    }
+
     const { page = 1, limit = 50 } = req.query;
     const offset = (page - 1) * limit;
 
@@ -2450,18 +2468,23 @@ app.get('/videos/:videoId/recommendations', async (req, res) => {
 // Group Files - Get files in a group
 app.get('/groups/:groupId/files', async (req, res) => {
   try {
-    const userId = req.header('x-user-id');
     const { groupId } = req.params;
     const { page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
 
-    // Verify group membership
+    // Verify group exists and check privacy
     const group = await Group.findByPk(groupId);
     if (!group) {
       return res.status(404).json({ error: 'Group not found' });
     }
 
-    if (group.privacy !== 'public' && userId) {
+    // For non-public groups, require authentication and membership
+    if (group.privacy !== 'public') {
+      const userId = req.header('x-user-id');
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized: Authentication required for private group files' });
+      }
+
       const membership = await GroupMember.findOne({
         where: { userId, groupId, status: 'active' }
       });
@@ -2533,11 +2556,16 @@ app.delete('/groups/:groupId/files/:fileId', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { fileId } = req.params;
+    const { groupId, fileId } = req.params;
 
     const file = await GroupFile.findByPk(fileId);
     if (!file) {
       return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Ensure the file belongs to the group specified in the route
+    if (String(file.groupId) !== String(groupId)) {
+      return res.status(404).json({ error: 'File not found in this group' });
     }
 
     // Check if user is the file owner or group admin
@@ -2562,6 +2590,27 @@ app.get('/groups/:groupId/events', async (req, res) => {
   try {
     const { groupId } = req.params;
     const { upcoming = 'true' } = req.query;
+
+    // Verify group exists and check privacy
+    const group = await Group.findByPk(groupId);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    // For non-public groups, require authentication and membership
+    if (group.privacy !== 'public') {
+      const userId = req.header('x-user-id');
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized: Authentication required for private group events' });
+      }
+
+      const membership = await GroupMember.findOne({
+        where: { userId, groupId, status: 'active' }
+      });
+      if (!membership) {
+        return res.status(403).json({ error: 'Not a member of this group' });
+      }
+    }
 
     const whereClause = { groupId };
     if (upcoming === 'true') {
@@ -2642,6 +2691,21 @@ app.post('/events/:eventId/rsvp', async (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
+    // Verify group membership for private/secret groups
+    const group = await Group.findByPk(event.groupId);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    if (group.privacy !== 'public') {
+      const membership = await GroupMember.findOne({
+        where: { userId, groupId: group.id, status: 'active' }
+      });
+      if (!membership) {
+        return res.status(403).json({ error: 'Must be a group member to RSVP to this event' });
+      }
+    }
+
     // Check or create RSVP
     const [attendee, created] = await GroupEventAttendee.findOrCreate({
       where: { eventId, userId },
@@ -2681,41 +2745,61 @@ app.post('/comments/:commentId/vote', async (req, res) => {
       return res.status(400).json({ error: 'Invalid vote value. Use 1 for upvote, -1 for downvote' });
     }
 
-    const comment = await Comment.findByPk(commentId);
-    if (!comment) {
+    // Use transaction to ensure atomic updates
+    const result = await sequelize.transaction(async (t) => {
+      const comment = await Comment.findByPk(commentId, {
+        transaction: t,
+        lock: t.LOCK.UPDATE
+      });
+
+      if (!comment) {
+        return { type: 'not_found' };
+      }
+
+      // Check if user already voted
+      let vote = await CommentVote.findOne({
+        where: { commentId, userId },
+        transaction: t,
+        lock: t.LOCK.UPDATE
+      });
+
+      if (vote) {
+        const oldValue = vote.value;
+        if (oldValue === value) {
+          // Remove vote
+          await vote.destroy({ transaction: t });
+          await comment.decrement(value === 1 ? 'upvotes' : 'downvotes', { transaction: t });
+          await comment.decrement('score', { by: value, transaction: t });
+          await comment.reload({ transaction: t });
+          return { type: 'removed', comment };
+        } else {
+          // Change vote
+          vote.value = value;
+          await vote.save({ transaction: t });
+          await comment.increment(value === 1 ? 'upvotes' : 'downvotes', { transaction: t });
+          await comment.decrement(oldValue === 1 ? 'upvotes' : 'downvotes', { transaction: t });
+          await comment.increment('score', { by: value * 2, transaction: t }); // +2 or -2
+        }
+      } else {
+        // Create new vote
+        vote = await CommentVote.create({ commentId, userId, value }, { transaction: t });
+        await comment.increment(value === 1 ? 'upvotes' : 'downvotes', { transaction: t });
+        await comment.increment('score', { by: value, transaction: t });
+      }
+
+      await comment.reload({ transaction: t });
+      return { type: 'voted', vote, comment };
+    });
+
+    if (result.type === 'not_found') {
       return res.status(404).json({ error: 'Comment not found' });
     }
 
-    // Check if user already voted
-    let vote = await CommentVote.findOne({
-      where: { commentId, userId }
-    });
-
-    if (vote) {
-      const oldValue = vote.value;
-      if (oldValue === value) {
-        // Remove vote
-        await vote.destroy();
-        await comment.decrement(value === 1 ? 'upvotes' : 'downvotes');
-        await comment.decrement('score', { by: value });
-        return res.json({ message: 'Vote removed', vote: null });
-      } else {
-        // Change vote
-        vote.value = value;
-        await vote.save();
-        await comment.increment(value === 1 ? 'upvotes' : 'downvotes');
-        await comment.decrement(oldValue === 1 ? 'upvotes' : 'downvotes');
-        await comment.increment('score', { by: value * 2 }); // +2 or -2
-      }
-    } else {
-      // Create new vote
-      vote = await CommentVote.create({ commentId, userId, value });
-      await comment.increment(value === 1 ? 'upvotes' : 'downvotes');
-      await comment.increment('score', { by: value });
+    if (result.type === 'removed') {
+      return res.json({ message: 'Vote removed', vote: null, comment: result.comment });
     }
 
-    await comment.reload();
-    res.json({ vote, comment });
+    res.json({ vote: result.vote, comment: result.comment });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to vote on comment' });
@@ -2852,7 +2936,7 @@ app.get('/posts/sorted', async (req, res) => {
         // Note: For production with large datasets, consider pre-calculating this score
         // in a separate 'hotScore' field or adding indexes for better performance
         order = [
-          [sequelize.literal('(likes + comments * 2 + shares * 3) / EXTRACT(HOUR FROM (NOW() - "Post"."createdAt")) + 1'), 'DESC']
+          [sequelize.literal('(likes + comments * 2 + shares * 3) / (EXTRACT(HOUR FROM (NOW() - "Post"."createdAt")) + 1)'), 'DESC']
         ];
         break;
       case 'top':
