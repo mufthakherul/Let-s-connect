@@ -114,12 +114,13 @@ const Issue = sequelize.define('Issue', {
     allowNull: false
   },
   assigneeId: DataTypes.UUID,
+  milestoneId: DataTypes.UUID, // Reference to Milestone model
   status: {
     type: DataTypes.ENUM('open', 'in_progress', 'closed'),
     defaultValue: 'open'
   },
   labels: DataTypes.ARRAY(DataTypes.STRING),
-  milestone: DataTypes.STRING,
+  milestone: DataTypes.STRING, // Legacy field, kept for backward compatibility
   comments: {
     type: DataTypes.INTEGER,
     defaultValue: 0
@@ -170,11 +171,45 @@ const Project = sequelize.define('Project', {
   members: DataTypes.ARRAY(DataTypes.UUID)
 });
 
+// NEW: GitHub-inspired Milestones Model
+const Milestone = sequelize.define('Milestone', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  projectId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  dueDate: DataTypes.DATE,
+  status: {
+    type: DataTypes.ENUM('open', 'closed'),
+    defaultValue: 'open'
+  },
+  completedIssues: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  totalIssues: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+});
+
 // Relationships
 Issue.hasMany(IssueComment, { foreignKey: 'issueId' });
 IssueComment.belongsTo(Issue, { foreignKey: 'issueId' });
 Project.hasMany(Issue, { foreignKey: 'projectId' });
 Project.hasMany(Task, { foreignKey: 'projectId' });
+Project.hasMany(Milestone, { foreignKey: 'projectId' });
+Milestone.hasMany(Issue, { foreignKey: 'milestoneId' });
+Issue.belongsTo(Milestone, { foreignKey: 'milestoneId' });
 
 sequelize.sync();
 
@@ -550,6 +585,216 @@ app.put('/projects/:id', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to update project' });
+  }
+});
+
+// ========== MILESTONE ENDPOINTS (GitHub-inspired) ==========
+
+// Create a milestone
+app.post('/milestones', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { projectId, title, description, dueDate } = req.body;
+    
+    if (!projectId || !title) {
+      return res.status(400).json({ error: 'projectId and title are required' });
+    }
+
+    // Verify project exists and user has access
+    const project = await Project.findByPk(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (project.ownerId !== userId && !(project.members || []).includes(userId)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const milestone = await Milestone.create({
+      projectId,
+      title,
+      description,
+      dueDate
+    });
+
+    res.json(milestone);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create milestone' });
+  }
+});
+
+// Get all milestones for a project
+app.get('/projects/:projectId/milestones', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { status } = req.query;
+
+    const where = { projectId };
+    if (status) {
+      where.status = status;
+    }
+
+    const milestones = await Milestone.findAll({
+      where,
+      order: [['dueDate', 'ASC']],
+      include: [{
+        model: Issue,
+        attributes: ['id', 'title', 'status']
+      }]
+    });
+
+    res.json(milestones);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch milestones' });
+  }
+});
+
+// Get a single milestone with details
+app.get('/milestones/:id', async (req, res) => {
+  try {
+    const milestone = await Milestone.findByPk(req.params.id, {
+      include: [{
+        model: Issue,
+        include: [{ model: IssueComment }]
+      }]
+    });
+
+    if (!milestone) {
+      return res.status(404).json({ error: 'Milestone not found' });
+    }
+
+    res.json(milestone);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch milestone' });
+  }
+});
+
+// Update a milestone
+app.put('/milestones/:id', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const milestone = await Milestone.findByPk(req.params.id);
+    if (!milestone) {
+      return res.status(404).json({ error: 'Milestone not found' });
+    }
+
+    // Verify user has access to the project
+    const project = await Project.findByPk(milestone.projectId);
+    if (project.ownerId !== userId && !(project.members || []).includes(userId)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    await milestone.update(req.body);
+    res.json(milestone);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update milestone' });
+  }
+});
+
+// Delete a milestone
+app.delete('/milestones/:id', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const milestone = await Milestone.findByPk(req.params.id);
+    if (!milestone) {
+      return res.status(404).json({ error: 'Milestone not found' });
+    }
+
+    // Verify user has access to the project
+    const project = await Project.findByPk(milestone.projectId);
+    if (project.ownerId !== userId && !(project.members || []).includes(userId)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Remove milestone from issues
+    await Issue.update(
+      { milestoneId: null },
+      { where: { milestoneId: milestone.id } }
+    );
+
+    await milestone.destroy();
+    res.json({ message: 'Milestone deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete milestone' });
+  }
+});
+
+// Assign issue to milestone
+app.post('/issues/:issueId/milestone', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { issueId } = req.params;
+    const { milestoneId } = req.body;
+
+    const issue = await Issue.findByPk(issueId);
+    if (!issue) {
+      return res.status(404).json({ error: 'Issue not found' });
+    }
+
+    // Authorize user on the issue's project
+    const project = await Project.findByPk(issue.projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (project.ownerId !== userId && !(project.members || []).includes(userId)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Handle removing old milestone
+    if (issue.milestoneId) {
+      const oldMilestone = await Milestone.findByPk(issue.milestoneId);
+      if (oldMilestone) {
+        await oldMilestone.decrement('totalIssues');
+        if (issue.status === 'closed') {
+          await oldMilestone.decrement('completedIssues');
+        }
+      }
+    }
+
+    // Verify and assign new milestone
+    if (milestoneId) {
+      const milestone = await Milestone.findByPk(milestoneId);
+      if (!milestone) {
+        return res.status(404).json({ error: 'Milestone not found' });
+      }
+
+      if (milestone.projectId !== issue.projectId) {
+        return res.status(400).json({ error: 'Milestone does not belong to the same project as the issue' });
+      }
+
+      await milestone.increment('totalIssues');
+      if (issue.status === 'closed') {
+        await milestone.increment('completedIssues');
+      }
+    }
+
+    await issue.update({ milestoneId });
+    res.json(issue);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to assign milestone' });
   }
 });
 
