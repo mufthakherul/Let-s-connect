@@ -829,13 +829,6 @@ app.get('/posts/:postId/votes', async (req, res) => {
   }
 });
 
-// Helper: Extract hashtags from content
-function extractHashtags(content) {
-  const hashtagRegex = /#[\w]+/g;
-  const matches = content.match(hashtagRegex);
-  return matches ? matches.map(tag => tag.toLowerCase().substring(1)) : [];
-}
-
 app.listen(PORT, () => {
   console.log(`Content service running on port ${PORT}`);
 });
