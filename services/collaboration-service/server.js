@@ -379,13 +379,29 @@ app.get('/tasks', async (req, res) => {
   }
 });
 
+// Update task (for board movement)
+app.put('/tasks/:id', async (req, res) => {
+  try {
+    const task = await Task.findByPk(req.params.id);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    await task.update(req.body);
+    res.json(task);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
 // ========== GITHUB-INSPIRED: ISSUES ==========
 
 // Create issue
 app.post('/issues', async (req, res) => {
   try {
     const { projectId, title, description, assigneeId, labels, milestone } = req.body;
-    
+
     // Get authenticated user ID from header set by gateway
     const creatorId = req.header('x-user-id');
     if (!creatorId) {
@@ -599,7 +615,7 @@ app.post('/milestones', async (req, res) => {
     }
 
     const { projectId, title, description, dueDate } = req.body;
-    
+
     if (!projectId || !title) {
       return res.status(400).json({ error: 'projectId and title are required' });
     }

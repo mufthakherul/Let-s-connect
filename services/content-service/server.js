@@ -795,7 +795,7 @@ sequelize.sync().then(async () => {
         defaults: awardData
       });
     }
-    
+
     console.log('Default awards initialized');
   } catch (error) {
     console.error('Error initializing awards:', error);
@@ -886,7 +886,7 @@ app.post('/posts', async (req, res) => {
     // Twitter-style character limit validation (default 280, can be overridden)
     const limit = characterLimit || 280;
     if (content && content.length > limit && !mediaUrls?.length) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: `Post content exceeds character limit of ${limit} characters`,
         currentLength: content.length,
         limit: limit
@@ -1015,7 +1015,7 @@ app.post('/posts/:postId/reactions', async (req, res) => {
   try {
     const { type } = req.body;
     const { postId } = req.params;
-    
+
     // Get authenticated user ID from header set by gateway
     const userId = req.header('x-user-id');
     if (!userId) {
@@ -1024,7 +1024,7 @@ app.post('/posts/:postId/reactions', async (req, res) => {
 
     // Check if user already reacted
     const existing = await Reaction.findOne({ where: { postId, userId } });
-    
+
     if (existing) {
       if (existing.type === type) {
         // Remove reaction if same type
@@ -1076,7 +1076,7 @@ app.get('/hashtags/:tag/posts', async (req, res) => {
     const offset = (page - 1) * limit;
     const tag = req.params.tag.toLowerCase().replace(/^#/, '');
 
-    const hashtag = await Hashtag.findOne({ 
+    const hashtag = await Hashtag.findOne({
       where: { tag }
     });
 
@@ -1103,7 +1103,7 @@ app.get('/hashtags/:tag/posts', async (req, res) => {
 app.get('/hashtags/trending', async (req, res) => {
   try {
     const { limit = 10 } = req.query;
-    
+
     const hashtags = await Hashtag.findAll({
       order: [['postCount', 'DESC'], ['updatedAt', 'DESC']],
       limit: parseInt(limit)
@@ -1138,7 +1138,33 @@ app.post('/channels', async (req, res) => {
   }
 });
 
-// Get channel
+// Get all channels (list)
+app.get('/channels', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, search } = req.query;
+    const offset = (page - 1) * limit;
+
+    const where = {};
+    if (search) {
+      where.name = { [Op.iLike]: `%${search}%` };
+    }
+
+    const channels = await Channel.findAll({
+      where,
+      order: [['subscribers', 'DESC'], ['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      attributes: ['id', 'name', 'description', 'avatarUrl', 'bannerUrl', 'subscribers', 'createdAt']
+    });
+
+    res.json(channels);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch channels' });
+  }
+});
+
+// Get channel by ID
 app.get('/channels/:id', async (req, res) => {
   try {
     const channel = await Channel.findByPk(req.params.id, {
@@ -1164,7 +1190,7 @@ app.post('/channels/:id/subscribe', async (req, res) => {
 
     // Check if already subscribed
     const existing = await Subscription.findOne({ where: { userId, channelId } });
-    
+
     if (existing) {
       return res.status(400).json({ error: 'Already subscribed' });
     }
@@ -1186,7 +1212,7 @@ app.delete('/channels/:id/subscribe', async (req, res) => {
     const channelId = req.params.id;
 
     const subscription = await Subscription.findOne({ where: { userId, channelId } });
-    
+
     if (!subscription) {
       return res.status(404).json({ error: 'Not subscribed' });
     }
@@ -1367,7 +1393,7 @@ app.get('/posts/:postId/votes', async (req, res) => {
 app.post('/groups', async (req, res) => {
   try {
     const userId = req.header('x-user-id');
-    
+
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -1419,7 +1445,7 @@ app.post('/groups', async (req, res) => {
 app.get('/groups', async (req, res) => {
   try {
     const userId = req.header('x-user-id');
-    
+
     const groups = await Group.findAll({
       order: [['createdAt', 'DESC']]
     });
@@ -1489,7 +1515,7 @@ app.get('/groups/:id', async (req, res) => {
 app.post('/groups/:id/join', async (req, res) => {
   try {
     const userId = req.header('x-user-id');
-    
+
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -1541,7 +1567,7 @@ app.post('/groups/:id/join', async (req, res) => {
 app.post('/groups/:id/leave', async (req, res) => {
   try {
     const userId = req.header('x-user-id');
-    
+
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -1558,7 +1584,7 @@ app.post('/groups/:id/leave', async (req, res) => {
 
     const wasActive = membership.status === 'active';
     await membership.destroy();
-    
+
     // Only decrement member count if the membership was active
     if (wasActive) {
       const group = await Group.findByPk(groupId);
@@ -1578,7 +1604,7 @@ app.post('/groups/:id/leave', async (req, res) => {
 app.get('/groups/:id/members', async (req, res) => {
   try {
     const members = await GroupMember.findAll({
-      where: { 
+      where: {
         groupId: req.params.id,
         status: 'active'
       },
@@ -1598,7 +1624,7 @@ app.get('/groups/:id/members', async (req, res) => {
 app.post('/bookmarks', async (req, res) => {
   try {
     const userId = req.header('x-user-id');
-    
+
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -1637,7 +1663,7 @@ app.post('/bookmarks', async (req, res) => {
 app.get('/bookmarks', async (req, res) => {
   try {
     const userId = req.header('x-user-id');
-    
+
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -1658,18 +1684,18 @@ app.get('/bookmarks', async (req, res) => {
 app.delete('/bookmarks/:id', async (req, res) => {
   try {
     const userId = req.header('x-user-id');
-    
+
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const bookmark = await Bookmark.findOne({
-      where: { 
+      where: {
         id: req.params.id,
         userId: userId
       }
     });
-    
+
     if (!bookmark) {
       return res.status(404).json({ error: 'Bookmark not found' });
     }
@@ -1687,7 +1713,7 @@ app.get('/bookmarks/check', async (req, res) => {
   try {
     const userId = req.header('x-user-id');
     const { itemType, itemId } = req.query;
-    
+
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -1695,7 +1721,7 @@ app.get('/bookmarks/check', async (req, res) => {
     if (!itemType || !itemId) {
       return res.status(400).json({ error: 'itemType and itemId are required' });
     }
-    
+
     const bookmark = await Bookmark.findOne({
       where: { userId, itemType, itemId }
     });
@@ -1735,7 +1761,7 @@ app.post('/threads', async (req, res) => {
           visibility: 'public',
           parentId: parentId
         }, { transaction });
-        
+
         createdPosts.push(post);
         parentId = post.id; // Next tweet will be a reply to this one
       }
@@ -1752,7 +1778,7 @@ app.post('/threads', async (req, res) => {
 app.get('/threads/:postId', async (req, res) => {
   try {
     const { postId } = req.params;
-    
+
     const mainPost = await Post.findByPk(postId);
     if (!mainPost) {
       return res.status(404).json({ error: 'Post not found' });
@@ -1880,7 +1906,7 @@ app.get('/playlists/user/:userId', async (req, res) => {
 app.get('/playlists/:id', async (req, res) => {
   try {
     const requesterId = req.header('x-user-id');
-    
+
     const playlist = await Playlist.findByPk(req.params.id, {
       include: [{
         model: PlaylistItem,
@@ -2079,7 +2105,7 @@ app.post('/posts/:postId/awards', async (req, res) => {
 app.get('/posts/:postId/awards', async (req, res) => {
   try {
     const { postId } = req.params;
-    
+
     const awards = await PostAward.findAll({
       where: { postId },
       include: [{ model: Award }]
@@ -2179,7 +2205,7 @@ app.delete('/posts/:postId/retweet', async (req, res) => {
     }
 
     await retweet.destroy();
-    
+
     const post = await Post.findByPk(postId);
     if (post && post.shares > 0) {
       await post.decrement('shares');
@@ -2196,7 +2222,7 @@ app.delete('/posts/:postId/retweet', async (req, res) => {
 app.get('/posts/:postId/retweets', async (req, res) => {
   try {
     const { postId } = req.params;
-    
+
     const retweets = await Retweet.findAll({
       where: { originalPostId: postId },
       order: [['createdAt', 'DESC']]
@@ -2346,7 +2372,7 @@ app.post('/pages/:pageId/posts', async (req, res) => {
     // Verify page exists (Note: In a full implementation, this would verify via user-service
     // that the user is an admin of the page. For now, we create the post assuming the
     // API gateway or a separate middleware handles page admin verification.)
-    
+
     const post = await Post.create({
       userId,
       pageId,
@@ -2372,7 +2398,7 @@ app.get('/users/:userId/reactions', async (req, res) => {
     }
 
     const { userId } = req.params;
-    
+
     // Only allow users to fetch their own reaction history
     if (requesterId !== userId) {
       return res.status(403).json({ error: 'Forbidden: Can only view your own reaction history' });
@@ -2424,8 +2450,8 @@ app.get('/channels/:channelId/analytics', async (req, res) => {
       subscribers: channel.subscribers,
       videoCount: videos[0]?.dataValues?.videoCount || 0,
       totalViews: videos[0]?.dataValues?.totalViews || 0,
-      averageViewsPerVideo: videos[0]?.dataValues?.videoCount > 0 
-        ? Math.round(videos[0]?.dataValues?.totalViews / videos[0]?.dataValues?.videoCount) 
+      averageViewsPerVideo: videos[0]?.dataValues?.videoCount > 0
+        ? Math.round(videos[0]?.dataValues?.totalViews / videos[0]?.dataValues?.videoCount)
         : 0
     };
 
@@ -2967,7 +2993,7 @@ app.get('/posts/sorted', async (req, res) => {
     }
 
     const posts = await Post.findAll({
-      where: { 
+      where: {
         visibility: 'public',
         isPublished: true,
         ...(sort === 'rising' ? { createdAt: { [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) } } : {})

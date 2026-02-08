@@ -15,6 +15,11 @@ A comprehensive social collaboration platform combining features from Facebook, 
 ### 🚀 New Features
 - **Groups** - Facebook-style groups with privacy settings (public, private, secret)
 - **Bookmarks** - Save posts, videos, and content for later (Twitter/X-style)
+- **Threads & Retweets UI** - Full Twitter/X-style thread and quote flow
+- **Awards UI** - Reddit-style awards on posts
+- **Channel Feed & Playlists UI** - YouTube-style channel browsing and playlists
+- **Server Discovery UI** - Discord-style public server discovery
+- **Project Board & Milestones UI** - GitHub-style boards with card movement
 - **In-app Notifications** - Notification center with unread badges
 - **Enhanced Feed** - Post interactions, visibility controls, media support
 - **Gradient Hero** - Beautiful landing page with feature highlights
@@ -35,12 +40,12 @@ A comprehensive social collaboration platform combining features from Facebook, 
 - 🛒 **Shop** - Browse products and marketplace with reviews
 
 ### Private Access (Authentication Required)
-- 📱 **Social Feed** - Posts, images, hashtags, reactions (like, love, haha, wow, sad, angry)
+- 📱 **Social Feed** - Posts, images, hashtags, reactions, threads, retweets, awards
 - 👥 **Groups** - Create and join groups with privacy controls (NEW)
 - 🔖 **Bookmarks** - Save and organize content (NEW)
-- 💬 **Real-time Chat** - Instant messaging with Discord-style servers and roles
+- 💬 **Real-time Chat** - Instant messaging with Discord-style servers, roles, and discovery
 - 📞 **Voice/Video** - Calls and conferences (WebRTC ready)
-- 📝 **Collaboration** - Documents, wikis, and GitHub-style issue tracking
+- 📝 **Collaboration** - Documents, wikis, issues, projects, milestones, boards
 - 📁 **File Sharing** - Upload and share files with S3-compatible storage
 - 🛍️ **E-commerce** - Shopping cart, reviews, wishlist, and order tracking
 - 🤖 **AI Assistant** - Smart features powered by OpenAI

@@ -429,7 +429,7 @@ function generateInviteCode() {
 app.post('/servers', async (req, res) => {
   try {
     const { name, description, icon } = req.body;
-    
+
     // Get authenticated user ID from header set by gateway
     const ownerId = req.header('x-user-id');
     if (!ownerId) {
@@ -445,7 +445,7 @@ app.post('/servers', async (req, res) => {
       if (!existing) break;
       attempts++;
     }
-    
+
     if (attempts === 5) {
       return res.status(500).json({ error: 'Failed to generate unique invite code' });
     }
@@ -643,7 +643,7 @@ app.get('/servers/discover', async (req, res) => {
       order: [['members', 'DESC']], // Sort by popularity
       limit: parseInt(limit),
       offset: parseInt(offset),
-      attributes: ['id', 'name', 'description', 'icon', 'members']
+      attributes: ['id', 'name', 'description', 'icon', 'members', 'inviteCode']
     });
 
     res.json(servers);
@@ -670,7 +670,8 @@ app.get('/servers/search', async (req, res) => {
         ]
       },
       order: [['members', 'DESC']],
-      limit: 50
+      limit: 50,
+      attributes: ['id', 'name', 'description', 'icon', 'members', 'inviteCode']
     });
 
     res.json(servers);
@@ -689,7 +690,7 @@ app.get('/servers/popular', async (req, res) => {
       where: { isPublic: true },
       order: [['members', 'DESC']],
       limit: parseInt(limit),
-      attributes: ['id', 'name', 'description', 'icon', 'members']
+      attributes: ['id', 'name', 'description', 'icon', 'members', 'inviteCode']
     });
 
     res.json(servers);
@@ -790,7 +791,7 @@ app.put('/channels/text/:channelId', async (req, res) => {
     }
 
     const { channelId } = req.params;
-    
+
     // Whitelist allowed fields
     const allowedFields = ['name', 'topic', 'position', 'slowModeSeconds'];
     const updates = {};
@@ -987,14 +988,14 @@ app.post('/messages/:messageId/pin', async (req, res) => {
 
     // Check if user is a participant (for direct/group chats) or server member (for channels)
     const isParticipant = (conversation.participants || []).includes(userId);
-    
+
     if (conversation.serverId) {
       // For server channels, check server membership
       const server = await Server.findByPk(conversation.serverId);
       if (!server) {
         return res.status(404).json({ error: 'Server not found' });
       }
-      
+
       // Only server owner can pin messages in server channels
       if (server.ownerId !== userId) {
         return res.status(403).json({ error: 'Only server owner can pin messages' });
@@ -1056,7 +1057,7 @@ app.delete('/messages/:messageId/pin', async (req, res) => {
     // Authorization: only the user who pinned the message can unpin it
     // or server owner for server channels
     const conversation = await Conversation.findByPk(message.conversationId);
-    
+
     if (conversation && conversation.serverId) {
       const server = await Server.findByPk(conversation.serverId);
       if (server && server.ownerId !== userId && pin.pinnedBy !== userId) {
