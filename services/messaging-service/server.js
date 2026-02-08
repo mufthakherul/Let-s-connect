@@ -1074,8 +1074,8 @@ app.post('/servers/:serverId/webhooks', async (req, res) => {
       return res.status(403).json({ error: 'Only server owner can create webhooks' });
     }
 
-    // Generate webhook token (placeholder - use secure random in production)
-    const token = 'webhook_' + Date.now() + '_' + Math.random().toString(36).substring(7);
+    // Generate webhook token using cryptographically secure random
+    const token = crypto.randomBytes(32).toString('hex');
 
     const webhook = await Webhook.create({
       serverId,
