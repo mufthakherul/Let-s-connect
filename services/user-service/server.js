@@ -158,6 +158,34 @@ const Page = sequelize.define('Page', {
   }
 });
 
+// NEW: Phase 1 - Page Admin Roles Model (Facebook-style)
+const PageAdmin = sequelize.define('PageAdmin', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  pageId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  role: {
+    type: DataTypes.ENUM('owner', 'admin', 'editor', 'moderator'),
+    defaultValue: 'moderator'
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['pageId', 'userId']
+    }
+  ]
+});
+
 // Relationships
 User.hasMany(Skill, { foreignKey: 'userId' });
 Skill.belongsTo(User, { foreignKey: 'userId' });
@@ -165,6 +193,8 @@ Skill.hasMany(Endorsement, { foreignKey: 'skillId' });
 Endorsement.belongsTo(Skill, { foreignKey: 'skillId' });
 User.hasMany(Page, { foreignKey: 'userId' });
 Page.belongsTo(User, { foreignKey: 'userId' });
+Page.hasMany(PageAdmin, { foreignKey: 'pageId' });
+PageAdmin.belongsTo(Page, { foreignKey: 'pageId' });
 
 // Initialize database
 sequelize.sync();

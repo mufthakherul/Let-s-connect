@@ -35,6 +35,7 @@ const Conversation = sequelize.define('Conversation', {
   },
   serverId: DataTypes.UUID, // Discord-inspired: conversations can belong to servers
   name: DataTypes.STRING,
+  topic: DataTypes.TEXT, // Channel topic
   type: {
     type: DataTypes.ENUM('direct', 'group', 'channel'),
     defaultValue: 'direct'
@@ -85,6 +86,10 @@ const Server = sequelize.define('Server', {
     allowNull: false
   },
   description: DataTypes.TEXT,
+  category: {
+    type: DataTypes.STRING,
+    defaultValue: 'general'
+  },
   ownerId: {
     type: DataTypes.UUID,
     allowNull: false
@@ -94,7 +99,11 @@ const Server = sequelize.define('Server', {
     type: DataTypes.INTEGER,
     defaultValue: 1
   },
-  inviteCode: DataTypes.STRING
+  inviteCode: DataTypes.STRING,
+  isPublic: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
 });
 
 // NEW: Discord-inspired Role Model
@@ -139,10 +148,155 @@ const ServerMember = sequelize.define('ServerMember', {
   nickname: DataTypes.STRING
 });
 
+// NEW: Phase 1 - Enhanced Text Channel Model (Discord-style)
+const TextChannel = sequelize.define('TextChannel', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  serverId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  topic: DataTypes.TEXT,
+  categoryId: DataTypes.UUID, // Channel category for organization
+  position: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  isPrivate: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  slowModeSeconds: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+});
+
+// NEW: Phase 1 - Voice Channel Placeholder Model (Discord-style)
+const VoiceChannel = sequelize.define('VoiceChannel', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  serverId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  categoryId: DataTypes.UUID,
+  position: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  userLimit: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0 // 0 means unlimited
+  },
+  bitrate: {
+    type: DataTypes.INTEGER,
+    defaultValue: 64000 // in bits per second
+  }
+});
+
+// NEW: Phase 1 - Channel Category Model
+const ChannelCategory = sequelize.define('ChannelCategory', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  serverId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  position: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+});
+
+// NEW: Phase 1 - Pinned Message Model
+const PinnedMessage = sequelize.define('PinnedMessage', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  messageId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  conversationId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  pinnedBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['messageId', 'conversationId']
+    }
+  ]
+});
+
+// NEW: Phase 1 - Webhook Model (Discord-style)
+const Webhook = sequelize.define('Webhook', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  serverId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  channelId: DataTypes.UUID,
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  token: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  avatarUrl: DataTypes.STRING,
+  createdBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  }
+});
+
 // Relationships
 Server.hasMany(Conversation, { foreignKey: 'serverId' });
 Server.hasMany(Role, { foreignKey: 'serverId' });
 Server.hasMany(ServerMember, { foreignKey: 'serverId' });
+Server.hasMany(TextChannel, { foreignKey: 'serverId' });
+Server.hasMany(VoiceChannel, { foreignKey: 'serverId' });
+Server.hasMany(ChannelCategory, { foreignKey: 'serverId' });
+Server.hasMany(Webhook, { foreignKey: 'serverId' });
+ChannelCategory.hasMany(TextChannel, { foreignKey: 'categoryId' });
+ChannelCategory.hasMany(VoiceChannel, { foreignKey: 'categoryId' });
+Conversation.hasMany(PinnedMessage, { foreignKey: 'conversationId' });
+Message.hasOne(PinnedMessage, { foreignKey: 'messageId' });
 
 sequelize.sync();
 

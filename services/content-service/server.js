@@ -30,6 +30,7 @@ const Post = sequelize.define('Post', {
   },
   communityId: DataTypes.UUID, // Reddit-inspired: posts can belong to communities
   groupId: DataTypes.UUID, // Facebook-inspired: posts can belong to groups
+  pageId: DataTypes.UUID, // Facebook-inspired: posts can belong to pages
   parentId: DataTypes.UUID, // Twitter-inspired: threading support
   content: {
     type: DataTypes.TEXT,
@@ -59,7 +60,8 @@ const Post = sequelize.define('Post', {
   isPublished: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
-  }
+  },
+  flairId: DataTypes.UUID // Reddit-inspired: posts can have flairs
 });
 
 const Comment = sequelize.define('Comment', {
@@ -80,7 +82,19 @@ const Comment = sequelize.define('Comment', {
     type: DataTypes.TEXT,
     allowNull: false
   },
-  parentId: DataTypes.UUID
+  parentId: DataTypes.UUID,
+  upvotes: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  downvotes: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  score: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
 });
 
 const Video = sequelize.define('Video', {
@@ -206,6 +220,14 @@ const Channel = sequelize.define('Channel', {
   subscribers: {
     type: DataTypes.INTEGER,
     defaultValue: 0
+  },
+  totalViews: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  videoCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   }
 });
 
@@ -240,6 +262,10 @@ const Community = sequelize.define('Community', {
   },
   description: DataTypes.TEXT,
   rules: DataTypes.ARRAY(DataTypes.TEXT),
+  category: {
+    type: DataTypes.STRING,
+    defaultValue: 'general'
+  },
   createdBy: {
     type: DataTypes.UUID,
     allowNull: false
@@ -532,6 +558,193 @@ const Retweet = sequelize.define('Retweet', {
   ]
 });
 
+// NEW: Phase 1 - Group Files and Media Model
+const GroupFile = sequelize.define('GroupFile', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  groupId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  fileName: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  fileUrl: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  fileType: {
+    type: DataTypes.ENUM('image', 'video', 'audio', 'document', 'other'),
+    defaultValue: 'other'
+  },
+  fileSize: DataTypes.BIGINT, // in bytes
+  description: DataTypes.TEXT
+});
+
+// NEW: Phase 1 - Group Events Model
+const GroupEvent = sequelize.define('GroupEvent', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  groupId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  createdBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  location: DataTypes.STRING,
+  startDate: {
+    type: DataTypes.DATE,
+    allowNull: false
+  },
+  endDate: DataTypes.DATE,
+  coverImageUrl: DataTypes.STRING,
+  attendeeCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+});
+
+// NEW: Phase 1 - Group Event Attendees Model
+const GroupEventAttendee = sequelize.define('GroupEventAttendee', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  eventId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  status: {
+    type: DataTypes.ENUM('going', 'interested', 'not_going'),
+    defaultValue: 'going'
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['eventId', 'userId']
+    }
+  ]
+});
+
+// NEW: Phase 1 - Comment Voting Model (Reddit-style)
+const CommentVote = sequelize.define('CommentVote', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  commentId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  value: {
+    type: DataTypes.INTEGER, // 1 for upvote, -1 for downvote
+    allowNull: false
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['commentId', 'userId']
+    }
+  ]
+});
+
+// NEW: Phase 1 - Community Flairs Model (Reddit-style)
+const Flair = sequelize.define('Flair', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  communityId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  backgroundColor: {
+    type: DataTypes.STRING,
+    defaultValue: '#0079D3'
+  },
+  textColor: {
+    type: DataTypes.STRING,
+    defaultValue: '#FFFFFF'
+  },
+  type: {
+    type: DataTypes.ENUM('user', 'post'),
+    defaultValue: 'post'
+  }
+});
+
+// NEW: Phase 1 - Live Streaming Model (YouTube-style placeholder)
+const LiveStream = sequelize.define('LiveStream', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  channelId: DataTypes.UUID,
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  thumbnailUrl: DataTypes.STRING,
+  streamUrl: DataTypes.STRING, // RTMP or HLS URL (placeholder)
+  streamKey: DataTypes.STRING, // Streaming key (placeholder)
+  status: {
+    type: DataTypes.ENUM('scheduled', 'live', 'ended'),
+    defaultValue: 'scheduled'
+  },
+  scheduledStartTime: DataTypes.DATE,
+  actualStartTime: DataTypes.DATE,
+  actualEndTime: DataTypes.DATE,
+  viewerCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  peakViewerCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  category: DataTypes.STRING
+});
+
 // Relationships
 Post.hasMany(Comment, { foreignKey: 'postId' });
 Comment.belongsTo(Post, { foreignKey: 'postId' });
@@ -543,10 +756,15 @@ Channel.hasMany(Video, { foreignKey: 'channelId' });
 Video.belongsTo(Channel, { foreignKey: 'channelId' });
 Channel.hasMany(Subscription, { foreignKey: 'channelId' });
 Channel.hasMany(Playlist, { foreignKey: 'channelId' });
+Channel.hasMany(LiveStream, { foreignKey: 'channelId' });
 Community.hasMany(Post, { foreignKey: 'communityId' });
 Community.hasMany(CommunityMember, { foreignKey: 'communityId' });
+Community.hasMany(Flair, { foreignKey: 'communityId' });
 Group.hasMany(GroupMember, { foreignKey: 'groupId' });
 Group.hasMany(Post, { foreignKey: 'groupId' });
+Group.hasMany(GroupFile, { foreignKey: 'groupId' });
+Group.hasMany(GroupEvent, { foreignKey: 'groupId' });
+GroupEvent.hasMany(GroupEventAttendee, { foreignKey: 'eventId' });
 Playlist.hasMany(PlaylistItem, { foreignKey: 'playlistId' });
 PlaylistItem.belongsTo(Playlist, { foreignKey: 'playlistId' });
 PlaylistItem.belongsTo(Video, { foreignKey: 'videoId' });
@@ -555,6 +773,9 @@ PostAward.belongsTo(Award, { foreignKey: 'awardId' });
 Post.hasMany(Retweet, { foreignKey: 'originalPostId' });
 Post.hasMany(Post, { as: 'Replies', foreignKey: 'parentId' });
 Post.belongsTo(Post, { as: 'ParentPost', foreignKey: 'parentId' });
+Comment.hasMany(CommentVote, { foreignKey: 'commentId' });
+Post.belongsTo(Flair, { foreignKey: 'flairId' });
+Flair.hasMany(Post, { foreignKey: 'flairId' });
 
 sequelize.sync().then(async () => {
   // Initialize default awards if they don't exist
@@ -654,7 +875,17 @@ function extractHashtags(content) {
 // Create post (requires auth via gateway) - Updated with hashtag support
 app.post('/posts', async (req, res) => {
   try {
-    const { userId, content, type, mediaUrls, visibility, communityId } = req.body;
+    const { userId, content, type, mediaUrls, visibility, communityId, groupId, pageId, flairId, characterLimit } = req.body;
+
+    // Twitter-style character limit validation (default 280, can be overridden)
+    const limit = characterLimit || 280;
+    if (content && content.length > limit && !mediaUrls?.length) {
+      return res.status(400).json({ 
+        error: `Post content exceeds character limit of ${limit} characters`,
+        currentLength: content.length,
+        limit: limit
+      });
+    }
 
     const post = await Post.create({
       userId,
@@ -662,7 +893,10 @@ app.post('/posts', async (req, res) => {
       type,
       mediaUrls,
       visibility,
-      communityId
+      communityId,
+      groupId,
+      pageId,
+      flairId
     });
 
     // Extract and save hashtags (deduplicate first)
