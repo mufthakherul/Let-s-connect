@@ -85,8 +85,8 @@ function App() {
           MuiCard: {
             styleOverrides: {
               root: {
-                boxShadow: mode === 'dark' 
-                  ? '0 2px 8px rgba(0,0,0,0.4)' 
+                boxShadow: mode === 'dark'
+                  ? '0 2px 8px rgba(0,0,0,0.4)'
                   : '0 2px 8px rgba(0,0,0,0.1)',
               },
             },
@@ -182,21 +182,21 @@ function App() {
                   <MenuIcon />
                 </IconButton>
               )}
-              <Typography 
-                variant="h6" 
-                component={Link} 
-                to="/" 
-                sx={{ 
+              <Typography
+                variant="h6"
+                component={Link}
+                to="/"
+                sx={{
                   flexGrow: isMobile ? 1 : 0,
                   mr: isMobile ? 0 : 4,
-                  textDecoration: 'none', 
+                  textDecoration: 'none',
                   color: 'inherit',
                   fontWeight: 700,
                 }}
               >
                 Let's Connect
               </Typography>
-              
+
               {!isMobile && (
                 <Box sx={{ flexGrow: 1, display: 'flex', gap: 1 }}>
                   <Button color="inherit" component={Link} to="/videos" startIcon={<VideoLibrary />}>
@@ -228,15 +228,15 @@ function App() {
                 <IconButton color="inherit" onClick={toggleTheme}>
                   {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
                 </IconButton>
-                
+
                 {internalUser && (
                   <>
                     <NotificationCenter />
                     {!isMobile && (
                       <>
-                        <Button 
-                          color="inherit" 
-                          component={Link} 
+                        <Button
+                          color="inherit"
+                          component={Link}
                           to="/profile"
                           startIcon={<Avatar sx={{ width: 28, height: 28 }}>{internalUser.name?.[0]}</Avatar>}
                         >
@@ -249,14 +249,14 @@ function App() {
                     )}
                   </>
                 )}
-                
+
                 {!internalUser && !isMobile && (
                   <>
                     <Button color="inherit" component={Link} to="/login">Login</Button>
-                    <Button 
-                      variant="contained" 
-                      color="secondary" 
-                      component={Link} 
+                    <Button
+                      variant="contained"
+                      color="secondary"
+                      component={Link}
                       to="/register"
                       sx={{ ml: 1 }}
                     >
@@ -277,28 +277,28 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login setUser={setInternalUser} />} />
               <Route path="/register" element={<Register setUser={setInternalUser} />} />
-              <Route path="/videos" element={<Videos />} />
+              <Route path="/videos" element={<Videos user={internalUser} />} />
               <Route path="/shop" element={<Shop />} />
-              <Route path="/docs" element={<Docs />} />
-              <Route 
-                path="/feed" 
-                element={internalUser ? <Feed user={internalUser} /> : <Navigate to="/login" />} 
+              <Route path="/docs" element={<Docs user={internalUser} />} />
+              <Route
+                path="/feed"
+                element={internalUser ? <Feed user={internalUser} /> : <Navigate to="/login" />}
               />
-              <Route 
-                path="/groups" 
-                element={internalUser ? <Groups user={internalUser} /> : <Navigate to="/login" />} 
+              <Route
+                path="/groups"
+                element={internalUser ? <Groups user={internalUser} /> : <Navigate to="/login" />}
               />
-              <Route 
-                path="/bookmarks" 
-                element={internalUser ? <Bookmarks user={internalUser} /> : <Navigate to="/login" />} 
+              <Route
+                path="/bookmarks"
+                element={internalUser ? <Bookmarks user={internalUser} /> : <Navigate to="/login" />}
               />
-              <Route 
-                path="/chat" 
-                element={internalUser ? <Chat user={internalUser} /> : <Navigate to="/login" />} 
+              <Route
+                path="/chat"
+                element={internalUser ? <Chat user={internalUser} /> : <Navigate to="/login" />}
               />
-              <Route 
-                path="/profile" 
-                element={internalUser ? <Profile user={internalUser} /> : <Navigate to="/login" />} 
+              <Route
+                path="/profile"
+                element={internalUser ? <Profile user={internalUser} /> : <Navigate to="/login" />}
               />
             </Routes>
           </Container>
