@@ -365,6 +365,37 @@ const GroupMember = sequelize.define('GroupMember', {
   ]
 });
 
+// NEW: Bookmarks Model (Twitter/X-inspired)
+const Bookmark = sequelize.define('Bookmark', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  itemType: {
+    type: DataTypes.ENUM('post', 'video', 'article', 'product'),
+    allowNull: false
+  },
+  itemId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: DataTypes.STRING,
+  content: DataTypes.TEXT,
+  metadata: DataTypes.JSONB
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['userId', 'itemType', 'itemId']
+    }
+  ]
+});
+
 // Relationships
 Post.hasMany(Comment, { foreignKey: 'postId' });
 Comment.belongsTo(Post, { foreignKey: 'postId' });
@@ -1090,6 +1121,92 @@ app.get('/groups/:id/members', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch members' });
+  }
+});
+
+// ========== TWITTER/X-INSPIRED: BOOKMARKS ==========
+
+// Create bookmark
+app.post('/bookmarks', async (req, res) => {
+  try {
+    const { userId, itemType, itemId, title, content, metadata } = req.body;
+
+    // Check if already bookmarked
+    const existing = await Bookmark.findOne({
+      where: { userId, itemType, itemId }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: 'Already bookmarked' });
+    }
+
+    const bookmark = await Bookmark.create({
+      userId,
+      itemType,
+      itemId,
+      title,
+      content,
+      metadata
+    });
+
+    res.status(201).json(bookmark);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create bookmark' });
+  }
+});
+
+// Get user bookmarks
+app.get('/bookmarks', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'userId required' });
+    }
+
+    const bookmarks = await Bookmark.findAll({
+      where: { userId },
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(bookmarks);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch bookmarks' });
+  }
+});
+
+// Remove bookmark
+app.delete('/bookmarks/:id', async (req, res) => {
+  try {
+    const bookmark = await Bookmark.findByPk(req.params.id);
+    
+    if (!bookmark) {
+      return res.status(404).json({ error: 'Bookmark not found' });
+    }
+
+    await bookmark.destroy();
+    res.json({ message: 'Bookmark removed' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to remove bookmark' });
+  }
+});
+
+// Check if item is bookmarked
+app.get('/bookmarks/check', async (req, res) => {
+  try {
+    const { userId, itemType, itemId } = req.query;
+    
+    const bookmark = await Bookmark.findOne({
+      where: { userId, itemType, itemId }
+    });
+
+    res.json({ bookmarked: !!bookmark, bookmark });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to check bookmark' });
   }
 });
 
