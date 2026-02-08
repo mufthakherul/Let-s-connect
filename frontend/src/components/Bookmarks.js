@@ -5,7 +5,6 @@ import {
 } from '@mui/material';
 import {
   Bookmark as BookmarkIcon,
-  BookmarkBorder,
   Delete,
   OpenInNew
 } from '@mui/icons-material';
@@ -26,7 +25,7 @@ const Bookmarks = ({ user }) => {
   const fetchBookmarks = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/content/bookmarks`, {
+      const response = await axios.get(`${API_URL}/api/content/bookmarks`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setBookmarks(response.data);
@@ -41,7 +40,7 @@ const Bookmarks = ({ user }) => {
   const handleRemoveBookmark = async (bookmarkId) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/content/bookmarks/${bookmarkId}`, {
+      await axios.delete(`${API_URL}/api/content/bookmarks/${bookmarkId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -105,7 +104,7 @@ const Bookmarks = ({ user }) => {
                 <CardHeader
                   avatar={
                     <Avatar sx={{ bgcolor: 'primary.main' }}>
-                      {bookmark.type === 'post' ? 'P' : bookmark.type === 'video' ? 'V' : 'A'}
+                      {bookmark.itemType === 'post' ? 'P' : bookmark.itemType === 'video' ? 'V' : bookmark.itemType === 'article' ? 'A' : 'P'}
                     </Avatar>
                   }
                   action={
@@ -118,7 +117,7 @@ const Bookmarks = ({ user }) => {
                       <Typography variant="subtitle1" fontWeight="600">
                         {bookmark.title || 'Untitled'}
                       </Typography>
-                      <Chip label={bookmark.type} size="small" />
+                      <Chip label={bookmark.itemType} size="small" />
                     </Box>
                   }
                   subheader={`Saved ${formatRelativeTime(bookmark.createdAt)}`}

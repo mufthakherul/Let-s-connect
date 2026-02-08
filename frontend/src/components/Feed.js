@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box, Card, CardContent, Typography, TextField, Button, Avatar,
-  IconButton, CardHeader, CardActions, Chip, Divider, Skeleton,
-  Menu, MenuItem, Select, FormControl, InputLabel, Collapse
+  IconButton, CardHeader, CardActions, Divider, Skeleton,
+  MenuItem, Select, FormControl
 } from '@mui/material';
 import {
   ThumbUp, ThumbUpOutlined, Comment, Share, MoreVert,
-  Public, Lock, Group, BookmarkBorder, Bookmark,
+  Public, Lock, Group, BookmarkBorder,
   EmojiEmotions, Image, VideoLibrary
 } from '@mui/icons-material';
 import { useInView } from 'react-intersection-observer';
@@ -39,13 +39,13 @@ function Feed({ user }) {
     if (inView && hasMore && !loading) {
       fetchPosts(page + 1);
     }
-  }, [inView]);
+  }, [inView, hasMore, loading, page]);
 
   const fetchPosts = async (pageNum) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/content/feed/${user.id}?page=${pageNum}&limit=10`, {
+      const response = await axios.get(`${API_URL}/api/content/feed/${user.id}?page=${pageNum}&limit=10`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -75,7 +75,7 @@ function Feed({ user }) {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_URL}/content/posts`, {
+      const response = await axios.post(`${API_URL}/api/content/posts`, {
         userId: user.id,
         content: newPost,
         visibility,
@@ -97,17 +97,29 @@ function Feed({ user }) {
   const handleLikePost = async (postId) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/content/posts/${postId}/like`, {
-        userId: user.id
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      setPosts(posts.map(p => 
-        p.id === postId ? { ...p, likes: p.likes + 1, liked: true } : p
-      ));
+      const response = await axios.post(
+        `${API_URL}/api/content/posts/${postId}/reactions`,
+        {
+          userId: user.id,
+          type: 'like'
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      // Update the post with the response if available, otherwise optimistic update
+      setPosts(posts.map((p) => {
+        if (p.id !== postId) return p;
+        if (response && response.data) return response.data;
+        // Fallback: optimistic update if backend doesn't return the post
+        return { ...p, likes: (p.likes || 0) + 1, liked: true };
+      }));
     } catch (err) {
       console.error('Failed to like post:', err);
+      toast.error('Failed to like post');
+    }
+  };
     }
   };
 

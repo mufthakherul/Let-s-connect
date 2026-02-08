@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Popover, List, ListItem, ListItemText, ListItemAvatar,
   Avatar, Typography, Box, IconButton, Badge, Divider, Button
@@ -6,13 +6,10 @@ import {
 import { Notifications as NotificationsIcon, Clear } from '@mui/icons-material';
 import { useNotificationStore } from '../../store/notificationStore';
 import { formatRelativeTime } from '../../utils/helpers';
-import axios from 'axios';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 const NotificationCenter = () => {
   const [anchorEl, setAnchorEl] = useState(null);
-  const { notifications, unreadCount, markAsRead, markAllAsRead, addNotification } = useNotificationStore();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificationStore();
 
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget);
