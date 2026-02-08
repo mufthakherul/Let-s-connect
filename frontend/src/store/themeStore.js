@@ -10,11 +10,19 @@ export const useThemeStore = create((set) => ({
   })(),
   toggleTheme: () => set((state) => {
     const newMode = state.mode === 'light' ? 'dark' : 'light';
-    localStorage.setItem('theme-mode', newMode);
+    try {
+      localStorage.setItem('theme-mode', newMode);
+    } catch (error) {
+      console.error('Failed to save theme preference:', error);
+    }
     return { mode: newMode };
   }),
   setMode: (mode) => {
-    localStorage.setItem('theme-mode', mode);
+    try {
+      localStorage.setItem('theme-mode', mode);
+    } catch (error) {
+      console.error('Failed to save theme preference:', error);
+    }
     set({ mode });
   }
 }));

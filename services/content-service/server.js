@@ -958,23 +958,46 @@ app.get('/posts/:postId/votes', async (req, res) => {
 // Create group
 app.post('/groups', async (req, res) => {
   try {
-    const { userId, name, description, privacy, category } = req.body;
+    const userId = req.header('x-user-id');
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
 
-    const group = await Group.create({
-      name,
-      description,
-      privacy,
-      category,
-      createdBy: userId,
-      memberCount: 1
-    });
+    const { name, description, privacy, category } = req.body;
 
-    // Auto-add creator as admin
-    await GroupMember.create({
-      userId,
-      groupId: group.id,
-      role: 'admin',
-      status: 'active'
+    // Use transaction to ensure both group and membership are created together
+    const group = await sequelize.transaction(async (t) => {
+      const createdGroup = await Group.create({
+        name,
+        description,
+        privacy,
+        category,
+        createdBy: userId,
+        memberCount: 0
+      }, { transaction: t });
+
+      // Auto-add creator as admin
+      await GroupMember.create({
+        userId,
+        groupId: createdGroup.id,
+        role: 'admin',
+        status: 'active'
+      }, { transaction: t });
+
+      // Update member count based on active members
+      const activeMemberCount = await GroupMember.count({
+        where: {
+          groupId: createdGroup.id,
+          status: 'active'
+        },
+        transaction: t
+      });
+
+      createdGroup.memberCount = activeMemberCount;
+      await createdGroup.save({ transaction: t });
+
+      return createdGroup;
     });
 
     res.status(201).json(group);
@@ -987,27 +1010,45 @@ app.post('/groups', async (req, res) => {
 // Get all groups
 app.get('/groups', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const userId = req.header('x-user-id');
+    
     const groups = await Group.findAll({
       order: [['createdAt', 'DESC']]
     });
 
-    // If userId provided, add membership info
+    let membershipMap = null;
+
+    // If authenticated user is present, load their group memberships
     if (userId) {
       const memberships = await GroupMember.findAll({
         where: { userId }
       });
-      const membershipMap = new Map(memberships.map(m => [m.groupId, true]));
-      
-      const groupsWithMembership = groups.map(g => ({
-        ...g.toJSON(),
-        isMember: membershipMap.has(g.id)
-      }));
-      
+      membershipMap = new Map(memberships.map(m => [m.groupId, true]));
+    }
+
+    // Enforce privacy: secret groups are only visible to members
+    const visibleGroups = groups.filter(g => {
+      const group = g.toJSON ? g.toJSON() : g;
+      if (group.privacy !== 'secret') {
+        return true;
+      }
+      // For secret groups, require authenticated membership
+      return membershipMap !== null && membershipMap.has(group.id);
+    });
+
+    // If authenticated, include membership info in response
+    if (userId && membershipMap !== null) {
+      const groupsWithMembership = visibleGroups.map(g => {
+        const group = g.toJSON ? g.toJSON() : g;
+        return {
+          ...group,
+          isMember: membershipMap.has(group.id)
+        };
+      });
       return res.json(groupsWithMembership);
     }
 
-    res.json(groups);
+    res.json(visibleGroups);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch groups' });
@@ -1039,12 +1080,22 @@ app.get('/groups/:id', async (req, res) => {
 // Join group
 app.post('/groups/:id/join', async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = req.header('x-user-id');
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const groupId = req.params.id;
 
     const group = await Group.findByPk(groupId);
     if (!group) {
       return res.status(404).json({ error: 'Group not found' });
+    }
+
+    // Secret groups should reject join requests (invite-only)
+    if (group.privacy === 'secret') {
+      return res.status(403).json({ error: 'Secret groups are invite-only' });
     }
 
     // Check if already a member
@@ -1056,7 +1107,7 @@ app.post('/groups/:id/join', async (req, res) => {
       return res.status(400).json({ error: 'Already a member' });
     }
 
-    // For private/secret groups, create pending membership
+    // For private groups, create pending membership; public groups are active
     const status = group.privacy === 'public' ? 'active' : 'pending';
 
     const membership = await GroupMember.create({
@@ -1081,7 +1132,12 @@ app.post('/groups/:id/join', async (req, res) => {
 // Leave group
 app.post('/groups/:id/leave', async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = req.header('x-user-id');
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const groupId = req.params.id;
 
     const membership = await GroupMember.findOne({
@@ -1092,11 +1148,15 @@ app.post('/groups/:id/leave', async (req, res) => {
       return res.status(404).json({ error: 'Not a member' });
     }
 
+    const wasActive = membership.status === 'active';
     await membership.destroy();
     
-    const group = await Group.findByPk(groupId);
-    if (group && group.memberCount > 0) {
-      await group.decrement('memberCount');
+    // Only decrement member count if the membership was active
+    if (wasActive) {
+      const group = await Group.findByPk(groupId);
+      if (group && group.memberCount > 0) {
+        await group.decrement('memberCount');
+      }
     }
 
     res.json({ message: 'Left group successfully' });
@@ -1129,7 +1189,13 @@ app.get('/groups/:id/members', async (req, res) => {
 // Create bookmark
 app.post('/bookmarks', async (req, res) => {
   try {
-    const { userId, itemType, itemId, title, content, metadata } = req.body;
+    const userId = req.header('x-user-id');
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { itemType, itemId, title, content, metadata } = req.body;
 
     // Check if already bookmarked
     const existing = await Bookmark.findOne({
@@ -1152,6 +1218,9 @@ app.post('/bookmarks', async (req, res) => {
     res.status(201).json(bookmark);
   } catch (error) {
     console.error(error);
+    if (error instanceof Sequelize.UniqueConstraintError) {
+      return res.status(400).json({ error: 'Already bookmarked' });
+    }
     res.status(500).json({ error: 'Failed to create bookmark' });
   }
 });
@@ -1159,10 +1228,10 @@ app.post('/bookmarks', async (req, res) => {
 // Get user bookmarks
 app.get('/bookmarks', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const userId = req.header('x-user-id');
     
     if (!userId) {
-      return res.status(400).json({ error: 'userId required' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const bookmarks = await Bookmark.findAll({
@@ -1180,7 +1249,18 @@ app.get('/bookmarks', async (req, res) => {
 // Remove bookmark
 app.delete('/bookmarks/:id', async (req, res) => {
   try {
-    const bookmark = await Bookmark.findByPk(req.params.id);
+    const userId = req.header('x-user-id');
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const bookmark = await Bookmark.findOne({
+      where: { 
+        id: req.params.id,
+        userId: userId
+      }
+    });
     
     if (!bookmark) {
       return res.status(404).json({ error: 'Bookmark not found' });
@@ -1197,7 +1277,16 @@ app.delete('/bookmarks/:id', async (req, res) => {
 // Check if item is bookmarked
 app.get('/bookmarks/check', async (req, res) => {
   try {
-    const { userId, itemType, itemId } = req.query;
+    const userId = req.header('x-user-id');
+    const { itemType, itemId } = req.query;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!itemType || !itemId) {
+      return res.status(400).json({ error: 'itemType and itemId are required' });
+    }
     
     const bookmark = await Bookmark.findOne({
       where: { userId, itemType, itemId }

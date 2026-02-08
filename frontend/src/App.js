@@ -2,20 +2,20 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import {
   AppBar, Toolbar, Typography, Button, Container, Box, IconButton,
-  CssBaseline, ThemeProvider, createTheme, Badge, Drawer, List,
+  CssBaseline, ThemeProvider, createTheme, Drawer, List,
   ListItem, ListItemIcon, ListItemText, useMediaQuery, Divider, Avatar
 } from '@mui/material';
 import {
   Brightness4, Brightness7, Menu as MenuIcon, Home as HomeIcon,
   VideoLibrary, ShoppingCart, Description, Chat as ChatIcon,
-  Person, Notifications, ExitToApp, Login as LoginIcon,
+  Person, ExitToApp, Login as LoginIcon,
   PersonAdd, Feed as FeedIcon, Group as GroupIcon, Bookmark
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/authStore';
-import { useNotificationStore } from './store/notificationStore';
+import NotificationCenter from './components/common/NotificationCenter';
 import Home from './components/Home';
 import Login from './components/Login';
 import Register from './components/Register';
@@ -41,8 +41,7 @@ const queryClient = new QueryClient({
 function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { mode, toggleTheme } = useThemeStore();
-  const { user, token, logout } = useAuthStore();
-  const { unreadCount } = useNotificationStore();
+  const { user, logout } = useAuthStore();
   const isMobile = useMediaQuery('(max-width:900px)');
   const [internalUser, setInternalUser] = useState(user);
 
@@ -232,11 +231,7 @@ function App() {
                 
                 {internalUser && (
                   <>
-                    <IconButton color="inherit">
-                      <Badge badgeContent={unreadCount} color="error">
-                        <Notifications />
-                      </Badge>
-                    </IconButton>
+                    <NotificationCenter />
                     {!isMobile && (
                       <>
                         <Button 

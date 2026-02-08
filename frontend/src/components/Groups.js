@@ -3,7 +3,7 @@ import {
   Container, Grid, Card, CardContent, CardActions, Typography,
   Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions,
   Select, MenuItem, FormControl, InputLabel, Chip, Box, Avatar,
-  IconButton, Skeleton
+  Skeleton
 } from '@mui/material';
 import { Add, Group as GroupIcon, Public, Lock, VpnLock } from '@mui/icons-material';
 import { formatRelativeTime, formatNumber } from '../utils/helpers';
@@ -30,7 +30,7 @@ const Groups = ({ user }) => {
   const fetchGroups = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/content/groups`, {
+      const response = await axios.get(`${API_URL}/api/content/groups`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setGroups(response.data);
@@ -51,7 +51,7 @@ const Groups = ({ user }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `${API_URL}/content/groups`,
+        `${API_URL}/api/content/groups`,
         newGroup,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -70,7 +70,7 @@ const Groups = ({ user }) => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        `${API_URL}/content/groups/${groupId}/join`,
+        `${API_URL}/api/content/groups/${groupId}/join`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -83,7 +83,7 @@ const Groups = ({ user }) => {
       toast.success('Joined group successfully!');
     } catch (error) {
       console.error('Error joining group:', error);
-      toast.error('Failed to join group');
+      toast.error(error.response?.data?.error || 'Failed to join group');
     }
   };
 
