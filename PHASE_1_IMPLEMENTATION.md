@@ -17,11 +17,11 @@ This document summarizes the implementation of all Phase 1 features from the ROA
 **New Features:**
 - Added `parentId` field to Post model to create hierarchical relationships
 - Posts can now be replies to other posts
-- Full thread traversal support
+- Full recursive thread traversal support
 
 **API Endpoints:**
 - `POST /api/content/threads` - Create a multi-tweet thread from array of content
-- `GET /api/content/threads/:postId` - Get a thread with all its replies
+- `GET /api/content/threads/:postId` - Get a thread with all its replies (recursively)
 - `POST /api/content/posts/:postId/reply` - Reply to a specific post
 
 **Database Changes:**
