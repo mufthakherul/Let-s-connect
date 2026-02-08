@@ -2,6 +2,31 @@
 
 A comprehensive social collaboration platform combining features from Facebook, X (Twitter), YouTube, WhatsApp, Telegram, Discord, and Notion into one self-hosted application.
 
+## ✨ What's New in v1.1
+
+### 🎨 Modern UI/UX
+- **Dark Mode** - System-wide dark mode with persistent preference
+- **Infinite Scroll** - Smooth feed loading with lazy loading
+- **Responsive Design** - Mobile-friendly drawer navigation
+- **Toast Notifications** - Real-time feedback with elegant toasts
+- **Loading Skeletons** - Better loading states
+- **Professional Design** - Modern card layouts with hover effects
+
+### 🚀 New Features
+- **Groups** - Facebook-style groups with privacy settings (public, private, secret)
+- **Bookmarks** - Save posts, videos, and content for later (Twitter/X-style)
+- **In-app Notifications** - Notification center with unread badges
+- **Enhanced Feed** - Post interactions, visibility controls, media support
+- **Gradient Hero** - Beautiful landing page with feature highlights
+
+### 🛠️ Technical Upgrades
+- **React 18.3** - Latest React with concurrent features
+- **Zustand** - Lightweight state management
+- **React Query** - Efficient data fetching and caching
+- **React Intersection Observer** - Infinite scroll implementation
+- **Date-fns** - Modern date formatting
+- **Enhanced Theming** - Custom Material-UI theme with better colors
+
 ## 🚀 Features
 
 ### Public Access (No Signup Required)
@@ -11,15 +36,18 @@ A comprehensive social collaboration platform combining features from Facebook, 
 
 ### Private Access (Authentication Required)
 - 📱 **Social Feed** - Posts, images, hashtags, reactions (like, love, haha, wow, sad, angry)
+- 👥 **Groups** - Create and join groups with privacy controls (NEW)
+- 🔖 **Bookmarks** - Save and organize content (NEW)
 - 💬 **Real-time Chat** - Instant messaging with Discord-style servers and roles
 - 📞 **Voice/Video** - Calls and conferences (WebRTC ready)
 - 📝 **Collaboration** - Documents, wikis, and GitHub-style issue tracking
 - 📁 **File Sharing** - Upload and share files with S3-compatible storage
 - 🛍️ **E-commerce** - Shopping cart, reviews, wishlist, and order tracking
 - 🤖 **AI Assistant** - Smart features powered by OpenAI
-- 👥 **Communities** - Reddit-style communities with voting
-- 🎯 **Skills** - LinkedIn-style skills and endorsements
+- 🎯 **Communities** - Reddit-style communities with voting
+- 💡 **Skills** - LinkedIn-style skills and endorsements
 - 📊 **Projects** - GitHub-style project management
+- 🔔 **Notifications** - In-app notification center (NEW)
 
 ## 🏗️ Architecture
 
@@ -27,7 +55,7 @@ Built with **modular microservices** for scalability and maintainability:
 
 - **API Gateway** - Request routing, authentication, rate limiting
 - **User Service** - Authentication and profile management
-- **Content Service** - Posts, feeds, and videos
+- **Content Service** - Posts, feeds, videos, groups, and bookmarks
 - **Messaging Service** - Real-time chat with Socket.IO
 - **Collaboration Service** - Docs, wiki, and task management
 - **Media Service** - File storage with MinIO (S3-compatible)
@@ -36,11 +64,29 @@ Built with **modular microservices** for scalability and maintainability:
 
 ## 🛠️ Technology Stack
 
-- **Backend**: Node.js, Express, PostgreSQL, Redis, MinIO
-- **Frontend**: React 18, Material-UI, React Router, Axios
-- **Real-time**: Socket.IO for WebSocket connections
-- **Infrastructure**: Docker, Docker Compose, Nginx
+### Backend
+- **Runtime**: Node.js 18, Express.js
+- **Database**: PostgreSQL 15
+- **Cache**: Redis 7
+- **Storage**: MinIO (S3-compatible)
+- **Real-time**: Socket.IO
 - **Security**: JWT auth, bcrypt, Helmet.js, rate limiting
+
+### Frontend
+- **Framework**: React 18.3 (latest)
+- **UI Library**: Material-UI v5
+- **State Management**: Zustand
+- **Data Fetching**: React Query (@tanstack/react-query)
+- **Routing**: React Router v6
+- **Notifications**: react-hot-toast
+- **Date Formatting**: date-fns
+- **Infinite Scroll**: react-intersection-observer
+- **HTTP Client**: Axios
+
+### Infrastructure
+- **Containers**: Docker, Docker Compose
+- **Reverse Proxy**: Nginx
+- **Deployment**: Self-hosted, production-ready
 
 ## 📦 Quick Start
 
