@@ -1,75 +1,245 @@
 import React from 'react';
-import { Typography, Box, Button, Grid, Card, CardContent } from '@mui/material';
+import {
+  Typography, Box, Button, Grid, Card, CardContent, Container, useTheme,
+  Paper, Chip, Stack
+} from '@mui/material';
+import {
+  Speed, Security, CloudDone, Groups, Chat, VideoLibrary,
+  ShoppingCart, Description, SmartToy, Verified
+} from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 
 function Home() {
+  const theme = useTheme();
+
   const features = [
-    { title: 'Social Feed', description: 'Share posts, images, and videos with friends', link: '/feed' },
-    { title: 'Video Platform', description: 'Watch and upload videos publicly', link: '/videos' },
-    { title: 'Real-time Chat', description: 'Message friends and groups instantly', link: '/chat' },
-    { title: 'Collaboration', description: 'Create docs, wikis, and manage tasks', link: '/docs' },
-    { title: 'Shop', description: 'Browse and purchase products', link: '/shop' },
-    { title: 'AI Assistant', description: 'Get help from AI-powered assistant', link: '/chat' }
+    { 
+      title: 'Social Feed', 
+      description: 'Share posts, images, and videos with your network', 
+      link: '/feed',
+      icon: <Groups sx={{ fontSize: 40, color: 'primary.main' }} />
+    },
+    { 
+      title: 'Video Platform', 
+      description: 'Watch and upload videos with channel subscriptions', 
+      link: '/videos',
+      icon: <VideoLibrary sx={{ fontSize: 40, color: 'error.main' }} />
+    },
+    { 
+      title: 'Real-time Chat', 
+      description: 'Message friends, groups, and servers instantly', 
+      link: '/chat',
+      icon: <Chat sx={{ fontSize: 40, color: 'success.main' }} />
+    },
+    { 
+      title: 'Collaboration', 
+      description: 'Create docs, wikis, tasks, and manage projects', 
+      link: '/docs',
+      icon: <Description sx={{ fontSize: 40, color: 'info.main' }} />
+    },
+    { 
+      title: 'Shop', 
+      description: 'Browse products, manage cart, and place orders', 
+      link: '/shop',
+      icon: <ShoppingCart sx={{ fontSize: 40, color: 'warning.main' }} />
+    },
+    { 
+      title: 'AI Assistant', 
+      description: 'Get help from GPT-powered intelligent assistant', 
+      link: '/chat',
+      icon: <SmartToy sx={{ fontSize: 40, color: 'secondary.main' }} />
+    }
+  ];
+
+  const highlights = [
+    { icon: <Speed />, text: 'High Performance' },
+    { icon: <Security />, text: 'Secure & Private' },
+    { icon: <CloudDone />, text: 'Self-Hosted' },
+    { icon: <Verified />, text: 'Production Ready' },
   ];
 
   return (
-    <Box>
-      <Box sx={{ textAlign: 'center', mb: 6 }}>
-        <Typography variant="h2" gutterBottom>
+    <Container maxWidth="lg">
+      {/* Hero Section */}
+      <Box sx={{ textAlign: 'center', mb: 8, mt: 4 }}>
+        <Typography 
+          variant="h2" 
+          gutterBottom 
+          fontWeight="bold"
+          sx={{ 
+            background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
           Welcome to Let's Connect
         </Typography>
-        <Typography variant="h5" color="text.secondary" paragraph>
-          Unified Social Collaboration Platform
+        <Typography variant="h5" color="text.secondary" paragraph sx={{ mb: 3 }}>
+          The All-in-One Social Collaboration Platform
         </Typography>
-        <Typography variant="body1" paragraph>
-          Combining the best features of Facebook, X, YouTube, WhatsApp, Telegram, Discord, and Notion
+        <Typography variant="body1" color="text.secondary" paragraph sx={{ maxWidth: 800, mx: 'auto', mb: 4 }}>
+          Combining the best features from 14 major platforms including Facebook, X (Twitter), 
+          YouTube, Discord, Reddit, LinkedIn, GitHub, and more into a single, powerful, 
+          self-hosted solution.
         </Typography>
-        <Box sx={{ mt: 3 }}>
-          <Button variant="contained" size="large" component={Link} to="/register" sx={{ mr: 2 }}>
-            Get Started
+
+        <Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 4 }}>
+          {highlights.map((item, i) => (
+            <Chip 
+              key={i}
+              icon={item.icon} 
+              label={item.text} 
+              color="primary" 
+              variant="outlined"
+            />
+          ))}
+        </Stack>
+
+        <Box sx={{ mt: 4 }}>
+          <Button 
+            variant="contained" 
+            size="large" 
+            component={Link} 
+            to="/register" 
+            sx={{ mr: 2, px: 4, py: 1.5 }}
+          >
+            Get Started Free
           </Button>
-          <Button variant="outlined" size="large" component={Link} to="/videos">
-            Explore Videos
+          <Button 
+            variant="outlined" 
+            size="large" 
+            component={Link} 
+            to="/videos"
+            sx={{ px: 4, py: 1.5 }}
+          >
+            Explore Content
           </Button>
         </Box>
       </Box>
 
-      <Grid container spacing={3}>
-        {features.map((feature, index) => (
-          <Grid item xs={12} sm={6} md={4} key={index}>
-            <Card sx={{ height: '100%' }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  {feature.title}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {feature.description}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      <Box sx={{ mt: 6, p: 3, bgcolor: 'background.paper', borderRadius: 2 }}>
-        <Typography variant="h5" gutterBottom>
-          Features
+      {/* Features Grid */}
+      <Box sx={{ mb: 8 }}>
+        <Typography variant="h4" fontWeight="bold" sx={{ mb: 4, textAlign: 'center' }}>
+          Powerful Features
         </Typography>
-        <ul>
-          <li>Public access for video watching, reading docs, and browsing shops - no signup required</li>
-          <li>Private access for feeds, posts, orders, chat, calls, and collaboration</li>
-          <li>User profiles and customizable settings</li>
-          <li>Groups and communities</li>
-          <li>Real-time messaging with voice and video support</li>
-          <li>File sharing and media management</li>
-          <li>Collaborative documents and wiki</li>
-          <li>AI-powered assistant</li>
-          <li>Strong security with JWT authentication</li>
-          <li>Modular microservices architecture</li>
-          <li>Self-hosted deployment with Docker</li>
-        </ul>
+        <Grid container spacing={3}>
+          {features.map((feature, index) => (
+            <Grid item xs={12} sm={6} md={4} key={index}>
+              <Card 
+                sx={{ 
+                  height: '100%',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 6,
+                  }
+                }}
+              >
+                <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                  <Box sx={{ mb: 2 }}>
+                    {feature.icon}
+                  </Box>
+                  <Typography variant="h6" gutterBottom fontWeight="600">
+                    {feature.title}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
+                    {feature.description}
+                  </Typography>
+                  <Button 
+                    size="small" 
+                    component={Link} 
+                    to={feature.link}
+                    variant="text"
+                  >
+                    Learn More →
+                  </Button>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
       </Box>
-    </Box>
+
+      {/* Platform Features */}
+      <Paper elevation={0} sx={{ p: 4, mb: 8, bgcolor: 'background.default', borderRadius: 3 }}>
+        <Typography variant="h4" fontWeight="bold" gutterBottom sx={{ mb: 3 }}>
+          What's Included
+        </Typography>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Typography variant="h6" gutterBottom color="primary">
+              📱 Social & Communication
+            </Typography>
+            <ul style={{ lineHeight: 2 }}>
+              <li>Facebook-style feed with reactions and groups</li>
+              <li>Twitter/X hashtags, bookmarks, and trending</li>
+              <li>Discord servers with roles and channels</li>
+              <li>WhatsApp/Telegram real-time messaging</li>
+              <li>Reddit communities with voting</li>
+            </ul>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Typography variant="h6" gutterBottom color="primary">
+              💼 Professional & Productivity
+            </Typography>
+            <ul style={{ lineHeight: 2 }}>
+              <li>LinkedIn-style skills and endorsements</li>
+              <li>GitHub issues, projects, and milestones</li>
+              <li>Notion-style documents and wikis</li>
+              <li>YouTube channels and subscriptions</li>
+              <li>E-commerce with cart and reviews</li>
+            </ul>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      {/* Tech Stack */}
+      <Box sx={{ mb: 8, textAlign: 'center' }}>
+        <Typography variant="h4" fontWeight="bold" gutterBottom sx={{ mb: 3 }}>
+          Built with Modern Technology
+        </Typography>
+        <Typography variant="body1" color="text.secondary" paragraph>
+          React 18.3 • Material-UI v5 • Node.js • PostgreSQL • Redis • Docker • Socket.IO
+        </Typography>
+        <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap" sx={{ mt: 3 }}>
+          <Chip label="Microservices" variant="outlined" />
+          <Chip label="Real-time" variant="outlined" />
+          <Chip label="Dark Mode" variant="outlined" />
+          <Chip label="Responsive" variant="outlined" />
+          <Chip label="Secure" variant="outlined" />
+          <Chip label="Scalable" variant="outlined" />
+          <Chip label="Open Source" variant="outlined" />
+        </Stack>
+      </Box>
+
+      {/* CTA Section */}
+      <Paper 
+        elevation={0}
+        sx={{ 
+          p: 6, 
+          mb: 4, 
+          textAlign: 'center',
+          background: `linear-gradient(135deg, ${theme.palette.primary.main}15, ${theme.palette.secondary.main}15)`,
+          borderRadius: 3
+        }}
+      >
+        <Typography variant="h4" fontWeight="bold" gutterBottom>
+          Ready to Get Started?
+        </Typography>
+        <Typography variant="body1" color="text.secondary" paragraph sx={{ mb: 3 }}>
+          Join thousands of users already enjoying Let's Connect
+        </Typography>
+        <Button 
+          variant="contained" 
+          size="large" 
+          component={Link} 
+          to="/register"
+          sx={{ px: 5, py: 1.5 }}
+        >
+          Create Free Account
+        </Button>
+      </Paper>
+    </Container>
   );
 }
 

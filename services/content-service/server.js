@@ -301,6 +301,101 @@ const Vote = sequelize.define('Vote', {
   ]
 });
 
+// NEW: Facebook-inspired Groups Model (different from Communities)
+const Group = sequelize.define('Group', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  privacy: {
+    type: DataTypes.ENUM('public', 'private', 'secret'),
+    defaultValue: 'public'
+  },
+  category: {
+    type: DataTypes.STRING,
+    defaultValue: 'general'
+  },
+  createdBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  memberCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1
+  },
+  avatarUrl: DataTypes.STRING,
+  coverUrl: DataTypes.STRING
+});
+
+// NEW: Facebook-inspired Group Membership
+const GroupMember = sequelize.define('GroupMember', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  groupId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  role: {
+    type: DataTypes.ENUM('member', 'moderator', 'admin'),
+    defaultValue: 'member'
+  },
+  status: {
+    type: DataTypes.ENUM('active', 'pending', 'banned'),
+    defaultValue: 'active'
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['userId', 'groupId']
+    }
+  ]
+});
+
+// NEW: Bookmarks Model (Twitter/X-inspired)
+const Bookmark = sequelize.define('Bookmark', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  itemType: {
+    type: DataTypes.ENUM('post', 'video', 'article', 'product'),
+    allowNull: false
+  },
+  itemId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: DataTypes.STRING,
+  content: DataTypes.TEXT,
+  metadata: DataTypes.JSONB
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['userId', 'itemType', 'itemId']
+    }
+  ]
+});
+
 // Relationships
 Post.hasMany(Comment, { foreignKey: 'postId' });
 Comment.belongsTo(Post, { foreignKey: 'postId' });
@@ -313,6 +408,7 @@ Video.belongsTo(Channel, { foreignKey: 'channelId' });
 Channel.hasMany(Subscription, { foreignKey: 'channelId' });
 Community.hasMany(Post, { foreignKey: 'communityId' });
 Community.hasMany(CommunityMember, { foreignKey: 'communityId' });
+Group.hasMany(GroupMember, { foreignKey: 'groupId' });
 
 sequelize.sync();
 
@@ -854,6 +950,352 @@ app.get('/posts/:postId/votes', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch votes' });
+  }
+});
+
+// ========== FACEBOOK-INSPIRED: GROUPS ==========
+
+// Create group
+app.post('/groups', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { name, description, privacy, category } = req.body;
+
+    // Use transaction to ensure both group and membership are created together
+    const group = await sequelize.transaction(async (t) => {
+      const createdGroup = await Group.create({
+        name,
+        description,
+        privacy,
+        category,
+        createdBy: userId,
+        memberCount: 0
+      }, { transaction: t });
+
+      // Auto-add creator as admin
+      await GroupMember.create({
+        userId,
+        groupId: createdGroup.id,
+        role: 'admin',
+        status: 'active'
+      }, { transaction: t });
+
+      // Update member count based on active members
+      const activeMemberCount = await GroupMember.count({
+        where: {
+          groupId: createdGroup.id,
+          status: 'active'
+        },
+        transaction: t
+      });
+
+      createdGroup.memberCount = activeMemberCount;
+      await createdGroup.save({ transaction: t });
+
+      return createdGroup;
+    });
+
+    res.status(201).json(group);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create group' });
+  }
+});
+
+// Get all groups
+app.get('/groups', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    
+    const groups = await Group.findAll({
+      order: [['createdAt', 'DESC']]
+    });
+
+    let membershipMap = null;
+
+    // If authenticated user is present, load their group memberships
+    if (userId) {
+      const memberships = await GroupMember.findAll({
+        where: { userId }
+      });
+      membershipMap = new Map(memberships.map(m => [m.groupId, true]));
+    }
+
+    // Enforce privacy: secret groups are only visible to members
+    const visibleGroups = groups.filter(g => {
+      const group = g.toJSON ? g.toJSON() : g;
+      if (group.privacy !== 'secret') {
+        return true;
+      }
+      // For secret groups, require authenticated membership
+      return membershipMap !== null && membershipMap.has(group.id);
+    });
+
+    // If authenticated, include membership info in response
+    if (userId && membershipMap !== null) {
+      const groupsWithMembership = visibleGroups.map(g => {
+        const group = g.toJSON ? g.toJSON() : g;
+        return {
+          ...group,
+          isMember: membershipMap.has(group.id)
+        };
+      });
+      return res.json(groupsWithMembership);
+    }
+
+    res.json(visibleGroups);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch groups' });
+  }
+});
+
+// Get single group
+app.get('/groups/:id', async (req, res) => {
+  try {
+    const group = await Group.findByPk(req.params.id);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    const members = await GroupMember.findAll({
+      where: { groupId: req.params.id, status: 'active' }
+    });
+
+    res.json({
+      ...group.toJSON(),
+      members: members.length
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch group' });
+  }
+});
+
+// Join group
+app.post('/groups/:id/join', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const groupId = req.params.id;
+
+    const group = await Group.findByPk(groupId);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    // Secret groups should reject join requests (invite-only)
+    if (group.privacy === 'secret') {
+      return res.status(403).json({ error: 'Secret groups are invite-only' });
+    }
+
+    // Check if already a member
+    const existing = await GroupMember.findOne({
+      where: { userId, groupId }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: 'Already a member' });
+    }
+
+    // For private groups, create pending membership; public groups are active
+    const status = group.privacy === 'public' ? 'active' : 'pending';
+
+    const membership = await GroupMember.create({
+      userId,
+      groupId,
+      role: 'member',
+      status
+    });
+
+    // Increment member count only if active
+    if (status === 'active') {
+      await group.increment('memberCount');
+    }
+
+    res.status(201).json(membership);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to join group' });
+  }
+});
+
+// Leave group
+app.post('/groups/:id/leave', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const groupId = req.params.id;
+
+    const membership = await GroupMember.findOne({
+      where: { userId, groupId }
+    });
+
+    if (!membership) {
+      return res.status(404).json({ error: 'Not a member' });
+    }
+
+    const wasActive = membership.status === 'active';
+    await membership.destroy();
+    
+    // Only decrement member count if the membership was active
+    if (wasActive) {
+      const group = await Group.findByPk(groupId);
+      if (group && group.memberCount > 0) {
+        await group.decrement('memberCount');
+      }
+    }
+
+    res.json({ message: 'Left group successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to leave group' });
+  }
+});
+
+// Get group members
+app.get('/groups/:id/members', async (req, res) => {
+  try {
+    const members = await GroupMember.findAll({
+      where: { 
+        groupId: req.params.id,
+        status: 'active'
+      },
+      order: [['createdAt', 'ASC']]
+    });
+
+    res.json(members);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch members' });
+  }
+});
+
+// ========== TWITTER/X-INSPIRED: BOOKMARKS ==========
+
+// Create bookmark
+app.post('/bookmarks', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { itemType, itemId, title, content, metadata } = req.body;
+
+    // Check if already bookmarked
+    const existing = await Bookmark.findOne({
+      where: { userId, itemType, itemId }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: 'Already bookmarked' });
+    }
+
+    const bookmark = await Bookmark.create({
+      userId,
+      itemType,
+      itemId,
+      title,
+      content,
+      metadata
+    });
+
+    res.status(201).json(bookmark);
+  } catch (error) {
+    console.error(error);
+    if (error instanceof Sequelize.UniqueConstraintError) {
+      return res.status(400).json({ error: 'Already bookmarked' });
+    }
+    res.status(500).json({ error: 'Failed to create bookmark' });
+  }
+});
+
+// Get user bookmarks
+app.get('/bookmarks', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const bookmarks = await Bookmark.findAll({
+      where: { userId },
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(bookmarks);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch bookmarks' });
+  }
+});
+
+// Remove bookmark
+app.delete('/bookmarks/:id', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const bookmark = await Bookmark.findOne({
+      where: { 
+        id: req.params.id,
+        userId: userId
+      }
+    });
+    
+    if (!bookmark) {
+      return res.status(404).json({ error: 'Bookmark not found' });
+    }
+
+    await bookmark.destroy();
+    res.json({ message: 'Bookmark removed' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to remove bookmark' });
+  }
+});
+
+// Check if item is bookmarked
+app.get('/bookmarks/check', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    const { itemType, itemId } = req.query;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!itemType || !itemId) {
+      return res.status(400).json({ error: 'itemType and itemId are required' });
+    }
+    
+    const bookmark = await Bookmark.findOne({
+      where: { userId, itemType, itemId }
+    });
+
+    res.json({ bookmarked: !!bookmark, bookmark });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to check bookmark' });
   }
 });
 
