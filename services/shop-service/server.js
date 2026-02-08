@@ -91,8 +91,85 @@ const Order = sequelize.define('Order', {
   }
 });
 
+// NEW: Amazon/AliExpress-inspired Shopping Cart
+const CartItem = sequelize.define('CartItem', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  productId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  quantity: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1
+  }
+});
+
+// NEW: Amazon/AliExpress-inspired Product Reviews
+const ProductReview = sequelize.define('ProductReview', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  productId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  rating: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    validate: { min: 1, max: 5 }
+  },
+  title: DataTypes.STRING,
+  reviewText: DataTypes.TEXT,
+  helpfulCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  verifiedPurchase: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+});
+
+// NEW: Wishlist
+const WishlistItem = sequelize.define('WishlistItem', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  productId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  }
+});
+
+// Relationships
 Product.hasMany(Order, { foreignKey: 'productId' });
 Order.belongsTo(Product, { foreignKey: 'productId' });
+Product.hasMany(CartItem, { foreignKey: 'productId' });
+CartItem.belongsTo(Product, { foreignKey: 'productId' });
+Product.hasMany(ProductReview, { foreignKey: 'productId' });
+ProductReview.belongsTo(Product, { foreignKey: 'productId' });
+Product.hasMany(WishlistItem, { foreignKey: 'productId' });
+WishlistItem.belongsTo(Product, { foreignKey: 'productId' });
 
 sequelize.sync();
 
@@ -276,6 +353,298 @@ app.put('/orders/:id/status', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to update order' });
+  }
+});
+
+// ========== AMAZON/ALIEXPRESS-INSPIRED: SHOPPING CART ==========
+
+// Add item to cart
+app.post('/cart', async (req, res) => {
+  try {
+    const { productId, quantity = 1 } = req.body;
+    
+    // Get authenticated user ID from header set by gateway
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Validate quantity
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return res.status(400).json({ error: 'Quantity must be a positive integer' });
+    }
+
+    // Check if product exists
+    const product = await Product.findByPk(productId);
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // Check if already in cart
+    let cartItem = await CartItem.findOne({ where: { userId, productId } });
+    
+    if (cartItem) {
+      // Update quantity
+      cartItem.quantity += quantity;
+      await cartItem.save();
+    } else {
+      // Create new cart item
+      cartItem = await CartItem.create({ userId, productId, quantity });
+    }
+
+    // Include product details
+    const itemWithProduct = await CartItem.findByPk(cartItem.id, {
+      include: [Product]
+    });
+
+    res.status(201).json(itemWithProduct);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to add to cart' });
+  }
+});
+
+// Get user's cart
+app.get('/cart/:userId', async (req, res) => {
+  try {
+    // Get authenticated user ID from header set by gateway
+    const authUserId = req.header('x-user-id');
+    if (!authUserId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Ensure user can only access their own cart
+    if (authUserId !== req.params.userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const cartItems = await CartItem.findAll({
+      where: { userId: req.params.userId },
+      include: [Product]
+    });
+
+    // Calculate total
+    const total = cartItems.reduce((sum, item) => {
+      return sum + (parseFloat(item.Product.price) * item.quantity);
+    }, 0);
+
+    res.json({ items: cartItems, total, count: cartItems.length });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch cart' });
+  }
+});
+
+// Update cart item quantity
+app.put('/cart/:id', async (req, res) => {
+  try {
+    const { quantity } = req.body;
+    const cartItem = await CartItem.findByPk(req.params.id);
+    
+    if (!cartItem) {
+      return res.status(404).json({ error: 'Cart item not found' });
+    }
+
+    if (quantity <= 0) {
+      await cartItem.destroy();
+      return res.json({ message: 'Item removed from cart' });
+    }
+
+    cartItem.quantity = quantity;
+    await cartItem.save();
+
+    res.json(cartItem);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update cart item' });
+  }
+});
+
+// Remove item from cart
+app.delete('/cart/:id', async (req, res) => {
+  try {
+    const cartItem = await CartItem.findByPk(req.params.id);
+    
+    if (!cartItem) {
+      return res.status(404).json({ error: 'Cart item not found' });
+    }
+
+    await cartItem.destroy();
+    res.json({ message: 'Item removed from cart' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to remove from cart' });
+  }
+});
+
+// Clear cart
+app.delete('/cart/user/:userId', async (req, res) => {
+  try {
+    await CartItem.destroy({ where: { userId: req.params.userId } });
+    res.json({ message: 'Cart cleared' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to clear cart' });
+  }
+});
+
+// ========== AMAZON/ALIEXPRESS-INSPIRED: PRODUCT REVIEWS ==========
+
+// Add product review
+app.post('/products/:productId/reviews', async (req, res) => {
+  try {
+    const { userId, rating, title, reviewText, verifiedPurchase } = req.body;
+    const { productId } = req.params;
+
+    // Check if product exists
+    const product = await Product.findByPk(productId);
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // Check if user already reviewed
+    const existing = await ProductReview.findOne({ where: { productId, userId } });
+    if (existing) {
+      return res.status(400).json({ error: 'You have already reviewed this product' });
+    }
+
+    const review = await ProductReview.create({
+      productId,
+      userId,
+      rating,
+      title,
+      reviewText,
+      verifiedPurchase
+    });
+
+    res.status(201).json(review);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to add review' });
+  }
+});
+
+// Get product reviews
+app.get('/products/:productId/reviews', async (req, res) => {
+  try {
+    const { page = 1, limit = 10, sort = 'recent' } = req.query;
+    const offset = (page - 1) * limit;
+
+    let order;
+    if (sort === 'helpful') {
+      order = [['helpfulCount', 'DESC']];
+    } else if (sort === 'rating') {
+      order = [['rating', 'DESC']];
+    } else {
+      order = [['createdAt', 'DESC']];
+    }
+
+    const reviews = await ProductReview.findAll({
+      where: { productId: req.params.productId },
+      order,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    // Calculate average rating
+    const allReviews = await ProductReview.findAll({
+      where: { productId: req.params.productId },
+      attributes: [[sequelize.fn('AVG', sequelize.col('rating')), 'avgRating'], 
+                   [sequelize.fn('COUNT', sequelize.col('id')), 'totalReviews']]
+    });
+
+    const stats = allReviews[0] ? {
+      averageRating: parseFloat(allReviews[0].dataValues.avgRating || 0).toFixed(1),
+      totalReviews: parseInt(allReviews[0].dataValues.totalReviews || 0)
+    } : { averageRating: 0, totalReviews: 0 };
+
+    res.json({ reviews, stats });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch reviews' });
+  }
+});
+
+// Mark review as helpful
+app.post('/reviews/:id/helpful', async (req, res) => {
+  try {
+    const review = await ProductReview.findByPk(req.params.id);
+    
+    if (!review) {
+      return res.status(404).json({ error: 'Review not found' });
+    }
+
+    await review.increment('helpfulCount');
+    res.json({ message: 'Review marked as helpful' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to mark review as helpful' });
+  }
+});
+
+// ========== AMAZON/ALIEXPRESS-INSPIRED: WISHLIST ==========
+
+// Add to wishlist
+app.post('/wishlist', async (req, res) => {
+  try {
+    const { userId, productId } = req.body;
+
+    // Check if product exists
+    const product = await Product.findByPk(productId);
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // Check if already in wishlist
+    const existing = await WishlistItem.findOne({ where: { userId, productId } });
+    if (existing) {
+      return res.status(400).json({ error: 'Product already in wishlist' });
+    }
+
+    const item = await WishlistItem.create({ userId, productId });
+    
+    // Include product details
+    const itemWithProduct = await WishlistItem.findByPk(item.id, {
+      include: [Product]
+    });
+
+    res.status(201).json(itemWithProduct);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to add to wishlist' });
+  }
+});
+
+// Get user's wishlist
+app.get('/wishlist/:userId', async (req, res) => {
+  try {
+    const items = await WishlistItem.findAll({
+      where: { userId: req.params.userId },
+      include: [Product],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(items);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch wishlist' });
+  }
+});
+
+// Remove from wishlist
+app.delete('/wishlist/:id', async (req, res) => {
+  try {
+    const item = await WishlistItem.findByPk(req.params.id);
+    
+    if (!item) {
+      return res.status(404).json({ error: 'Wishlist item not found' });
+    }
+
+    await item.destroy();
+    res.json({ message: 'Item removed from wishlist' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to remove from wishlist' });
   }
 });
 
