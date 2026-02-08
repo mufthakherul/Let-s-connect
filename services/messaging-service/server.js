@@ -716,6 +716,412 @@ app.get('/servers/categories', async (req, res) => {
   }
 });
 
+// ============================================
+// Phase 1 New Endpoints - Enhanced Discord Channels
+// ============================================
+
+// Text Channels - Get all text channels in a server
+app.get('/servers/:serverId/channels/text', async (req, res) => {
+  try {
+    const { serverId } = req.params;
+
+    const channels = await TextChannel.findAll({
+      where: { serverId },
+      order: [['position', 'ASC'], ['createdAt', 'ASC']]
+    });
+
+    res.json(channels);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch text channels' });
+  }
+});
+
+// Create a text channel
+app.post('/servers/:serverId/channels/text', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { serverId } = req.params;
+    const { name, topic, categoryId, isPrivate } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    // Verify user is server owner or has admin role
+    const server = await Server.findByPk(serverId);
+    if (!server) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+
+    if (server.ownerId !== userId) {
+      const member = await ServerMember.findOne({
+        where: { serverId, userId }
+      });
+      // Would need to check roles here in a complete implementation
+      if (!member) {
+        return res.status(403).json({ error: 'Only server members can create channels' });
+      }
+    }
+
+    const channel = await TextChannel.create({
+      serverId,
+      name,
+      topic,
+      categoryId,
+      isPrivate: isPrivate || false
+    });
+
+    res.status(201).json(channel);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create text channel' });
+  }
+});
+
+// Update text channel
+app.put('/channels/text/:channelId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { channelId } = req.params;
+    const updates = req.body;
+
+    const channel = await TextChannel.findByPk(channelId);
+    if (!channel) {
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    // Verify permissions (simplified - in production check roles)
+    const server = await Server.findByPk(channel.serverId);
+    if (server.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only server owner can update channels' });
+    }
+
+    await channel.update(updates);
+    res.json(channel);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update text channel' });
+  }
+});
+
+// Voice Channels - Get all voice channels in a server
+app.get('/servers/:serverId/channels/voice', async (req, res) => {
+  try {
+    const { serverId } = req.params;
+
+    const channels = await VoiceChannel.findAll({
+      where: { serverId },
+      order: [['position', 'ASC'], ['createdAt', 'ASC']]
+    });
+
+    res.json(channels);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch voice channels' });
+  }
+});
+
+// Create a voice channel (placeholder)
+app.post('/servers/:serverId/channels/voice', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { serverId } = req.params;
+    const { name, categoryId, userLimit, bitrate } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    // Verify permissions
+    const server = await Server.findByPk(serverId);
+    if (!server) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+
+    if (server.ownerId !== userId) {
+      const member = await ServerMember.findOne({
+        where: { serverId, userId }
+      });
+      if (!member) {
+        return res.status(403).json({ error: 'Only server members can create channels' });
+      }
+    }
+
+    const channel = await VoiceChannel.create({
+      serverId,
+      name,
+      categoryId,
+      userLimit: userLimit || 0,
+      bitrate: bitrate || 64000
+    });
+
+    res.status(201).json({
+      ...channel.toJSON(),
+      note: 'Voice channel created. Actual voice functionality requires WebRTC implementation.'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create voice channel' });
+  }
+});
+
+// Channel Categories - Get all categories in a server
+app.get('/servers/:serverId/categories', async (req, res) => {
+  try {
+    const { serverId } = req.params;
+
+    const categories = await ChannelCategory.findAll({
+      where: { serverId },
+      order: [['position', 'ASC'], ['createdAt', 'ASC']]
+    });
+
+    res.json(categories);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch channel categories' });
+  }
+});
+
+// Create a channel category
+app.post('/servers/:serverId/categories', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { serverId } = req.params;
+    const { name, position } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    // Verify permissions
+    const server = await Server.findByPk(serverId);
+    if (!server) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+
+    if (server.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only server owner can create categories' });
+    }
+
+    const category = await ChannelCategory.create({
+      serverId,
+      name,
+      position: position || 0
+    });
+
+    res.status(201).json(category);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create category' });
+  }
+});
+
+// Pinned Messages - Get pinned messages in a conversation
+app.get('/conversations/:conversationId/pins', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+
+    const pinnedMessages = await PinnedMessage.findAll({
+      where: { conversationId },
+      include: [{
+        model: Message,
+        attributes: ['id', 'senderId', 'content', 'type', 'createdAt']
+      }],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(pinnedMessages);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch pinned messages' });
+  }
+});
+
+// Pin a message
+app.post('/messages/:messageId/pin', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { messageId } = req.params;
+
+    const message = await Message.findByPk(messageId);
+    if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    // Check if already pinned
+    const existingPin = await PinnedMessage.findOne({
+      where: { messageId, conversationId: message.conversationId }
+    });
+
+    if (existingPin) {
+      return res.status(400).json({ error: 'Message already pinned' });
+    }
+
+    const pin = await PinnedMessage.create({
+      messageId,
+      conversationId: message.conversationId,
+      pinnedBy: userId
+    });
+
+    res.status(201).json(pin);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to pin message' });
+  }
+});
+
+// Unpin a message
+app.delete('/messages/:messageId/pin', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { messageId } = req.params;
+
+    const pin = await PinnedMessage.findOne({
+      where: { messageId }
+    });
+
+    if (!pin) {
+      return res.status(404).json({ error: 'Pinned message not found' });
+    }
+
+    await pin.destroy();
+    res.json({ message: 'Message unpinned successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to unpin message' });
+  }
+});
+
+// Webhooks - Get webhooks for a server
+app.get('/servers/:serverId/webhooks', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { serverId } = req.params;
+
+    // Verify permissions
+    const server = await Server.findByPk(serverId);
+    if (!server) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+
+    if (server.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only server owner can view webhooks' });
+    }
+
+    const webhooks = await Webhook.findAll({
+      where: { serverId },
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(webhooks);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch webhooks' });
+  }
+});
+
+// Create a webhook
+app.post('/servers/:serverId/webhooks', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { serverId } = req.params;
+    const { name, channelId, avatarUrl } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    // Verify permissions
+    const server = await Server.findByPk(serverId);
+    if (!server) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+
+    if (server.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only server owner can create webhooks' });
+    }
+
+    // Generate webhook token (placeholder - use secure random in production)
+    const token = 'webhook_' + Date.now() + '_' + Math.random().toString(36).substring(7);
+
+    const webhook = await Webhook.create({
+      serverId,
+      channelId,
+      name,
+      token,
+      avatarUrl,
+      createdBy: userId
+    });
+
+    res.status(201).json(webhook);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create webhook' });
+  }
+});
+
+// Delete a webhook
+app.delete('/webhooks/:webhookId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { webhookId } = req.params;
+
+    const webhook = await Webhook.findByPk(webhookId);
+    if (!webhook) {
+      return res.status(404).json({ error: 'Webhook not found' });
+    }
+
+    // Verify permissions
+    const server = await Server.findByPk(webhook.serverId);
+    if (server.ownerId !== userId && webhook.createdBy !== userId) {
+      return res.status(403).json({ error: 'Unauthorized to delete this webhook' });
+    }
+
+    await webhook.destroy();
+    res.json({ message: 'Webhook deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete webhook' });
+  }
+});
+
 server.listen(PORT, () => {
   console.log(`Messaging service running on port ${PORT}`);
 });

@@ -564,6 +564,162 @@ app.post('/pages/:id/follow', async (req, res) => {
   }
 });
 
+// ============================================
+// Phase 1 New Endpoints - Page Admin Management
+// ============================================
+
+// Get page admins
+app.get('/pages/:pageId/admins', async (req, res) => {
+  try {
+    const { pageId } = req.params;
+
+    const admins = await PageAdmin.findAll({
+      where: { pageId },
+      order: [
+        [sequelize.literal("CASE WHEN role = 'owner' THEN 1 WHEN role = 'admin' THEN 2 WHEN role = 'editor' THEN 3 ELSE 4 END"), 'ASC']
+      ]
+    });
+
+    res.json(admins);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch page admins' });
+  }
+});
+
+// Add page admin
+app.post('/pages/:pageId/admins', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { pageId } = req.params;
+    const { adminUserId, role } = req.body;
+
+    if (!adminUserId || !role) {
+      return res.status(400).json({ error: 'adminUserId and role are required' });
+    }
+
+    if (!['admin', 'editor', 'moderator'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role. Must be admin, editor, or moderator' });
+    }
+
+    // Verify requesting user is page owner or admin
+    const page = await Page.findByPk(pageId);
+    if (!page) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+
+    const requesterAdmin = await PageAdmin.findOne({
+      where: { pageId, userId, role: ['owner', 'admin'] }
+    });
+
+    if (page.userId !== userId && !requesterAdmin) {
+      return res.status(403).json({ error: 'Only page owner or admins can add admins' });
+    }
+
+    // Create page admin
+    const [admin, created] = await PageAdmin.findOrCreate({
+      where: { pageId, userId: adminUserId },
+      defaults: { role }
+    });
+
+    if (!created) {
+      admin.role = role;
+      await admin.save();
+    }
+
+    res.status(created ? 201 : 200).json(admin);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to add page admin' });
+  }
+});
+
+// Update page admin role
+app.put('/pages/:pageId/admins/:adminId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { pageId, adminId } = req.params;
+    const { role } = req.body;
+
+    if (!role || !['admin', 'editor', 'moderator'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    // Verify requesting user is page owner or admin
+    const page = await Page.findByPk(pageId);
+    if (!page) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+
+    if (page.userId !== userId) {
+      const requesterAdmin = await PageAdmin.findOne({
+        where: { pageId, userId, role: ['owner', 'admin'] }
+      });
+      if (!requesterAdmin) {
+        return res.status(403).json({ error: 'Only page owner or admins can update roles' });
+      }
+    }
+
+    const admin = await PageAdmin.findByPk(adminId);
+    if (!admin || admin.pageId !== pageId) {
+      return res.status(404).json({ error: 'Page admin not found' });
+    }
+
+    admin.role = role;
+    await admin.save();
+
+    res.json(admin);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update page admin' });
+  }
+});
+
+// Remove page admin
+app.delete('/pages/:pageId/admins/:adminId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { pageId, adminId } = req.params;
+
+    // Verify requesting user is page owner or admin
+    const page = await Page.findByPk(pageId);
+    if (!page) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+
+    if (page.userId !== userId) {
+      return res.status(403).json({ error: 'Only page owner can remove admins' });
+    }
+
+    const admin = await PageAdmin.findByPk(adminId);
+    if (!admin || admin.pageId !== pageId) {
+      return res.status(404).json({ error: 'Page admin not found' });
+    }
+
+    if (admin.role === 'owner') {
+      return res.status(403).json({ error: 'Cannot remove page owner' });
+    }
+
+    await admin.destroy();
+    res.json({ message: 'Page admin removed successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to remove page admin' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`User service running on port ${PORT}`);
 });

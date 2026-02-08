@@ -2297,6 +2297,606 @@ app.post('/groups/:groupId/posts', async (req, res) => {
   }
 });
 
+// ============================================
+// Phase 1 New Endpoints
+// ============================================
+
+// Page Posts - Get posts for a specific page
+app.get('/pages/:pageId/posts', async (req, res) => {
+  try {
+    const { pageId } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const posts = await Post.findAll({
+      where: { pageId, isPublished: true },
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.json(posts);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch page posts' });
+  }
+});
+
+// Create a post for a page (requires page admin)
+app.post('/pages/:pageId/posts', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { pageId } = req.params;
+    const { content, type, mediaUrls, visibility } = req.body;
+
+    if (!content) {
+      return res.status(400).json({ error: 'content is required' });
+    }
+
+    // Note: Page verification would need to be done against user-service
+    // For now, we'll create the post and let the API gateway handle auth
+    const post = await Post.create({
+      userId,
+      pageId,
+      content,
+      type,
+      mediaUrls,
+      visibility: visibility || 'public'
+    });
+
+    res.status(201).json(post);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create page post' });
+  }
+});
+
+// User Reaction History - Get all reactions by a user
+app.get('/users/:userId/reactions', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const reactions = await Reaction.findAll({
+      where: { userId },
+      include: [{
+        model: Post,
+        attributes: ['id', 'content', 'userId', 'createdAt']
+      }],
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.json(reactions);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch reaction history' });
+  }
+});
+
+// Channel Analytics - Get analytics for a channel
+app.get('/channels/:channelId/analytics', async (req, res) => {
+  try {
+    const { channelId } = req.params;
+
+    const channel = await Channel.findByPk(channelId);
+    if (!channel) {
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    // Get video count and total views
+    const videos = await Video.findAll({
+      where: { channelId },
+      attributes: [
+        [sequelize.fn('COUNT', sequelize.col('id')), 'videoCount'],
+        [sequelize.fn('SUM', sequelize.col('views')), 'totalViews']
+      ]
+    });
+
+    const analytics = {
+      channelId: channel.id,
+      channelName: channel.name,
+      subscribers: channel.subscribers,
+      videoCount: videos[0]?.dataValues?.videoCount || 0,
+      totalViews: videos[0]?.dataValues?.totalViews || 0,
+      averageViewsPerVideo: videos[0]?.dataValues?.videoCount > 0 
+        ? Math.round(videos[0]?.dataValues?.totalViews / videos[0]?.dataValues?.videoCount) 
+        : 0
+    };
+
+    res.json(analytics);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch channel analytics' });
+  }
+});
+
+// Video Recommendations - Simple placeholder (returns popular videos)
+app.get('/videos/:videoId/recommendations', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const { limit = 10 } = req.query;
+
+    const currentVideo = await Video.findByPk(videoId);
+    if (!currentVideo) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Simple recommendation: videos in same category, sorted by views
+    const recommendations = await Video.findAll({
+      where: {
+        id: { [Op.ne]: videoId },
+        category: currentVideo.category,
+        visibility: 'public'
+      },
+      order: [['views', 'DESC'], ['createdAt', 'DESC']],
+      limit: parseInt(limit)
+    });
+
+    res.json(recommendations);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch video recommendations' });
+  }
+});
+
+// Group Files - Get files in a group
+app.get('/groups/:groupId/files', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    const { groupId } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    // Verify group membership
+    const group = await Group.findByPk(groupId);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    if (group.privacy !== 'public' && userId) {
+      const membership = await GroupMember.findOne({
+        where: { userId, groupId, status: 'active' }
+      });
+      if (!membership) {
+        return res.status(403).json({ error: 'Not a member of this group' });
+      }
+    }
+
+    const files = await GroupFile.findAll({
+      where: { groupId },
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.json(files);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch group files' });
+  }
+});
+
+// Upload a file to a group
+app.post('/groups/:groupId/files', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { groupId } = req.params;
+    const { fileName, fileUrl, fileType, fileSize, description } = req.body;
+
+    if (!fileName || !fileUrl) {
+      return res.status(400).json({ error: 'fileName and fileUrl are required' });
+    }
+
+    // Verify group membership
+    const membership = await GroupMember.findOne({
+      where: { userId, groupId, status: 'active' }
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Not a member of this group' });
+    }
+
+    const file = await GroupFile.create({
+      groupId,
+      userId,
+      fileName,
+      fileUrl,
+      fileType,
+      fileSize,
+      description
+    });
+
+    res.status(201).json(file);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to upload file' });
+  }
+});
+
+// Delete a group file
+app.delete('/groups/:groupId/files/:fileId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { fileId } = req.params;
+
+    const file = await GroupFile.findByPk(fileId);
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Check if user is the file owner or group admin
+    const membership = await GroupMember.findOne({
+      where: { userId, groupId: file.groupId, status: 'active' }
+    });
+
+    if (!membership || (file.userId !== userId && membership.role === 'member')) {
+      return res.status(403).json({ error: 'Unauthorized to delete this file' });
+    }
+
+    await file.destroy();
+    res.json({ message: 'File deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete file' });
+  }
+});
+
+// Group Events - Get events in a group
+app.get('/groups/:groupId/events', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { upcoming = 'true' } = req.query;
+
+    const whereClause = { groupId };
+    if (upcoming === 'true') {
+      whereClause.startDate = { [Op.gte]: new Date() };
+    }
+
+    const events = await GroupEvent.findAll({
+      where: whereClause,
+      order: [['startDate', 'ASC']]
+    });
+
+    res.json(events);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch group events' });
+  }
+});
+
+// Create a group event
+app.post('/groups/:groupId/events', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { groupId } = req.params;
+    const { title, description, location, startDate, endDate, coverImageUrl } = req.body;
+
+    if (!title || !startDate) {
+      return res.status(400).json({ error: 'title and startDate are required' });
+    }
+
+    // Verify group membership (admins/moderators can create events)
+    const membership = await GroupMember.findOne({
+      where: { userId, groupId, status: 'active' }
+    });
+
+    if (!membership || membership.role === 'member') {
+      return res.status(403).json({ error: 'Only group admins/moderators can create events' });
+    }
+
+    const event = await GroupEvent.create({
+      groupId,
+      createdBy: userId,
+      title,
+      description,
+      location,
+      startDate,
+      endDate,
+      coverImageUrl
+    });
+
+    res.status(201).json(event);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create event' });
+  }
+});
+
+// RSVP to a group event
+app.post('/events/:eventId/rsvp', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { eventId } = req.params;
+    const { status } = req.body; // 'going', 'interested', 'not_going'
+
+    if (!status || !['going', 'interested', 'not_going'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const event = await GroupEvent.findByPk(eventId);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Check or create RSVP
+    const [attendee, created] = await GroupEventAttendee.findOrCreate({
+      where: { eventId, userId },
+      defaults: { status }
+    });
+
+    if (!created) {
+      attendee.status = status;
+      await attendee.save();
+    }
+
+    // Update attendee count
+    const goingCount = await GroupEventAttendee.count({
+      where: { eventId, status: 'going' }
+    });
+    await event.update({ attendeeCount: goingCount });
+
+    res.json(attendee);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to RSVP to event' });
+  }
+});
+
+// Comment Voting - Upvote/Downvote a comment
+app.post('/comments/:commentId/vote', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { commentId } = req.params;
+    const { value } = req.body; // 1 for upvote, -1 for downvote
+
+    if (!value || ![1, -1].includes(value)) {
+      return res.status(400).json({ error: 'Invalid vote value. Use 1 for upvote, -1 for downvote' });
+    }
+
+    const comment = await Comment.findByPk(commentId);
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    // Check if user already voted
+    let vote = await CommentVote.findOne({
+      where: { commentId, userId }
+    });
+
+    if (vote) {
+      const oldValue = vote.value;
+      if (oldValue === value) {
+        // Remove vote
+        await vote.destroy();
+        await comment.decrement(value === 1 ? 'upvotes' : 'downvotes');
+        await comment.decrement('score', { by: value });
+        return res.json({ message: 'Vote removed', vote: null });
+      } else {
+        // Change vote
+        vote.value = value;
+        await vote.save();
+        await comment.increment(value === 1 ? 'upvotes' : 'downvotes');
+        await comment.decrement(oldValue === 1 ? 'upvotes' : 'downvotes');
+        await comment.increment('score', { by: value * 2 }); // +2 or -2
+      }
+    } else {
+      // Create new vote
+      vote = await CommentVote.create({ commentId, userId, value });
+      await comment.increment(value === 1 ? 'upvotes' : 'downvotes');
+      await comment.increment('score', { by: value });
+    }
+
+    await comment.reload();
+    res.json({ vote, comment });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to vote on comment' });
+  }
+});
+
+// Community Flairs - Get flairs for a community
+app.get('/communities/:communityId/flairs', async (req, res) => {
+  try {
+    const { communityId } = req.params;
+
+    const flairs = await Flair.findAll({
+      where: { communityId },
+      order: [['createdAt', 'ASC']]
+    });
+
+    res.json(flairs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch community flairs' });
+  }
+});
+
+// Create a flair for a community
+app.post('/communities/:communityId/flairs', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { communityId } = req.params;
+    const { name, backgroundColor, textColor, type } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    // Verify user is community moderator/admin
+    const membership = await CommunityMember.findOne({
+      where: { userId, communityId }
+    });
+
+    if (!membership || membership.role === 'member') {
+      return res.status(403).json({ error: 'Only moderators/admins can create flairs' });
+    }
+
+    const flair = await Flair.create({
+      communityId,
+      name,
+      backgroundColor,
+      textColor,
+      type: type || 'post'
+    });
+
+    res.status(201).json(flair);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create flair' });
+  }
+});
+
+// Live Streaming - Get live streams
+app.get('/streams', async (req, res) => {
+  try {
+    const { status = 'live', limit = 20 } = req.query;
+
+    const streams = await LiveStream.findAll({
+      where: status ? { status } : {},
+      order: [
+        ['status', 'ASC'], // live first
+        ['viewerCount', 'DESC']
+      ],
+      limit: parseInt(limit)
+    });
+
+    res.json(streams);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch live streams' });
+  }
+});
+
+// Create a live stream (placeholder)
+app.post('/streams', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { channelId, title, description, thumbnailUrl, scheduledStartTime, category } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'title is required' });
+    }
+
+    // Generate a placeholder stream key (in production, use secure random)
+    const streamKey = 'stream_' + Date.now() + '_' + Math.random().toString(36).substring(7);
+
+    const stream = await LiveStream.create({
+      userId,
+      channelId,
+      title,
+      description,
+      thumbnailUrl,
+      streamKey,
+      scheduledStartTime: scheduledStartTime || new Date(),
+      category,
+      status: 'scheduled'
+    });
+
+    res.status(201).json({
+      ...stream.toJSON(),
+      note: 'This is a placeholder. Actual streaming requires RTMP/HLS setup.'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create live stream' });
+  }
+});
+
+// Advanced Sorting - Get posts with advanced sorting
+app.get('/posts/sorted', async (req, res) => {
+  try {
+    const { sort = 'new', limit = 20, page = 1 } = req.query;
+    const offset = (page - 1) * limit;
+
+    let order;
+    switch (sort) {
+      case 'hot':
+        // Hot algorithm: recent posts with high engagement
+        // Simple version: score based on likes, comments, shares and recency
+        order = [
+          [sequelize.literal('(likes + comments * 2 + shares * 3) / EXTRACT(HOUR FROM (NOW() - "Post"."createdAt")) + 1'), 'DESC']
+        ];
+        break;
+      case 'top':
+        // Top posts by total engagement
+        order = [
+          [sequelize.literal('(likes + comments * 2 + shares * 3)'), 'DESC']
+        ];
+        break;
+      case 'rising':
+        // Rising: recent posts with growing engagement
+        // Posts from last 24 hours sorted by engagement
+        order = [
+          [sequelize.literal('(likes + comments * 2 + shares * 3)'), 'DESC'],
+          ['createdAt', 'DESC']
+        ];
+        break;
+      case 'controversial':
+        // Controversial: posts with similar upvotes and downvotes
+        // For now, use posts with high comment count but moderate likes
+        order = [
+          [sequelize.literal('ABS(comments - likes)'), 'ASC'],
+          ['comments', 'DESC']
+        ];
+        break;
+      case 'new':
+      default:
+        order = [['createdAt', 'DESC']];
+    }
+
+    const posts = await Post.findAll({
+      where: { 
+        visibility: 'public',
+        isPublished: true,
+        ...(sort === 'rising' ? { createdAt: { [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) } } : {})
+      },
+      order,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.json(posts);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch sorted posts' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Content service running on port ${PORT}`);
 });
