@@ -5,18 +5,21 @@ A comprehensive social collaboration platform combining features from Facebook, 
 ## 🚀 Features
 
 ### Public Access (No Signup Required)
-- 📺 **Video Platform** - Watch public videos like YouTube
+- 📺 **Video Platform** - Watch public videos like YouTube with channels
 - 📖 **Documentation** - Read public docs and wiki pages
-- 🛒 **Shop** - Browse products and marketplace
+- 🛒 **Shop** - Browse products and marketplace with reviews
 
 ### Private Access (Authentication Required)
-- 📱 **Social Feed** - Posts, images, likes, and comments
-- 💬 **Real-time Chat** - Instant messaging with WebSocket support
+- 📱 **Social Feed** - Posts, images, hashtags, reactions (like, love, haha, wow, sad, angry)
+- 💬 **Real-time Chat** - Instant messaging with Discord-style servers and roles
 - 📞 **Voice/Video** - Calls and conferences (WebRTC ready)
-- 📝 **Collaboration** - Documents, wikis, and task management
+- 📝 **Collaboration** - Documents, wikis, and GitHub-style issue tracking
 - 📁 **File Sharing** - Upload and share files with S3-compatible storage
-- 🛍️ **E-commerce** - Place orders and track purchases
+- 🛍️ **E-commerce** - Shopping cart, reviews, wishlist, and order tracking
 - 🤖 **AI Assistant** - Smart features powered by OpenAI
+- 👥 **Communities** - Reddit-style communities with voting
+- 🎯 **Skills** - LinkedIn-style skills and endorsements
+- 📊 **Projects** - GitHub-style project management
 
 ## 🏗️ Architecture
 
@@ -82,6 +85,10 @@ docker-compose up --build
 
 - [Full Documentation](./docs/README.md)
 - [API Reference](./docs/API.md)
+- [New Platform Features API](./docs/API_NEW_FEATURES.md)
+- [Quick Reference Guide](./docs/QUICK_REFERENCE.md)
+- [Development Roadmap](./ROADMAP.md)
+- [Platform Features Mapping](./PLATFORM_FEATURES.md)
 - [Deployment Guide](./docs/DEPLOYMENT.md)
 
 ## 🚀 Deployment
@@ -106,12 +113,16 @@ This project is licensed under the MIT License.
 ## 🙏 Acknowledgments
 
 Inspired by the best features from:
-- Facebook (Social Feed)
-- X/Twitter (Microblogging)
-- YouTube (Video Platform)
-- WhatsApp/Telegram (Messaging)
-- Discord (Communities)
-- Notion (Collaboration)
+- Facebook (Social Feed, Reactions, Pages)
+- X/Twitter (Microblogging, Hashtags, Trending)
+- YouTube (Video Platform, Channels, Subscriptions)
+- WhatsApp/Telegram (Messaging, Groups)
+- Discord (Servers, Roles, Channels)
+- Notion (Collaboration, Docs, Wiki)
+- Reddit (Communities, Voting, Karma)
+- LinkedIn (Skills, Endorsements, Professional Network)
+- GitHub (Issues, Projects, Task Management)
+- Amazon/AliExpress (E-commerce, Reviews, Cart)
 
 ## 📧 Support
 

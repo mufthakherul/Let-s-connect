@@ -3,6 +3,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const { Sequelize, DataTypes } = require('sequelize');
 const Redis = require('ioredis');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
@@ -32,6 +33,7 @@ const Conversation = sequelize.define('Conversation', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
+  serverId: DataTypes.UUID, // Discord-inspired: conversations can belong to servers
   name: DataTypes.STRING,
   type: {
     type: DataTypes.ENUM('direct', 'group', 'channel'),
@@ -70,6 +72,77 @@ const Message = sequelize.define('Message', {
 
 Conversation.hasMany(Message, { foreignKey: 'conversationId' });
 Message.belongsTo(Conversation, { foreignKey: 'conversationId' });
+
+// NEW: Discord-inspired Server Model
+const Server = sequelize.define('Server', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  ownerId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  icon: DataTypes.STRING,
+  members: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1
+  },
+  inviteCode: DataTypes.STRING
+});
+
+// NEW: Discord-inspired Role Model
+const Role = sequelize.define('Role', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  serverId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  permissions: DataTypes.ARRAY(DataTypes.STRING),
+  color: DataTypes.STRING,
+  position: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+});
+
+// NEW: Server Member Model
+const ServerMember = sequelize.define('ServerMember', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  serverId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  roleIds: DataTypes.ARRAY(DataTypes.UUID),
+  nickname: DataTypes.STRING
+});
+
+// Relationships
+Server.hasMany(Conversation, { foreignKey: 'serverId' });
+Server.hasMany(Role, { foreignKey: 'serverId' });
+Server.hasMany(ServerMember, { foreignKey: 'serverId' });
 
 sequelize.sync();
 
@@ -186,6 +259,213 @@ app.get('/conversations/:conversationId/messages', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// ========== DISCORD-INSPIRED: SERVERS ==========
+
+// Helper: Generate secure invite code
+function generateInviteCode() {
+  return crypto.randomBytes(6).toString('base64').replace(/[+/=]/g, '').substring(0, 8);
+}
+
+// Create server
+app.post('/servers', async (req, res) => {
+  try {
+    const { name, description, icon } = req.body;
+    
+    // Get authenticated user ID from header set by gateway
+    const ownerId = req.header('x-user-id');
+    if (!ownerId) {
+      return res.status(401).json({ error: 'Authentication required to create a server' });
+    }
+
+    // Generate secure invite code with uniqueness check
+    let inviteCode;
+    let attempts = 0;
+    while (attempts < 5) {
+      inviteCode = generateInviteCode();
+      const existing = await Server.findOne({ where: { inviteCode } });
+      if (!existing) break;
+      attempts++;
+    }
+    
+    if (attempts === 5) {
+      return res.status(500).json({ error: 'Failed to generate unique invite code' });
+    }
+
+    const server = await Server.create({
+      name,
+      description,
+      ownerId,
+      icon,
+      inviteCode
+    });
+
+    // Add owner as member
+    await ServerMember.create({
+      serverId: server.id,
+      userId: ownerId
+    });
+
+    // Create default role
+    await Role.create({
+      serverId: server.id,
+      name: '@everyone',
+      permissions: ['read_messages', 'send_messages'],
+      position: 0
+    });
+
+    res.status(201).json(server);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create server' });
+  }
+});
+
+// Get server
+app.get('/servers/:id', async (req, res) => {
+  try {
+    const server = await Server.findByPk(req.params.id, {
+      include: [
+        { model: Conversation },
+        { model: Role }
+      ],
+      order: [[Role, 'position', 'DESC']]
+    });
+
+    if (!server) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+
+    res.json(server);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch server' });
+  }
+});
+
+// Get user's servers
+app.get('/users/:userId/servers', async (req, res) => {
+  try {
+    const members = await ServerMember.findAll({
+      where: { userId: req.params.userId }
+    });
+
+    const serverIds = members.map(m => m.serverId);
+    const servers = await Server.findAll({
+      where: { id: serverIds },
+      order: [['createdAt', 'ASC']]
+    });
+
+    res.json(servers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch servers' });
+  }
+});
+
+// Join server by invite code
+app.post('/servers/join', async (req, res) => {
+  try {
+    const { userId, inviteCode } = req.body;
+
+    const server = await Server.findOne({ where: { inviteCode } });
+    if (!server) {
+      return res.status(404).json({ error: 'Invalid invite code' });
+    }
+
+    // Check if already member
+    const existing = await ServerMember.findOne({
+      where: { serverId: server.id, userId }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: 'Already a member' });
+    }
+
+    await ServerMember.create({
+      serverId: server.id,
+      userId
+    });
+
+    await server.increment('members');
+
+    res.json({ message: 'Joined server successfully', server });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to join server' });
+  }
+});
+
+// Create channel in server
+app.post('/servers/:serverId/channels', async (req, res) => {
+  try {
+    const { name, type = 'channel' } = req.body;
+    const { serverId } = req.params;
+
+    const channel = await Conversation.create({
+      serverId,
+      name,
+      type,
+      participants: []
+    });
+
+    res.status(201).json(channel);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create channel' });
+  }
+});
+
+// ========== DISCORD-INSPIRED: ROLES ==========
+
+// Create role
+app.post('/servers/:serverId/roles', async (req, res) => {
+  try {
+    const { name, permissions, color, position } = req.body;
+    const { serverId } = req.params;
+
+    const role = await Role.create({
+      serverId,
+      name,
+      permissions,
+      color,
+      position
+    });
+
+    res.status(201).json(role);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create role' });
+  }
+});
+
+// Assign role to member
+app.post('/servers/:serverId/members/:userId/roles', async (req, res) => {
+  try {
+    const { roleId } = req.body;
+    const { serverId, userId } = req.params;
+
+    const member = await ServerMember.findOne({
+      where: { serverId, userId }
+    });
+
+    if (!member) {
+      return res.status(404).json({ error: 'Member not found' });
+    }
+
+    // Add role if not already assigned
+    const roleIds = member.roleIds || [];
+    if (!roleIds.includes(roleId)) {
+      roleIds.push(roleId);
+      await member.update({ roleIds });
+    }
+
+    res.json({ message: 'Role assigned', member });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to assign role' });
   }
 });
 
