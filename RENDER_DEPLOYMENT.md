@@ -27,8 +27,8 @@ Complete guide for deploying Let's Connect to Render using Supabase as the datab
 
 Supabase uses a single PostgreSQL database. Let's Connect needs 6 separate databases, so we'll use **schemas** instead:
 
-1. Go to **SQL Editor** in Supabase dashboard
-2. Run this SQL to create schemas:
+1. Go to **SQL Editor** in Supabase dashboard (left sidebar)
+2. Click **New Query** button and run this SQL to create schemas:
 
 ```sql
 -- Create separate schemas for each service
@@ -39,16 +39,39 @@ CREATE SCHEMA IF NOT EXISTS collaboration;
 CREATE SCHEMA IF NOT EXISTS media;
 CREATE SCHEMA IF NOT EXISTS shop;
 
--- Grant permissions
+-- Grant permissions to all relevant roles
 GRANT ALL ON SCHEMA users TO postgres, anon, authenticated, service_role;
 GRANT ALL ON SCHEMA content TO postgres, anon, authenticated, service_role;
 GRANT ALL ON SCHEMA messages TO postgres, anon, authenticated, service_role;
 GRANT ALL ON SCHEMA collaboration TO postgres, anon, authenticated, service_role;
 GRANT ALL ON SCHEMA media TO postgres, anon, authenticated, service_role;
 GRANT ALL ON SCHEMA shop TO postgres, anon, authenticated, service_role;
+
+-- Set default privileges for future tables in each schema
+-- (Note: Repeat for each schema to ensure consistent permissions)
+ALTER DEFAULT PRIVILEGES IN SCHEMA users GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA content GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA messages GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA collaboration GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA media GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA shop GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
+
+-- Set default privileges for sequences
+ALTER DEFAULT PRIVILEGES IN SCHEMA users GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA content GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA messages GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA collaboration GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA media GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA shop GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
 ```
 
 3. Click **Run** to execute
+
+**Important Note about Tables:**
+- The SQL above creates only the **schemas** (namespaces), not the tables themselves
+- **Tables are created automatically** by each service when it starts for the first time
+- Each service uses Sequelize ORM which auto-creates tables based on model definitions
+- This is why you see no tables after running the SQL - they appear after deploying the services
 
 ### 1.3 Get Connection Details
 
@@ -165,24 +188,41 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 3. Click **Connect GitHub** → Authorize Render
 4. Select `Let-s-connect` repository
 
-### 4.2 Deploy Backend Services (8 services)
+### 4.2 Choose Deployment Method
+
+Render supports two deployment methods. Choose based on your needs:
+
+#### Option A: Docker Deployment (Recommended - Consistent & Reliable)
+
+Docker deployment ensures consistent environments and includes all dependencies. Each service has a pre-configured Dockerfile.
+
+#### Option B: Node.js Deployment (Simpler - Direct)
+
+Traditional Node.js deployment without Docker. Simpler but requires careful dependency management.
+
+---
+
+### 4.3 Deploy Backend Services (8 services)
 
 For EACH service below, repeat these steps:
 
 #### Service 1: User Service
 
+**If using Docker (Option A):**
+
 1. **Create New Web Service**
    - Repository: `Let-s-connect`
    - Name: `lets-connect-user-service`
-   - Root Directory: `services/user-service`
-   - Environment: `Node`
+   - Environment: `Docker`
    - Region: Same as Supabase
    - Branch: `main`
 
-2. **Build & Start Commands:**
+2. **Docker Configuration:**
    ```
-   Build Command: npm install --production
-   Start Command: node server.js
+   Docker Build Context Directory: services/user-service
+   Dockerfile Path: services/user-service/Dockerfile
+   Docker Command: (leave empty - uses Dockerfile's CMD)
+   Pre-Deploy Command: (leave empty)
    ```
 
 3. **Instance Type:** Free
@@ -202,22 +242,52 @@ For EACH service below, repeat these steps:
 
 5. Click **Create Web Service**
 
+**If using Node.js (Option B):**
+
+1. **Create New Web Service**
+   - Repository: `Let-s-connect`
+   - Name: `lets-connect-user-service`
+   - Root Directory: `services/user-service`
+   - Environment: `Node`
+   - Region: Same as Supabase
+   - Branch: `main`
+
+2. **Build & Start Commands:**
+   ```
+   Build Command: npm install --production
+   Start Command: node server.js
+   ```
+
+3. **Instance Type:** Free
+
+4. **Environment Variables:** Same as Docker option above
+
+5. Click **Create Web Service**
+
 6. **Copy Service URL** (e.g., `https://lets-connect-user-service.onrender.com`) - you'll need this for API Gateway
 
 #### Service 2-8: Repeat for Each Service
 
 Deploy each service with its specific settings:
 
-| Service | Root Directory | Port | Schema |
-|---------|---------------|------|--------|
-| User Service | `services/user-service` | 8001 | `users` |
-| Content Service | `services/content-service` | 8002 | `content` |
-| Messaging Service | `services/messaging-service` | 8003 | `messages` |
-| Collaboration Service | `services/collaboration-service` | 8004 | `collaboration` |
-| Media Service | `services/media-service` | 8005 | `media` |
-| Shop Service | `services/shop-service` | 8006 | `shop` |
-| AI Service | `services/ai-service` | 8007 | N/A (uses Redis only) |
-| API Gateway | `services/api-gateway` | 8000 | N/A (proxy layer) |
+| Service | Docker Context / Root Directory | Dockerfile Path | Port | Schema |
+|---------|--------------------------------|-----------------|------|--------|
+| User Service | `services/user-service` | `services/user-service/Dockerfile` | 8001 | `users` |
+| Content Service | `services/content-service` | `services/content-service/Dockerfile` | 8002 | `content` |
+| Messaging Service | `services/messaging-service` | `services/messaging-service/Dockerfile` | 8003 | `messages` |
+| Collaboration Service | `services/collaboration-service` | `services/collaboration-service/Dockerfile` | 8004 | `collaboration` |
+| Media Service | `services/media-service` | `services/media-service/Dockerfile` | 8005 | `media` |
+| Shop Service | `services/shop-service` | `services/shop-service/Dockerfile` | 8006 | `shop` |
+| AI Service | `services/ai-service` | `services/ai-service/Dockerfile` | 8007 | N/A (uses Redis only) |
+| API Gateway | `services/api-gateway` | `services/api-gateway/Dockerfile` | 8000 | N/A (proxy layer) |
+
+**Notes:**
+- For **Docker deployment**: 
+  - Use the "Docker Context" column value for "Docker Build Context Directory"
+  - Use the "Dockerfile Path" column value (the full path with filename) for "Dockerfile Path"
+  - Example: Context = `services/user-service`, Dockerfile Path = `services/user-service/Dockerfile`
+- For **Node.js deployment**: Use the "Docker Context" column value as "Root Directory" and ignore Dockerfile Path
+- All services share the same base environment variables; each service must define its own `PORT` and `DATABASE_URL` (you can use a different `DATABASE_URL` per service, including schema/search_path, if you want per-service schemas).
 
 **Important for API Gateway:** Add these ADDITIONAL environment variables:
 ```bash
@@ -232,7 +302,37 @@ AI_SERVICE_URL=https://lets-connect-ai-service.onrender.com
 
 ---
 
-### 4.3 Deploy Frontend
+### 4.4 Deploy Frontend
+
+#### Option A: Docker Deployment (Recommended)
+
+1. **Create New Web Service** (NOT Static Site when using Docker)
+   - Click **New** → **Web Service**
+   - Repository: `Let-s-connect`
+   - Name: `lets-connect-frontend`
+   - Environment: `Docker`
+   - Branch: `main`
+
+2. **Docker Configuration:**
+   ```
+   Docker Build Context Directory: frontend
+   Dockerfile Path: frontend/Dockerfile
+   Docker Command: (leave empty - uses Dockerfile's CMD)
+   Pre-Deploy Command: (leave empty)
+   ```
+
+3. **Environment Variables:**
+   ```
+   REACT_APP_API_URL=https://lets-connect-api-gateway.onrender.com
+   ```
+
+4. Click **Create Web Service**
+
+5. Wait for build to complete (~5-8 minutes for Docker build)
+
+6. **Your App URL:** `https://lets-connect-frontend.onrender.com`
+
+#### Option B: Static Site Deployment (Simpler)
 
 1. **Create New Static Site** (NOT Web Service)
    - Click **New** → **Static Site**
@@ -285,16 +385,102 @@ Render services can communicate via private network:
 
 ---
 
-## Part 6: Database Migrations
+## Part 6: Database Migrations & Table Creation
 
-Since Sequelize auto-syncs models, tables will be created automatically on first service start. However, if you need to run manual migrations:
+### 6.1 Automatic Table Creation
 
-1. Go to **User Service** in Render dashboard
-2. Click **Shell** (right side menu)
+**Important:** Tables are created automatically when services start!
+
+Each service uses Sequelize ORM which:
+1. Reads model definitions from code
+2. Automatically creates tables in the database on first run
+3. Uses `sequelize.sync()` to synchronize models with database
+
+**This means:**
+- ✅ You don't need to run SQL to create tables
+- ✅ Tables appear automatically when each service starts
+- ✅ Schema must exist first (created in Part 1.2)
+- ⚠️ Check service logs to verify table creation
+
+### 6.2 Verify Tables Were Created
+
+After deploying a service:
+
+1. Go to Supabase dashboard → **SQL Editor**
+2. Run this query to check tables:
+
+```sql
+-- Check tables in users schema
+SELECT table_name 
+FROM information_schema.tables 
+WHERE table_schema = 'users';
+
+-- Check tables in content schema
+SELECT table_name 
+FROM information_schema.tables 
+WHERE table_schema = 'content';
+
+-- Check all schemas
+SELECT schemaname, tablename 
+FROM pg_tables 
+WHERE schemaname IN ('users', 'content', 'messages', 'collaboration', 'media', 'shop')
+ORDER BY schemaname, tablename;
+```
+
+3. You should see tables like:
+   - In `users` schema: `Users`, `Sessions`, `Profiles`, etc.
+   - In `content` schema: `Posts`, `Comments`, `Likes`, etc.
+   - In `messages` schema: `Messages`, `Channels`, etc.
+
+### 6.3 Manual Migration (If Needed)
+
+If tables aren't created automatically, you can trigger sync manually:
+
+**Option A: Via Render Shell**
+
+1. Go to service in Render dashboard (e.g., User Service)
+2. Click **Shell** tab (right side menu)
 3. Run:
    ```bash
-   node -e "const {sequelize} = require('./server'); sequelize.sync({force: false}).then(() => console.log('DB synced'))"
+   node -e "const {sequelize} = require('./server'); \
+   sequelize.sync({force: false}) \
+   .then(() => console.log('DB synced')) \
+   .catch(err => console.error(err))"
    ```
+
+**Option B: Via Environment Variable**
+
+Add to service environment variables:
+```bash
+DATABASE_SYNC=true
+```
+
+Then redeploy the service. Remove this variable after first successful deployment.
+
+### 6.4 Troubleshooting Table Creation
+
+**If tables don't appear:**
+
+1. **Check Service Logs:**
+   - Render Dashboard → Service → **Logs** tab
+   - Look for: `"Executing (default): CREATE TABLE"` messages
+   - Look for errors related to database connection
+
+2. **Common Issues:**
+   - ❌ Schema doesn't exist → Run Part 1.2 SQL again
+   - ❌ Permission denied → Check schema grants in Part 1.2
+   - ❌ Connection failed → Verify DATABASE_* environment variables
+   - ❌ Wrong schema → Verify DATABASE_SCHEMA matches service
+
+3. **Force Recreate Tables (CAUTION - Deletes Data):**
+   ```sql
+   -- WARNING: This will permanently delete all data in the schema!
+   -- Drop all tables in a schema (use carefully!)
+   DROP SCHEMA users CASCADE;
+   CREATE SCHEMA users;
+   GRANT ALL ON SCHEMA users TO postgres, anon, authenticated, service_role;
+   ```
+   Then restart the service to recreate tables fresh.
 
 ---
 
@@ -360,7 +546,24 @@ Expected: `{"message":"User registered successfully", "token":"...", "user":{...
 
 ## Part 9: Performance Optimization
 
-### 9.1 Enable Caching
+### 9.1 Docker vs Node.js Deployment
+
+**Docker Deployment Advantages:**
+- ✅ Consistent environment across all deployments
+- ✅ All dependencies packaged together
+- ✅ Faster cold starts (pre-built image)
+- ✅ Better isolation and security
+- ✅ Easier to debug (same environment locally)
+
+**Node.js Deployment Advantages:**
+- ✅ Simpler configuration
+- ✅ Faster initial setup
+- ✅ Smaller deployment size
+- ✅ Direct access to Node.js ecosystem
+
+**Recommendation:** Use Docker for production, Node.js for quick testing.
+
+### 9.2 Enable Caching
 
 Add to each service's environment variables:
 ```bash
@@ -368,7 +571,7 @@ NODE_ENV=production
 ENABLE_CACHE=true
 ```
 
-### 9.2 Connection Pooling
+### 9.3 Connection Pooling
 
 For better database performance, add to services:
 ```bash
@@ -377,7 +580,7 @@ DATABASE_POOL_MAX=10
 DATABASE_POOL_IDLE=10000
 ```
 
-### 9.3 Frontend Optimization
+### 9.4 Frontend Optimization
 
 Ensure build includes:
 - Minification (automatic with CRA)
@@ -414,6 +617,66 @@ After custom domain is active:
 
 ## Troubleshooting
 
+### Docker Deployment Issues
+
+**Docker Build Fails:**
+
+1. **Check Build Logs:**
+   - Go to service → **Events** tab
+   - Look for specific error during Docker build
+   - Common errors:
+     - `npm install failed` → Check package.json is valid
+     - `COPY failed` → Ensure files exist in repository
+     - `Context exceeded` → Check .dockerignore file
+
+2. **Large Build Context:**
+   - Render has size limits on build context
+   - Ensure `.dockerignore` includes:
+     ```
+     node_modules
+     .git
+     .env
+     *.md
+     tests
+     ```
+
+3. **Dockerfile Path Issues:**
+   - Ensure "Docker Build Context Directory" and "Dockerfile Path" are consistent
+   - Example: If context is `services/user-service`, Dockerfile path should be `services/user-service/Dockerfile`
+
+**Docker Container Crashes:**
+
+1. **Check Service Logs:**
+   ```
+   Error: connect ECONNREFUSED
+   → Database connection issue
+   
+   Error: Cannot find module
+   → Dependency not installed in Docker image
+   
+   Error: listen EADDRINUSE
+   → PORT conflict (check PORT env var)
+   ```
+
+2. **Test Docker Locally:**
+   ```bash
+   # Build image
+   cd services/user-service
+   docker build -t test-user-service .
+   
+   # Run with env vars
+   docker run -p 8001:8001 \
+     -e DATABASE_HOST=your-host \
+     -e DATABASE_PASSWORD=your-pass \
+     -e PORT=8001 \
+     test-user-service
+   ```
+
+3. **Pre-Deploy Command Issues:**
+   - If using pre-deploy commands with Docker, they run inside container
+   - Ensure any scripts/commands exist in Docker image
+   - Logs appear in build logs, not runtime logs
+
 ### Service Won't Start
 
 **Check Logs:**
@@ -436,16 +699,36 @@ After custom domain is active:
    - Use pooler connection string in Render
 
 2. **Schema Not Found:**
-   ```sql
-   -- Run in Supabase SQL Editor
-   SET search_path TO users, public;
-   ```
+   - Error: `relation "users.Users" does not exist`
+   - Solution: Run Part 1.2 SQL in Supabase to create schemas
+   - Verify: `SELECT schema_name FROM information_schema.schemata;`
 
-3. **SSL Required:**
+3. **Tables Not Created:**
+   - Check service logs for: `Executing (default): CREATE TABLE`
+   - If missing, ensure:
+     - ✅ Schema exists (run Part 1.2 SQL)
+     - ✅ DATABASE_SCHEMA env var is set correctly
+     - ✅ Permissions granted (see Part 1.2 SQL for grants)
+     - ✅ Service can connect to database
+   - Manually verify in Supabase SQL Editor:
+     ```sql
+     -- List all tables in schema
+     SELECT tablename FROM pg_tables WHERE schemaname = 'users';
+     ```
+
+4. **SSL Required:**
    Add to DATABASE_URL:
    ```
    ?sslmode=require
    ```
+
+5. **Permission Denied on Table Creation:**
+   - Error: `permission denied for schema users`
+   - Run this in Supabase SQL Editor:
+     ```sql
+     GRANT ALL ON SCHEMA users TO postgres, authenticated, service_role;
+     ALTER DEFAULT PRIVILEGES IN SCHEMA users GRANT ALL ON TABLES TO postgres, authenticated, service_role;
+     ```
 
 ### Frontend Not Loading
 
@@ -542,6 +825,75 @@ When ready to move to VPS:
 - [ ] SSL/HTTPS enabled (automatic on Render)
 - [ ] Database password is strong and unique
 - [ ] Supabase project has restricted API keys (not service_role in frontend)
+
+---
+
+## Quick Reference
+
+### Docker Deployment Settings per Service
+
+| Service | Docker Build Context | Dockerfile Path | Key Environment Variables |
+|---------|---------------------|-----------------|---------------------------|
+| User Service | `services/user-service` | `services/user-service/Dockerfile` | PORT=8001, DATABASE_SCHEMA=users |
+| Content Service | `services/content-service` | `services/content-service/Dockerfile` | PORT=8002, DATABASE_SCHEMA=content |
+| Messaging Service | `services/messaging-service` | `services/messaging-service/Dockerfile` | PORT=8003, DATABASE_SCHEMA=messages |
+| Collaboration Service | `services/collaboration-service` | `services/collaboration-service/Dockerfile` | PORT=8004, DATABASE_SCHEMA=collaboration |
+| Media Service | `services/media-service` | `services/media-service/Dockerfile` | PORT=8005, DATABASE_SCHEMA=media |
+| Shop Service | `services/shop-service` | `services/shop-service/Dockerfile` | PORT=8006, DATABASE_SCHEMA=shop |
+| AI Service | `services/ai-service` | `services/ai-service/Dockerfile` | PORT=8007, (no schema needed) |
+| API Gateway | `services/api-gateway` | `services/api-gateway/Dockerfile` | PORT=8000, (no schema needed) |
+| Frontend | `frontend` | `frontend/Dockerfile` | REACT_APP_API_URL |
+
+### Common Docker Commands for Local Testing
+
+```bash
+# Build service locally
+cd services/user-service
+docker build -t lets-connect-user-service .
+
+# Run service with environment variables
+docker run -p 8001:8001 \
+  -e PORT=8001 \
+  -e DATABASE_HOST=your-db-host \
+  -e DATABASE_PASSWORD=your-password \
+  -e DATABASE_SCHEMA=users \
+  lets-connect-user-service
+
+# Test entire stack with docker-compose (run from project root)
+# Note: Requires docker-compose.yml file in repository root
+docker-compose up -d
+
+# View logs
+docker logs lets-connect-user-service-1
+
+# Stop all services
+docker-compose down
+```
+
+### Useful SQL Queries
+
+```sql
+-- Check if schemas exist
+SELECT schema_name FROM information_schema.schemata 
+WHERE schema_name IN ('users', 'content', 'messages', 'collaboration', 'media', 'shop');
+
+-- List all tables across all service schemas
+SELECT schemaname, tablename, tableowner
+FROM pg_tables 
+WHERE schemaname IN ('users', 'content', 'messages', 'collaboration', 'media', 'shop')
+ORDER BY schemaname, tablename;
+
+-- Count tables per schema
+SELECT schemaname, COUNT(*) as table_count
+FROM pg_tables 
+WHERE schemaname IN ('users', 'content', 'messages', 'collaboration', 'media', 'shop')
+GROUP BY schemaname;
+
+-- Check permissions on schemas
+SELECT nspname, nspowner::regrole
+FROM pg_namespace 
+WHERE nspname IN ('users', 'content', 'messages', 'collaboration', 'media', 'shop');
+```
 
 ---
 
