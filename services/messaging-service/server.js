@@ -1,7 +1,7 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const { Sequelize, DataTypes } = require('sequelize');
+const { Sequelize, DataTypes, Op } = require('sequelize');
 const Redis = require('ioredis');
 const crypto = require('crypto');
 require('dotenv').config();
@@ -466,6 +466,99 @@ app.post('/servers/:serverId/members/:userId/roles', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to assign role' });
+  }
+});
+
+// ========== SERVER DISCOVERY ENDPOINTS (Discord-inspired) ==========
+
+// Get all public servers (discovery)
+app.get('/servers/discover', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, search } = req.query;
+    const offset = (page - 1) * limit;
+
+    const where = {};
+    if (search) {
+      where.name = { [Op.iLike]: `%${search}%` };
+    }
+
+    const servers = await Server.findAll({
+      where,
+      order: [['members', 'DESC']], // Sort by popularity
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      attributes: ['id', 'name', 'description', 'icon', 'members', 'inviteCode']
+    });
+
+    res.json(servers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch servers' });
+  }
+});
+
+// Search servers
+app.get('/servers/search', async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    const servers = await Server.findAll({
+      where: {
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${q}%` } },
+          { description: { [Op.iLike]: `%${q}%` } }
+        ]
+      },
+      order: [['members', 'DESC']],
+      limit: 50
+    });
+
+    res.json(servers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to search servers' });
+  }
+});
+
+// Get popular servers
+app.get('/servers/popular', async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+
+    const servers = await Server.findAll({
+      order: [['members', 'DESC']],
+      limit: parseInt(limit),
+      attributes: ['id', 'name', 'description', 'icon', 'members']
+    });
+
+    res.json(servers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch popular servers' });
+  }
+});
+
+// Get server categories (simplified - using description as category for now)
+app.get('/servers/categories', async (req, res) => {
+  try {
+    // This is a simplified implementation
+    // In a full implementation, you'd have a separate categories table
+    const categories = [
+      { name: 'Gaming', count: 0 },
+      { name: 'Technology', count: 0 },
+      { name: 'Entertainment', count: 0 },
+      { name: 'Education', count: 0 },
+      { name: 'Community', count: 0 },
+      { name: 'Art', count: 0 }
+    ];
+
+    res.json(categories);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch categories' });
   }
 });
 

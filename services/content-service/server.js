@@ -29,6 +29,8 @@ const Post = sequelize.define('Post', {
     allowNull: false
   },
   communityId: DataTypes.UUID, // Reddit-inspired: posts can belong to communities
+  groupId: DataTypes.UUID, // Facebook-inspired: posts can belong to groups
+  parentId: DataTypes.UUID, // Twitter-inspired: threading support
   content: {
     type: DataTypes.TEXT,
     allowNull: false
@@ -396,6 +398,132 @@ const Bookmark = sequelize.define('Bookmark', {
   ]
 });
 
+// NEW: YouTube-inspired Playlists Model
+const Playlist = sequelize.define('Playlist', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  channelId: DataTypes.UUID,
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  visibility: {
+    type: DataTypes.ENUM('public', 'private', 'unlisted'),
+    defaultValue: 'public'
+  },
+  videoCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+});
+
+// NEW: YouTube-inspired Playlist Items (many-to-many relationship)
+const PlaylistItem = sequelize.define('PlaylistItem', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  playlistId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  videoId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  position: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['playlistId', 'videoId']
+    }
+  ]
+});
+
+// NEW: Reddit-inspired Awards Model
+const Award = sequelize.define('Award', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  icon: DataTypes.STRING,
+  cost: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  type: {
+    type: DataTypes.ENUM('gold', 'silver', 'platinum', 'custom'),
+    defaultValue: 'silver'
+  }
+});
+
+// NEW: Reddit-inspired Post Awards (junction table)
+const PostAward = sequelize.define('PostAward', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  postId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  awardId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  givenBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  message: DataTypes.TEXT
+});
+
+// NEW: Twitter-inspired: Quote Tweets/Retweets
+const Retweet = sequelize.define('Retweet', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  originalPostId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  quotedPostId: DataTypes.UUID, // If this is a quote tweet, this is the new post ID
+  comment: DataTypes.TEXT // Quote comment
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['userId', 'originalPostId']
+    }
+  ]
+});
+
 // Relationships
 Post.hasMany(Comment, { foreignKey: 'postId' });
 Comment.belongsTo(Post, { foreignKey: 'postId' });
@@ -406,11 +534,64 @@ Hashtag.belongsToMany(Post, { through: PostHashtag, foreignKey: 'hashtagId' });
 Channel.hasMany(Video, { foreignKey: 'channelId' });
 Video.belongsTo(Channel, { foreignKey: 'channelId' });
 Channel.hasMany(Subscription, { foreignKey: 'channelId' });
+Channel.hasMany(Playlist, { foreignKey: 'channelId' });
 Community.hasMany(Post, { foreignKey: 'communityId' });
 Community.hasMany(CommunityMember, { foreignKey: 'communityId' });
 Group.hasMany(GroupMember, { foreignKey: 'groupId' });
+Group.hasMany(Post, { foreignKey: 'groupId' });
+Playlist.hasMany(PlaylistItem, { foreignKey: 'playlistId' });
+PlaylistItem.belongsTo(Playlist, { foreignKey: 'playlistId' });
+PlaylistItem.belongsTo(Video, { foreignKey: 'videoId' });
+Post.hasMany(PostAward, { foreignKey: 'postId' });
+PostAward.belongsTo(Award, { foreignKey: 'awardId' });
+Post.hasMany(Retweet, { foreignKey: 'originalPostId' });
+Post.hasMany(Post, { as: 'Replies', foreignKey: 'parentId' });
+Post.belongsTo(Post, { as: 'ParentPost', foreignKey: 'parentId' });
 
-sequelize.sync();
+sequelize.sync().then(async () => {
+  // Initialize default awards if they don't exist
+  const awardCount = await Award.count();
+  if (awardCount === 0) {
+    await Award.bulkCreate([
+      {
+        name: 'Gold Award',
+        description: 'A prestigious gold award',
+        icon: '🥇',
+        cost: 500,
+        type: 'gold'
+      },
+      {
+        name: 'Silver Award',
+        description: 'A valuable silver award',
+        icon: '🥈',
+        cost: 100,
+        type: 'silver'
+      },
+      {
+        name: 'Platinum Award',
+        description: 'The ultimate platinum award',
+        icon: '💎',
+        cost: 1800,
+        type: 'platinum'
+      },
+      {
+        name: 'Helpful',
+        description: 'This post was helpful',
+        icon: '👍',
+        cost: 50,
+        type: 'custom'
+      },
+      {
+        name: 'Wholesome',
+        description: 'A wholesome post',
+        icon: '❤️',
+        cost: 50,
+        type: 'custom'
+      }
+    ]);
+    console.log('Default awards initialized');
+  }
+});
 
 // Routes
 
@@ -1296,6 +1477,501 @@ app.get('/bookmarks/check', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to check bookmark' });
+  }
+});
+
+// ========== THREAD ENDPOINTS (Twitter-inspired) ==========
+
+// Create a thread (post with replies)
+app.post('/threads', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { tweets } = req.body; // Array of tweet contents
+    if (!tweets || !Array.isArray(tweets) || tweets.length === 0) {
+      return res.status(400).json({ error: 'tweets array is required' });
+    }
+
+    const createdPosts = [];
+    let parentId = null;
+
+    for (const tweetContent of tweets) {
+      const post = await Post.create({
+        userId,
+        content: tweetContent,
+        type: 'text',
+        visibility: 'public',
+        parentId: parentId
+      });
+      createdPosts.push(post);
+      parentId = post.id; // Next tweet will be a reply to this one
+    }
+
+    res.json({ thread: createdPosts });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create thread' });
+  }
+});
+
+// Get thread (post with all replies)
+app.get('/threads/:postId', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    
+    const mainPost = await Post.findByPk(postId);
+    if (!mainPost) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    // Get all replies recursively
+    const replies = await Post.findAll({
+      where: { parentId: postId },
+      order: [['createdAt', 'ASC']]
+    });
+
+    res.json({ post: mainPost, replies });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch thread' });
+  }
+});
+
+// Reply to a post (create threaded reply)
+app.post('/posts/:postId/reply', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { postId } = req.params;
+    const { content } = req.body;
+
+    if (!content) {
+      return res.status(400).json({ error: 'content is required' });
+    }
+
+    const parentPost = await Post.findByPk(postId);
+    if (!parentPost) {
+      return res.status(404).json({ error: 'Parent post not found' });
+    }
+
+    const reply = await Post.create({
+      userId,
+      content,
+      type: 'text',
+      visibility: parentPost.visibility,
+      parentId: postId
+    });
+
+    res.json(reply);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create reply' });
+  }
+});
+
+// ========== PLAYLIST ENDPOINTS (YouTube-inspired) ==========
+
+// Create a playlist
+app.post('/playlists', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { name, description, visibility, channelId } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    const playlist = await Playlist.create({
+      userId,
+      name,
+      description,
+      visibility,
+      channelId
+    });
+
+    res.json(playlist);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create playlist' });
+  }
+});
+
+// Get all playlists for a user
+app.get('/playlists/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const playlists = await Playlist.findAll({
+      where: { userId },
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(playlists);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch playlists' });
+  }
+});
+
+// Get playlist with videos
+app.get('/playlists/:id', async (req, res) => {
+  try {
+    const playlist = await Playlist.findByPk(req.params.id, {
+      include: [{
+        model: PlaylistItem,
+        include: [{ model: Video }],
+        order: [['position', 'ASC']]
+      }]
+    });
+
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    res.json(playlist);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch playlist' });
+  }
+});
+
+// Add video to playlist
+app.post('/playlists/:id/videos', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { videoId, position } = req.body;
+
+    if (!videoId) {
+      return res.status(400).json({ error: 'videoId is required' });
+    }
+
+    const playlist = await Playlist.findByPk(id);
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    if (playlist.userId !== userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const video = await Video.findByPk(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const playlistItem = await PlaylistItem.create({
+      playlistId: id,
+      videoId,
+      position: position || playlist.videoCount
+    });
+
+    await playlist.increment('videoCount');
+
+    res.json(playlistItem);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to add video to playlist' });
+  }
+});
+
+// Remove video from playlist
+app.delete('/playlists/:id/videos/:videoId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id, videoId } = req.params;
+
+    const playlist = await Playlist.findByPk(id);
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    if (playlist.userId !== userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const item = await PlaylistItem.findOne({
+      where: { playlistId: id, videoId }
+    });
+
+    if (!item) {
+      return res.status(404).json({ error: 'Video not in playlist' });
+    }
+
+    await item.destroy();
+    await playlist.decrement('videoCount');
+
+    res.json({ message: 'Video removed from playlist' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to remove video from playlist' });
+  }
+});
+
+// ========== AWARD ENDPOINTS (Reddit-inspired) ==========
+
+// Create award types (admin only - simplified for now)
+app.post('/awards', async (req, res) => {
+  try {
+    const { name, description, icon, cost, type } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    const award = await Award.create({
+      name,
+      description,
+      icon,
+      cost,
+      type
+    });
+
+    res.json(award);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create award' });
+  }
+});
+
+// Get all available awards
+app.get('/awards', async (req, res) => {
+  try {
+    const awards = await Award.findAll();
+    res.json(awards);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch awards' });
+  }
+});
+
+// Give award to a post
+app.post('/posts/:postId/awards', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { postId } = req.params;
+    const { awardId, message } = req.body;
+
+    if (!awardId) {
+      return res.status(400).json({ error: 'awardId is required' });
+    }
+
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const award = await Award.findByPk(awardId);
+    if (!award) {
+      return res.status(404).json({ error: 'Award not found' });
+    }
+
+    const postAward = await PostAward.create({
+      postId,
+      awardId,
+      givenBy: userId,
+      message
+    });
+
+    res.json(postAward);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to give award' });
+  }
+});
+
+// Get awards for a post
+app.get('/posts/:postId/awards', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    
+    const awards = await PostAward.findAll({
+      where: { postId },
+      include: [{ model: Award }]
+    });
+
+    res.json(awards);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch post awards' });
+  }
+});
+
+// ========== RETWEET ENDPOINTS (Twitter-inspired) ==========
+
+// Retweet a post
+app.post('/posts/:postId/retweet', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { postId } = req.params;
+    const { comment } = req.body;
+
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    let quotedPostId = null;
+    
+    // If there's a comment, create a quote tweet (new post)
+    if (comment) {
+      const quotePost = await Post.create({
+        userId,
+        content: comment,
+        type: post.type,
+        visibility: 'public'
+      });
+      quotedPostId = quotePost.id;
+    }
+
+    const retweet = await Retweet.create({
+      userId,
+      originalPostId: postId,
+      quotedPostId,
+      comment
+    });
+
+    await post.increment('shares');
+
+    res.json(retweet);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to retweet' });
+  }
+});
+
+// Undo retweet
+app.delete('/posts/:postId/retweet', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { postId } = req.params;
+
+    const retweet = await Retweet.findOne({
+      where: { userId, originalPostId: postId }
+    });
+
+    if (!retweet) {
+      return res.status(404).json({ error: 'Retweet not found' });
+    }
+
+    await retweet.destroy();
+    
+    const post = await Post.findByPk(postId);
+    if (post && post.shares > 0) {
+      await post.decrement('shares');
+    }
+
+    res.json({ message: 'Retweet removed' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to remove retweet' });
+  }
+});
+
+// Get retweets of a post
+app.get('/posts/:postId/retweets', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    
+    const retweets = await Retweet.findAll({
+      where: { originalPostId: postId },
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(retweets);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch retweets' });
+  }
+});
+
+// ========== GROUP POST ENDPOINTS (Facebook-inspired) ==========
+
+// Get posts for a specific group
+app.get('/groups/:groupId/posts', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const posts = await Post.findAll({
+      where: { groupId },
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.json(posts);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch group posts' });
+  }
+});
+
+// Create a post in a group
+app.post('/groups/:groupId/posts', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { groupId } = req.params;
+    const { content, type, mediaUrls } = req.body;
+
+    if (!content) {
+      return res.status(400).json({ error: 'content is required' });
+    }
+
+    // Verify group exists and user is a member
+    const membership = await GroupMember.findOne({
+      where: { userId, groupId, status: 'active' }
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Not a member of this group' });
+    }
+
+    const post = await Post.create({
+      userId,
+      groupId,
+      content,
+      type,
+      mediaUrls,
+      visibility: 'public' // Group posts are visible to group members
+    });
+
+    res.json(post);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create group post' });
   }
 });
 
