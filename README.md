@@ -134,6 +134,7 @@ docker-compose up --build
 
 ## 📚 Documentation
 
+- [Application Screenshots](./SCREENSHOTS.md) - **NEW** Visual guide with screenshots of all pages
 - [Full Documentation](./docs/README.md)
 - [API Reference](./docs/API.md)
 - [New Platform Features API](./docs/API_NEW_FEATURES.md)
