@@ -1,0 +1,48 @@
+# Render Deployment - Ignore documentation files
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Development files
+.git/
+.github/
+.vscode/
+.devcontainer/
+
+# Docker files (not needed for Render Node.js deployment)
+docker-compose.yml
+Dockerfile
+**/Dockerfile
+
+# Testing
+tests/
+*.test.js
+*.spec.js
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml
+azure-pipelines.yml
+
+# IDE
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+
+# Temporary files
+tmp/
+temp/
+*.log
+*.swp
+*.swo
+
+# Large files
+*.zip
+*.tar.gz
+*.rar
+
+# Scripts (unless needed)
+scripts/
