@@ -487,7 +487,7 @@ app.get('/servers/discover', async (req, res) => {
       order: [['members', 'DESC']], // Sort by popularity
       limit: parseInt(limit),
       offset: parseInt(offset),
-      attributes: ['id', 'name', 'description', 'icon', 'members', 'inviteCode']
+      attributes: ['id', 'name', 'description', 'icon', 'members']
     });
 
     res.json(servers);

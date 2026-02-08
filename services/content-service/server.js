@@ -462,7 +462,8 @@ const Award = sequelize.define('Award', {
   },
   name: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
+    unique: true
   },
   description: DataTypes.TEXT,
   icon: DataTypes.STRING,
@@ -496,6 +497,13 @@ const PostAward = sequelize.define('PostAward', {
     allowNull: false
   },
   message: DataTypes.TEXT
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['postId', 'awardId', 'givenBy']
+    }
+  ]
 });
 
 // NEW: Twitter-inspired: Quote Tweets/Retweets
@@ -550,46 +558,25 @@ Post.belongsTo(Post, { as: 'ParentPost', foreignKey: 'parentId' });
 
 sequelize.sync().then(async () => {
   // Initialize default awards if they don't exist
-  const awardCount = await Award.count();
-  if (awardCount === 0) {
-    await Award.bulkCreate([
-      {
-        name: 'Gold Award',
-        description: 'A prestigious gold award',
-        icon: '🥇',
-        cost: 500,
-        type: 'gold'
-      },
-      {
-        name: 'Silver Award',
-        description: 'A valuable silver award',
-        icon: '🥈',
-        cost: 100,
-        type: 'silver'
-      },
-      {
-        name: 'Platinum Award',
-        description: 'The ultimate platinum award',
-        icon: '💎',
-        cost: 1800,
-        type: 'platinum'
-      },
-      {
-        name: 'Helpful',
-        description: 'This post was helpful',
-        icon: '👍',
-        cost: 50,
-        type: 'custom'
-      },
-      {
-        name: 'Wholesome',
-        description: 'A wholesome post',
-        icon: '❤️',
-        cost: 50,
-        type: 'custom'
-      }
-    ]);
+  try {
+    const awards = [
+      { name: 'Gold Award', description: 'A prestigious gold award', icon: '🥇', cost: 500, type: 'gold' },
+      { name: 'Silver Award', description: 'A valuable silver award', icon: '🥈', cost: 100, type: 'silver' },
+      { name: 'Platinum Award', description: 'The ultimate platinum award', icon: '💎', cost: 1800, type: 'platinum' },
+      { name: 'Helpful', description: 'This post was helpful', icon: '👍', cost: 50, type: 'custom' },
+      { name: 'Wholesome', description: 'A wholesome post', icon: '❤️', cost: 50, type: 'custom' }
+    ];
+
+    for (const awardData of awards) {
+      await Award.findOrCreate({
+        where: { name: awardData.name },
+        defaults: awardData
+      });
+    }
+    
     console.log('Default awards initialized');
+  } catch (error) {
+    console.error('Error initializing awards:', error);
   }
 });
 
@@ -1496,19 +1483,23 @@ app.post('/threads', async (req, res) => {
     }
 
     const createdPosts = [];
-    let parentId = null;
 
-    for (const tweetContent of tweets) {
-      const post = await Post.create({
-        userId,
-        content: tweetContent,
-        type: 'text',
-        visibility: 'public',
-        parentId: parentId
-      });
-      createdPosts.push(post);
-      parentId = post.id; // Next tweet will be a reply to this one
-    }
+    await sequelize.transaction(async (transaction) => {
+      let parentId = null;
+
+      for (const tweetContent of tweets) {
+        const post = await Post.create({
+          userId,
+          content: tweetContent,
+          type: 'text',
+          visibility: 'public',
+          parentId: parentId
+        }, { transaction });
+        
+        createdPosts.push(post);
+        parentId = post.id; // Next tweet will be a reply to this one
+      }
+    });
 
     res.json({ thread: createdPosts });
   } catch (error) {
@@ -1517,7 +1508,7 @@ app.post('/threads', async (req, res) => {
   }
 });
 
-// Get thread (post with all replies)
+// Get thread (post with all replies recursively)
 app.get('/threads/:postId', async (req, res) => {
   try {
     const { postId } = req.params;
@@ -1527,13 +1518,29 @@ app.get('/threads/:postId', async (req, res) => {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    // Get all replies recursively
-    const replies = await Post.findAll({
-      where: { parentId: postId },
-      order: [['createdAt', 'ASC']]
-    });
+    // Get all replies recursively by traversing the parentId chain
+    const allReplies = [];
+    let currentParentIds = [postId];
 
-    res.json({ post: mainPost, replies });
+    while (currentParentIds.length > 0) {
+      const children = await Post.findAll({
+        where: {
+          parentId: {
+            [Op.in]: currentParentIds
+          }
+        },
+        order: [['createdAt', 'ASC']]
+      });
+
+      if (!children.length) {
+        break;
+      }
+
+      allReplies.push(...children);
+      currentParentIds = children.map(child => child.id);
+    }
+
+    res.json({ post: mainPost, replies: allReplies });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch thread' });
@@ -1609,8 +1616,16 @@ app.post('/playlists', async (req, res) => {
 app.get('/playlists/user/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
+    const requesterId = req.header('x-user-id');
+
+    // If the requester is not the owner (or is unauthenticated), only return public playlists
+    const where = { userId };
+    if (!requesterId || requesterId !== userId) {
+      where.visibility = 'public';
+    }
+
     const playlists = await Playlist.findAll({
-      where: { userId },
+      where,
       order: [['createdAt', 'DESC']]
     });
 
@@ -1624,16 +1639,28 @@ app.get('/playlists/user/:userId', async (req, res) => {
 // Get playlist with videos
 app.get('/playlists/:id', async (req, res) => {
   try {
+    const requesterId = req.header('x-user-id');
+    
     const playlist = await Playlist.findByPk(req.params.id, {
       include: [{
         model: PlaylistItem,
-        include: [{ model: Video }],
-        order: [['position', 'ASC']]
-      }]
+        include: [{ model: Video }]
+      }],
+      order: [[PlaylistItem, 'position', 'ASC']]
     });
 
     if (!playlist) {
       return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    // Enforce visibility rules
+    if (playlist.visibility === 'private') {
+      if (!requesterId || requesterId !== playlist.userId) {
+        return res.status(403).json({ error: 'Access denied to private playlist' });
+      }
+    } else if (playlist.visibility === 'unlisted') {
+      // Unlisted playlists are accessible by link, but we could add owner-only restriction if needed
+      // For now, allowing access if they have the link (id)
     }
 
     res.json(playlist);
@@ -1675,13 +1702,17 @@ app.post('/playlists/:id/videos', async (req, res) => {
     const playlistItem = await PlaylistItem.create({
       playlistId: id,
       videoId,
-      position: position || playlist.videoCount
+      position: position ?? playlist.videoCount
     });
 
     await playlist.increment('videoCount');
 
     res.json(playlistItem);
   } catch (error) {
+    // Handle duplicate video in playlist (unique constraint on playlistId, videoId)
+    if (error instanceof Sequelize.UniqueConstraintError || error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(409).json({ error: 'Video is already in this playlist' });
+    }
     console.error(error);
     res.status(500).json({ error: 'Failed to add video to playlist' });
   }
@@ -1726,9 +1757,14 @@ app.delete('/playlists/:id/videos/:videoId', async (req, res) => {
 
 // ========== AWARD ENDPOINTS (Reddit-inspired) ==========
 
-// Create award types (admin only - simplified for now)
+// Create award types (requires authentication)
 app.post('/awards', async (req, res) => {
   try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { name, description, icon, cost, type } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'name is required' });
@@ -1834,31 +1870,44 @@ app.post('/posts/:postId/retweet', async (req, res) => {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    let quotedPostId = null;
-    
-    // If there's a comment, create a quote tweet (new post)
-    if (comment) {
-      const quotePost = await Post.create({
-        userId,
-        content: comment,
-        type: post.type,
-        visibility: 'public'
-      });
-      quotedPostId = quotePost.id;
-    }
+    let retweet;
 
-    const retweet = await Retweet.create({
-      userId,
-      originalPostId: postId,
-      quotedPostId,
-      comment
+    await sequelize.transaction(async (transaction) => {
+      let quotedPostId = null;
+
+      // If there's a comment, create a quote tweet (new post)
+      if (comment) {
+        const quotePost = await Post.create(
+          {
+            userId,
+            content: comment,
+            type: post.type,
+            visibility: 'public'
+          },
+          { transaction }
+        );
+        quotedPostId = quotePost.id;
+      }
+
+      retweet = await Retweet.create(
+        {
+          userId,
+          originalPostId: postId,
+          quotedPostId,
+          comment
+        },
+        { transaction }
+      );
+
+      await post.increment('shares', { transaction });
     });
-
-    await post.increment('shares');
 
     res.json(retweet);
   } catch (error) {
     console.error(error);
+    if (error instanceof Sequelize.UniqueConstraintError || error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(409).json({ error: 'Already retweeted' });
+    }
     res.status(500).json({ error: 'Failed to retweet' });
   }
 });
@@ -1879,6 +1928,14 @@ app.delete('/posts/:postId/retweet', async (req, res) => {
 
     if (!retweet) {
       return res.status(404).json({ error: 'Retweet not found' });
+    }
+
+    // Delete the quoted post if it exists and belongs to the user
+    if (retweet.quotedPostId) {
+      const quotedPost = await Post.findByPk(retweet.quotedPostId);
+      if (quotedPost && quotedPost.userId === userId) {
+        await quotedPost.destroy();
+      }
     }
 
     await retweet.destroy();
@@ -1917,15 +1974,41 @@ app.get('/posts/:postId/retweets', async (req, res) => {
 // Get posts for a specific group
 app.get('/groups/:groupId/posts', async (req, res) => {
   try {
+    const userId = req.header('x-user-id');
     const { groupId } = req.params;
     const { page = 1, limit = 20 } = req.query;
-    const offset = (page - 1) * limit;
+    const parsedLimit = parseInt(limit, 10);
+    const parsedPage = parseInt(page, 10);
+    const effectiveLimit = Number.isNaN(parsedLimit) ? 20 : parsedLimit;
+    const effectivePage = Number.isNaN(parsedPage) ? 1 : parsedPage;
+    const offset = (effectivePage - 1) * effectiveLimit;
+
+    // Verify group exists
+    const group = await Group.findByPk(groupId);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    // Enforce privacy for non-public groups
+    if (group.privacy === 'private' || group.privacy === 'secret') {
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const membership = await GroupMember.findOne({
+        where: { userId, groupId, status: 'active' }
+      });
+
+      if (!membership) {
+        return res.status(403).json({ error: 'Not a member of this group' });
+      }
+    }
 
     const posts = await Post.findAll({
       where: { groupId },
       order: [['createdAt', 'DESC']],
-      limit: parseInt(limit),
-      offset: parseInt(offset)
+      limit: effectiveLimit,
+      offset
     });
 
     res.json(posts);
@@ -1951,6 +2034,11 @@ app.post('/groups/:groupId/posts', async (req, res) => {
     }
 
     // Verify group exists and user is a member
+    const group = await Group.findByPk(groupId);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
     const membership = await GroupMember.findOne({
       where: { userId, groupId, status: 'active' }
     });
@@ -1965,7 +2053,7 @@ app.post('/groups/:groupId/posts', async (req, res) => {
       content,
       type,
       mediaUrls,
-      visibility: 'public' // Group posts are visible to group members
+      visibility: group.privacy === 'public' ? 'public' : 'private' // Match group privacy
     });
 
     res.json(post);
