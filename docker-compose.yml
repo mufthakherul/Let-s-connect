@@ -1,0 +1,176 @@
+version: '3.8'
+
+services:
+  # API Gateway
+  api-gateway:
+    build: ./services/api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+    depends_on:
+      - user-service
+      - content-service
+      - messaging-service
+      - collaboration-service
+      - media-service
+      - shop-service
+      - ai-service
+    networks:
+      - lets-connect-network
+
+  # User Service (Authentication, Profiles)
+  user-service:
+    build: ./services/user-service
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/users
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - lets-connect-network
+
+  # Content Service (Posts, Feeds, Videos)
+  content-service:
+    build: ./services/content-service
+    ports:
+      - "8002:8002"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/content
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - lets-connect-network
+
+  # Messaging Service (Chat, Real-time)
+  messaging-service:
+    build: ./services/messaging-service
+    ports:
+      - "8003:8003"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/messages
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - lets-connect-network
+
+  # Collaboration Service (Docs, Wiki, Notion-like)
+  collaboration-service:
+    build: ./services/collaboration-service
+    ports:
+      - "8004:8004"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/collaboration
+    depends_on:
+      - postgres
+    networks:
+      - lets-connect-network
+
+  # Media Service (Files, Voice, Video)
+  media-service:
+    build: ./services/media-service
+    ports:
+      - "8005:8005"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/media
+      - S3_BUCKET=${S3_BUCKET:-lets-connect-media}
+      - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
+    depends_on:
+      - postgres
+      - minio
+    networks:
+      - lets-connect-network
+
+  # Shop Service (E-commerce)
+  shop-service:
+    build: ./services/shop-service
+    ports:
+      - "8006:8006"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/shop
+    depends_on:
+      - postgres
+    networks:
+      - lets-connect-network
+
+  # AI Assistant Service
+  ai-service:
+    build: ./services/ai-service
+    ports:
+      - "8007:8007"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - lets-connect-network
+
+  # Frontend Application
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://api-gateway:8000
+    depends_on:
+      - api-gateway
+    networks:
+      - lets-connect-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_MULTIPLE_DATABASES=users,content,messages,collaboration,media,shop
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
+    ports:
+      - "5432:5432"
+    networks:
+      - lets-connect-network
+
+  # Redis (Caching, Real-time)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - lets-connect-network
+
+  # MinIO (S3-compatible object storage)
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - lets-connect-network
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+
+networks:
+  lets-connect-network:
+    driver: bridge

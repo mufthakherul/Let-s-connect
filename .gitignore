@@ -1,0 +1,36 @@
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+venv/
+env/
+
+# Build outputs
+dist/
+build/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+data/
+*.db
+*.sqlite
+
+# Secrets
+secrets/
+*.pem
+*.key
