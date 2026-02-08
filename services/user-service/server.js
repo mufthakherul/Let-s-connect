@@ -87,6 +87,85 @@ const Profile = sequelize.define('Profile', {
 User.hasOne(Profile, { foreignKey: 'userId' });
 Profile.belongsTo(User, { foreignKey: 'userId' });
 
+// NEW: LinkedIn-inspired Skills Model
+const Skill = sequelize.define('Skill', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  level: {
+    type: DataTypes.ENUM('beginner', 'intermediate', 'advanced', 'expert'),
+    defaultValue: 'intermediate'
+  },
+  endorsements: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+});
+
+// NEW: LinkedIn-inspired Endorsements Model
+const Endorsement = sequelize.define('Endorsement', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  skillId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  endorserId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  }
+});
+
+// NEW: Facebook-inspired Pages Model
+const Page = sequelize.define('Page', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  category: DataTypes.STRING,
+  avatarUrl: DataTypes.STRING,
+  coverUrl: DataTypes.STRING,
+  followers: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  isVerified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+});
+
+// Relationships
+User.hasMany(Skill, { foreignKey: 'userId' });
+Skill.belongsTo(User, { foreignKey: 'userId' });
+Skill.hasMany(Endorsement, { foreignKey: 'skillId' });
+Endorsement.belongsTo(Skill, { foreignKey: 'skillId' });
+User.hasMany(Page, { foreignKey: 'userId' });
+Page.belongsTo(User, { foreignKey: 'userId' });
+
 // Initialize database
 sequelize.sync();
 
@@ -261,6 +340,189 @@ app.get('/search', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+// ========== LINKEDIN-INSPIRED: SKILLS ==========
+
+// Add skill to user profile
+app.post('/users/:userId/skills', async (req, res) => {
+  try {
+    const { name, level } = req.body;
+    const { userId } = req.params;
+
+    // Check if skill already exists
+    const existing = await Skill.findOne({ where: { userId, name } });
+    if (existing) {
+      return res.status(400).json({ error: 'Skill already exists' });
+    }
+
+    const skill = await Skill.create({ userId, name, level });
+    res.status(201).json(skill);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to add skill' });
+  }
+});
+
+// Get user skills
+app.get('/users/:userId/skills', async (req, res) => {
+  try {
+    const skills = await Skill.findAll({
+      where: { userId: req.params.userId },
+      order: [['endorsements', 'DESC']]
+    });
+
+    res.json(skills);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch skills' });
+  }
+});
+
+// Delete skill
+app.delete('/skills/:id', async (req, res) => {
+  try {
+    const skill = await Skill.findByPk(req.params.id);
+    if (!skill) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+
+    await skill.destroy();
+    res.json({ message: 'Skill deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete skill' });
+  }
+});
+
+// Endorse skill
+app.post('/skills/:skillId/endorse', async (req, res) => {
+  try {
+    const { endorserId } = req.body;
+    const { skillId } = req.params;
+
+    // Check if already endorsed
+    const existing = await Endorsement.findOne({ where: { skillId, endorserId } });
+    if (existing) {
+      return res.status(400).json({ error: 'Already endorsed' });
+    }
+
+    // Create endorsement
+    await Endorsement.create({ skillId, endorserId });
+
+    // Increment endorsement count
+    const skill = await Skill.findByPk(skillId);
+    if (skill) {
+      await skill.increment('endorsements');
+    }
+
+    res.status(201).json({ message: 'Skill endorsed successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to endorse skill' });
+  }
+});
+
+// Get skill endorsements
+app.get('/skills/:skillId/endorsements', async (req, res) => {
+  try {
+    const endorsements = await Endorsement.findAll({
+      where: { skillId: req.params.skillId }
+    });
+
+    res.json(endorsements);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch endorsements' });
+  }
+});
+
+// ========== FACEBOOK-INSPIRED: PAGES ==========
+
+// Create page
+app.post('/pages', async (req, res) => {
+  try {
+    const { userId, name, description, category, avatarUrl, coverUrl } = req.body;
+
+    const page = await Page.create({
+      userId,
+      name,
+      description,
+      category,
+      avatarUrl,
+      coverUrl
+    });
+
+    res.status(201).json(page);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create page' });
+  }
+});
+
+// Get page
+app.get('/pages/:id', async (req, res) => {
+  try {
+    const page = await Page.findByPk(req.params.id, {
+      include: [{ model: User, attributes: ['id', 'username', 'firstName', 'lastName'] }]
+    });
+
+    if (!page) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+
+    res.json(page);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch page' });
+  }
+});
+
+// Get user's pages
+app.get('/users/:userId/pages', async (req, res) => {
+  try {
+    const pages = await Page.findAll({
+      where: { userId: req.params.userId },
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(pages);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch pages' });
+  }
+});
+
+// Update page
+app.put('/pages/:id', async (req, res) => {
+  try {
+    const page = await Page.findByPk(req.params.id);
+    if (!page) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+
+    await page.update(req.body);
+    res.json(page);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update page' });
+  }
+});
+
+// Follow/like page (increment followers)
+app.post('/pages/:id/follow', async (req, res) => {
+  try {
+    const page = await Page.findByPk(req.params.id);
+    if (!page) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+
+    await page.increment('followers');
+    res.json({ message: 'Page followed successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to follow page' });
   }
 });
 
