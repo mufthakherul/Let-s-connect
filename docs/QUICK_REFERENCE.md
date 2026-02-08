@@ -130,7 +130,7 @@ GET    /api/content/communities              - List communities
 #### Channels & Subscriptions
 ```
 POST   /api/content/channels                 - Create channel
-POST   /api/channels/:id/subscribe           - Subscribe
+POST   /api/content/channels/:id/subscribe   - Subscribe
 GET    /api/content/channels/:id             - Get channel with videos
 ```
 
