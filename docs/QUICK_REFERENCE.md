@@ -137,9 +137,9 @@ GET    /api/content/channels/:id             - Get channel with videos
 #### Discord Servers
 ```
 POST   /api/messaging/servers                - Create server
-POST   /api/servers/join                     - Join via invite code
-POST   /api/servers/:id/channels             - Create channel
-POST   /api/servers/:id/roles                - Create role
+POST   /api/messaging/servers/join           - Join via invite code
+POST   /api/messaging/servers/:id/channels   - Create channel
+POST   /api/messaging/servers/:id/roles      - Create role
 ```
 
 #### Skills & Endorsements
@@ -350,10 +350,11 @@ POST /api/shop/wishlist
 ## Performance Considerations
 
 ### Caching
-- Trending hashtags cached in Redis
-- Channel subscription counts cached
-- Vote scores cached
-- Public posts cached
+The following are planned caching targets. Actual Redis caching implementation may vary:
+- Trending hashtags (planned)
+- Channel subscription counts (planned)
+- Vote scores (planned)
+- Public posts (planned)
 
 ### Pagination
 - Default: 20 items per page

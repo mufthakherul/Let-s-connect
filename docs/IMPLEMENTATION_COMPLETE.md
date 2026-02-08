@@ -223,7 +223,7 @@ The task required checking and implementing minimal features from these platform
 
 ### Database Models Added
 
-15 new models created:
+20 new models created:
 
 1. **Reaction** - Facebook reactions
 2. **Hashtag** - Twitter hashtags
