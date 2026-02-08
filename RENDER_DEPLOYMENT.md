@@ -27,8 +27,8 @@ Complete guide for deploying Let's Connect to Render using Supabase as the datab
 
 Supabase uses a single PostgreSQL database. Let's Connect needs 6 separate databases, so we'll use **schemas** instead:
 
-1. Go to **SQL Editor** in Supabase dashboard
-2. Create a **New Query** and run this SQL to create schemas:
+1. Go to **SQL Editor** in Supabase dashboard (left sidebar)
+2. Click **New Query** button and run this SQL to create schemas:
 
 ```sql
 -- Create separate schemas for each service
@@ -48,6 +48,7 @@ GRANT ALL ON SCHEMA media TO postgres, anon, authenticated, service_role;
 GRANT ALL ON SCHEMA shop TO postgres, anon, authenticated, service_role;
 
 -- Set default privileges for future tables in each schema
+-- (Note: Repeat for each schema to ensure consistent permissions)
 ALTER DEFAULT PRIVILEGES IN SCHEMA users GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA content GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA messages GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
@@ -441,7 +442,10 @@ If tables aren't created automatically, you can trigger sync manually:
 2. Click **Shell** tab (right side menu)
 3. Run:
    ```bash
-   node -e "const {sequelize} = require('./server'); sequelize.sync({force: false}).then(() => console.log('DB synced')).catch(err => console.error(err))"
+   node -e "const {sequelize} = require('./server'); \
+   sequelize.sync({force: false}) \
+   .then(() => console.log('DB synced')) \
+   .catch(err => console.error(err))"
    ```
 
 **Option B: Via Environment Variable**
@@ -470,6 +474,7 @@ Then redeploy the service. Remove this variable after first successful deploymen
 
 3. **Force Recreate Tables (CAUTION - Deletes Data):**
    ```sql
+   -- WARNING: This will permanently delete all data in the schema!
    -- Drop all tables in a schema (use carefully!)
    DROP SCHEMA users CASCADE;
    CREATE SCHEMA users;
@@ -855,6 +860,7 @@ docker run -p 8001:8001 \
   lets-connect-user-service
 
 # Test entire stack with docker-compose (run from project root)
+# Note: Requires docker-compose.yml file in repository root
 docker-compose up -d
 
 # View logs
