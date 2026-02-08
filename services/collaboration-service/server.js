@@ -610,7 +610,7 @@ app.post('/milestones', async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (project.ownerId !== userId && !project.members.includes(userId)) {
+    if (project.ownerId !== userId && !(project.members || []).includes(userId)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -691,7 +691,7 @@ app.put('/milestones/:id', async (req, res) => {
 
     // Verify user has access to the project
     const project = await Project.findByPk(milestone.projectId);
-    if (project.ownerId !== userId && !project.members.includes(userId)) {
+    if (project.ownerId !== userId && !(project.members || []).includes(userId)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -718,7 +718,7 @@ app.delete('/milestones/:id', async (req, res) => {
 
     // Verify user has access to the project
     const project = await Project.findByPk(milestone.projectId);
-    if (project.ownerId !== userId && !project.members.includes(userId)) {
+    if (project.ownerId !== userId && !(project.members || []).includes(userId)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -752,22 +752,36 @@ app.post('/issues/:issueId/milestone', async (req, res) => {
       return res.status(404).json({ error: 'Issue not found' });
     }
 
-    // Verify milestone exists
+    // Authorize user on the issue's project
+    const project = await Project.findByPk(issue.projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (project.ownerId !== userId && !(project.members || []).includes(userId)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Handle removing old milestone
+    if (issue.milestoneId) {
+      const oldMilestone = await Milestone.findByPk(issue.milestoneId);
+      if (oldMilestone) {
+        await oldMilestone.decrement('totalIssues');
+        if (issue.status === 'closed') {
+          await oldMilestone.decrement('completedIssues');
+        }
+      }
+    }
+
+    // Verify and assign new milestone
     if (milestoneId) {
       const milestone = await Milestone.findByPk(milestoneId);
       if (!milestone) {
         return res.status(404).json({ error: 'Milestone not found' });
       }
 
-      // Update milestone counts
-      if (issue.milestoneId) {
-        const oldMilestone = await Milestone.findByPk(issue.milestoneId);
-        if (oldMilestone) {
-          await oldMilestone.decrement('totalIssues');
-          if (issue.status === 'closed') {
-            await oldMilestone.decrement('completedIssues');
-          }
-        }
+      if (milestone.projectId !== issue.projectId) {
+        return res.status(400).json({ error: 'Milestone does not belong to the same project as the issue' });
       }
 
       await milestone.increment('totalIssues');
