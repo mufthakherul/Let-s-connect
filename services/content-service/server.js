@@ -48,6 +48,24 @@ try {
   invalidateWikiPageCaches = async () => {};
 }
 
+// Phase 4: Monitoring and health checks
+let healthChecker;
+try {
+  const { HealthChecker, checkDatabase, checkRedis } = require('../shared/monitoring');
+  healthChecker = new HealthChecker('content-service');
+  
+  // Register database and Redis health checks
+  healthChecker.registerCheck('database', () => checkDatabase(sequelize));
+  healthChecker.registerCheck('redis', () => checkRedis(redis));
+  
+  // Add metrics middleware
+  app.use(healthChecker.metricsMiddleware());
+  
+  console.log('[Monitoring] Health checks and metrics enabled');
+} catch (error) {
+  console.log('[Monitoring] Advanced monitoring disabled');
+}
+
 // Models
 const Post = sequelize.define('Post', {
   id: {
@@ -936,8 +954,34 @@ sequelize.sync().then(async () => {
 
 // Routes
 
+// Health check (basic liveness probe)
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', service: 'content-service' });
+});
+
+// Readiness check (detailed health with dependencies)
+app.get('/health/ready', async (req, res) => {
+  if (!healthChecker) {
+    return res.json({ status: 'healthy', service: 'content-service', message: 'Basic health check' });
+  }
+  
+  try {
+    const health = await healthChecker.runChecks();
+    const statusCode = health.status === 'healthy' ? 200 : 503;
+    res.status(statusCode).json(health);
+  } catch (error) {
+    res.status(503).json({ status: 'unhealthy', error: error.message });
+  }
+});
+
+// Metrics endpoint (Prometheus format)
+app.get('/metrics', (req, res) => {
+  if (!healthChecker) {
+    return res.type('text/plain').send('# Metrics not available\n');
+  }
+  
+  const metrics = healthChecker.getPrometheusMetrics();
+  res.type('text/plain').send(metrics);
 });
 
 // Public: Get public posts (no auth required)
