@@ -328,7 +328,7 @@ function Chat({ user }) {
                           Replying to:
                         </Typography>
                         <Typography variant="caption" display="block" sx={{ fontStyle: 'italic' }}>
-                          {message.replyTo.content?.substring(0, 50)}...
+                          {message.replyTo.content?.substring(0, 50)}{message.replyTo.content?.length > 50 ? '...' : ''}
                         </Typography>
                       </Box>
                     )}
@@ -425,7 +425,7 @@ function Chat({ user }) {
                       Replying to:
                     </Typography>
                     <Typography variant="body2">
-                      {replyingTo.content?.substring(0, 50)}...
+                      {replyingTo.content?.substring(0, 50)}{replyingTo.content?.length > 50 ? '...' : ''}
                     </Typography>
                   </Box>
                   <IconButton size="small" onClick={() => setReplyingTo(null)}>

@@ -396,8 +396,8 @@ app.put('/documents/:id', async (req, res) => {
       contentHash
     });
 
-    // Update document
-    const { title, content, visibility, collaborators, tags, changeDescription, ...otherFields } = req.body;
+    // Update document - whitelist allowed fields
+    const { title, content, visibility, collaborators, tags, changeDescription } = req.body;
     const updateData = {};
     if (title !== undefined) updateData.title = title;
     if (content !== undefined) updateData.content = content;
@@ -1057,8 +1057,8 @@ app.put('/wiki/:id', async (req, res) => {
       contentHash
     });
 
-    // Update wiki
-    const { title, content, visibility, contributors, editSummary, ...otherFields } = req.body;
+    // Update wiki - whitelist allowed fields
+    const { title, content, visibility, contributors, editSummary } = req.body;
     const updateData = {};
     if (title !== undefined) updateData.title = title;
     if (content !== undefined) updateData.content = content;
