@@ -5,8 +5,6 @@ import {
     Button,
     Box,
     Typography,
-    Tree,
-    TreeItem,
     Dialog,
     DialogTitle,
     DialogContent,
@@ -144,23 +142,26 @@ const FolderBrowser = () => {
         if (!node) return null;
 
         return (
-            <TreeItem
-                nodeId={node.folder.id}
-                label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <FolderIcon fontSize="small" />
-                        <span>{node.folder.name}</span>
-                        {node.folder.isPublic && (
-                            <Typography variant="caption" sx={{ ml: 1, color: 'green' }}>
-                                Public
-                            </Typography>
-                        )}
-                    </Box>
-                }
-                onLabelClick={() => fetchFolderTree(node.folder.id)}
+            <ListItem
+                button
+                key={node.folder.id}
+                onClick={() => fetchFolderTree(node.folder.id)}
+                sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1,
+                    backgroundColor: selectedFolder === node.folder.id ? '#e3f2fd' : 'transparent',
+                    '&:hover': { backgroundColor: '#f5f5f5' }
+                }}
             >
-                {node.children && node.children.map(child => renderFolderTree(child))}
-            </TreeItem>
+                <ListItemIcon>
+                    <FolderIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText 
+                    primary={node.folder.name}
+                    secondary={node.folder.isPublic ? "Public" : "Private"}
+                />
+            </ListItem>
         );
     };
 
@@ -193,49 +194,13 @@ const FolderBrowser = () => {
                         <Box
                             sx={{
                                 maxHeight: '500px',
-                                overflowY: 'auto',
-                                '& .MuiTreeItem-root .MuiTreeItem-root': {
-                                    marginLeft: 2
-                                }
+                                overflowY: 'auto'
                             }}
                         >
                             {folders.length > 0 ? (
-                                <Box sx={{ '& .MuiTreeItem-group': { marginLeft: 0 } }}>
-                                    {folders.map(folder => (
-                                        <Paper
-                                            key={folder.id}
-                                            sx={{
-                                                p: 1.5,
-                                                mb: 1,
-                                                backgroundColor: selectedFolder === folder.id ? '#e3f2fd' : 'transparent',
-                                                cursor: 'pointer',
-                                                '&:hover': { backgroundColor: '#f5f5f5' }
-                                            }}
-                                            onClick={() => fetchFolderTree(folder.id)}
-                                        >
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <FolderIcon fontSize="small" />
-                                                <Typography variant="body2" sx={{ flex: 1 }}>
-                                                    {folder.name}
-                                                </Typography>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setContextMenu(e.currentTarget);
-                                                    }}
-                                                >
-                                                    <MoreVertIcon fontSize="small" />
-                                                </IconButton>
-                                            </Box>
-                                            {folder.description && (
-                                                <Typography variant="caption" sx={{ ml: 4, color: 'textSecondary' }}>
-                                                    {folder.description}
-                                                </Typography>
-                                            )}
-                                        </Paper>
-                                    ))}
-                                </Box>
+                                <List>
+                                    {folders.map(folder => renderFolderTree({ folder, children: [] }))}
+                                </List>
                             ) : (
                                 <Typography variant="body2" color="textSecondary">
                                     No folders yet. Create one to get started!

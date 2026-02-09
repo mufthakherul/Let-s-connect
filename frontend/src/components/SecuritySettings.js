@@ -8,7 +8,7 @@ import {
 import {
     Security, Check, ContentCopy, Refresh, VpnKey
 } from '@mui/icons-material';
-import QRCode from 'qrcode.react';
+import { QRCodeSVG as QRCode } from 'qrcode.react';
 import api from '../utils/api';
 
 const SecuritySettings = () => {
