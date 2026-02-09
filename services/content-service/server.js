@@ -3115,11 +3115,14 @@ app.get('/posts/sorted', async (req, res) => {
 // ========== PHASE 2: BLOGGER-INSPIRED BLOG/ARTICLE FEATURES ==========
 
 // Helper function to calculate reading time
-function calculateReadingTime(content) {
-  const wordsPerMinute = 200;
-  const wordCount = content.split(/\s+/).length;
-  return Math.ceil(wordCount / wordsPerMinute);
-}
+  const calculateReadingTime = (content) => {
+    if (!content || typeof content !== 'string') {
+      return 1; // Default to 1 minute if content is invalid
+    }
+    const wordsPerMinute = 200;
+    const wordCount = content.split(/\s+/).length;
+    return Math.ceil(wordCount / wordsPerMinute) || 1;
+  };
 
 // Helper function to generate slug
 function generateSlug(title) {
@@ -3170,7 +3173,7 @@ app.post('/blogs', async (req, res) => {
       title,
       slug: uniqueSlug,
       content,
-      excerpt: excerpt || content.substring(0, 200),
+      excerpt: excerpt || (content && content.substring(0, 200)) || '',
       featuredImage,
       category,
       tags: tags || [],
@@ -3178,7 +3181,7 @@ app.post('/blogs', async (req, res) => {
       status: status || 'draft',
       publishedAt: status === 'published' ? new Date() : null,
       metaTitle: metaTitle || title,
-      metaDescription: metaDescription || excerpt,
+      metaDescription: metaDescription || excerpt || '',
       metaKeywords: metaKeywords || tags || []
     });
 
@@ -3490,10 +3493,20 @@ app.get('/blogs/categories/all', async (req, res) => {
   }
 });
 
-// Create blog category (admin/moderator only for now, no auth check for simplicity)
+// Create blog category (requires authentication)
 app.post('/blogs/categories', async (req, res) => {
   try {
+    // Get authenticated user ID from header
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
     const { name, description } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Category name is required' });
+    }
 
     const slug = generateSlug(name);
 
