@@ -1,5 +1,6 @@
 const express = require('express');
 const { Sequelize, DataTypes, Op } = require('sequelize');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
@@ -69,7 +70,9 @@ const Wiki = sequelize.define('Wiki', {
     type: DataTypes.ENUM('public', 'private'),
     defaultValue: 'public'
   },
-  contributors: DataTypes.ARRAY(DataTypes.UUID)
+  contributors: DataTypes.ARRAY(DataTypes.UUID),
+  // Phase 2: Categories/tags for wiki organization
+  categories: DataTypes.ARRAY(DataTypes.STRING)
 });
 
 const Task = sequelize.define('Task', {
@@ -202,6 +205,52 @@ const Milestone = sequelize.define('Milestone', {
   }
 });
 
+// NEW: Phase 2 - Document Version History (Notion/Drive-inspired)
+const DocumentVersion = sequelize.define('DocumentVersion', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  documentId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  versionNumber: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  title: DataTypes.STRING,
+  content: DataTypes.TEXT,
+  changedBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  changeDescription: DataTypes.TEXT,
+  contentHash: DataTypes.STRING // For detecting actual content changes
+});
+
+// NEW: Phase 2 - Wiki Edit History (Wikipedia-inspired)
+const WikiHistory = sequelize.define('WikiHistory', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  wikiId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: DataTypes.STRING,
+  content: DataTypes.TEXT,
+  editedBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  editSummary: DataTypes.TEXT,
+  contentHash: DataTypes.STRING
+});
+
 // Relationships
 Issue.hasMany(IssueComment, { foreignKey: 'issueId' });
 IssueComment.belongsTo(Issue, { foreignKey: 'issueId' });
@@ -210,6 +259,12 @@ Project.hasMany(Task, { foreignKey: 'projectId' });
 Project.hasMany(Milestone, { foreignKey: 'projectId' });
 Milestone.hasMany(Issue, { foreignKey: 'milestoneId' });
 Issue.belongsTo(Milestone, { foreignKey: 'milestoneId' });
+
+// Phase 2: Document and Wiki history relationships
+Document.hasMany(DocumentVersion, { foreignKey: 'documentId', as: 'versions' });
+DocumentVersion.belongsTo(Document, { foreignKey: 'documentId' });
+Wiki.hasMany(WikiHistory, { foreignKey: 'wikiId', as: 'history' });
+WikiHistory.belongsTo(Wiki, { foreignKey: 'wikiId' });
 
 sequelize.sync();
 
@@ -314,13 +369,45 @@ app.get('/documents/:userId', async (req, res) => {
 // Update document
 app.put('/documents/:id', async (req, res) => {
   try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const doc = await Document.findByPk(req.params.id);
     if (!doc) {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    await doc.update(req.body);
+    // Check permission
+    if (doc.ownerId !== userId && (!doc.collaborators || !doc.collaborators.includes(userId))) {
+      return res.status(403).json({ error: 'Not authorized to edit this document' });
+    }
+
+    // Phase 2: Save version history before updating
+    const contentHash = crypto.createHash('md5').update(doc.content || '').digest('hex');
+    await DocumentVersion.create({
+      documentId: doc.id,
+      versionNumber: doc.version,
+      title: doc.title,
+      content: doc.content,
+      changedBy: userId,
+      changeDescription: req.body.changeDescription || 'Document updated',
+      contentHash
+    });
+
+    // Update document
+    const { title, content, visibility, collaborators, tags, changeDescription, ...otherFields } = req.body;
+    const updateData = {};
+    if (title !== undefined) updateData.title = title;
+    if (content !== undefined) updateData.content = content;
+    if (visibility !== undefined) updateData.visibility = visibility;
+    if (collaborators !== undefined) updateData.collaborators = collaborators;
+    if (tags !== undefined) updateData.tags = tags;
+
+    await doc.update(updateData);
     await doc.increment('version');
+    await doc.reload();
 
     res.json(doc);
   } catch (error) {
@@ -811,6 +898,354 @@ app.post('/issues/:issueId/milestone', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to assign milestone' });
+  }
+});
+
+// ========== PHASE 2: DOCUMENT VERSION HISTORY ==========
+
+// Get document version history
+app.get('/documents/:id/versions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const doc = await Document.findByPk(req.params.id);
+    if (!doc) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Check permission
+    if (doc.visibility === 'private' && doc.ownerId !== userId && (!doc.collaborators || !doc.collaborators.includes(userId))) {
+      return res.status(403).json({ error: 'Not authorized to view this document' });
+    }
+
+    const versions = await DocumentVersion.findAll({
+      where: { documentId: req.params.id },
+      order: [['versionNumber', 'DESC']],
+      attributes: ['id', 'versionNumber', 'title', 'changedBy', 'changeDescription', 'createdAt']
+    });
+
+    res.json(versions);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch document versions' });
+  }
+});
+
+// Get specific document version
+app.get('/documents/:id/versions/:versionNumber', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const doc = await Document.findByPk(req.params.id);
+    if (!doc) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Check permission
+    if (doc.visibility === 'private' && doc.ownerId !== userId && (!doc.collaborators || !doc.collaborators.includes(userId))) {
+      return res.status(403).json({ error: 'Not authorized to view this document' });
+    }
+
+    const version = await DocumentVersion.findOne({
+      where: {
+        documentId: req.params.id,
+        versionNumber: req.params.versionNumber
+      }
+    });
+
+    if (!version) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+
+    res.json(version);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch document version' });
+  }
+});
+
+// Restore document to a previous version
+app.post('/documents/:id/versions/:versionNumber/restore', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const doc = await Document.findByPk(req.params.id);
+    if (!doc) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Check permission - only owner or collaborators
+    if (doc.ownerId !== userId && (!doc.collaborators || !doc.collaborators.includes(userId))) {
+      return res.status(403).json({ error: 'Not authorized to edit this document' });
+    }
+
+    const version = await DocumentVersion.findOne({
+      where: {
+        documentId: req.params.id,
+        versionNumber: req.params.versionNumber
+      }
+    });
+
+    if (!version) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+
+    // Save current version before restoring
+    const contentHash = crypto.createHash('md5').update(doc.content || '').digest('hex');
+    await DocumentVersion.create({
+      documentId: doc.id,
+      versionNumber: doc.version,
+      title: doc.title,
+      content: doc.content,
+      changedBy: userId,
+      changeDescription: `Restored to version ${req.params.versionNumber}`,
+      contentHash
+    });
+
+    // Restore from version
+    await doc.update({
+      title: version.title,
+      content: version.content
+    });
+    await doc.increment('version');
+    await doc.reload();
+
+    res.json(doc);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to restore document version' });
+  }
+});
+
+// ========== PHASE 2: WIKI ENHANCEMENTS ==========
+
+// Update wiki page (with history tracking)
+app.put('/wiki/:id', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const wiki = await Wiki.findByPk(req.params.id);
+    if (!wiki) {
+      return res.status(404).json({ error: 'Wiki page not found' });
+    }
+
+    // Check permission
+    if (wiki.visibility === 'private' && wiki.ownerId !== userId && (!wiki.contributors || !wiki.contributors.includes(userId))) {
+      return res.status(403).json({ error: 'Not authorized to edit this wiki page' });
+    }
+
+    // Phase 2: Save edit history before updating
+    const contentHash = crypto.createHash('md5').update(wiki.content || '').digest('hex');
+    await WikiHistory.create({
+      wikiId: wiki.id,
+      title: wiki.title,
+      content: wiki.content,
+      editedBy: userId,
+      editSummary: req.body.editSummary || 'Wiki page updated',
+      contentHash
+    });
+
+    // Update wiki
+    const { title, content, visibility, contributors, editSummary, ...otherFields } = req.body;
+    const updateData = {};
+    if (title !== undefined) updateData.title = title;
+    if (content !== undefined) updateData.content = content;
+    if (visibility !== undefined) updateData.visibility = visibility;
+    if (contributors !== undefined) updateData.contributors = contributors;
+
+    // Update slug if title changed
+    if (title && title !== wiki.title) {
+      updateData.slug = title.toLowerCase().replace(/\s+/g, '-');
+    }
+
+    await wiki.update(updateData);
+    await wiki.reload();
+
+    res.json(wiki);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update wiki page' });
+  }
+});
+
+// Get wiki page edit history
+app.get('/wiki/:id/history', async (req, res) => {
+  try {
+    const wiki = await Wiki.findByPk(req.params.id);
+    if (!wiki) {
+      return res.status(404).json({ error: 'Wiki page not found' });
+    }
+
+    // Public wikis can be viewed by anyone, private need auth
+    if (wiki.visibility === 'private') {
+      const userId = req.header('x-user-id');
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      if (wiki.ownerId !== userId && (!wiki.contributors || !wiki.contributors.includes(userId))) {
+        return res.status(403).json({ error: 'Not authorized to view this wiki page' });
+      }
+    }
+
+    const history = await WikiHistory.findAll({
+      where: { wikiId: req.params.id },
+      order: [['createdAt', 'DESC']],
+      attributes: ['id', 'title', 'editedBy', 'editSummary', 'createdAt']
+    });
+
+    res.json(history);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch wiki history' });
+  }
+});
+
+// Get specific wiki revision
+app.get('/wiki/:id/history/:historyId', async (req, res) => {
+  try {
+    const wiki = await Wiki.findByPk(req.params.id);
+    if (!wiki) {
+      return res.status(404).json({ error: 'Wiki page not found' });
+    }
+
+    // Check permission for private wikis
+    if (wiki.visibility === 'private') {
+      const userId = req.header('x-user-id');
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      if (wiki.ownerId !== userId && (!wiki.contributors || !wiki.contributors.includes(userId))) {
+        return res.status(403).json({ error: 'Not authorized to view this wiki page' });
+      }
+    }
+
+    const revision = await WikiHistory.findByPk(req.params.historyId);
+    if (!revision || revision.wikiId !== req.params.id) {
+      return res.status(404).json({ error: 'Revision not found' });
+    }
+
+    res.json(revision);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch wiki revision' });
+  }
+});
+
+// Restore wiki to a previous revision
+app.post('/wiki/:id/history/:historyId/restore', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const wiki = await Wiki.findByPk(req.params.id);
+    if (!wiki) {
+      return res.status(404).json({ error: 'Wiki page not found' });
+    }
+
+    // Check permission
+    if (wiki.ownerId !== userId && (!wiki.contributors || !wiki.contributors.includes(userId))) {
+      return res.status(403).json({ error: 'Not authorized to edit this wiki page' });
+    }
+
+    const revision = await WikiHistory.findByPk(req.params.historyId);
+    if (!revision || revision.wikiId !== req.params.id) {
+      return res.status(404).json({ error: 'Revision not found' });
+    }
+
+    // Save current state before restoring
+    const contentHash = crypto.createHash('md5').update(wiki.content || '').digest('hex');
+    await WikiHistory.create({
+      wikiId: wiki.id,
+      title: wiki.title,
+      content: wiki.content,
+      editedBy: userId,
+      editSummary: `Restored to revision from ${revision.createdAt}`,
+      contentHash
+    });
+
+    // Restore from revision
+    await wiki.update({
+      title: revision.title,
+      content: revision.content
+    });
+    await wiki.reload();
+
+    res.json(wiki);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to restore wiki revision' });
+  }
+});
+
+// Add wiki categories/tags
+app.post('/wiki/:id/categories', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const wiki = await Wiki.findByPk(req.params.id);
+    if (!wiki) {
+      return res.status(404).json({ error: 'Wiki page not found' });
+    }
+
+    // Check permission
+    if (wiki.ownerId !== userId && (!wiki.contributors || !wiki.contributors.includes(userId))) {
+      return res.status(403).json({ error: 'Not authorized to edit this wiki page' });
+    }
+
+    const { categories } = req.body;
+    if (!categories || !Array.isArray(categories)) {
+      return res.status(400).json({ error: 'Categories must be an array' });
+    }
+
+    // Add categories field to wiki if not exists
+    await wiki.update({
+      categories: categories
+    });
+
+    res.json(wiki);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to add categories' });
+  }
+});
+
+// Get wikis by category
+app.get('/wiki/category/:category', async (req, res) => {
+  try {
+    const { category } = req.params;
+    
+    // Only return public wikis for category browsing
+    const wikis = await Wiki.findAll({
+      where: {
+        visibility: 'public',
+        categories: {
+          [Op.contains]: [category]
+        }
+      },
+      attributes: ['id', 'title', 'slug', 'ownerId', 'categories', 'createdAt', 'updatedAt']
+    });
+
+    res.json(wikis);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch wikis by category' });
   }
 });
 
