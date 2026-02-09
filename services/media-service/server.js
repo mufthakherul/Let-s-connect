@@ -3,6 +3,7 @@ const multer = require('multer');
 const AWS = require('aws-sdk');
 const { Sequelize, DataTypes } = require('sequelize');
 const fs = require('fs');
+const fsPromises = require('fs').promises;
 require('dotenv').config();
 
 const app = express();
@@ -197,7 +198,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
           for (const [sizeName, sizeData] of Object.entries(processedImage.sizes)) {
             if (sizeData.path) {
               const sizeFilename = `${Date.now()}-${sizeName}-${file.originalname}`;
-              const sizeBuffer = fs.readFileSync(sizeData.path);
+              const sizeBuffer = await fsPromises.readFile(sizeData.path);
               
               const sizeUploadParams = {
                 Bucket: BUCKET_NAME,
@@ -211,7 +212,11 @@ app.post('/upload', upload.single('file'), async (req, res) => {
               responsiveSizes[sizeName] = sizeResult.Location;
               
               // Clean up temp file
-              fs.unlinkSync(sizeData.path);
+              try {
+                await fsPromises.unlink(sizeData.path);
+              } catch (cleanupError) {
+                console.error('[Image] Failed to cleanup temp file:', cleanupError);
+              }
             }
           }
           
@@ -221,9 +226,13 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         
         // Upload blur placeholder if available
         if (processedImage.blurPlaceholder) {
-          const blurBuffer = fs.readFileSync(processedImage.blurPlaceholder);
+          const blurBuffer = await fsPromises.readFile(processedImage.blurPlaceholder);
           optimizationData.blurPlaceholder = `data:image/webp;base64,${blurBuffer.toString('base64')}`;
-          fs.unlinkSync(processedImage.blurPlaceholder);
+          try {
+            await fsPromises.unlink(processedImage.blurPlaceholder);
+          } catch (cleanupError) {
+            console.error('[Image] Failed to cleanup blur placeholder:', cleanupError);
+          }
         }
         
         optimizationData.dominantColor = processedImage.dominantColor || null;
