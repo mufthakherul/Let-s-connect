@@ -9,6 +9,23 @@ const PORT = process.env.PORT || 8005;
 
 app.use(express.json());
 
+// Phase 4: Image optimization integration
+let imageOptimizationEnabled = false;
+let processSingleImage, processMultipleImages;
+
+try {
+  const imageIntegration = require('./image-integration');
+  processSingleImage = imageIntegration.processSingleImage;
+  processMultipleImages = imageIntegration.processMultipleImages;
+  imageOptimizationEnabled = true;
+  console.log('[Image] Image optimization enabled for media-service');
+} catch (error) {
+  console.log('[Image] Image optimization disabled (sharp not available)');
+  // Create no-op functions for when optimization is disabled
+  processSingleImage = async (file) => ({ original: file });
+  processMultipleImages = async (files) => files.map(f => ({ original: f }));
+}
+
 // S3 Configuration (MinIO compatible)
 const s3 = new AWS.S3({
   endpoint: process.env.S3_ENDPOINT || 'http://minio:9000',

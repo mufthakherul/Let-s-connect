@@ -13,6 +13,34 @@ const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgr
   logging: false
 });
 
+// Phase 4: Caching integration
+let cacheEnabled = false;
+let cacheProducts, cacheProduct, cacheProductReviews, cacheOrder, cacheCategories;
+let invalidateProductCaches, invalidateOrderCaches;
+
+try {
+  const cacheIntegration = require('./cache-integration');
+  cacheProducts = cacheIntegration.cacheProducts;
+  cacheProduct = cacheIntegration.cacheProduct;
+  cacheProductReviews = cacheIntegration.cacheProductReviews;
+  cacheOrder = cacheIntegration.cacheOrder;
+  cacheCategories = cacheIntegration.cacheCategories;
+  invalidateProductCaches = cacheIntegration.invalidateProductCaches;
+  invalidateOrderCaches = cacheIntegration.invalidateOrderCaches;
+  cacheEnabled = true;
+  console.log('[Cache] Redis caching enabled for shop-service');
+} catch (error) {
+  console.log('[Cache] Redis caching disabled (ioredis not available or Redis not running)');
+  // Create no-op middleware for when caching is disabled
+  cacheProducts = (req, res, next) => next();
+  cacheProduct = (req, res, next) => next();
+  cacheProductReviews = (req, res, next) => next();
+  cacheOrder = (req, res, next) => next();
+  cacheCategories = (req, res, next) => next();
+  invalidateProductCaches = async () => {};
+  invalidateOrderCaches = async () => {};
+}
+
 // Models
 const Product = sequelize.define('Product', {
   id: {
@@ -180,7 +208,7 @@ app.get('/health', (req, res) => {
 });
 
 // Public: Browse products
-app.get('/public/products', async (req, res) => {
+app.get('/public/products', cacheProducts, async (req, res) => {
   try {
     const { category, search, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
@@ -213,7 +241,7 @@ app.get('/public/products', async (req, res) => {
 });
 
 // Public: Get single product
-app.get('/public/products/:id', async (req, res) => {
+app.get('/public/products/:id', cacheProduct, async (req, res) => {
   try {
     const product = await Product.findOne({
       where: { id: req.params.id, isPublic: true, isActive: true }
@@ -234,6 +262,12 @@ app.get('/public/products/:id', async (req, res) => {
 app.post('/products', async (req, res) => {
   try {
     const product = await Product.create(req.body);
+    
+    // Invalidate cache after successful creation
+    if (cacheEnabled) {
+      await invalidateProductCaches(product.id);
+    }
+    
     res.status(201).json(product);
   } catch (error) {
     console.error(error);
