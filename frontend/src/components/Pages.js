@@ -34,7 +34,6 @@ import {
   Delete as DeleteIcon,
   Verified as VerifiedIcon,
   People as PeopleIcon,
-  Article as ArticleIcon,
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
@@ -82,9 +81,13 @@ function Pages({ user }) {
 
   const fetchAllPages = async () => {
     try {
-      // Since there's no public pages endpoint, we'll just show user's pages for now
-      const response = await api.get(`/users/${user.id}/pages`);
-      setPages(response.data || []);
+      // Fetch user's pages first
+      const myPagesResponse = await api.get(`/users/${user.id}/pages`);
+      const myPagesData = myPagesResponse.data || [];
+      
+      // For discover, we could fetch all pages if backend supports it
+      // For now, just show empty list to avoid showing own pages in Discover
+      setPages([]);
     } catch (error) {
       console.error('Failed to fetch pages:', error);
     }
@@ -108,10 +111,7 @@ function Pages({ user }) {
 
     setLoading(true);
     try {
-      const response = await api.post('/pages', {
-        userId: user.id,
-        ...formData,
-      });
+      await api.post('/pages', formData);
       
       toast.success('Page created successfully!');
       setCreateDialogOpen(false);
@@ -188,7 +188,7 @@ function Pages({ user }) {
     setLoading(true);
     try {
       await api.post(`/pages/${selectedPage.id}/admins`, {
-        userId: adminFormData.userId,
+        adminUserId: adminFormData.userId,
         role: adminFormData.role,
       });
       
