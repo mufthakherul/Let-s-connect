@@ -488,7 +488,12 @@ app.get('/skills/:skillId/endorsements', async (req, res) => {
 // Create page
 app.post('/pages', async (req, res) => {
   try {
-    const { userId, name, description, category, avatarUrl, coverUrl } = req.body;
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { name, description, category, avatarUrl, coverUrl } = req.body;
 
     const page = await Page.create({
       userId,
