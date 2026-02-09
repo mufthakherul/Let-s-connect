@@ -1230,7 +1230,7 @@ app.post('/wiki/:id/categories', async (req, res) => {
 app.get('/wiki/category/:category', async (req, res) => {
   try {
     const { category } = req.params;
-    
+
     // Only return public wikis for category browsing
     const wikis = await Wiki.findAll({
       where: {
@@ -1246,6 +1246,627 @@ app.get('/wiki/category/:category', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch wikis by category' });
+  }
+});
+
+// ==================== WIKI DIFF COMPARISON ====================
+const DiffMatchPatch = require('diff-match-patch');
+const dmp = new DiffMatchPatch();
+
+// Wiki Diff Model
+const WikiDiff = sequelize.define('WikiDiff', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  wikiId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  fromVersionId: DataTypes.UUID,
+  toVersionId: DataTypes.UUID,
+  diff: DataTypes.TEXT, // Serialized diff format
+  stats: DataTypes.JSONB // { additions, deletions, changes }
+});
+
+// Get diff between two wiki versions
+app.get('/wikis/:wikiId/diff', async (req, res) => {
+  try {
+    const { wikiId } = req.params;
+    const { from, to } = req.query;
+
+    const wiki = await Wiki.findByPk(wikiId);
+    if (!wiki) {
+      return res.status(404).json({ error: 'Wiki not found' });
+    }
+
+    // Get version contents
+    let fromContent = '';
+    let toContent = '';
+
+    if (from) {
+      const fromHistory = await WikiHistory.findByPk(from);
+      fromContent = fromHistory?.content || '';
+    } else {
+      fromContent = wiki.content || '';
+    }
+
+    if (to) {
+      const toHistory = await WikiHistory.findByPk(to);
+      toContent = toHistory?.content || '';
+    } else {
+      toContent = wiki.content || '';
+    }
+
+    // Compute diff
+    const diffs = dmp.diff_main(fromContent, toContent);
+    dmp.diff_cleanupSemantic(diffs);
+
+    // Calculate statistics
+    let additions = 0,
+      deletions = 0;
+    diffs.forEach(([type, text]) => {
+      if (type === 1) additions += text.length;
+      if (type === -1) deletions += text.length;
+    });
+
+    res.json({
+      wikiId,
+      diffs,
+      stats: {
+        additions,
+        deletions,
+        changes: additions + deletions
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to compute diff' });
+  }
+});
+
+// Get patch format of diff (for applying changes)
+app.get('/wikis/:wikiId/patch', async (req, res) => {
+  try {
+    const { wikiId } = req.params;
+    const { from, to } = req.query;
+
+    const wiki = await Wiki.findByPk(wikiId);
+    if (!wiki) {
+      return res.status(404).json({ error: 'Wiki not found' });
+    }
+
+    let fromContent = wiki.content || '';
+    if (from) {
+      const history = await WikiHistory.findByPk(from);
+      fromContent = history?.content || '';
+    }
+
+    const toContent = wiki.content || '';
+
+    // Compute diff and create patch
+    const diffs = dmp.diff_main(fromContent, toContent);
+    dmp.diff_cleanupSemantic(diffs);
+    const patches = dmp.patch_make(fromContent, diffs);
+    const patchText = dmp.patch_toText(patches);
+
+    res.json({
+      wikiId,
+      patch: patchText,
+      appliedTo: from ? 'specific_version' : 'current'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to generate patch' });
+  }
+});
+
+// ==================== DOCUMENT FOLDER HIERARCHY ====================
+
+// Update Document model with parent folder support
+const DocumentFolder = sequelize.define('DocumentFolder', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  parentId: DataTypes.UUID, // Reference to parent folder
+  ownerId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  isPublic: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+});
+
+// Create folder
+app.post('/folders', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { name, parentId, description, isPublic } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Folder name required' });
+    }
+
+    const folder = await DocumentFolder.create({
+      ownerId: userId,
+      parentId: parentId || null,
+      name,
+      description,
+      isPublic: isPublic || false
+    });
+
+    res.status(201).json(folder);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create folder' });
+  }
+});
+
+// Get folder contents (documents and subfolders)
+app.get('/folders/:folderId/contents', async (req, res) => {
+  try {
+    const { folderId } = req.params;
+    const userId = req.header('x-user-id');
+
+    const folder = await DocumentFolder.findByPk(folderId, {
+      where: {
+        [Op.or]: [
+          { ownerId: userId },
+          { isPublic: true }
+        ]
+      }
+    });
+
+    if (!folder) {
+      return res.status(404).json({ error: 'Folder not found' });
+    }
+
+    // Get subfolders
+    const subfolders = await DocumentFolder.findAll({
+      where: { parentId: folderId }
+    });
+
+    // Get documents in folder
+    const documents = await Document.findAll({
+      where: { parentFolderId: folderId }
+    });
+
+    res.json({
+      folder,
+      subfolders,
+      documents
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch folder contents' });
+  }
+});
+
+// Get folder tree (recursive)
+app.get('/folders/tree/:folderId', async (req, res) => {
+  try {
+    const { folderId } = req.params;
+    const userId = req.header('x-user-id');
+
+    async function buildFolderTree(parentId) {
+      const folders = await DocumentFolder.findAll({
+        where: { parentId }
+      });
+
+      const tree = [];
+      for (const folder of folders) {
+        tree.push({
+          ...folder.toJSON(),
+          children: await buildFolderTree(folder.id)
+        });
+      }
+      return tree;
+    }
+
+    const treeData = await buildFolderTree(folderId);
+    res.json({ tree: treeData });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch folder tree' });
+  }
+});
+
+// ==================== NOTION DATABASE VIEWS ====================
+
+// Database View Model
+const DatabaseView = sequelize.define('DatabaseView', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  parentId: DataTypes.UUID, // Reference to parent document (database)
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  viewType: {
+    type: DataTypes.ENUM('table', 'gallery', 'list', 'board'),
+    defaultValue: 'table'
+  },
+  filters: DataTypes.JSONB, // Filter conditions
+  sorts: DataTypes.JSONB, // Sort configurations
+  properties: DataTypes.JSONB, // Visible properties/columns
+  groupBy: DataTypes.STRING // Property to group by (for board/list views)
+});
+
+// Database Property Model (for typed properties)
+const DatabaseProperty = sequelize.define('DatabaseProperty', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  databaseId: DataTypes.UUID,
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  type: {
+    type: DataTypes.ENUM('text', 'number', 'select', 'multiselect', 'date', 'checkbox', 'url', 'email'),
+    defaultValue: 'text'
+  },
+  options: DataTypes.JSONB // For select/multiselect types
+});
+
+// Create a database view
+app.post('/databases/:dbId/views', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { dbId } = req.params;
+    const { name, viewType, filters, sorts, properties, groupBy } = req.body;
+
+    // Verify database (document) exists and user has access
+    const doc = await Document.findOne({
+      where: { id: dbId, ownerId: userId }
+    });
+
+    if (!doc) {
+      return res.status(404).json({ error: 'Database not found' });
+    }
+
+    const view = await DatabaseView.create({
+      parentId: dbId,
+      name: name || `${viewType} View`,
+      viewType: viewType || 'table',
+      filters: filters || {},
+      sorts: sorts || {},
+      properties: properties || {},
+      groupBy: groupBy || null
+    });
+
+    res.status(201).json(view);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create database view' });
+  }
+});
+
+// Get database views
+app.get('/databases/:dbId/views', async (req, res) => {
+  try {
+    const { dbId } = req.params;
+
+    const views = await DatabaseView.findAll({
+      where: { parentId: dbId }
+    });
+
+    res.json(views);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch views' });
+  }
+});
+
+// Update database view
+app.put('/databases/views/:viewId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { viewId } = req.params;
+    const { name, viewType, filters, sorts, properties, groupBy } = req.body;
+
+    const view = await DatabaseView.findByPk(viewId);
+    if (!view) {
+      return res.status(404).json({ error: 'View not found' });
+    }
+
+    // Verify ownership
+    const doc = await Document.findOne({
+      where: { id: view.parentId, ownerId: userId }
+    });
+    if (!doc) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    await view.update({
+      name: name || view.name,
+      viewType: viewType || view.viewType,
+      filters: filters !== undefined ? filters : view.filters,
+      sorts: sorts !== undefined ? sorts : view.sorts,
+      properties: properties !== undefined ? properties : view.properties,
+      groupBy: groupBy !== undefined ? groupBy : view.groupBy
+    });
+
+    res.json(view);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update view' });
+  }
+});
+
+// Create database property
+app.post('/databases/:dbId/properties', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { dbId } = req.params;
+    const { name, type, options } = req.body;
+
+    // Verify ownership
+    const doc = await Document.findOne({
+      where: { id: dbId, ownerId: userId }
+    });
+    if (!doc) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const property = await DatabaseProperty.create({
+      databaseId: dbId,
+      name,
+      type: type || 'text',
+      options: options || {}
+    });
+
+    res.status(201).json(property);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create property' });
+  }
+});
+
+// Get database properties
+app.get('/databases/:dbId/properties', async (req, res) => {
+  try {
+    const { dbId } = req.params;
+
+    const properties = await DatabaseProperty.findAll({
+      where: { databaseId: dbId }
+    });
+
+    res.json(properties);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch properties' });
+  }
+});
+
+// ==================== BASIC WEBRTC SIGNALING ====================
+
+// WebRTC Call Model
+const WebRTCCall = sequelize.define('WebRTCCall', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  callerId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  recipientId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  type: {
+    type: DataTypes.ENUM('audio', 'video'),
+    defaultValue: 'video'
+  },
+  status: {
+    type: DataTypes.ENUM('pending', 'accepted', 'rejected', 'missed', 'ended'),
+    defaultValue: 'pending'
+  },
+  offer: DataTypes.TEXT, // WebRTC offer (JSON stringified)
+  answer: DataTypes.TEXT, // WebRTC answer (JSON stringified)
+  duration: DataTypes.INTEGER // Call duration in seconds
+});
+
+// Initiate WebRTC call
+app.post('/calls/initiate', async (req, res) => {
+  try {
+    const callerId = req.header('x-user-id');
+    if (!callerId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { recipientId, type, offer } = req.body;
+
+    if (!recipientId) {
+      return res.status(400).json({ error: 'Recipient ID required' });
+    }
+
+    const call = await WebRTCCall.create({
+      callerId,
+      recipientId,
+      type: type || 'video',
+      offer: typeof offer === 'string' ? offer : JSON.stringify(offer),
+      status: 'pending'
+    });
+
+    // Emit socket event to notify recipient
+    // io.to(recipientId).emit('incomingCall', { call });
+
+    res.status(201).json(call);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to initiate call' });
+  }
+});
+
+// Accept WebRTC call
+app.post('/calls/:callId/accept', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { callId } = req.params;
+    const { answer } = req.body;
+
+    const call = await WebRTCCall.findByPk(callId);
+    if (!call) {
+      return res.status(404).json({ error: 'Call not found' });
+    }
+
+    if (call.recipientId !== userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    await call.update({
+      status: 'accepted',
+      answer: typeof answer === 'string' ? answer : JSON.stringify(answer)
+    });
+
+    // Emit socket event to notify caller
+    // io.to(call.callerId).emit('callAccepted', { call });
+
+    res.json(call);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to accept call' });
+  }
+});
+
+// Reject WebRTC call
+app.post('/calls/:callId/reject', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { callId } = req.params;
+
+    const call = await WebRTCCall.findByPk(callId);
+    if (!call) {
+      return res.status(404).json({ error: 'Call not found' });
+    }
+
+    if (call.recipientId !== userId && call.callerId !== userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    await call.update({ status: 'rejected' });
+
+    res.json(call);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to reject call' });
+  }
+});
+
+// End WebRTC call
+app.post('/calls/:callId/end', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { callId } = req.params;
+    const { duration } = req.body;
+
+    const call = await WebRTCCall.findByPk(callId);
+    if (!call) {
+      return res.status(404).json({ error: 'Call not found' });
+    }
+
+    await call.update({
+      status: 'ended',
+      duration: duration || 0
+    });
+
+    res.json(call);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to end call' });
+  }
+});
+
+// Get call history
+app.get('/calls/history', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const calls = await WebRTCCall.findAll({
+      where: {
+        [Op.or]: [{ callerId: userId }, { recipientId: userId }]
+      },
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.json(calls);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch call history' });
+  }
+});
+
+// Get ICE candidates (placeholder for STUN/TURN servers)
+app.get('/webrtc/ice-servers', (req, res) => {
+  try {
+    res.json({
+      iceServers: [
+        { urls: ['stun:stun.l.google.com:19302'] },
+        { urls: ['stun:stun1.l.google.com:19302'] },
+        {
+          urls: [process.env.TURN_SERVER || 'turn:your-turn-server.com:3478'],
+          username: process.env.TURN_USERNAME || 'user',
+          credential: process.env.TURN_PASSWORD || 'pass'
+        }
+      ]
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch ICE servers' });
   }
 });
 

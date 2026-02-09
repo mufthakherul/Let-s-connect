@@ -66,7 +66,11 @@ const publicRoutes = [
   '/api/shop/public',
   '/api/collaboration/public',
   '/api/user/register',
-  '/api/user/login'
+  '/api/user/login',
+  '/api/auth/oauth/google/authorize',
+  '/api/auth/oauth/google/callback',
+  '/api/auth/oauth/github/authorize',
+  '/api/auth/oauth/github/callback'
 ];
 
 // Check if route is public
@@ -132,6 +136,46 @@ app.use('/api/ai', createAuthProxy(services.ai), proxy(services.ai, {
     return req.originalUrl.replace('/api/ai', '');
   }
 }));
+
+// OAuth Routes (proxy to user-service)
+// Google OAuth authorize endpoint
+app.get('/api/auth/oauth/google/authorize', (req, res, next) => {
+  const returnUrl = encodeURIComponent(req.query.returnUrl || 'http://localhost:3000');
+  const userServiceUrl = `${services.user}/oauth/google/authorize?returnUrl=${returnUrl}`;
+  proxy(services.user, {
+    proxyReqPathResolver: function (req) {
+      return `/oauth/google/authorize?returnUrl=${returnUrl}`;
+    }
+  })(req, res, next);
+});
+
+// Google OAuth callback endpoint
+app.get('/api/auth/oauth/google/callback', (req, res, next) => {
+  proxy(services.user, {
+    proxyReqPathResolver: function (req) {
+      return `/oauth/google/callback${req.url.substring(req.url.indexOf('?'))}`;;
+    }
+  })(req, res, next);
+});
+
+// GitHub OAuth authorize endpoint
+app.get('/api/auth/oauth/github/authorize', (req, res, next) => {
+  const returnUrl = encodeURIComponent(req.query.returnUrl || 'http://localhost:3000');
+  proxy(services.user, {
+    proxyReqPathResolver: function (req) {
+      return `/oauth/github/authorize?returnUrl=${returnUrl}`;
+    }
+  })(req, res, next);
+});
+
+// GitHub OAuth callback endpoint
+app.get('/api/auth/oauth/github/callback', (req, res, next) => {
+  proxy(services.user, {
+    proxyReqPathResolver: function (req) {
+      return `/oauth/github/callback${req.url.substring(req.url.indexOf('?'))}`;;
+    }
+  })(req, res, next);
+});
 
 // Error handling
 app.use((err, req, res, next) => {
