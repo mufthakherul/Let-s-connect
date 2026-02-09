@@ -9,7 +9,8 @@ import {
   Brightness4, Brightness7, Menu as MenuIcon, Home as HomeIcon,
   VideoLibrary, ShoppingCart, Description, Chat as ChatIcon,
   Person, ExitToApp, Login as LoginIcon,
-  PersonAdd, Feed as FeedIcon, Group as GroupIcon, Bookmark
+  PersonAdd, Feed as FeedIcon, Group as GroupIcon, Bookmark,
+  ShoppingCartOutlined, Article
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -27,6 +28,8 @@ import Chat from './components/Chat';
 import Profile from './components/Profile';
 import Groups from './components/Groups';
 import Bookmarks from './components/Bookmarks';
+import Cart from './components/Cart';
+import Blog from './components/Blog';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -105,9 +108,11 @@ function App() {
     { label: 'Home', path: '/', icon: <HomeIcon />, public: true },
     { label: 'Videos', path: '/videos', icon: <VideoLibrary />, public: true },
     { label: 'Shop', path: '/shop', icon: <ShoppingCart />, public: true },
+    { label: 'Blog', path: '/blog', icon: <Article />, public: true },
     { label: 'Docs', path: '/docs', icon: <Description />, public: true },
     { label: 'Feed', path: '/feed', icon: <FeedIcon />, public: false },
     { label: 'Groups', path: '/groups', icon: <GroupIcon />, public: false },
+    { label: 'Cart', path: '/cart', icon: <ShoppingCartOutlined />, public: false },
     { label: 'Bookmarks', path: '/bookmarks', icon: <Bookmark />, public: false },
     { label: 'Chat', path: '/chat', icon: <ChatIcon />, public: false },
     { label: 'Profile', path: '/profile', icon: <Person />, public: false },
@@ -279,6 +284,7 @@ function App() {
               <Route path="/register" element={<Register setUser={setInternalUser} />} />
               <Route path="/videos" element={<Videos user={internalUser} />} />
               <Route path="/shop" element={<Shop />} />
+              <Route path="/blog" element={<Blog />} />
               <Route path="/docs" element={<Docs user={internalUser} />} />
               <Route
                 path="/feed"
@@ -291,6 +297,10 @@ function App() {
               <Route
                 path="/bookmarks"
                 element={internalUser ? <Bookmarks user={internalUser} /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/cart"
+                element={internalUser ? <Cart /> : <Navigate to="/login" />}
               />
               <Route
                 path="/chat"
