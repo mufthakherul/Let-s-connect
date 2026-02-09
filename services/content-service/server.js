@@ -4137,6 +4137,493 @@ app.get('/search/history', async (req, res) => {
 
 // ==================== END ADVANCED SEARCH ====================
 
+// ==================== ELASTICSEARCH INTEGRATION ====================
+
+const { Client } = require('@elastic/elasticsearch');
+
+// Initialize Elasticsearch client
+const esClient = new Client({
+  node: process.env.ELASTICSEARCH_URL || 'http://localhost:9200',
+  auth: process.env.ELASTICSEARCH_USER && process.env.ELASTICSEARCH_PASSWORD ? {
+    username: process.env.ELASTICSEARCH_USER,
+    password: process.env.ELASTICSEARCH_PASSWORD
+  } : undefined
+});
+
+// Initialize Elasticsearch indices if they don't exist
+async function initializeElasticsearchIndices() {
+  try {
+    // Posts index
+    const postsIndexExists = await esClient.indices.exists({ index: 'posts' });
+    if (!postsIndexExists) {
+      await esClient.indices.create({
+        index: 'posts',
+        body: {
+          settings: {
+            number_of_shards: 1,
+            number_of_replicas: 0,
+            analysis: {
+              analyzer: {
+                text_analyzer: {
+                  type: 'standard',
+                  stopwords: '_english_'
+                }
+              }
+            }
+          },
+          mappings: {
+            properties: {
+              id: { type: 'keyword' },
+              userId: { type: 'keyword' },
+              communityId: { type: 'keyword' },
+              content: { type: 'text', analyzer: 'text_analyzer' },
+              type: { type: 'keyword' },
+              visibility: { type: 'keyword' },
+              likes: { type: 'integer' },
+              comments: { type: 'integer' },
+              createdAt: { type: 'date' },
+              isPublished: { type: 'boolean' }
+            }
+          }
+        }
+      });
+    }
+
+    // Comments index
+    const commentsIndexExists = await esClient.indices.exists({ index: 'comments' });
+    if (!commentsIndexExists) {
+      await esClient.indices.create({
+        index: 'comments',
+        body: {
+          settings: {
+            number_of_shards: 1,
+            number_of_replicas: 0,
+            analysis: {
+              analyzer: {
+                text_analyzer: {
+                  type: 'standard',
+                  stopwords: '_english_'
+                }
+              }
+            }
+          },
+          mappings: {
+            properties: {
+              id: { type: 'keyword' },
+              postId: { type: 'keyword' },
+              userId: { type: 'keyword' },
+              content: { type: 'text', analyzer: 'text_analyzer' },
+              upvotes: { type: 'integer' },
+              downvotes: { type: 'integer' },
+              createdAt: { type: 'date' }
+            }
+          }
+        }
+      });
+    }
+
+    // Videos index
+    const videosIndexExists = await esClient.indices.exists({ index: 'videos' });
+    if (!videosIndexExists) {
+      await esClient.indices.create({
+        index: 'videos',
+        body: {
+          settings: {
+            number_of_shards: 1,
+            number_of_replicas: 0,
+            analysis: {
+              analyzer: {
+                text_analyzer: {
+                  type: 'standard',
+                  stopwords: '_english_'
+                }
+              }
+            }
+          },
+          mappings: {
+            properties: {
+              id: { type: 'keyword' },
+              userId: { type: 'keyword' },
+              title: { type: 'text', analyzer: 'text_analyzer' },
+              description: { type: 'text', analyzer: 'text_analyzer' },
+              views: { type: 'integer' },
+              likes: { type: 'integer' },
+              category: { type: 'keyword' },
+              createdAt: { type: 'date' }
+            }
+          }
+        }
+      });
+    }
+
+    console.log('Elasticsearch indices initialized successfully');
+  } catch (error) {
+    if (error.message.includes('Index already exists')) {
+      console.log('Elasticsearch indices already exist');
+    } else {
+      console.error('Failed to initialize Elasticsearch indices:', error.message);
+    }
+  }
+}
+
+// Index a post to Elasticsearch
+async function indexPost(post) {
+  try {
+    await esClient.index({
+      index: 'posts',
+      id: post.id,
+      body: {
+        id: post.id,
+        userId: post.userId,
+        communityId: post.communityId,
+        content: post.content,
+        type: post.type,
+        visibility: post.visibility,
+        likes: post.likes,
+        comments: post.comments,
+        createdAt: post.createdAt,
+        isPublished: post.isPublished
+      }
+    });
+  } catch (error) {
+    console.error('Failed to index post:', error.message);
+  }
+}
+
+// Index a comment to Elasticsearch
+async function indexComment(comment) {
+  try {
+    await esClient.index({
+      index: 'comments',
+      id: comment.id,
+      body: {
+        id: comment.id,
+        postId: comment.postId,
+        userId: comment.userId,
+        content: comment.content,
+        upvotes: comment.upvotes,
+        downvotes: comment.downvotes,
+        createdAt: comment.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Failed to index comment:', error.message);
+  }
+}
+
+// Index a video to Elasticsearch
+async function indexVideo(video) {
+  try {
+    await esClient.index({
+      index: 'videos',
+      id: video.id,
+      body: {
+        id: video.id,
+        userId: video.userId,
+        title: video.title,
+        description: video.description,
+        views: video.views,
+        likes: video.likes,
+        category: video.category,
+        createdAt: video.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Failed to index video:', error.message);
+  }
+}
+
+// Advanced Elasticsearch search across all content types
+app.post('/search/elasticsearch', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { query, type = 'all', limit = 20, offset = 0, filters = {} } = req.body;
+
+    if (!query || query.trim().length === 0) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    const indices = type === 'all' ? ['posts', 'comments', 'videos'] : [type];
+
+    const searchQuery = {
+      bool: {
+        must: [
+          {
+            multi_match: {
+              query: query,
+              fields: type === 'posts' ? ['content'] :
+                type === 'comments' ? ['content'] :
+                  type === 'videos' ? ['title', 'description'] :
+                    ['content', 'title', 'description']
+            }
+          }
+        ],
+        filter: []
+      }
+    };
+
+    // Add custom filters
+    if (filters.visibility && type === 'posts') {
+      searchQuery.bool.filter.push({ term: { visibility: filters.visibility } });
+    }
+    if (filters.category && type === 'videos') {
+      searchQuery.bool.filter.push({ term: { category: filters.category } });
+    }
+    if (filters.minLikes) {
+      searchQuery.bool.filter.push({ range: { likes: { gte: filters.minLikes } } });
+    }
+    if (filters.fromDate) {
+      searchQuery.bool.filter.push({ range: { createdAt: { gte: filters.fromDate } } });
+    }
+
+    // Search Elasticsearch
+    const searchResults = await esClient.search({
+      index: indices.join(','),
+      body: {
+        query: searchQuery,
+        size: limit,
+        from: offset,
+        highlight: {
+          fields: {
+            content: { pre_tags: ['<em>'], post_tags: ['</em>'] },
+            title: { pre_tags: ['<em>'], post_tags: ['</em>'] },
+            description: { pre_tags: ['<em>'], post_tags: ['</em>'] }
+          }
+        }
+      }
+    });
+
+    const hits = searchResults.hits.hits.map(hit => ({
+      id: hit._id,
+      score: hit._score,
+      index: hit._index,
+      ...hit._source,
+      highlight: hit.highlight
+    }));
+
+    res.json({
+      results: hits,
+      total: searchResults.hits.total.value,
+      query: query,
+      offset: offset,
+      limit: limit
+    });
+  } catch (error) {
+    console.error('Elasticsearch search error:', error);
+    res.status(500).json({ error: 'Search failed', message: error.message });
+  }
+});
+
+// Search with aggregations (trending, popular)
+app.get('/search/trending', async (req, res) => {
+  try {
+    const { type = 'posts', days = 7, limit = 10 } = req.query;
+
+    const now = new Date();
+    const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+    const results = await esClient.search({
+      index: type,
+      body: {
+        query: {
+          range: {
+            createdAt: { gte: startDate.toISOString() }
+          }
+        },
+        aggs: {
+          trending: {
+            terms: {
+              field: type === 'posts' ? 'content' : 'title',
+              size: limit,
+              min_doc_count: 2
+            },
+            aggs: {
+              total_likes: { sum: { field: 'likes' } },
+              total_interactions: { sum: { field: type === 'posts' ? 'comments' : 'views' } }
+            }
+          }
+        },
+        size: 0
+      }
+    });
+
+    const trendingItems = results.aggregations.trending.buckets.map(bucket => ({
+      value: bucket.key,
+      count: bucket.doc_count,
+      totalLikes: bucket.total_likes.value,
+      totalInteractions: bucket.total_interactions.value,
+      score: (bucket.total_likes.value * 0.7) + (bucket.total_interactions.value * 0.3)
+    })).sort((a, b) => b.score - a.score);
+
+    res.json({ trending: trendingItems });
+  } catch (error) {
+    console.error('Trending search error:', error);
+    res.status(500).json({ error: 'Trending search failed' });
+  }
+});
+
+// Search analytics - get search statistics
+app.get('/search/analytics', async (req, res) => {
+  try {
+    const { type = 'posts', days = 30 } = req.query;
+
+    const now = new Date();
+    const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+    const results = await esClient.search({
+      index: type,
+      body: {
+        query: {
+          range: {
+            createdAt: { gte: startDate.toISOString() }
+          }
+        },
+        aggs: {
+          daily_distribution: {
+            date_histogram: {
+              field: 'createdAt',
+              calendar_interval: 'day'
+            }
+          },
+          avg_engagement: {
+            avg: {
+              field: type === 'posts' ? 'likes' : type === 'comments' ? 'upvotes' : 'views'
+            }
+          },
+          visibility_distribution: {
+            terms: {
+              field: 'visibility',
+              size: 5
+            }
+          }
+        },
+        size: 0
+      }
+    });
+
+    res.json({
+      totalDocuments: results.hits.total.value,
+      dailyDistribution: results.aggregations.daily_distribution.buckets,
+      avgEngagement: results.aggregations.avg_engagement.value,
+      visibilityDistribution: results.aggregations.visibility_distribution.buckets
+    });
+  } catch (error) {
+    console.error('Analytics error:', error);
+    res.status(500).json({ error: 'Analytics calculation failed' });
+  }
+});
+
+// Autocomplete suggestions
+app.get('/search/suggest', async (req, res) => {
+  try {
+    const { query, type = 'posts', limit = 10 } = req.query;
+
+    if (!query || query.trim().length === 0) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    const suggestionField = type === 'posts' ? 'content' :
+      type === 'comments' ? 'content' :
+        type === 'videos' ? 'title' : 'content';
+
+    const results = await esClient.search({
+      index: type,
+      body: {
+        query: {
+          match_phrase_prefix: {
+            [suggestionField]: {
+              query: query,
+              boost: 2
+            }
+          }
+        },
+        size: limit,
+        _source: [suggestionField]
+      }
+    });
+
+    const suggestions = results.hits.hits
+      .map(hit => hit._source[suggestionField])
+      .filter((v, i, a) => a.indexOf(v) === i) // Remove duplicates
+      .slice(0, limit);
+
+    res.json({ suggestions });
+  } catch (error) {
+    console.error('Suggestion error:', error);
+    res.status(500).json({ error: 'Suggestion failed' });
+  }
+});
+
+// Bulk indexing endpoint (for maintenance/reindexing)
+app.post('/search/reindex', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Check if user is admin (basic check via header)
+    const isAdmin = req.header('x-user-role') === 'admin';
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Admin required' });
+    }
+
+    const { type = 'all' } = req.body;
+
+    const types = type === 'all' ? ['posts', 'comments', 'videos'] : [type];
+    const results = {};
+
+    for (const contentType of types) {
+      try {
+        // Delete existing index
+        await esClient.indices.delete({ index: contentType }).catch(() => { });
+
+        // Recreate index (will use mapping from initialization)
+        await initializeElasticsearchIndices();
+
+        // Bulk index based on type
+        let items;
+        if (contentType === 'posts') {
+          items = await Post.findAll({ limit: 10000 });
+          for (const item of items) {
+            await indexPost(item);
+          }
+        } else if (contentType === 'comments') {
+          items = await Comment.findAll({ limit: 10000 });
+          for (const item of items) {
+            await indexComment(item);
+          }
+        } else if (contentType === 'videos') {
+          items = await Video.findAll({ limit: 10000 });
+          for (const item of items) {
+            await indexVideo(item);
+          }
+        }
+
+        results[contentType] = { indexed: items.length };
+      } catch (error) {
+        results[contentType] = { error: error.message };
+      }
+    }
+
+    res.json({ message: 'Reindexing complete', results });
+  } catch (error) {
+    console.error('Reindexing error:', error);
+    res.status(500).json({ error: 'Reindexing failed' });
+  }
+});
+
+// Initialize Elasticsearch on startup
+initializeElasticsearchIndices().catch(err => {
+  console.error('Failed to initialize Elasticsearch:', err.message);
+});
+
+// ==================== END ELASTICSEARCH INTEGRATION ====================
+
 app.listen(PORT, () => {
   console.log(`Content service running on port ${PORT}`);
 });

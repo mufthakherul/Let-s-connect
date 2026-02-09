@@ -28,6 +28,20 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/users
       - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      # Mailgun Configuration
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY}
+      - MAILGUN_PUBLIC_KEY=${MAILGUN_PUBLIC_KEY}
+      - MAILGUN_DOMAIN=${MAILGUN_DOMAIN:-sandbox.mailgun.org}
+      - MAILGUN_BASE_URL=${MAILGUN_BASE_URL:-https://api.mailgun.net}
+      - EMAIL_FROM=${EMAIL_FROM:-noreply@sandbox.mailgun.org}
+      # Google OAuth Configuration
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:8001/oauth/google/callback}
+      # GitHub OAuth Configuration
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI:-http://localhost:8001/oauth/github/callback}
     depends_on:
       - postgres
       - redis
@@ -42,9 +56,11 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/content
       - REDIS_URL=redis://redis:6379
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
     depends_on:
       - postgres
       - redis
+      - elasticsearch
     networks:
       - lets-connect-network
 
@@ -151,6 +167,21 @@ services:
     networks:
       - lets-connect-network
 
+  # Elasticsearch (Full-text search and analytics)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - lets-connect-network
+
   # MinIO (S3-compatible object storage)
   minio:
     image: minio/minio:latest
@@ -170,6 +201,8 @@ volumes:
   postgres-data:
   redis-data:
   minio-data:
+  elasticsearch-data:
+
 
 networks:
   lets-connect-network:

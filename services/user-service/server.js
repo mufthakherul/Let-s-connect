@@ -1921,6 +1921,277 @@ app.put('/notifications/preferences', async (req, res) => {
 
 // ==================== END NOTIFICATION SYSTEM ====================
 
+// ==================== EMAIL NOTIFICATIONS (MAILGUN) ====================
+// Email notification configuration using Mailgun API
+const mailgun = require('mailgun.js');
+const FormData = require('form-data');
+
+// Initialize Mailgun client
+const mg = mailgun.client({
+  username: 'api',
+  key: process.env.MAILGUN_API_KEY || 'your-mailgun-api-key',
+  public_key: process.env.MAILGUN_PUBLIC_KEY || 'your-mailgun-public-key',
+  url: process.env.MAILGUN_BASE_URL || 'https://api.mailgun.net'
+});
+
+const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || 'sandbox.mailgun.org';
+const EMAIL_FROM = process.env.EMAIL_FROM || 'noreply@letconnect.com';
+
+// Helper function to send email notification via Mailgun
+async function sendEmailNotification(userEmail, notification) {
+  try {
+    const emailData = {
+      from: EMAIL_FROM,
+      to: userEmail,
+      subject: notification.title,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px;">
+            <h2 style="color: #333; margin-top: 0;">${notification.title}</h2>
+            <p style="color: #666; line-height: 1.6;">${notification.message}</p>
+            ${notification.actionUrl ? `
+              <div style="margin-top: 20px;">
+                <a href="${notification.actionUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                  View More
+                </a>
+              </div>
+            ` : ''}
+          </div>
+          <p style="color: #999; font-size: 12px; margin-top: 20px; text-align: center;">
+            © 2026 Let's Connect. All rights reserved.
+          </p>
+        </div>
+      `
+    };
+
+    const result = await mg.messages.create(MAILGUN_DOMAIN, emailData);
+    console.log(`Email notification sent to ${userEmail}:`, result.id);
+    return result;
+  } catch (error) {
+    console.error('Mailgun email sending failed:', error);
+    throw error;
+  }
+}
+
+// Send email notification endpoint
+app.post('/notifications/:userId/email', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { title, message, actionUrl } = req.body;
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Create notification record
+    const notification = await Notification.create({
+      userId,
+      type: 'email',
+      title,
+      message,
+      actionUrl
+    });
+
+    // Send email
+    await sendEmailNotification(user.email, notification);
+
+    res.json({ message: 'Email notification sent', notification });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to send email notification' });
+  }
+});
+
+// Batch email notifications
+app.post('/notifications/email/batch', async (req, res) => {
+  try {
+    const { userIds, title, message, actionUrl } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ error: 'userIds array required' });
+    }
+
+    const users = await User.findAll({
+      where: { id: { [Op.in]: userIds } }
+    });
+
+    const results = [];
+    for (const user of users) {
+      try {
+        const notification = await Notification.create({
+          userId: user.id,
+          type: 'batch_email',
+          title,
+          message,
+          actionUrl
+        });
+
+        await sendEmailNotification(user.email, notification);
+        results.push({ userId: user.id, status: 'sent' });
+      } catch (err) {
+        results.push({ userId: user.id, status: 'failed', error: err.message });
+      }
+    }
+
+    res.json({ message: 'Batch emails processed', results });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Batch email failed' });
+  }
+});
+
+// ==================== OAUTH PROVIDERS (Google & GitHub) ====================
+// OAuth configuration endpoints
+const oauth2 = require('simple-oauth2');
+
+// Google OAuth setup
+const googleOAuth = oauth2.create({
+  client: {
+    id: process.env.GOOGLE_CLIENT_ID || 'your-client-id',
+    secret: process.env.GOOGLE_CLIENT_SECRET || 'your-client-secret'
+  },
+  auth: {
+    tokenHost: 'https://oauth2.googleapis.com',
+    tokenPath: '/token',
+    authorizePath: '/o/oauth2/v2/auth'
+  }
+});
+
+// GitHub OAuth setup
+const githubOAuth = oauth2.create({
+  client: {
+    id: process.env.GITHUB_CLIENT_ID || 'your-client-id',
+    secret: process.env.GITHUB_CLIENT_SECRET || 'your-client-secret'
+  },
+  auth: {
+    tokenHost: 'https://github.com',
+    tokenPath: '/login/oauth/access_token',
+    authorizePath: '/login/oauth/authorize'
+  }
+});
+
+// Get OAuth authorization URL (Google)
+app.get('/oauth/google/authorize', (req, res) => {
+  try {
+    const authorizationUri = googleOAuth.authorizationCode.authorizeURL({
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:8001/oauth/google/callback',
+      scope: ['profile', 'email'],
+      state: 'random-state-string'
+    });
+
+    res.json({ authorizationUri });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get Google authorization URL' });
+  }
+});
+
+// Google OAuth callback
+app.post('/oauth/google/callback', async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+
+    const token = await googleOAuth.authorizationCode.getToken({
+      code,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:8001/oauth/google/callback'
+    });
+
+    // Fetch user info from Google
+    const googleUser = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${token.access_token}` }
+    }).then(r => r.json());
+
+    // Find or create user
+    let user = await User.findOne({ where: { email: googleUser.email } });
+
+    if (!user) {
+      user = await User.create({
+        email: googleUser.email,
+        username: googleUser.email.split('@')[0],
+        firstName: googleUser.given_name,
+        lastName: googleUser.family_name,
+        avatar: googleUser.picture,
+        password: bcrypt.hashSync(require('crypto').randomBytes(32).toString('hex'), 10)
+      });
+    }
+
+    // Generate JWT token
+    const jwtToken = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({
+      message: 'Google OAuth successful',
+      user: { id: user.id, email: user.email, firstName: user.firstName },
+      token: jwtToken
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Google OAuth failed' });
+  }
+});
+
+// GitHub OAuth callback
+app.post('/oauth/github/callback', async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+
+    const token = await githubOAuth.authorizationCode.getToken({
+      code,
+      redirect_uri: process.env.GITHUB_REDIRECT_URI || 'http://localhost:8001/oauth/github/callback'
+    });
+
+    // Fetch user info from GitHub
+    const githubUser = await fetch('https://api.github.com/user', {
+      headers: { Authorization: `Bearer ${token.access_token}` }
+    }).then(r => r.json());
+
+    // Get email if available
+    const emailResponse = await fetch('https://api.github.com/user/emails', {
+      headers: { Authorization: `Bearer ${token.access_token}` }
+    }).then(r => r.json());
+
+    const primaryEmail = emailResponse.find(e => e.primary)?.email || githubUser.email || `${githubUser.login}@github.local`;
+
+    // Find or create user
+    let user = await User.findOne({
+      where: { [Op.or]: [{ email: primaryEmail }, { username: githubUser.login }] }
+    });
+
+    if (!user) {
+      user = await User.create({
+        email: primaryEmail,
+        username: githubUser.login,
+        firstName: githubUser.name?.split(' ')[0] || githubUser.login,
+        lastName: githubUser.name?.split(' ').slice(1).join(' ') || '',
+        avatar: githubUser.avatar_url,
+        password: bcrypt.hashSync(require('crypto').randomBytes(32).toString('hex'), 10)
+      });
+    }
+
+    // Generate JWT token
+    const jwtToken = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({
+      message: 'GitHub OAuth successful',
+      user: { id: user.id, email: user.email, firstName: user.firstName },
+      token: jwtToken
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'GitHub OAuth failed' });
+  }
+});
+
+// ==================== END EMAIL & OAUTH ====================
+
 app.listen(PORT, () => {
   console.log(`User service running on port ${PORT}`);
 });

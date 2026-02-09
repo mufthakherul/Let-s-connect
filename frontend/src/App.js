@@ -11,7 +11,8 @@ import {
   Person, ExitToApp, Login as LoginIcon,
   PersonAdd, Feed as FeedIcon, Group as GroupIcon, Bookmark,
   ShoppingCartOutlined, Article, Pages as PagesIcon, Work as WorkIcon,
-  Dashboard as DashboardIcon, Search as SearchIcon
+  Dashboard as DashboardIcon, Search as SearchIcon, Folder as FolderIcon,
+  Phone as PhoneIcon, Storage as DatabaseIcon, CompareArrows as DiffIcon
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -37,6 +38,13 @@ import AdminDashboard from './components/AdminDashboard';
 import SecuritySettings from './components/SecuritySettings';
 import Analytics from './components/Analytics';
 import Search from './components/Search';
+import EmailPreferences from './components/EmailPreferences';
+import OAuthLogin from './components/OAuthLogin';
+import ElasticsearchSearch from './components/ElasticsearchSearch';
+import FolderBrowser from './components/FolderBrowser';
+import WikiDiffViewer from './components/WikiDiffViewer';
+import WebRTCCallWidget from './components/WebRTCCallWidget';
+import DatabaseViews from './components/DatabaseViews';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -114,6 +122,7 @@ function App() {
   const navigationItems = [
     { label: 'Home', path: '/', icon: <HomeIcon />, public: true },
     { label: 'Search', path: '/search', icon: <SearchIcon />, public: true },
+    { label: 'Advanced Search', path: '/search/advanced', icon: <SearchIcon />, public: false },
     { label: 'Videos', path: '/videos', icon: <VideoLibrary />, public: true },
     { label: 'Shop', path: '/shop', icon: <ShoppingCart />, public: true },
     { label: 'Blog', path: '/blog', icon: <Article />, public: true },
@@ -125,7 +134,12 @@ function App() {
     { label: 'Cart', path: '/cart', icon: <ShoppingCartOutlined />, public: false },
     { label: 'Bookmarks', path: '/bookmarks', icon: <Bookmark />, public: false },
     { label: 'Chat', path: '/chat', icon: <ChatIcon />, public: false },
+    { label: 'Calls', path: '/calls', icon: <PhoneIcon />, public: false },
+    { label: 'Folders', path: '/folders', icon: <FolderIcon />, public: false },
+    { label: 'Wiki Diff', path: '/wikis/diff', icon: <DiffIcon />, public: false },
+    { label: 'Databases', path: '/databases/views', icon: <DatabaseIcon />, public: false },
     { label: 'Profile', path: '/profile', icon: <Person />, public: false },
+    { label: 'Email Settings', path: '/notifications/email', icon: <Article />, public: false },
     { label: 'Admin', path: '/admin', icon: <DashboardIcon />, public: false, adminOnly: true },
   ];
 
@@ -342,6 +356,38 @@ function App() {
               <Route
                 path="/analytics"
                 element={internalUser ? <Analytics user={internalUser} /> : <Navigate to="/login" />}
+              />
+              {/* Phase 3 Features - Email Notifications */}
+              <Route
+                path="/notifications/email"
+                element={internalUser ? <EmailPreferences /> : <Navigate to="/login" />}
+              />
+              {/* Phase 3 Features - OAuth Login */}
+              <Route path="/login/oauth" element={<OAuthLogin />} />
+              {/* Phase 3 Features - Elasticsearch Search */}
+              <Route
+                path="/search/advanced"
+                element={internalUser ? <ElasticsearchSearch /> : <Navigate to="/login" />}
+              />
+              {/* Phase 3 Features - Drive Folder Hierarchy */}
+              <Route
+                path="/folders"
+                element={internalUser ? <FolderBrowser /> : <Navigate to="/login" />}
+              />
+              {/* Phase 3 Features - Wiki Diff Viewer */}
+              <Route
+                path="/wikis/diff"
+                element={internalUser ? <WikiDiffViewer /> : <Navigate to="/login" />}
+              />
+              {/* Phase 3 Features - WebRTC Voice/Video */}
+              <Route
+                path="/calls"
+                element={internalUser ? <WebRTCCallWidget /> : <Navigate to="/login" />}
+              />
+              {/* Phase 3 Features - Database Views Builder */}
+              <Route
+                path="/databases/views"
+                element={internalUser ? <DatabaseViews /> : <Navigate to="/login" />}
               />
             </Routes>
           </Container>
