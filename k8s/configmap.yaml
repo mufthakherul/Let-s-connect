@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lets-connect-config
+  namespace: lets-connect
+data:
+  # Node Environment
+  NODE_ENV: "production"
+  
+  # Service URLs (internal K8s DNS)
+  USER_SERVICE_URL: "http://user-service:8001"
+  CONTENT_SERVICE_URL: "http://content-service:8002"
+  MESSAGING_SERVICE_URL: "http://messaging-service:8003"
+  COLLABORATION_SERVICE_URL: "http://collaboration-service:8004"
+  MEDIA_SERVICE_URL: "http://media-service:8005"
+  SHOP_SERVICE_URL: "http://shop-service:8006"
+  AI_SERVICE_URL: "http://ai-service:8007"
+  
+  # Cache Configuration
+  REDIS_URL: "redis://redis:6379"
+  CACHE_TTL: "600"
+  
+  # Storage Configuration
+  S3_ENDPOINT: "http://minio:9000"
+  S3_BUCKET: "lets-connect-media"
+  
+  # Monitoring
+  ENABLE_METRICS: "true"
+  ENABLE_HEALTH_CHECKS: "true"
+  LOG_LEVEL: "info"
