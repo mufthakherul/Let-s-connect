@@ -1,0 +1,230 @@
+---
+# Grafana Visualization for Let's Connect Platform
+# Phase 4: Scale & Performance (v2.5)
+#
+# This manifest deploys Grafana for metrics visualization and dashboards
+
+# Grafana ConfigMap - Datasource configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: lets-connect
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: true
+
+---
+# Grafana ConfigMap - Dashboard provider
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-provider
+  namespace: lets-connect
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'Let''s Connect Dashboards'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards
+
+---
+# Grafana ConfigMap - Default dashboard
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-default-dashboard
+  namespace: lets-connect
+data:
+  lets-connect-overview.json: |
+    {
+      "dashboard": {
+        "title": "Let's Connect Platform Overview",
+        "tags": ["platform", "overview"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Total Requests",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(http_requests_total[5m]))",
+                "legendFormat": "Total Requests/sec"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Error Rate",
+            "type": "graph",
+            "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "sum(rate(http_requests_errors_total[5m]))",
+                "legendFormat": "Errors/sec"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Response Time (p95)",
+            "type": "graph",
+            "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "p95 Response Time"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Service Health",
+            "type": "stat",
+            "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+            "targets": [
+              {
+                "expr": "up",
+                "legendFormat": "{{job}}"
+              }
+            ]
+          }
+        ],
+        "refresh": "10s",
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        }
+      }
+    }
+
+---
+# Grafana Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: lets-connect
+  labels:
+    app: grafana
+    component: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+        component: monitoring
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:10.0.3
+          ports:
+            - name: web
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: "admin"
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "admin"
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            - name: GF_SERVER_ROOT_URL
+              value: "http://localhost:3000"
+            - name: GF_INSTALL_PLUGINS
+              value: ""
+          volumeMounts:
+            - name: grafana-storage
+              mountPath: /var/lib/grafana
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: grafana-storage
+          emptyDir: {}
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboards-provider
+          configMap:
+            name: grafana-dashboards-provider
+        - name: dashboards
+          configMap:
+            name: grafana-default-dashboard
+
+---
+# Grafana Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: lets-connect
+  labels:
+    app: grafana
+    component: monitoring
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: web
+  selector:
+    app: grafana
+
+---
+# Grafana PersistentVolumeClaim (Optional - for persistent storage)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-storage
+  namespace: lets-connect
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard

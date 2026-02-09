@@ -1,0 +1,214 @@
+---
+# Ingress Controller for Let's Connect Platform
+# Phase 4: Scale & Performance (v2.5)
+# 
+# This Ingress provides external load balancing and routing for all services
+# Requires an Ingress controller to be installed (e.g., nginx-ingress, traefik)
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lets-connect-ingress
+  namespace: lets-connect
+  annotations:
+    # Nginx Ingress Controller annotations
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    
+    # Timeouts
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    
+    # CORS settings
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    
+    # SSL/TLS configuration (cert-manager integration)
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    
+spec:
+  ingressClassName: nginx
+  
+  # TLS/SSL termination
+  tls:
+    - hosts:
+        - api.letsconnect.example.com
+      secretName: letsconnect-tls-cert
+  
+  rules:
+    - host: api.letsconnect.example.com
+      http:
+        paths:
+          # API Gateway - Main entry point
+          - path: /api(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8000
+          
+          # User Service
+          - path: /api/users(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: user-service
+                port:
+                  number: 8001
+          
+          # Content Service
+          - path: /api/content(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: content-service
+                port:
+                  number: 8002
+          
+          # Messaging Service
+          - path: /api/messages(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: messaging-service
+                port:
+                  number: 8003
+          
+          # Collaboration Service
+          - path: /api/collaboration(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: collaboration-service
+                port:
+                  number: 8004
+          
+          # Media Service
+          - path: /api/media(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: media-service
+                port:
+                  number: 8005
+          
+          # Shop Service
+          - path: /api/shop(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: shop-service
+                port:
+                  number: 8006
+          
+          # AI Service
+          - path: /api/ai(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-service
+                port:
+                  number: 8007
+
+---
+# Alternative Ingress for Development/Testing (HTTP only)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lets-connect-ingress-dev
+  namespace: lets-connect
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/limit-rps: "200"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    
+spec:
+  ingressClassName: nginx
+  
+  rules:
+    - http:
+        paths:
+          # API Gateway - Main entry point
+          - path: /api(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8000
+          
+          # User Service
+          - path: /users(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: user-service
+                port:
+                  number: 8001
+          
+          # Content Service
+          - path: /content(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: content-service
+                port:
+                  number: 8002
+          
+          # Messaging Service
+          - path: /messages(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: messaging-service
+                port:
+                  number: 8003
+          
+          # Collaboration Service
+          - path: /collaboration(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: collaboration-service
+                port:
+                  number: 8004
+          
+          # Media Service
+          - path: /media(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: media-service
+                port:
+                  number: 8005
+          
+          # Shop Service
+          - path: /shop(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: shop-service
+                port:
+                  number: 8006
+          
+          # AI Service
+          - path: /ai(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-service
+                port:
+                  number: 8007
