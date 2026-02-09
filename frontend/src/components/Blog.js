@@ -147,7 +147,7 @@ function Blog() {
     }
 
     try {
-      const tagsArray = blogForm.tags.split(',').map(t => t.trim()).filter(t => t);
+      const tagsArray = (blogForm.tags || '').split(',').map(t => t.trim()).filter(t => t);
       
       const payload = {
         title: blogForm.title,

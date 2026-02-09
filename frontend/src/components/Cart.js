@@ -231,7 +231,7 @@ function Cart() {
               
               <Box sx={{ textAlign: 'right' }}>
                 <Typography variant="h5" gutterBottom>
-                  Total: ${parseFloat(total).toFixed(2)}
+                  Total: ${parseFloat(total || 0).toFixed(2)}
                 </Typography>
                 <Button
                   variant="contained"

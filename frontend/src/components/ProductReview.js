@@ -156,12 +156,12 @@ function ProductReview({ productId }) {
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Typography variant="h3">
-                  {parseFloat(stats.averageRating).toFixed(1)}
+                  {parseFloat(stats.averageRating || 0).toFixed(1)}
                 </Typography>
                 <Box>
-                  <Rating value={parseFloat(stats.averageRating)} readOnly precision={0.1} />
+                  <Rating value={parseFloat(stats.averageRating || 0)} readOnly precision={0.1} />
                   <Typography variant="body2" color="text.secondary">
-                    Based on {stats.totalReviews} review{stats.totalReviews !== 1 ? 's' : ''}
+                    Based on {stats.totalReviews || 0} review{(stats.totalReviews || 0) !== 1 ? 's' : ''}
                   </Typography>
                 </Box>
               </Box>

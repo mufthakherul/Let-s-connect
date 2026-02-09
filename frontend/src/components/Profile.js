@@ -271,7 +271,7 @@ function Profile({ user }) {
                           
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Typography variant="body2" color="text.secondary">
-                              {skill.endorsements} endorsement{skill.endorsements !== 1 ? 's' : ''}
+                              {skill.endorsements || 0} endorsement{(skill.endorsements || 0) !== 1 ? 's' : ''}
                             </Typography>
                             <Button
                               size="small"
