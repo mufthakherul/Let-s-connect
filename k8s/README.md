@@ -18,8 +18,11 @@ This directory contains Kubernetes deployment manifests for all services.
 - `namespace.yaml` - Namespace configuration
 - `configmap.yaml` - Environment variables  
 - `user-service.yaml` - Complete example (Deployment + Service + HPA)
+- `ingress.yaml` - Load balancing and routing (Phase 4) ✅
+- `prometheus.yaml` - Monitoring and metrics collection (Phase 4) ✅
+- `grafana.yaml` - Metrics visualization and dashboards (Phase 4) ✅
 
-**To deploy the example**:
+**To deploy the platform**:
 
 ```bash
 # Create namespace
@@ -44,7 +47,26 @@ kubectl apply -f k8s/user-service.yaml
 # - ai-service.yaml
 # - api-gateway.yaml
 # - frontend.yaml
-# - ingress.yaml
+
+# Deploy Load Balancing (Phase 4)
+kubectl apply -f k8s/ingress.yaml
+
+# Deploy Monitoring Stack (Phase 4)
+kubectl apply -f k8s/prometheus.yaml
+kubectl apply -f k8s/grafana.yaml
+```
+
+### Access Monitoring
+
+```bash
+# Port-forward Prometheus
+kubectl port-forward svc/prometheus 9090:9090 -n lets-connect
+# Access at: http://localhost:9090
+
+# Port-forward Grafana  
+kubectl port-forward svc/grafana 3000:3000 -n lets-connect
+# Access at: http://localhost:3000
+# Default credentials: admin / admin
 ```
 
 ### Check Status
@@ -146,6 +168,29 @@ kubectl exec deployment/user-service -n lets-connect -- curl localhost:8001/heal
 
 # Prometheus metrics
 kubectl exec deployment/user-service -n lets-connect -- curl localhost:8001/metrics
+```
+
+### Prometheus & Grafana (Phase 4)
+```bash
+# Check Prometheus status
+kubectl get pods -n lets-connect -l app=prometheus
+kubectl logs -f deployment/prometheus -n lets-connect
+
+# Check Grafana status
+kubectl get pods -n lets-connect -l app=grafana
+kubectl logs -f deployment/grafana -n lets-connect
+
+# Access Prometheus UI
+kubectl port-forward svc/prometheus 9090:9090 -n lets-connect
+# Browse to: http://localhost:9090
+
+# Access Grafana dashboards
+kubectl port-forward svc/grafana 3000:3000 -n lets-connect
+# Browse to: http://localhost:3000
+# Login with: admin / admin
+
+# Verify metrics collection
+curl http://localhost:9090/api/v1/targets  # Check Prometheus targets
 ```
 
 ### Logs
