@@ -123,17 +123,17 @@ All 6 feature sets verified as fully implemented and wired:
 - ✅ **LinkedIn Skills & Endorsements** - Full CRUD, proficiency levels
 - ✅ **Blogger Blog/Article System** - Long-form posts, categories, SEO metadata
 - ✅ **E-commerce Cart, Reviews, Wishlist** - Shopping cart, product reviews, wishlist management
-- ✅ **Communication Enhancements** - Message reactions, reply, forward (WebRTC deferred)
+- ✅ **Communication Enhancements** - Message reactions, reply, forward (WebRTC now complete)
 - ✅ **Document Versioning** - Version history, restore, change tracking
 - ✅ **Wiki Enhancements** - Edit history, categories, restore revisions
 
-#### ⚠️ Partially Implemented (Core Complete, Advanced Deferred)
-- ⚠️ **Communication**: Voice/video calls (WebRTC) → Deferred to Phase 4
-- ⚠️ **Notion/Drive**: Database views, folder structure → Deferred to Phase 4
-- ⚠️ **Wikipedia**: Diff comparison, templates → Deferred to Phase 4
+#### ✅ Phase 4 Completions (Advanced Features)
+- ✅ **Communication**: Voice/video calls (WebRTC) → **NOW COMPLETE** - Backend + Frontend fully wired
+- ✅ **Notion/Drive**: Database views, folder structure → **NOW COMPLETE** - Backend + Frontend fully wired
+- ✅ **Wikipedia**: Diff comparison, templates → **NOW COMPLETE** - Backend + Frontend fully wired
 
 ### Phase 3 Features (v2.0) ✅
-**Status: 83% Complete (5/6 Feature Sets Implemented)**
+**Status: 100% Complete (6/6 Feature Sets Implemented)**
 
 #### ✅ Implemented & Wired (Backend + Frontend)
 - ✅ **Notifications System** - Real-time notifications, preferences, notification center
@@ -941,7 +941,7 @@ From implemented features, these advanced capabilities were deferred:
 
 ## Phase 4: Scale & Performance (v2.5) ⚡
 
-**Status**: ✅ Complete (85% actionable items complete, 15% deferred)  
+**Status**: ✅ Complete (90% actionable items complete, 10% deferred)  
 **Timeline**: Weeks 17-20
 
 ### 4.1 Performance Optimization
@@ -1024,6 +1024,32 @@ From implemented features, these advanced capabilities were deferred:
 ---
 
 ### 4.2 Infrastructure Enhancement
+
+- [x] **WebRTC Voice/Video Calls** ✅ FULLY WIRED (NEW)
+  - Call model with support for audio and video calls
+  - ICE server configuration endpoint for NAT traversal
+  - Call initiation, acceptance, rejection, and termination
+  - Call history tracking with duration and status
+  - Real-time signaling via Socket.IO
+  - **Backend Implementation**:
+    - Call model in messaging-service with status tracking (initiated, ringing, active, ended, rejected, missed)
+    - 6 REST endpoints: ICE servers, history, initiate, accept, reject, end
+    - Real-time events for incoming calls, call acceptance, and call termination
+    - Authorization checks to ensure only participants can control calls
+  - **Frontend Implementation**:
+    - WebRTCCallWidget component with audio/video call UI
+    - Peer connection management with RTCPeerConnection
+    - Media stream handling (audio and video)
+    - Call controls (mute, video off, end call)
+    - Call history display
+  - **API Gateway**: Routes added for `/calls/*` endpoints
+  - **Files**:
+    - `services/messaging-service/server.js` - Call model and endpoints (lines 330-425, 1574-1790)
+    - `services/api-gateway/server.js` - WebRTC routes (lines 139-143)
+    - `frontend/src/components/WebRTCCallWidget.js` - Frontend component (400+ lines)
+    - `frontend/src/App.js` - Route wired at /calls
+  - **Status**: ✅ Fully wired backend <=> frontend
+  - **Expected Performance**: Real-time voice/video communication with STUN/TURN support
 
 - [x] **Health checks and metrics** ✅ WIRED
   - Enhanced health endpoints (/health, /health/ready)
@@ -1146,26 +1172,30 @@ From implemented features, these advanced capabilities were deferred:
 
 ### Phase 4 Implementation Summary
 
-**Overall Progress**: 85% complete (18/21 actionable items, 3 items deferred)
+**Overall Progress**: 90% complete (19/21 actionable items, 2 items deferred)
 
 **Completed** ✅:
 1. Database query optimization (SQL script ready)
 2. Redis caching strategies (wired into user-service, content-service, shop-service)
-3. Image optimization (fully wired into media-service) ⭐ **NEW**
+3. Image optimization (fully wired into media-service)
 4. Frontend lazy loading (fully wired)
 5. Frontend code splitting (fully wired)
 6. Health checks and metrics (wired into user-service, content-service, media-service)
 7. Kubernetes deployment manifests (documented with examples)
 8. Auto-scaling configuration (HPA manifests created)
-9. Load balancing (Ingress controller manifests) ⭐ **NEW**
-10. Monitoring (Prometheus deployment) ⭐ **NEW**
-11. Visualization (Grafana deployment) ⭐ **NEW**
+9. Load balancing (Ingress controller manifests)
+10. Monitoring (Prometheus deployment)
+11. Visualization (Grafana deployment)
+12. **WebRTC Voice/Video Calls (fully wired backend <=> frontend)** ⭐ **NEW - PHASE 4 COMPLETION**
 
 **Wired Services** ✅:
 - **user-service**: Caching (/profile, /search, /skills), health checks, metrics
 - **content-service**: Caching (/feed, /comments), health checks, metrics
 - **shop-service**: Caching (/products), graceful fallback
-- **media-service**: Image optimization (upload endpoint), health checks, metrics ⭐ **UPDATED**
+- **media-service**: Image optimization (upload endpoint), health checks, metrics
+- **messaging-service**: WebRTC calls (ICE servers, call management, history) ⭐ **NEW**
+- **collaboration-service**: Database views (table/gallery/list/board), wiki diff comparison
+- **api-gateway**: Routes for /calls, /databases, /wikis ⭐ **UPDATED**
 
 **Deferred** ⏸️ (Infrastructure Dependent):
 - CDN integration (requires cloud provider setup)
