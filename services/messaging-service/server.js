@@ -327,6 +327,66 @@ const MessageReaction = sequelize.define('MessageReaction', {
   ]
 });
 
+// Phase 4: WebRTC Call Model
+const Call = sequelize.define('Call', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  callerId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  recipientId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  type: {
+    type: DataTypes.ENUM('audio', 'video'),
+    allowNull: false,
+    defaultValue: 'audio'
+  },
+  status: {
+    type: DataTypes.ENUM('initiated', 'ringing', 'active', 'ended', 'rejected', 'missed'),
+    allowNull: false,
+    defaultValue: 'initiated'
+  },
+  offer: {
+    type: DataTypes.JSONB,
+    allowNull: true
+  },
+  answer: {
+    type: DataTypes.JSONB,
+    allowNull: true
+  },
+  duration: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    comment: 'Call duration in seconds'
+  },
+  startedAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  endedAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  }
+}, {
+  indexes: [
+    {
+      fields: ['callerId']
+    },
+    {
+      fields: ['recipientId']
+    },
+    {
+      fields: ['status']
+    }
+  ]
+});
+
 // Relationships
 Server.hasMany(Conversation, { foreignKey: 'serverId' });
 Server.hasMany(Role, { foreignKey: 'serverId' });
@@ -1519,6 +1579,250 @@ app.post('/messages/:messageId/forward', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to forward message' });
+  }
+});
+
+// ========== PHASE 4: WEBRTC VOICE/VIDEO CALLS ==========
+
+// Get ICE server configuration
+app.get('/calls/ice-servers', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // ICE servers configuration for WebRTC
+    const iceServers = [
+      {
+        urls: 'stun:stun.l.google.com:19302'
+      },
+      {
+        urls: 'stun:stun1.l.google.com:19302'
+      },
+      {
+        urls: 'stun:stun2.l.google.com:19302'
+      }
+    ];
+
+    // In production, add TURN servers for NAT traversal:
+    // {
+    //   urls: 'turn:your-turn-server.com:3478',
+    //   username: 'username',
+    //   credential: 'password'
+    // }
+
+    res.json({ iceServers });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch ICE servers' });
+  }
+});
+
+// Get call history
+app.get('/calls/history', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { limit = 20, offset = 0 } = req.query;
+
+    const whereClause = {
+      [Op.or]: [
+        { callerId: userId },
+        { recipientId: userId }
+      ]
+    };
+
+    const calls = await Call.findAll({
+      where: whereClause,
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    const total = await Call.count({ where: whereClause });
+
+    res.json({ calls, total });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch call history' });
+  }
+});
+
+// Initiate a call
+app.post('/calls/initiate', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { recipientId, type, offer } = req.body;
+
+    if (!recipientId || !type) {
+      return res.status(400).json({ error: 'recipientId and type are required' });
+    }
+
+    if (!['audio', 'video'].includes(type)) {
+      return res.status(400).json({ error: 'type must be audio or video' });
+    }
+
+    // Create call record
+    const call = await Call.create({
+      callerId: userId,
+      recipientId,
+      type,
+      status: 'initiated',
+      offer: offer || null,
+      startedAt: new Date()
+    });
+
+    // Emit real-time event to recipient
+    io.emit(`incoming-call-${recipientId}`, {
+      callId: call.id,
+      callerId: userId,
+      type,
+      offer
+    });
+
+    res.json({
+      callId: call.id,
+      status: call.status
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to initiate call' });
+  }
+});
+
+// Accept a call
+app.post('/calls/:callId/accept', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { callId } = req.params;
+    const { answer } = req.body;
+
+    const call = await Call.findByPk(callId);
+    if (!call) {
+      return res.status(404).json({ error: 'Call not found' });
+    }
+
+    // Verify user is the recipient
+    if (call.recipientId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to accept this call' });
+    }
+
+    // Update call status
+    await call.update({
+      status: 'active',
+      answer: answer || null,
+      startedAt: new Date()
+    });
+
+    // Emit real-time event to caller
+    io.emit(`call-accepted-${call.callerId}`, {
+      callId: call.id,
+      answer
+    });
+
+    res.json({
+      callId: call.id,
+      status: call.status
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to accept call' });
+  }
+});
+
+// Reject a call
+app.post('/calls/:callId/reject', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { callId } = req.params;
+
+    const call = await Call.findByPk(callId);
+    if (!call) {
+      return res.status(404).json({ error: 'Call not found' });
+    }
+
+    // Verify user is the recipient
+    if (call.recipientId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to reject this call' });
+    }
+
+    // Update call status
+    await call.update({
+      status: 'rejected',
+      endedAt: new Date()
+    });
+
+    // Emit real-time event to caller
+    io.emit(`call-rejected-${call.callerId}`, {
+      callId: call.id
+    });
+
+    res.json({
+      callId: call.id,
+      status: call.status
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to reject call' });
+  }
+});
+
+// End a call
+app.post('/calls/:callId/end', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { callId } = req.params;
+    const { duration } = req.body;
+
+    const call = await Call.findByPk(callId);
+    if (!call) {
+      return res.status(404).json({ error: 'Call not found' });
+    }
+
+    // Verify user is either caller or recipient
+    if (call.callerId !== userId && call.recipientId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to end this call' });
+    }
+
+    // Update call status
+    await call.update({
+      status: 'ended',
+      duration: duration || 0,
+      endedAt: new Date()
+    });
+
+    // Emit real-time event to both parties
+    io.emit(`call-ended-${call.callerId}`, { callId: call.id });
+    io.emit(`call-ended-${call.recipientId}`, { callId: call.id });
+
+    res.json({
+      callId: call.id,
+      status: call.status,
+      duration: call.duration
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to end call' });
   }
 });
 

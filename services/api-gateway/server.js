@@ -137,6 +137,27 @@ app.use('/api/ai', createAuthProxy(services.ai), proxy(services.ai, {
   }
 }));
 
+// WebRTC Call routes (Phase 4) - proxy to messaging service
+app.use('/calls', createAuthProxy(services.messaging), proxy(services.messaging, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl; // Keep the /calls prefix
+  }
+}));
+
+// Database routes (Phase 4) - proxy to collaboration service
+app.use('/databases', createAuthProxy(services.collaboration), proxy(services.collaboration, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl; // Keep the /databases prefix
+  }
+}));
+
+// Wiki routes (Phase 4) - proxy to collaboration service
+app.use('/wikis', createAuthProxy(services.collaboration), proxy(services.collaboration, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl; // Keep the /wikis prefix
+  }
+}));
+
 // OAuth Routes (proxy to user-service)
 // Google OAuth authorize endpoint
 app.get('/api/auth/oauth/google/authorize', (req, res, next) => {
