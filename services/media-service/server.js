@@ -2,6 +2,8 @@ const express = require('express');
 const multer = require('multer');
 const AWS = require('aws-sdk');
 const { Sequelize, DataTypes } = require('sequelize');
+const fs = require('fs');
+const fsPromises = require('fs').promises;
 require('dotenv').config();
 
 const app = express();
@@ -69,7 +71,14 @@ const MediaFile = sequelize.define('MediaFile', {
   visibility: {
     type: DataTypes.ENUM('public', 'private'),
     defaultValue: 'private'
-  }
+  },
+  // Phase 4: Image optimization fields
+  optimizedUrl: DataTypes.STRING,
+  thumbnailUrl: DataTypes.STRING,
+  responsiveSizes: DataTypes.JSONB, // { thumbnail, small, medium, large }
+  blurPlaceholder: DataTypes.TEXT,  // base64 encoded blur placeholder
+  dominantColor: DataTypes.JSONB,   // { r, g, b }
+  metadata: DataTypes.JSONB         // { width, height, format }
 });
 
 sequelize.sync();
@@ -175,6 +184,67 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     else if (file.mimetype.startsWith('audio/')) type = 'audio';
     else if (file.mimetype.includes('pdf') || file.mimetype.includes('document')) type = 'document';
 
+    // Phase 4: Image optimization for image files
+    let optimizationData = {};
+    if (type === 'image' && imageOptimizationEnabled) {
+      try {
+        console.log('[Image] Processing image optimization for:', filename);
+        const processedImage = await processSingleImage(file);
+        
+        // Upload optimized versions to S3
+        if (processedImage.sizes) {
+          const responsiveSizes = {};
+          
+          for (const [sizeName, sizeData] of Object.entries(processedImage.sizes)) {
+            if (sizeData.path) {
+              const sizeFilename = `${Date.now()}-${sizeName}-${file.originalname}`;
+              const sizeBuffer = await fsPromises.readFile(sizeData.path);
+              
+              const sizeUploadParams = {
+                Bucket: BUCKET_NAME,
+                Key: `optimized/${sizeFilename}`,
+                Body: sizeBuffer,
+                ContentType: 'image/webp',
+                ACL: visibility === 'public' ? 'public-read' : 'private'
+              };
+              
+              const sizeResult = await s3.upload(sizeUploadParams).promise();
+              responsiveSizes[sizeName] = sizeResult.Location;
+              
+              // Clean up temp file
+              try {
+                await fsPromises.unlink(sizeData.path);
+              } catch (cleanupError) {
+                console.error('[Image] Failed to cleanup temp file:', cleanupError);
+              }
+            }
+          }
+          
+          optimizationData.responsiveSizes = responsiveSizes;
+          optimizationData.thumbnailUrl = responsiveSizes.thumbnail || null;
+        }
+        
+        // Upload blur placeholder if available
+        if (processedImage.blurPlaceholder) {
+          const blurBuffer = await fsPromises.readFile(processedImage.blurPlaceholder);
+          optimizationData.blurPlaceholder = `data:image/webp;base64,${blurBuffer.toString('base64')}`;
+          try {
+            await fsPromises.unlink(processedImage.blurPlaceholder);
+          } catch (cleanupError) {
+            console.error('[Image] Failed to cleanup blur placeholder:', cleanupError);
+          }
+        }
+        
+        optimizationData.dominantColor = processedImage.dominantColor || null;
+        optimizationData.metadata = processedImage.metadata || null;
+        
+        console.log('[Image] Image optimization completed successfully');
+      } catch (error) {
+        console.error('[Image] Image optimization failed:', error);
+        // Continue without optimization if it fails
+      }
+    }
+
     // Save metadata to database
     const mediaFile = await MediaFile.create({
       userId,
@@ -184,7 +254,8 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       size: file.size,
       url: s3Result.Location,
       type,
-      visibility
+      visibility,
+      ...optimizationData
     });
 
     res.status(201).json(mediaFile);

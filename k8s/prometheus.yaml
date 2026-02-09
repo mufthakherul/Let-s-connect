@@ -1,0 +1,268 @@
+---
+# Prometheus Monitoring for Let's Connect Platform
+# Phase 4: Scale & Performance (v2.5)
+#
+# This manifest deploys Prometheus for metrics collection and monitoring
+
+# Prometheus ConfigMap - Scrape configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: lets-connect
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'lets-connect'
+        environment: 'production'
+
+    # Alerting configuration
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: []
+
+    # Scrape configurations
+    scrape_configs:
+      # Prometheus itself
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+      # User Service
+      - job_name: 'user-service'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['user-service:8001']
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            regex: '([^:]+):.*'
+            replacement: '${1}'
+
+      # Content Service
+      - job_name: 'content-service'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['content-service:8002']
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            regex: '([^:]+):.*'
+            replacement: '${1}'
+
+      # Messaging Service
+      - job_name: 'messaging-service'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['messaging-service:8003']
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            regex: '([^:]+):.*'
+            replacement: '${1}'
+
+      # Collaboration Service
+      - job_name: 'collaboration-service'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['collaboration-service:8004']
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            regex: '([^:]+):.*'
+            replacement: '${1}'
+
+      # Media Service
+      - job_name: 'media-service'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['media-service:8005']
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            regex: '([^:]+):.*'
+            replacement: '${1}'
+
+      # Shop Service
+      - job_name: 'shop-service'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['shop-service:8006']
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            regex: '([^:]+):.*'
+            replacement: '${1}'
+
+      # AI Service
+      - job_name: 'ai-service'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['ai-service:8007']
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            regex: '([^:]+):.*'
+            replacement: '${1}'
+
+      # API Gateway
+      - job_name: 'api-gateway'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['api-gateway:8000']
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: instance
+            regex: '([^:]+):.*'
+            replacement: '${1}'
+
+---
+# Prometheus Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: lets-connect
+  labels:
+    app: prometheus
+    component: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+        component: monitoring
+    spec:
+      serviceAccountName: prometheus
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.45.0
+          args:
+            - '--config.file=/etc/prometheus/prometheus.yml'
+            - '--storage.tsdb.path=/prometheus'
+            - '--storage.tsdb.retention.time=30d'
+            - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+            - '--web.console.templates=/usr/share/prometheus/consoles'
+            - '--web.enable-lifecycle'
+          ports:
+            - name: web
+              containerPort: 9090
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: storage
+              mountPath: /prometheus
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9090
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: storage
+          emptyDir: {}
+
+---
+# Prometheus Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: lets-connect
+  labels:
+    app: prometheus
+    component: monitoring
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9090
+      targetPort: 9090
+      protocol: TCP
+      name: web
+  selector:
+    app: prometheus
+
+---
+# Prometheus ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: lets-connect
+
+---
+# Prometheus ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/metrics
+      - services
+      - endpoints
+      - pods
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    verbs: ["get"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+
+---
+# Prometheus ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: lets-connect
+
+---
+# Prometheus PersistentVolumeClaim (Optional - for persistent storage)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-storage
+  namespace: lets-connect
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
