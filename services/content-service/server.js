@@ -3115,14 +3115,14 @@ app.get('/posts/sorted', async (req, res) => {
 // ========== PHASE 2: BLOGGER-INSPIRED BLOG/ARTICLE FEATURES ==========
 
 // Helper function to calculate reading time
-  const calculateReadingTime = (content) => {
-    if (!content || typeof content !== 'string') {
-      return 1; // Default to 1 minute if content is invalid
-    }
-    const wordsPerMinute = 200;
-    const wordCount = content.split(/\s+/).length;
-    return Math.ceil(wordCount / wordsPerMinute) || 1;
-  };
+const calculateReadingTime = (content) => {
+  if (!content || typeof content !== 'string') {
+    return 1; // Default to 1 minute if content is invalid
+  }
+  const wordsPerMinute = 200;
+  const wordCount = content.split(/\s+/).length;
+  return Math.ceil(wordCount / wordsPerMinute) || 1;
+};
 
 // Helper function to generate slug
 function generateSlug(title) {
@@ -3156,7 +3156,7 @@ app.post('/blogs', async (req, res) => {
 
     // Generate slug from title
     let slug = generateSlug(title);
-    
+
     // Ensure slug is unique
     let counter = 1;
     let uniqueSlug = slug;
@@ -3528,6 +3528,614 @@ app.post('/blogs/categories', async (req, res) => {
     res.status(500).json({ error: 'Failed to create category' });
   }
 });
+
+// ==================== PHASE 3: ANALYTICS & INSIGHTS APIs ====================
+
+// Get user analytics
+app.get('/analytics/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { period = '30' } = req.query; // days
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - parseInt(period));
+
+    // Get post stats
+    const totalPosts = await Post.count({ where: { userId } });
+    const periodPosts = await Post.count({
+      where: {
+        userId,
+        createdAt: { [Op.gte]: startDate }
+      }
+    });
+
+    // Get engagement stats
+    const posts = await Post.findAll({
+      where: { userId },
+      attributes: [
+        [sequelize.fn('SUM', sequelize.col('likes')), 'totalLikes'],
+        [sequelize.fn('SUM', sequelize.col('comments')), 'totalComments'],
+        [sequelize.fn('SUM', sequelize.col('shares')), 'totalShares'],
+        [sequelize.fn('AVG', sequelize.col('likes')), 'avgLikes']
+      ],
+      raw: true
+    });
+
+    const periodPosts = await Post.findAll({
+      where: {
+        userId,
+        createdAt: { [Op.gte]: startDate }
+      },
+      attributes: [
+        [sequelize.fn('SUM', sequelize.col('likes')), 'periodLikes'],
+        [sequelize.fn('SUM', sequelize.col('comments')), 'periodComments'],
+        [sequelize.fn('SUM', sequelize.col('shares')), 'periodShares']
+      ],
+      raw: true
+    });
+
+    // Get comment stats
+    const totalComments = await Comment.count({ where: { userId } });
+    const periodComments = await Comment.count({
+      where: {
+        userId,
+        createdAt: { [Op.gte]: startDate }
+      }
+    });
+
+    // Get blog stats if BlogPost model exists
+    let blogStats = { total: 0, periodBlogs: 0 };
+    try {
+      const BlogPost = sequelize.models.BlogPost;
+      if (BlogPost) {
+        blogStats.total = await BlogPost.count({ where: { userId } });
+        blogStats.periodBlogs = await BlogPost.count({
+          where: {
+            userId,
+            createdAt: { [Op.gte]: startDate }
+          }
+        });
+      }
+    } catch (err) {
+      // BlogPost model doesn't exist
+    }
+
+    // Get video stats if Video model exists
+    let videoStats = { total: 0, periodVideos: 0, totalViews: 0 };
+    try {
+      const Video = sequelize.models.Video;
+      if (Video) {
+        videoStats.total = await Video.count({ where: { userId } });
+        videoStats.periodVideos = await Video.count({
+          where: {
+            userId,
+            createdAt: { [Op.gte]: startDate }
+          }
+        });
+        const views = await Video.findAll({
+          where: { userId },
+          attributes: [[sequelize.fn('SUM', sequelize.col('views')), 'totalViews']],
+          raw: true
+        });
+        videoStats.totalViews = parseInt(views[0]?.totalViews || 0);
+      }
+    } catch (err) {
+      // Video model doesn't exist
+    }
+
+    // Activity timeline (posts per day in period)
+    const timeline = await Post.findAll({
+      where: {
+        userId,
+        createdAt: { [Op.gte]: startDate }
+      },
+      attributes: [
+        [sequelize.fn('DATE', sequelize.col('createdAt')), 'date'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: [sequelize.fn('DATE', sequelize.col('createdAt'))],
+      order: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'ASC']],
+      raw: true
+    });
+
+    res.json({
+      period: parseInt(period),
+      posts: {
+        total: totalPosts,
+        period: periodPosts,
+        totalLikes: parseInt(posts[0]?.totalLikes || 0),
+        totalComments: parseInt(posts[0]?.totalComments || 0),
+        totalShares: parseInt(posts[0]?.totalShares || 0),
+        avgLikes: parseFloat(posts[0]?.avgLikes || 0).toFixed(2),
+        periodLikes: parseInt(periodPosts[0]?.periodLikes || 0),
+        periodComments: parseInt(periodPosts[0]?.periodComments || 0),
+        periodShares: parseInt(periodPosts[0]?.periodShares || 0)
+      },
+      comments: {
+        total: totalComments,
+        period: periodComments
+      },
+      blogs: blogStats,
+      videos: videoStats,
+      timeline
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch user analytics' });
+  }
+});
+
+// Get content analytics (top posts, trending, etc.)
+app.get('/analytics/content', async (req, res) => {
+  try {
+    const { period = '7', limit = 10 } = req.query;
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - parseInt(period));
+
+    // Top posts by engagement
+    const topPosts = await Post.findAll({
+      where: {
+        createdAt: { [Op.gte]: startDate }
+      },
+      attributes: [
+        'id',
+        'userId',
+        'content',
+        'likes',
+        'comments',
+        'shares',
+        'createdAt',
+        [sequelize.literal('likes + (comments * 2) + (shares * 3)'), 'engagement']
+      ],
+      order: [[sequelize.literal('likes + (comments * 2) + (shares * 3)'), 'DESC']],
+      limit: parseInt(limit)
+    });
+
+    // Hashtag trends (if hashtags exist)
+    let trendingHashtags = [];
+    try {
+      const Hashtag = sequelize.models.Hashtag;
+      if (Hashtag) {
+        trendingHashtags = await Hashtag.findAll({
+          where: {
+            lastUsed: { [Op.gte]: startDate }
+          },
+          order: [['count', 'DESC']],
+          limit: 10,
+          attributes: ['name', 'count']
+        });
+      }
+    } catch (err) {
+      // Hashtag model doesn't exist
+    }
+
+    // Content type distribution
+    const contentTypes = await Post.findAll({
+      where: {
+        createdAt: { [Op.gte]: startDate }
+      },
+      attributes: [
+        'type',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: ['type'],
+      raw: true
+    });
+
+    // Engagement trends over time
+    const engagementTrend = await Post.findAll({
+      where: {
+        createdAt: { [Op.gte]: startDate }
+      },
+      attributes: [
+        [sequelize.fn('DATE', sequelize.col('createdAt')), 'date'],
+        [sequelize.fn('SUM', sequelize.col('likes')), 'totalLikes'],
+        [sequelize.fn('SUM', sequelize.col('comments')), 'totalComments'],
+        [sequelize.fn('SUM', sequelize.col('shares')), 'totalShares']
+      ],
+      group: [sequelize.fn('DATE', sequelize.col('createdAt'))],
+      order: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'ASC']],
+      raw: true
+    });
+
+    res.json({
+      period: parseInt(period),
+      topPosts,
+      trendingHashtags,
+      contentTypes,
+      engagementTrend
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch content analytics' });
+  }
+});
+
+// Get engagement metrics summary
+app.get('/analytics/engagement', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const { period = '30' } = req.query;
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - parseInt(period));
+
+    const where = { createdAt: { [Op.gte]: startDate } };
+    if (userId) {
+      where.userId = userId;
+    }
+
+    // Total engagement
+    const totalPosts = await Post.count({ where });
+    const totalComments = await Comment.count({ where });
+
+    const engagement = await Post.findAll({
+      where,
+      attributes: [
+        [sequelize.fn('SUM', sequelize.col('likes')), 'totalLikes'],
+        [sequelize.fn('SUM', sequelize.col('comments')), 'totalComments'],
+        [sequelize.fn('SUM', sequelize.col('shares')), 'totalShares']
+      ],
+      raw: true
+    });
+
+    // Engagement rate (likes + comments + shares) / posts
+    const totalEngagement =
+      parseInt(engagement[0]?.totalLikes || 0) +
+      parseInt(engagement[0]?.totalComments || 0) +
+      parseInt(engagement[0]?.totalShares || 0);
+
+    const engagementRate = totalPosts > 0 ? (totalEngagement / totalPosts).toFixed(2) : 0;
+
+    // Best posting times (hour of day with most engagement)
+    const hourlyEngagement = await Post.findAll({
+      where,
+      attributes: [
+        [sequelize.fn('EXTRACT', sequelize.literal("HOUR FROM \"createdAt\"")), 'hour'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'postCount'],
+        [sequelize.fn('AVG', sequelize.col('likes')), 'avgLikes']
+      ],
+      group: [sequelize.fn('EXTRACT', sequelize.literal("HOUR FROM \"createdAt\""))],
+      order: [[sequelize.fn('AVG', sequelize.col('likes')), 'DESC']],
+      limit: 5,
+      raw: true
+    });
+
+    res.json({
+      period: parseInt(period),
+      totalPosts,
+      totalComments,
+      totalLikes: parseInt(engagement[0]?.totalLikes || 0),
+      totalShares: parseInt(engagement[0]?.totalShares || 0),
+      engagementRate: parseFloat(engagementRate),
+      bestPostingHours: hourlyEngagement.map(h => ({
+        hour: parseInt(h.hour),
+        postCount: parseInt(h.postCount),
+        avgLikes: parseFloat(h.avgLikes).toFixed(2)
+      }))
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch engagement metrics' });
+  }
+});
+
+// ==================== END ANALYTICS & INSIGHTS ====================
+
+// ==================== PHASE 3: ADVANCED SEARCH APIs ====================
+
+// Unified search across content
+app.get('/search', async (req, res) => {
+  try {
+    const {
+      query,
+      type = 'all', // all, posts, comments, users
+      sortBy = 'relevance', // relevance, date, popularity
+      page = 1,
+      limit = 20,
+      dateFrom,
+      dateTo,
+      userId,
+      hashtag
+    } = req.query;
+
+    if (!query || query.trim().length < 2) {
+      return res.status(400).json({ error: 'Search query must be at least 2 characters' });
+    }
+
+    const searchTerm = `%${query}%`;
+    const results = {};
+    const offset = (page - 1) * limit;
+
+    // Build date filter
+    const dateFilter = {};
+    if (dateFrom) dateFilter[Op.gte] = new Date(dateFrom);
+    if (dateTo) dateFilter[Op.lte] = new Date(dateTo);
+    const dateWhere = Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {};
+
+    // Search posts
+    if (type === 'all' || type === 'posts') {
+      const postWhere = {
+        content: { [Op.iLike]: searchTerm },
+        ...dateWhere
+      };
+      if (userId) postWhere.userId = userId;
+
+      let postOrder = [['createdAt', 'DESC']];
+      if (sortBy === 'popularity') {
+        postOrder = [[sequelize.literal('likes + comments + shares'), 'DESC']];
+      }
+
+      const posts = await Post.findAll({
+        where: postWhere,
+        limit: parseInt(limit),
+        offset,
+        order: postOrder
+      });
+
+      results.posts = {
+        items: posts,
+        count: posts.length
+      };
+    }
+
+    // Search comments
+    if (type === 'all' || type === 'comments') {
+      const commentWhere = {
+        content: { [Op.iLike]: searchTerm },
+        ...dateWhere
+      };
+      if (userId) commentWhere.userId = userId;
+
+      const comments = await Comment.findAll({
+        where: commentWhere,
+        limit: parseInt(limit),
+        offset,
+        order: [['createdAt', 'DESC']]
+      });
+
+      results.comments = {
+        items: comments,
+        count: comments.length
+      };
+    }
+
+    // Search by hashtag
+    if (hashtag) {
+      try {
+        const PostHashtag = sequelize.models.PostHashtag;
+        const Hashtag = sequelize.models.Hashtag;
+
+        if (PostHashtag && Hashtag) {
+          const tag = await Hashtag.findOne({
+            where: { name: hashtag.toLowerCase() }
+          });
+
+          if (tag) {
+            const postIds = await PostHashtag.findAll({
+              where: { hashtagId: tag.id },
+              attributes: ['postId']
+            });
+
+            const hashtagPosts = await Post.findAll({
+              where: {
+                id: { [Op.in]: postIds.map(p => p.postId) },
+                ...dateWhere
+              },
+              limit: parseInt(limit),
+              offset
+            });
+
+            results.hashtagPosts = {
+              items: hashtagPosts,
+              count: hashtagPosts.length,
+              hashtag: tag.name
+            };
+          }
+        }
+      } catch (err) {
+        console.error('Hashtag search error:', err);
+      }
+    }
+
+    // Search blogs
+    if (type === 'all' || type === 'blogs') {
+      try {
+        const BlogPost = sequelize.models.BlogPost;
+        if (BlogPost) {
+          const blogWhere = {
+            [Op.or]: [
+              { title: { [Op.iLike]: searchTerm } },
+              { content: { [Op.iLike]: searchTerm } }
+            ],
+            status: 'published',
+            ...dateWhere
+          };
+          if (userId) blogWhere.userId = userId;
+
+          const blogs = await BlogPost.findAll({
+            where: blogWhere,
+            limit: parseInt(limit),
+            offset,
+            order: [['createdAt', 'DESC']]
+          });
+
+          results.blogs = {
+            items: blogs,
+            count: blogs.length
+          };
+        }
+      } catch (err) {
+        console.error('Blog search error:', err);
+      }
+    }
+
+    res.json({
+      query,
+      type,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      results
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+// Advanced search with filters
+app.post('/search/advanced', async (req, res) => {
+  try {
+    const {
+      keywords,
+      contentType = 'posts',
+      filters = {},
+      sortBy = 'date',
+      page = 1,
+      limit = 20
+    } = req.body;
+
+    if (!keywords || keywords.trim().length < 2) {
+      return res.status(400).json({ error: 'Keywords required' });
+    }
+
+    const searchTerm = `%${keywords}%`;
+    const offset = (page - 1) * limit;
+
+    // Build where clause based on filters
+    const where = {
+      content: { [Op.iLike]: searchTerm }
+    };
+
+    // Apply filters
+    if (filters.userId) where.userId = filters.userId;
+    if (filters.dateFrom) {
+      where.createdAt = where.createdAt || {};
+      where.createdAt[Op.gte] = new Date(filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      where.createdAt = where.createdAt || {};
+      where.createdAt[Op.lte] = new Date(filters.dateTo);
+    }
+    if (filters.type) where.type = filters.type;
+    if (filters.minLikes) {
+      where.likes = { [Op.gte]: parseInt(filters.minLikes) };
+    }
+
+    // Determine sort order
+    let order = [['createdAt', 'DESC']];
+    if (sortBy === 'popularity') {
+      order = [['likes', 'DESC']];
+    } else if (sortBy === 'comments') {
+      order = [['comments', 'DESC']];
+    }
+
+    const { count, rows } = await Post.findAndCountAll({
+      where,
+      limit: parseInt(limit),
+      offset,
+      order
+    });
+
+    res.json({
+      results: rows,
+      total: count,
+      page: parseInt(page),
+      totalPages: Math.ceil(count / limit),
+      filters
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Advanced search failed' });
+  }
+});
+
+// Get search suggestions
+app.get('/search/suggestions', async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query || query.trim().length < 2) {
+      return res.json({ suggestions: [] });
+    }
+
+    const searchTerm = `%${query}%`;
+    const suggestions = [];
+
+    // Get hashtag suggestions
+    try {
+      const Hashtag = sequelize.models.Hashtag;
+      if (Hashtag) {
+        const hashtags = await Hashtag.findAll({
+          where: { name: { [Op.iLike]: searchTerm } },
+          limit: 5,
+          order: [['count', 'DESC']],
+          attributes: ['name', 'count']
+        });
+        suggestions.push(...hashtags.map(h => ({
+          type: 'hashtag',
+          value: h.name,
+          label: `#${h.name} (${h.count} posts)`
+        })));
+      }
+    } catch (err) {
+      console.error('Hashtag suggestions error:', err);
+    }
+
+    // Get recent search terms (if we had a search history table)
+    // This would require a SearchHistory model
+
+    res.json({ suggestions });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get suggestions' });
+  }
+});
+
+// Save search (for search history - optional)
+app.post('/search/history', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { query, type } = req.body;
+
+    // Cache search in Redis for quick recent searches
+    const searchKey = `search:history:${userId}`;
+    await redis.lpush(searchKey, JSON.stringify({ query, type, timestamp: Date.now() }));
+    await redis.ltrim(searchKey, 0, 19); // Keep last 20 searches
+    await redis.expire(searchKey, 30 * 24 * 60 * 60); // 30 days
+
+    res.json({ message: 'Search saved to history' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to save search' });
+  }
+});
+
+// Get search history
+app.get('/search/history', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const searchKey = `search:history:${userId}`;
+    const history = await redis.lrange(searchKey, 0, 19);
+    const searches = history.map(h => JSON.parse(h));
+
+    res.json({ history: searches });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get search history' });
+  }
+});
+
+// ==================== END ADVANCED SEARCH ====================
 
 app.listen(PORT, () => {
   console.log(`Content service running on port ${PORT}`);
