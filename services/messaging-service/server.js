@@ -1587,6 +1587,11 @@ app.post('/messages/:messageId/forward', async (req, res) => {
 // Get ICE server configuration
 app.get('/calls/ice-servers', async (req, res) => {
   try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     // ICE servers configuration for WebRTC
     const iceServers = [
       {
@@ -1624,19 +1629,23 @@ app.get('/calls/history', async (req, res) => {
 
     const { limit = 20, offset = 0 } = req.query;
 
+    const whereClause = {
+      [Op.or]: [
+        { callerId: userId },
+        { recipientId: userId }
+      ]
+    };
+
     const calls = await Call.findAll({
-      where: {
-        [Op.or]: [
-          { callerId: userId },
-          { recipientId: userId }
-        ]
-      },
+      where: whereClause,
       order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
 
-    res.json({ calls, total: calls.length });
+    const total = await Call.count({ where: whereClause });
+
+    res.json({ calls, total });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch call history' });
