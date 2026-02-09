@@ -41,6 +41,7 @@ const Pages = lazy(() => import('./components/Pages'));
 const Projects = lazy(() => import('./components/Projects'));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const SecuritySettings = lazy(() => import('./components/SecuritySettings'));
+const MediaGallery = lazy(() => import('./components/MediaGallery'));
 const Analytics = lazy(() => import('./components/Analytics'));
 const Search = lazy(() => import('./components/Search'));
 const EmailPreferences = lazy(() => import('./components/EmailPreferences'));
@@ -338,6 +339,7 @@ function App() {
                 <Route path="/shop" element={<Shop />} />
                 <Route path="/blog" element={<Blog />} />
                 <Route path="/docs" element={<Docs user={internalUser} />} />
+                <Route path="/media" element={<MediaGallery />} />
                 <Route
                   path="/feed"
                   element={internalUser ? <Feed user={internalUser} /> : <Navigate to="/login" />}
