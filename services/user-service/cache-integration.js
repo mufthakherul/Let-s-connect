@@ -12,21 +12,21 @@ const { CacheManager, CachingStrategies, InvalidationPatterns } = require('../sh
 const cache = new CacheManager();
 
 /**
- * Cache middleware for GET /users/:id endpoint
+ * Cache middleware for GET /profile/:userId endpoint
  * Caches user profile data for 10 minutes
  */
 const cacheUserProfile = cache.middleware('user:profile', {
     ttl: CachingStrategies.USER_PROFILE.ttl,
-    keyGenerator: (req) => req.params.id
+    keyGenerator: (req) => req.params.userId
 });
 
 /**
- * Cache middleware for GET /users/:id/skills endpoint
+ * Cache middleware for GET /users/:userId/skills endpoint
  * Caches user skills for 10 minutes
  */
 const cacheUserSkills = cache.middleware('user:skills', {
     ttl: CachingStrategies.USER_SKILLS.ttl,
-    keyGenerator: (req) => req.params.id
+    keyGenerator: (req) => req.params.userId
 });
 
 /**
