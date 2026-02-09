@@ -10,7 +10,7 @@ import {
   VideoLibrary, ShoppingCart, Description, Chat as ChatIcon,
   Person, ExitToApp, Login as LoginIcon,
   PersonAdd, Feed as FeedIcon, Group as GroupIcon, Bookmark,
-  ShoppingCartOutlined, Article
+  ShoppingCartOutlined, Article, Pages as PagesIcon, Work as WorkIcon
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -30,6 +30,8 @@ import Groups from './components/Groups';
 import Bookmarks from './components/Bookmarks';
 import Cart from './components/Cart';
 import Blog from './components/Blog';
+import Pages from './components/Pages';
+import Projects from './components/Projects';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -112,6 +114,8 @@ function App() {
     { label: 'Docs', path: '/docs', icon: <Description />, public: true },
     { label: 'Feed', path: '/feed', icon: <FeedIcon />, public: false },
     { label: 'Groups', path: '/groups', icon: <GroupIcon />, public: false },
+    { label: 'Pages', path: '/pages', icon: <PagesIcon />, public: false },
+    { label: 'Projects', path: '/projects', icon: <WorkIcon />, public: false },
     { label: 'Cart', path: '/cart', icon: <ShoppingCartOutlined />, public: false },
     { label: 'Bookmarks', path: '/bookmarks', icon: <Bookmark />, public: false },
     { label: 'Chat', path: '/chat', icon: <ChatIcon />, public: false },
@@ -293,6 +297,14 @@ function App() {
               <Route
                 path="/groups"
                 element={internalUser ? <Groups user={internalUser} /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/pages"
+                element={internalUser ? <Pages user={internalUser} /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/projects"
+                element={internalUser ? <Projects user={internalUser} /> : <Navigate to="/login" />}
               />
               <Route
                 path="/bookmarks"
