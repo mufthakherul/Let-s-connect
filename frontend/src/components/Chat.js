@@ -14,9 +14,22 @@ import {
   Grid,
   Chip,
   Stack,
-  Skeleton
+  Skeleton,
+  IconButton,
+  Menu,
+  MenuItem,
+  Tooltip,
+  Divider
 } from '@mui/material';
-import { ContentCopy } from '@mui/icons-material';
+import { 
+  ContentCopy, 
+  ThumbUp, 
+  Favorite, 
+  EmojiEmotions, 
+  Reply, 
+  Forward, 
+  MoreVert 
+} from '@mui/icons-material';
 import io from 'socket.io-client';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
@@ -35,6 +48,13 @@ function Chat({ user }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [inviteCode, setInviteCode] = useState('');
+  
+  // Phase 2: Message reactions, reply, forward
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [messageMenuAnchor, setMessageMenuAnchor] = useState(null);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [reactionPickerAnchor, setReactionPickerAnchor] = useState(null);
+  const [forwardDialogOpen, setForwardDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchConversations();
@@ -76,10 +96,13 @@ function Chat({ user }) {
       conversationId: selectedConversation.id,
       senderId: user.id,
       content: newMessage,
-      type: 'text'
+      type: 'text',
+      // Phase 2: Include reply if replying
+      replyToId: replyingTo?.id || null
     });
 
     setNewMessage('');
+    setReplyingTo(null);
   };
 
   const fetchDiscovery = async () => {
@@ -140,6 +163,98 @@ function Chat({ user }) {
     }
   };
 
+  // ========== PHASE 2: Message Reactions, Reply, Forward ==========
+  
+  const handleAddReaction = async (messageId, reactionType) => {
+    try {
+      await api.post(`/messaging/messages/${messageId}/reactions`, { reactionType });
+      // Update message reactions locally
+      setMessages(prev => prev.map(msg => {
+        if (msg.id === messageId) {
+          const reactions = msg.reactions || [];
+          const existingReaction = reactions.find(r => r.userId === user.id);
+          if (existingReaction) {
+            existingReaction.reactionType = reactionType;
+          } else {
+            reactions.push({ userId: user.id, reactionType });
+          }
+          return { ...msg, reactions, reactionCount: reactions.length };
+        }
+        return msg;
+      }));
+      toast.success('Reaction added');
+      setReactionPickerAnchor(null);
+    } catch (err) {
+      console.error('Failed to add reaction:', err);
+      toast.error('Failed to add reaction');
+    }
+  };
+
+  const handleRemoveReaction = async (messageId) => {
+    try {
+      await api.delete(`/messaging/messages/${messageId}/reactions`);
+      // Update message reactions locally
+      setMessages(prev => prev.map(msg => {
+        if (msg.id === messageId) {
+          const reactions = (msg.reactions || []).filter(r => r.userId !== user.id);
+          return { ...msg, reactions, reactionCount: reactions.length };
+        }
+        return msg;
+      }));
+      toast.success('Reaction removed');
+    } catch (err) {
+      console.error('Failed to remove reaction:', err);
+      toast.error('Failed to remove reaction');
+    }
+  };
+
+  const handleReplyToMessage = (message) => {
+    setReplyingTo(message);
+    setMessageMenuAnchor(null);
+  };
+
+  const handleForwardMessage = async (message, targetConversationId) => {
+    try {
+      await api.post(`/messaging/messages/${message.id}/forward`, {
+        conversationId: targetConversationId
+      });
+      toast.success('Message forwarded');
+      setForwardDialogOpen(false);
+      setMessageMenuAnchor(null);
+    } catch (err) {
+      console.error('Failed to forward message:', err);
+      toast.error('Failed to forward message');
+    }
+  };
+
+  const handleMessageMenuOpen = (event, message) => {
+    setMessageMenuAnchor(event.currentTarget);
+    setSelectedMessage(message);
+  };
+
+  const handleMessageMenuClose = () => {
+    setMessageMenuAnchor(null);
+    setSelectedMessage(null);
+  };
+
+  const handleReactionPickerOpen = (event, message) => {
+    setReactionPickerAnchor(event.currentTarget);
+    setSelectedMessage(message);
+  };
+
+  const handleReactionPickerClose = () => {
+    setReactionPickerAnchor(null);
+    setSelectedMessage(null);
+  };
+
+  const hasUserReacted = (message) => {
+    return (message.reactions || []).some(r => r.userId === user.id);
+  };
+
+  const getUserReaction = (message) => {
+    return (message.reactions || []).find(r => r.userId === user.id)?.reactionType;
+  };
+
   useEffect(() => {
     if (socket && selectedConversation) {
       socket.emit('join-conversation', selectedConversation.id);
@@ -192,17 +307,133 @@ function Chat({ user }) {
                     mb: 1,
                     maxWidth: '70%',
                     ml: message.senderId === user.id ? 'auto' : 0,
-                    bgcolor: message.senderId === user.id ? 'primary.light' : 'grey.200'
+                    bgcolor: message.senderId === user.id ? 'primary.light' : 'grey.200',
+                    position: 'relative'
                   }}
                 >
                   <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
-                    <Typography variant="body2">{message.content}</Typography>
+                    {/* Phase 2: Show reply context */}
+                    {message.replyTo && (
+                      <Box 
+                        sx={{ 
+                          mb: 1, 
+                          p: 0.5, 
+                          bgcolor: 'action.hover', 
+                          borderRadius: 1,
+                          borderLeft: 3,
+                          borderColor: 'primary.main'
+                        }}
+                      >
+                        <Typography variant="caption" color="text.secondary">
+                          Replying to:
+                        </Typography>
+                        <Typography variant="caption" display="block" sx={{ fontStyle: 'italic' }}>
+                          {message.replyTo.content?.substring(0, 50)}...
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    {/* Phase 2: Show forwarded context */}
+                    {message.forwardedFrom && (
+                      <Chip 
+                        label="Forwarded" 
+                        size="small" 
+                        sx={{ mb: 0.5 }}
+                        icon={<Forward fontSize="small" />}
+                      />
+                    )}
+
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <Typography variant="body2">{message.content}</Typography>
+                      <IconButton 
+                        size="small" 
+                        onClick={(e) => handleMessageMenuOpen(e, message)}
+                        sx={{ ml: 1 }}
+                      >
+                        <MoreVert fontSize="small" />
+                      </IconButton>
+                    </Box>
+
+                    {/* Phase 2: Show reactions */}
+                    {message.reactions && message.reactions.length > 0 && (
+                      <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                        {Object.entries(
+                          message.reactions.reduce((acc, r) => {
+                            acc[r.reactionType] = (acc[r.reactionType] || 0) + 1;
+                            return acc;
+                          }, {})
+                        ).map(([type, count]) => (
+                          <Chip
+                            key={type}
+                            label={`${type} ${count}`}
+                            size="small"
+                            onClick={() => {
+                              const userReaction = getUserReaction(message);
+                              if (userReaction === type) {
+                                handleRemoveReaction(message.id);
+                              } else {
+                                handleAddReaction(message.id, type);
+                              }
+                            }}
+                            variant={getUserReaction(message) === type ? 'filled' : 'outlined'}
+                            sx={{ cursor: 'pointer' }}
+                          />
+                        ))}
+                      </Box>
+                    )}
+
+                    {/* Phase 2: Quick reaction button */}
+                    <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5 }}>
+                      <Tooltip title="Add reaction">
+                        <IconButton 
+                          size="small" 
+                          onClick={(e) => handleReactionPickerOpen(e, message)}
+                        >
+                          <EmojiEmotions fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Reply">
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleReplyToMessage(message)}
+                        >
+                          <Reply fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
                   </CardContent>
                 </Card>
               ))}
             </Box>
 
             <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+              {/* Phase 2: Show replying indicator */}
+              {replyingTo && (
+                <Box 
+                  sx={{ 
+                    mb: 1, 
+                    p: 1, 
+                    bgcolor: 'action.hover', 
+                    borderRadius: 1,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Box>
+                    <Typography variant="caption" color="primary">
+                      Replying to:
+                    </Typography>
+                    <Typography variant="body2">
+                      {replyingTo.content?.substring(0, 50)}...
+                    </Typography>
+                  </Box>
+                  <IconButton size="small" onClick={() => setReplyingTo(null)}>
+                    <Typography variant="caption">✕</Typography>
+                  </IconButton>
+                </Box>
+              )}
+              
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <TextField
                   fullWidth
@@ -389,6 +620,57 @@ function Chat({ user }) {
           </Card>
         </Stack>
       )}
+
+      {/* Phase 2: Message Action Menu */}
+      <Menu
+        anchorEl={messageMenuAnchor}
+        open={Boolean(messageMenuAnchor)}
+        onClose={handleMessageMenuClose}
+      >
+        <MenuItem onClick={() => {
+          handleReplyToMessage(selectedMessage);
+          handleMessageMenuClose();
+        }}>
+          <Reply fontSize="small" sx={{ mr: 1 }} />
+          Reply
+        </MenuItem>
+        <MenuItem onClick={() => {
+          setForwardDialogOpen(true);
+          handleMessageMenuClose();
+        }}>
+          <Forward fontSize="small" sx={{ mr: 1 }} />
+          Forward
+        </MenuItem>
+      </Menu>
+
+      {/* Phase 2: Reaction Picker Menu */}
+      <Menu
+        anchorEl={reactionPickerAnchor}
+        open={Boolean(reactionPickerAnchor)}
+        onClose={handleReactionPickerClose}
+      >
+        {['👍', '❤️', '😂', '😮', '😢', '😡', '🎉', '🔥'].map((emoji) => (
+          <MenuItem 
+            key={emoji}
+            onClick={() => {
+              handleAddReaction(selectedMessage?.id, emoji);
+              handleReactionPickerClose();
+            }}
+          >
+            <Typography variant="h6">{emoji}</Typography>
+          </MenuItem>
+        ))}
+        <Divider />
+        <MenuItem 
+          onClick={() => {
+            handleRemoveReaction(selectedMessage?.id);
+            handleReactionPickerClose();
+          }}
+          disabled={!hasUserReacted(selectedMessage)}
+        >
+          Remove Reaction
+        </MenuItem>
+      </Menu>
     </Box>
   );
 }
