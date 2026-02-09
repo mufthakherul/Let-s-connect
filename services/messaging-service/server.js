@@ -68,6 +68,19 @@ const Message = sequelize.define('Message', {
   isRead: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
+  },
+  // Phase 2: Reply/Forward support
+  replyToId: {
+    type: DataTypes.UUID,
+    allowNull: true
+  },
+  forwardedFromId: {
+    type: DataTypes.UUID,
+    allowNull: true
+  },
+  reactionCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   }
 });
 
@@ -285,6 +298,35 @@ const Webhook = sequelize.define('Webhook', {
   }
 });
 
+// NEW: Phase 2 - Message Reaction Model (WhatsApp/Telegram-inspired)
+const MessageReaction = sequelize.define('MessageReaction', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  messageId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  reactionType: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    // Support: 👍 👎 ❤️ 😂 😮 😢 😡 🎉 🔥 etc.
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['messageId', 'userId']
+    }
+  ]
+});
+
 // Relationships
 Server.hasMany(Conversation, { foreignKey: 'serverId' });
 Server.hasMany(Role, { foreignKey: 'serverId' });
@@ -299,6 +341,12 @@ Conversation.hasMany(PinnedMessage, { foreignKey: 'conversationId' });
 Message.hasOne(PinnedMessage, { foreignKey: 'messageId' });
 PinnedMessage.belongsTo(Message, { foreignKey: 'messageId' });
 PinnedMessage.belongsTo(Conversation, { foreignKey: 'conversationId' });
+
+// Phase 2: Message reactions and reply/forward relationships
+Message.hasMany(MessageReaction, { foreignKey: 'messageId', as: 'reactions' });
+MessageReaction.belongsTo(Message, { foreignKey: 'messageId' });
+Message.belongsTo(Message, { as: 'replyTo', foreignKey: 'replyToId' });
+Message.belongsTo(Message, { as: 'forwardedFrom', foreignKey: 'forwardedFromId' });
 
 sequelize.sync();
 
@@ -318,7 +366,10 @@ io.on('connection', (socket) => {
         senderId: data.senderId,
         content: data.content,
         type: data.type,
-        attachments: data.attachments
+        attachments: data.attachments,
+        // Phase 2: Support reply and forward
+        replyToId: data.replyToId || null,
+        forwardedFromId: data.forwardedFromId || null
       });
 
       await Conversation.update(
@@ -326,11 +377,27 @@ io.on('connection', (socket) => {
         { where: { id: data.conversationId } }
       );
 
+      // Fetch message with relations for reply/forward
+      const messageWithRelations = await Message.findByPk(message.id, {
+        include: [
+          {
+            model: Message,
+            as: 'replyTo',
+            attributes: ['id', 'senderId', 'content', 'createdAt']
+          },
+          {
+            model: Message,
+            as: 'forwardedFrom',
+            attributes: ['id', 'senderId', 'content', 'createdAt']
+          }
+        ]
+      });
+
       // Broadcast to conversation room
-      io.to(data.conversationId).emit('new-message', message);
+      io.to(data.conversationId).emit('new-message', messageWithRelations);
 
       // Publish to Redis for scaling
-      redis.publish('messages', JSON.stringify(message));
+      redis.publish('messages', JSON.stringify(messageWithRelations));
     } catch (error) {
       console.error('Error sending message:', error);
     }
@@ -408,7 +475,25 @@ app.get('/conversations/:conversationId/messages', async (req, res) => {
       where: { conversationId: req.params.conversationId },
       order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
-      offset: parseInt(offset)
+      offset: parseInt(offset),
+      // Phase 2: Include reactions and reply/forward data
+      include: [
+        {
+          model: MessageReaction,
+          as: 'reactions',
+          attributes: ['id', 'userId', 'reactionType', 'createdAt']
+        },
+        {
+          model: Message,
+          as: 'replyTo',
+          attributes: ['id', 'senderId', 'content', 'createdAt']
+        },
+        {
+          model: Message,
+          as: 'forwardedFrom',
+          attributes: ['id', 'senderId', 'content', 'createdAt']
+        }
+      ]
     });
 
     res.json(messages.reverse());
@@ -1187,6 +1272,253 @@ app.delete('/webhooks/:webhookId', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to delete webhook' });
+  }
+});
+
+// ========== PHASE 2: MESSAGE REACTIONS (WhatsApp/Telegram-inspired) ==========
+
+// Add or update reaction to a message
+app.post('/messages/:messageId/reactions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { messageId } = req.params;
+    const { reactionType } = req.body;
+
+    if (!reactionType) {
+      return res.status(400).json({ error: 'Reaction type is required' });
+    }
+
+    // Check if message exists
+    const message = await Message.findByPk(messageId);
+    if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    // Check if user already reacted - update if exists, create if not
+    let reaction = await MessageReaction.findOne({
+      where: { messageId, userId }
+    });
+
+    if (reaction) {
+      // Update existing reaction
+      reaction.reactionType = reactionType;
+      await reaction.save();
+    } else {
+      // Create new reaction
+      reaction = await MessageReaction.create({
+        messageId,
+        userId,
+        reactionType
+      });
+
+      // Increment reaction count on message
+      await message.increment('reactionCount');
+    }
+
+    // Emit real-time event
+    io.to(message.conversationId).emit('message-reaction', {
+      messageId,
+      userId,
+      reactionType,
+      action: 'add'
+    });
+
+    res.json(reaction);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to add reaction' });
+  }
+});
+
+// Remove reaction from a message
+app.delete('/messages/:messageId/reactions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { messageId } = req.params;
+
+    const message = await Message.findByPk(messageId);
+    if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    const reaction = await MessageReaction.findOne({
+      where: { messageId, userId }
+    });
+
+    if (!reaction) {
+      return res.status(404).json({ error: 'Reaction not found' });
+    }
+
+    await reaction.destroy();
+    await message.decrement('reactionCount');
+
+    // Emit real-time event
+    io.to(message.conversationId).emit('message-reaction', {
+      messageId,
+      userId,
+      action: 'remove'
+    });
+
+    res.json({ message: 'Reaction removed successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to remove reaction' });
+  }
+});
+
+// Get reactions for a message
+app.get('/messages/:messageId/reactions', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+
+    const reactions = await MessageReaction.findAll({
+      where: { messageId },
+      order: [['createdAt', 'ASC']]
+    });
+
+    // Group reactions by type with counts
+    const grouped = reactions.reduce((acc, reaction) => {
+      const type = reaction.reactionType;
+      if (!acc[type]) {
+        acc[type] = {
+          reactionType: type,
+          count: 0,
+          users: []
+        };
+      }
+      acc[type].count++;
+      acc[type].users.push(reaction.userId);
+      return acc;
+    }, {});
+
+    res.json({
+      reactions,
+      summary: Object.values(grouped)
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch reactions' });
+  }
+});
+
+// ========== PHASE 2: MESSAGE REPLY & FORWARD ==========
+
+// Reply to a message
+app.post('/messages/:messageId/reply', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { messageId } = req.params;
+    const { content, attachments, type } = req.body;
+
+    // Check if original message exists
+    const originalMessage = await Message.findByPk(messageId);
+    if (!originalMessage) {
+      return res.status(404).json({ error: 'Original message not found' });
+    }
+
+    // Create reply message
+    const replyMessage = await Message.create({
+      conversationId: originalMessage.conversationId,
+      senderId: userId,
+      content,
+      type: type || 'text',
+      attachments: attachments || [],
+      replyToId: messageId
+    });
+
+    // Fetch reply with related data
+    const reply = await Message.findByPk(replyMessage.id, {
+      include: [
+        {
+          model: Message,
+          as: 'replyTo',
+          attributes: ['id', 'senderId', 'content', 'createdAt']
+        }
+      ]
+    });
+
+    // Emit real-time event
+    io.to(originalMessage.conversationId).emit('new-message', reply);
+
+    res.json(reply);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to send reply' });
+  }
+});
+
+// Forward a message
+app.post('/messages/:messageId/forward', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { messageId } = req.params;
+    const { conversationId, additionalContent } = req.body;
+
+    if (!conversationId) {
+      return res.status(400).json({ error: 'Conversation ID is required' });
+    }
+
+    // Check if original message exists
+    const originalMessage = await Message.findByPk(messageId);
+    if (!originalMessage) {
+      return res.status(404).json({ error: 'Original message not found' });
+    }
+
+    // Check if target conversation exists
+    const targetConversation = await Conversation.findByPk(conversationId);
+    if (!targetConversation) {
+      return res.status(404).json({ error: 'Target conversation not found' });
+    }
+
+    // Verify user is a participant in target conversation
+    if (!targetConversation.participants.includes(userId)) {
+      return res.status(403).json({ error: 'Not a member of target conversation' });
+    }
+
+    // Create forwarded message
+    const forwardedMessage = await Message.create({
+      conversationId,
+      senderId: userId,
+      content: additionalContent || originalMessage.content,
+      type: originalMessage.type,
+      attachments: originalMessage.attachments || [],
+      forwardedFromId: messageId
+    });
+
+    // Fetch forwarded message with related data
+    const forwarded = await Message.findByPk(forwardedMessage.id, {
+      include: [
+        {
+          model: Message,
+          as: 'forwardedFrom',
+          attributes: ['id', 'senderId', 'content', 'createdAt']
+        }
+      ]
+    });
+
+    // Emit real-time event
+    io.to(conversationId).emit('new-message', forwarded);
+
+    res.json(forwarded);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to forward message' });
   }
 });
 
