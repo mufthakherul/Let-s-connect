@@ -9,6 +9,27 @@ const app = express();
 const PORT = process.env.PORT || 8001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
+// Phase 4: Caching integration
+let cacheEnabled = false;
+let cacheUserProfile, cacheUserSkills, cacheUserSearch, invalidateUserCaches;
+
+try {
+  const cacheIntegration = require('./cache-integration');
+  cacheUserProfile = cacheIntegration.cacheUserProfile;
+  cacheUserSkills = cacheIntegration.cacheUserSkills;
+  cacheUserSearch = cacheIntegration.cacheUserSearch;
+  invalidateUserCaches = cacheIntegration.invalidateUserCaches;
+  cacheEnabled = true;
+  console.log('[Cache] Redis caching enabled for user-service');
+} catch (error) {
+  console.log('[Cache] Redis caching disabled (ioredis not available or Redis not running)');
+  // Create no-op middleware for when caching is disabled
+  cacheUserProfile = (req, res, next) => next();
+  cacheUserSkills = (req, res, next) => next();
+  cacheUserSearch = (req, res, next) => next();
+  invalidateUserCaches = async () => {};
+}
+
 app.use(express.json());
 
 // Database connection
@@ -551,7 +572,7 @@ app.post('/login', async (req, res) => {
 });
 
 // Get user profile
-app.get('/profile/:userId', async (req, res) => {
+app.get('/profile/:userId', cacheUserProfile, async (req, res) => {
   try {
     const user = await User.findByPk(req.params.userId, {
       include: [Profile],
@@ -585,6 +606,11 @@ app.put('/profile/:userId', async (req, res) => {
       await profile.update(req.body.profile);
     }
 
+    // Invalidate cache after successful update
+    if (cacheEnabled) {
+      await invalidateUserCaches(req.params.userId);
+    }
+
     res.json({ message: 'Profile updated successfully', user });
   } catch (error) {
     console.error(error);
@@ -593,7 +619,7 @@ app.put('/profile/:userId', async (req, res) => {
 });
 
 // Search users
-app.get('/search', async (req, res) => {
+app.get('/search', cacheUserSearch, async (req, res) => {
   try {
     const { q } = req.query;
     const users = await User.findAll({
@@ -630,6 +656,12 @@ app.post('/users/:userId/skills', async (req, res) => {
     }
 
     const skill = await Skill.create({ userId, name, level });
+    
+    // Invalidate cache after successful creation
+    if (cacheEnabled) {
+      await invalidateUserCaches(userId);
+    }
+    
     res.status(201).json(skill);
   } catch (error) {
     console.error(error);
@@ -638,7 +670,7 @@ app.post('/users/:userId/skills', async (req, res) => {
 });
 
 // Get user skills
-app.get('/users/:userId/skills', async (req, res) => {
+app.get('/users/:userId/skills', cacheUserSkills, async (req, res) => {
   try {
     const skills = await Skill.findAll({
       where: { userId: req.params.userId },

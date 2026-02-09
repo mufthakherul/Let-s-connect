@@ -18,6 +18,36 @@ const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgr
 // Redis for caching
 const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 
+// Phase 4: Advanced caching integration
+let cacheEnabled = false;
+let cachePostFeed, cachePost, cacheComments, cacheWikiPages, cacheWikiPage, cacheVideos;
+let invalidatePostCaches, invalidateWikiPageCaches;
+
+try {
+  const cacheIntegration = require('./cache-integration');
+  cachePostFeed = cacheIntegration.cachePostFeed;
+  cachePost = cacheIntegration.cachePost;
+  cacheComments = cacheIntegration.cacheComments;
+  cacheWikiPages = cacheIntegration.cacheWikiPages;
+  cacheWikiPage = cacheIntegration.cacheWikiPage;
+  cacheVideos = cacheIntegration.cacheVideos;
+  invalidatePostCaches = cacheIntegration.invalidatePostCaches;
+  invalidateWikiPageCaches = cacheIntegration.invalidateWikiPageCaches;
+  cacheEnabled = true;
+  console.log('[Cache] Advanced Redis caching enabled for content-service');
+} catch (error) {
+  console.log('[Cache] Advanced caching disabled, using basic Redis client');
+  // Create no-op middleware for when caching is disabled
+  cachePostFeed = (req, res, next) => next();
+  cachePost = (req, res, next) => next();
+  cacheComments = (req, res, next) => next();
+  cacheWikiPages = (req, res, next) => next();
+  cacheWikiPage = (req, res, next) => next();
+  cacheVideos = (req, res, next) => next();
+  invalidatePostCaches = async () => {};
+  invalidateWikiPageCaches = async () => {};
+}
+
 // Models
 const Post = sequelize.define('Post', {
   id: {
@@ -1026,7 +1056,7 @@ app.post('/posts', async (req, res) => {
 });
 
 // Get user feed
-app.get('/feed/:userId', async (req, res) => {
+app.get('/feed/:userId', cachePostFeed, async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
@@ -1088,6 +1118,11 @@ app.post('/posts/:postId/comments', async (req, res) => {
 
     await Post.increment('comments', { where: { id: postId } });
 
+    // Invalidate cache after successful creation
+    if (cacheEnabled) {
+      await invalidatePostCaches(postId);
+    }
+
     res.status(201).json(comment);
   } catch (error) {
     console.error(error);
@@ -1096,7 +1131,7 @@ app.post('/posts/:postId/comments', async (req, res) => {
 });
 
 // Get comments for post
-app.get('/posts/:postId/comments', async (req, res) => {
+app.get('/posts/:postId/comments', cacheComments, async (req, res) => {
   try {
     const comments = await Comment.findAll({
       where: { postId: req.params.postId },
