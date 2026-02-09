@@ -50,6 +50,19 @@ const User = sequelize.define('User', {
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
+  },
+  twoFactorEnabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  twoFactorSecret: {
+    type: DataTypes.STRING,
+    comment: 'Encrypted 2FA secret for TOTP'
+  },
+  backupCodes: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
+    defaultValue: [],
+    comment: 'Hashed backup codes for 2FA recovery'
   }
 }, {
   timestamps: true,
@@ -186,6 +199,221 @@ const PageAdmin = sequelize.define('PageAdmin', {
   ]
 });
 
+// PHASE 3: Notification System Models
+const Notification = sequelize.define('Notification', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'Recipient user ID'
+  },
+  type: {
+    type: DataTypes.ENUM(
+      'like', 'comment', 'follow', 'mention', 'message',
+      'friend_request', 'group_invite', 'page_invite',
+      'post_share', 'video_upload', 'order_status',
+      'system', 'other'
+    ),
+    allowNull: false,
+    defaultValue: 'other'
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  message: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  actionUrl: {
+    type: DataTypes.STRING,
+    comment: 'URL to navigate when notification is clicked'
+  },
+  isRead: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  metadata: {
+    type: DataTypes.JSONB,
+    defaultValue: {},
+    comment: 'Additional data like actorId, resourceId, etc.'
+  },
+  priority: {
+    type: DataTypes.ENUM('low', 'normal', 'high', 'urgent'),
+    defaultValue: 'normal'
+  },
+  expiresAt: {
+    type: DataTypes.DATE,
+    comment: 'Optional expiration date for time-sensitive notifications'
+  }
+}, {
+  indexes: [
+    { fields: ['userId', 'isRead'] },
+    { fields: ['userId', 'createdAt'] },
+    { fields: ['type'] }
+  ]
+});
+
+// Notification Preferences Model
+const NotificationPreference = sequelize.define('NotificationPreference', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    unique: true
+  },
+  emailNotifications: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  pushNotifications: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  inAppNotifications: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  notificationTypes: {
+    type: DataTypes.JSONB,
+    defaultValue: {
+      like: true,
+      comment: true,
+      follow: true,
+      mention: true,
+      message: true,
+      friend_request: true,
+      group_invite: true,
+      page_invite: true,
+      post_share: true,
+      video_upload: true,
+      order_status: true,
+      system: true
+    },
+    comment: 'Per-type notification preferences'
+  },
+  quietHoursEnabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  quietHoursStart: {
+    type: DataTypes.STRING,
+    comment: 'Format: HH:mm (e.g., "22:00")'
+  },
+  quietHoursEnd: {
+    type: DataTypes.STRING,
+    comment: 'Format: HH:mm (e.g., "08:00")'
+  }
+});
+
+// PHASE 3: Admin Dashboard - Audit Log Model
+const AuditLog = sequelize.define('AuditLog', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  adminId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'Admin user who performed the action'
+  },
+  action: {
+    type: DataTypes.ENUM(
+      'user_ban', 'user_unban', 'user_role_change',
+      'content_delete', 'content_moderate', 'content_flag',
+      'system_config_change', 'data_export', 'other'
+    ),
+    allowNull: false
+  },
+  targetType: {
+    type: DataTypes.STRING,
+    comment: 'Type of target: user, post, comment, etc.'
+  },
+  targetId: {
+    type: DataTypes.UUID,
+    comment: 'ID of the affected resource'
+  },
+  details: {
+    type: DataTypes.JSONB,
+    defaultValue: {},
+    comment: 'Additional context about the action'
+  },
+  ipAddress: {
+    type: DataTypes.STRING
+  },
+  userAgent: {
+    type: DataTypes.TEXT
+  }
+}, {
+  indexes: [
+    { fields: ['adminId'] },
+    { fields: ['action'] },
+    { fields: ['createdAt'] }
+  ]
+});
+
+// PHASE 3: Admin Dashboard - Content Moderation Model
+const ContentFlag = sequelize.define('ContentFlag', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  contentType: {
+    type: DataTypes.ENUM('post', 'comment', 'message', 'user', 'page', 'video'),
+    allowNull: false
+  },
+  contentId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  reporterId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'User who reported the content'
+  },
+  reason: {
+    type: DataTypes.ENUM(
+      'spam', 'harassment', 'hate_speech', 'violence',
+      'adult_content', 'misinformation', 'copyright', 'other'
+    ),
+    allowNull: false
+  },
+  description: {
+    type: DataTypes.TEXT
+  },
+  status: {
+    type: DataTypes.ENUM('pending', 'under_review', 'resolved', 'dismissed'),
+    defaultValue: 'pending'
+  },
+  reviewedBy: {
+    type: DataTypes.UUID,
+    comment: 'Admin who reviewed the flag'
+  },
+  resolution: {
+    type: DataTypes.TEXT,
+    comment: 'Admin notes on resolution'
+  },
+  resolvedAt: {
+    type: DataTypes.DATE
+  }
+}, {
+  indexes: [
+    { fields: ['status'] },
+    { fields: ['contentType', 'contentId'] },
+    { fields: ['reporterId'] }
+  ]
+});
+
 // Relationships
 User.hasMany(Skill, { foreignKey: 'userId' });
 Skill.belongsTo(User, { foreignKey: 'userId' });
@@ -195,6 +423,13 @@ User.hasMany(Page, { foreignKey: 'userId' });
 Page.belongsTo(User, { foreignKey: 'userId' });
 Page.hasMany(PageAdmin, { foreignKey: 'pageId' });
 PageAdmin.belongsTo(Page, { foreignKey: 'pageId' });
+User.hasMany(Notification, { foreignKey: 'userId' });
+Notification.belongsTo(User, { foreignKey: 'userId' });
+User.hasOne(NotificationPreference, { foreignKey: 'userId' });
+NotificationPreference.belongsTo(User, { foreignKey: 'userId' });
+User.hasMany(AuditLog, { as: 'AdminActions', foreignKey: 'adminId' });
+AuditLog.belongsTo(User, { as: 'Admin', foreignKey: 'adminId' });
+User.hasMany(ContentFlag, { as: 'Reports', foreignKey: 'reporterId' });
 
 // Initialize database
 sequelize.sync();
@@ -731,6 +966,960 @@ app.delete('/pages/:pageId/admins/:adminId', async (req, res) => {
     res.status(500).json({ error: 'Failed to remove page admin' });
   }
 });
+
+// ==================== PHASE 3: ADMIN DASHBOARD APIs ====================
+
+// Middleware to check if user is admin
+const requireAdmin = async (req, res, next) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user || (user.role !== 'admin' && user.role !== 'moderator')) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    req.adminUser = user;
+    next();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Authorization check failed' });
+  }
+};
+
+// Get system statistics
+app.get('/admin/stats', requireAdmin, async (req, res) => {
+  try {
+    const totalUsers = await User.count();
+    const activeUsers = await User.count({ where: { isActive: true } });
+    const totalPages = await Page.count();
+    const totalNotifications = await Notification.count();
+    const unreadNotifications = await Notification.count({ where: { isRead: false } });
+    const pendingFlags = await ContentFlag.count({ where: { status: 'pending' } });
+
+    // User role distribution
+    const usersByRole = await User.findAll({
+      attributes: ['role', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+      group: ['role']
+    });
+
+    // Recent signups (last 7 days)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const recentSignups = await User.count({
+      where: {
+        createdAt: { [Op.gte]: sevenDaysAgo }
+      }
+    });
+
+    res.json({
+      users: {
+        total: totalUsers,
+        active: activeUsers,
+        inactive: totalUsers - activeUsers,
+        recentSignups,
+        byRole: usersByRole.reduce((acc, r) => {
+          acc[r.role] = parseInt(r.dataValues.count);
+          return acc;
+        }, {})
+      },
+      pages: {
+        total: totalPages
+      },
+      notifications: {
+        total: totalNotifications,
+        unread: unreadNotifications
+      },
+      moderation: {
+        pendingFlags
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch system stats' });
+  }
+});
+
+// Get all users (with pagination and filters)
+app.get('/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      role,
+      isActive,
+      search
+    } = req.query;
+
+    const where = {};
+
+    if (role) {
+      where.role = role;
+    }
+    if (isActive !== undefined) {
+      where.isActive = isActive === 'true';
+    }
+    if (search) {
+      where[Op.or] = [
+        { username: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
+        { firstName: { [Op.iLike]: `%${search}%` } },
+        { lastName: { [Op.iLike]: `%${search}%` } }
+      ];
+    }
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await User.findAndCountAll({
+      where,
+      limit: parseInt(limit),
+      offset,
+      order: [['createdAt', 'DESC']],
+      attributes: { exclude: ['password'] }
+    });
+
+    res.json({
+      users: rows,
+      total: count,
+      page: parseInt(page),
+      totalPages: Math.ceil(count / limit)
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Update user role
+app.put('/admin/users/:userId/role', requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { role } = req.body;
+
+    if (!['user', 'moderator', 'admin'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const oldRole = user.role;
+    user.role = role;
+    await user.save();
+
+    // Create audit log
+    await AuditLog.create({
+      adminId: req.adminUser.id,
+      action: 'user_role_change',
+      targetType: 'user',
+      targetId: userId,
+      details: { oldRole, newRole: role },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
+
+    res.json(user);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update user role' });
+  }
+});
+
+// Ban/Unban user
+app.put('/admin/users/:userId/active', requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { isActive } = req.body;
+
+    if (isActive === undefined) {
+      return res.status(400).json({ error: 'isActive is required' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    user.isActive = isActive;
+    await user.save();
+
+    // Create audit log
+    await AuditLog.create({
+      adminId: req.adminUser.id,
+      action: isActive ? 'user_unban' : 'user_ban',
+      targetType: 'user',
+      targetId: userId,
+      details: { reason: req.body.reason || 'No reason provided' },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
+
+    res.json(user);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update user status' });
+  }
+});
+
+// Get content flags/reports
+app.get('/admin/flags', requireAdmin, async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      status = 'pending',
+      contentType
+    } = req.query;
+
+    const where = { status };
+
+    if (contentType) {
+      where.contentType = contentType;
+    }
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await ContentFlag.findAndCountAll({
+      where,
+      limit: parseInt(limit),
+      offset,
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({
+      flags: rows,
+      total: count,
+      page: parseInt(page),
+      totalPages: Math.ceil(count / limit)
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch content flags' });
+  }
+});
+
+// Create content flag (report)
+app.post('/admin/flags', async (req, res) => {
+  try {
+    const reporterId = req.header('x-user-id');
+    if (!reporterId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { contentType, contentId, reason, description } = req.body;
+
+    if (!contentType || !contentId || !reason) {
+      return res.status(400).json({ error: 'contentType, contentId, and reason are required' });
+    }
+
+    const flag = await ContentFlag.create({
+      contentType,
+      contentId,
+      reporterId,
+      reason,
+      description
+    });
+
+    // Notify admins
+    const admins = await User.findAll({ where: { role: { [Op.in]: ['admin', 'moderator'] } } });
+    for (const admin of admins) {
+      await Notification.create({
+        userId: admin.id,
+        type: 'system',
+        title: 'New Content Flag',
+        message: `A ${contentType} has been flagged for ${reason}`,
+        actionUrl: `/admin/flags/${flag.id}`,
+        priority: 'high',
+        metadata: { flagId: flag.id, contentType, reason }
+      });
+    }
+
+    res.status(201).json(flag);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create content flag' });
+  }
+});
+
+// Update flag status (resolve/dismiss)
+app.put('/admin/flags/:flagId', requireAdmin, async (req, res) => {
+  try {
+    const { flagId } = req.params;
+    const { status, resolution } = req.body;
+
+    if (!['under_review', 'resolved', 'dismissed'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const flag = await ContentFlag.findByPk(flagId);
+    if (!flag) {
+      return res.status(404).json({ error: 'Flag not found' });
+    }
+
+    flag.status = status;
+    flag.reviewedBy = req.adminUser.id;
+    flag.resolution = resolution;
+    flag.resolvedAt = new Date();
+    await flag.save();
+
+    // Create audit log
+    await AuditLog.create({
+      adminId: req.adminUser.id,
+      action: 'content_moderate',
+      targetType: flag.contentType,
+      targetId: flag.contentId,
+      details: { flagId, status, resolution },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
+
+    // Notify reporter
+    await Notification.create({
+      userId: flag.reporterId,
+      type: 'system',
+      title: 'Report Status Updated',
+      message: `Your report has been ${status}`,
+      metadata: { flagId, status }
+    });
+
+    res.json(flag);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update flag' });
+  }
+});
+
+// Get audit logs
+app.get('/admin/audit-logs', requireAdmin, async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 50,
+      action,
+      adminId
+    } = req.query;
+
+    const where = {};
+
+    if (action) {
+      where.action = action;
+    }
+    if (adminId) {
+      where.adminId = adminId;
+    }
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await AuditLog.findAndCountAll({
+      where,
+      limit: parseInt(limit),
+      offset,
+      order: [['createdAt', 'DESC']],
+      include: [{
+        model: User,
+        as: 'Admin',
+        attributes: ['id', 'username', 'email']
+      }]
+    });
+
+    res.json({
+      logs: rows,
+      total: count,
+      page: parseInt(page),
+      totalPages: Math.ceil(count / limit)
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch audit logs' });
+  }
+});
+
+// ==================== END ADMIN DASHBOARD ====================
+
+// ==================== PHASE 3: ADVANCED SECURITY (2FA) APIs ====================
+
+// Generate 2FA secret (setup)
+app.post('/2fa/setup', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Generate random secret (base32 encoded)
+    const secret = Array.from({ length: 32 }, () =>
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'[Math.floor(Math.random() * 32)]
+    ).join('');
+
+    // Generate backup codes
+    const backupCodes = Array.from({ length: 10 }, () =>
+      Math.random().toString(36).substring(2, 10).toUpperCase()
+    );
+
+    // Hash backup codes before storing
+    const hashedBackupCodes = await Promise.all(
+      backupCodes.map(code => bcrypt.hash(code, 10))
+    );
+
+    user.twoFactorSecret = secret;
+    user.backupCodes = hashedBackupCodes;
+    await user.save();
+
+    // Return secret and backup codes (backup codes should be shown only once)
+    const otpauthUrl = `otpauth://totp/LetsConnect:${user.email}?secret=${secret}&issuer=LetsConnect`;
+
+    res.json({
+      secret,
+      otpauthUrl,
+      backupCodes,
+      qrCode: otpauthUrl // Can be used to generate QR code on frontend
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to setup 2FA' });
+  }
+});
+
+// Enable 2FA (verify and activate)
+app.post('/2fa/enable', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: 'Verification code is required' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user || !user.twoFactorSecret) {
+      return res.status(400).json({ error: 'Please setup 2FA first' });
+    }
+
+    // Verify TOTP code (simple implementation without external library)
+    const isValid = verifyTOTP(user.twoFactorSecret, code);
+
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    user.twoFactorEnabled = true;
+    await user.save();
+
+    res.json({ message: '2FA enabled successfully', enabled: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to enable 2FA' });
+  }
+});
+
+// Disable 2FA
+app.post('/2fa/disable', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { code, password } = req.body;
+    if (!code || !password) {
+      return res.status(400).json({ error: 'Code and password are required' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify password
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
+
+    // Verify 2FA code
+    const isValid = verifyTOTP(user.twoFactorSecret, code);
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    user.twoFactorEnabled = false;
+    user.twoFactorSecret = null;
+    user.backupCodes = [];
+    await user.save();
+
+    res.json({ message: '2FA disabled successfully', enabled: false });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to disable 2FA' });
+  }
+});
+
+// Verify 2FA code
+app.post('/2fa/verify', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: 'Code is required' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user || !user.twoFactorEnabled) {
+      return res.status(400).json({ error: '2FA not enabled' });
+    }
+
+    // Try TOTP first
+    const isValidTOTP = verifyTOTP(user.twoFactorSecret, code);
+    if (isValidTOTP) {
+      return res.json({ valid: true, method: 'totp' });
+    }
+
+    // Try backup codes
+    for (let i = 0; i < user.backupCodes.length; i++) {
+      const isValidBackup = await bcrypt.compare(code, user.backupCodes[i]);
+      if (isValidBackup) {
+        // Remove used backup code
+        user.backupCodes.splice(i, 1);
+        await user.save();
+        return res.json({ valid: true, method: 'backup', remainingCodes: user.backupCodes.length });
+      }
+    }
+
+    res.status(400).json({ valid: false, error: 'Invalid code' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to verify 2FA code' });
+  }
+});
+
+// Get 2FA status
+app.get('/2fa/status', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      enabled: user.twoFactorEnabled,
+      backupCodesRemaining: user.backupCodes?.length || 0
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get 2FA status' });
+  }
+});
+
+// Regenerate backup codes
+app.post('/2fa/regenerate-backup-codes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ error: 'Password is required' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user || !user.twoFactorEnabled) {
+      return res.status(400).json({ error: '2FA not enabled' });
+    }
+
+    // Verify password
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
+
+    // Generate new backup codes
+    const backupCodes = Array.from({ length: 10 }, () =>
+      Math.random().toString(36).substring(2, 10).toUpperCase()
+    );
+
+    // Hash backup codes
+    const hashedBackupCodes = await Promise.all(
+      backupCodes.map(code => bcrypt.hash(code, 10))
+    );
+
+    user.backupCodes = hashedBackupCodes;
+    await user.save();
+
+    res.json({ backupCodes });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to regenerate backup codes' });
+  }
+});
+
+// Simple TOTP verification (30-second window)
+function verifyTOTP(secret, token) {
+  try {
+    const window = 30; // 30 seconds
+    const time = Math.floor(Date.now() / 1000 / window);
+
+    // Check current time and ±1 window for clock drift
+    for (let i = -1; i <= 1; i++) {
+      const code = generateTOTP(secret, time + i);
+      if (code === token) {
+        return true;
+      }
+    }
+    return false;
+  } catch (error) {
+    console.error('TOTP verification error:', error);
+    return false;
+  }
+}
+
+// Simple TOTP generator
+function generateTOTP(secret, time) {
+  try {
+    // Simplified TOTP: In production, use a library like speakeasy
+    // This is a basic implementation for demonstration
+    const crypto = require('crypto');
+
+    // Convert base32 secret to buffer (simplified)
+    const buffer = Buffer.from(secret);
+
+    // Create time buffer
+    const timeBuffer = Buffer.alloc(8);
+    timeBuffer.writeBigUInt64BE(BigInt(time));
+
+    // HMAC-SHA1
+    const hmac = crypto.createHmac('sha1', buffer);
+    hmac.update(timeBuffer);
+    const digest = hmac.digest();
+
+    // Get 6-digit code
+    const offset = digest[digest.length - 1] & 0xf;
+    const code = (
+      ((digest[offset] & 0x7f) << 24) |
+      ((digest[offset + 1] & 0xff) << 16) |
+      ((digest[offset + 2] & 0xff) << 8) |
+      (digest[offset + 3] & 0xff)
+    ) % 1000000;
+
+    return code.toString().padStart(6, '0');
+  } catch (error) {
+    console.error('TOTP generation error:', error);
+    return null;
+  }
+}
+
+// ==================== END ADVANCED SECURITY ====================
+
+// ==================== PHASE 3: NOTIFICATION SYSTEM APIs ====================
+
+// Create notification
+app.post('/notifications', async (req, res) => {
+  try {
+    const { userId, type, title, message, actionUrl, metadata, priority, expiresAt } = req.body;
+
+    if (!userId || !type || !title || !message) {
+      return res.status(400).json({ error: 'userId, type, title, and message are required' });
+    }
+
+    // Check user preferences before creating notification
+    const prefs = await NotificationPreference.findOne({ where: { userId } });
+    if (prefs && prefs.notificationTypes && !prefs.notificationTypes[type]) {
+      return res.status(200).json({ message: 'Notification blocked by user preferences', blocked: true });
+    }
+
+    const notification = await Notification.create({
+      userId,
+      type,
+      title,
+      message,
+      actionUrl,
+      metadata: metadata || {},
+      priority: priority || 'normal',
+      expiresAt
+    });
+
+    res.status(201).json(notification);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create notification' });
+  }
+});
+
+// Get user notifications (with pagination and filters)
+app.get('/notifications', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const {
+      page = 1,
+      limit = 20,
+      isRead,
+      type,
+      priority
+    } = req.query;
+
+    const where = { userId };
+
+    // Add filters
+    if (isRead !== undefined) {
+      where.isRead = isRead === 'true';
+    }
+    if (type) {
+      where.type = type;
+    }
+    if (priority) {
+      where.priority = priority;
+    }
+
+    // Filter out expired notifications
+    where[Op.or] = [
+      { expiresAt: null },
+      { expiresAt: { [Op.gt]: new Date() } }
+    ];
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await Notification.findAndCountAll({
+      where,
+      limit: parseInt(limit),
+      offset,
+      order: [['createdAt', 'DESC']]
+    });
+
+    const unreadCount = await Notification.count({
+      where: { userId, isRead: false }
+    });
+
+    res.json({
+      notifications: rows,
+      total: count,
+      page: parseInt(page),
+      totalPages: Math.ceil(count / limit),
+      unreadCount
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// Get unread count
+app.get('/notifications/unread-count', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const count = await Notification.count({
+      where: {
+        userId,
+        isRead: false,
+        [Op.or]: [
+          { expiresAt: null },
+          { expiresAt: { [Op.gt]: new Date() } }
+        ]
+      }
+    });
+
+    res.json({ count });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get unread count' });
+  }
+});
+
+// Mark notification as read
+app.put('/notifications/:id/read', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+
+    const notification = await Notification.findOne({
+      where: { id, userId }
+    });
+
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    notification.isRead = true;
+    await notification.save();
+
+    res.json(notification);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+});
+
+// Mark all notifications as read
+app.put('/notifications/read-all', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await Notification.update(
+      { isRead: true },
+      { where: { userId, isRead: false } }
+    );
+
+    res.json({ message: 'All notifications marked as read' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to mark all notifications as read' });
+  }
+});
+
+// Delete notification
+app.delete('/notifications/:id', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+
+    const notification = await Notification.findOne({
+      where: { id, userId }
+    });
+
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    await notification.destroy();
+    res.json({ message: 'Notification deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete notification' });
+  }
+});
+
+// Delete all read notifications
+app.delete('/notifications/read', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const deletedCount = await Notification.destroy({
+      where: { userId, isRead: true }
+    });
+
+    res.json({ message: 'Read notifications deleted successfully', count: deletedCount });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete read notifications' });
+  }
+});
+
+// Get notification preferences
+app.get('/notifications/preferences', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    let prefs = await NotificationPreference.findOne({ where: { userId } });
+
+    // Create default preferences if none exist
+    if (!prefs) {
+      prefs = await NotificationPreference.create({ userId });
+    }
+
+    res.json(prefs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch notification preferences' });
+  }
+});
+
+// Update notification preferences
+app.put('/notifications/preferences', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const {
+      emailNotifications,
+      pushNotifications,
+      inAppNotifications,
+      notificationTypes,
+      quietHoursEnabled,
+      quietHoursStart,
+      quietHoursEnd
+    } = req.body;
+
+    let prefs = await NotificationPreference.findOne({ where: { userId } });
+
+    if (!prefs) {
+      prefs = await NotificationPreference.create({
+        userId,
+        emailNotifications,
+        pushNotifications,
+        inAppNotifications,
+        notificationTypes,
+        quietHoursEnabled,
+        quietHoursStart,
+        quietHoursEnd
+      });
+    } else {
+      await prefs.update({
+        emailNotifications: emailNotifications !== undefined ? emailNotifications : prefs.emailNotifications,
+        pushNotifications: pushNotifications !== undefined ? pushNotifications : prefs.pushNotifications,
+        inAppNotifications: inAppNotifications !== undefined ? inAppNotifications : prefs.inAppNotifications,
+        notificationTypes: notificationTypes || prefs.notificationTypes,
+        quietHoursEnabled: quietHoursEnabled !== undefined ? quietHoursEnabled : prefs.quietHoursEnabled,
+        quietHoursStart: quietHoursStart || prefs.quietHoursStart,
+        quietHoursEnd: quietHoursEnd || prefs.quietHoursEnd
+      });
+    }
+
+    res.json(prefs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update notification preferences' });
+  }
+});
+
+// ==================== END NOTIFICATION SYSTEM ====================
 
 app.listen(PORT, () => {
   console.log(`User service running on port ${PORT}`);

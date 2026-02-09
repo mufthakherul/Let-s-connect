@@ -10,7 +10,8 @@ import {
   VideoLibrary, ShoppingCart, Description, Chat as ChatIcon,
   Person, ExitToApp, Login as LoginIcon,
   PersonAdd, Feed as FeedIcon, Group as GroupIcon, Bookmark,
-  ShoppingCartOutlined, Article, Pages as PagesIcon, Work as WorkIcon
+  ShoppingCartOutlined, Article, Pages as PagesIcon, Work as WorkIcon,
+  Dashboard as DashboardIcon, Search as SearchIcon
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -32,6 +33,10 @@ import Cart from './components/Cart';
 import Blog from './components/Blog';
 import Pages from './components/Pages';
 import Projects from './components/Projects';
+import AdminDashboard from './components/AdminDashboard';
+import SecuritySettings from './components/SecuritySettings';
+import Analytics from './components/Analytics';
+import Search from './components/Search';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -108,6 +113,7 @@ function App() {
 
   const navigationItems = [
     { label: 'Home', path: '/', icon: <HomeIcon />, public: true },
+    { label: 'Search', path: '/search', icon: <SearchIcon />, public: true },
     { label: 'Videos', path: '/videos', icon: <VideoLibrary />, public: true },
     { label: 'Shop', path: '/shop', icon: <ShoppingCart />, public: true },
     { label: 'Blog', path: '/blog', icon: <Article />, public: true },
@@ -120,6 +126,7 @@ function App() {
     { label: 'Bookmarks', path: '/bookmarks', icon: <Bookmark />, public: false },
     { label: 'Chat', path: '/chat', icon: <ChatIcon />, public: false },
     { label: 'Profile', path: '/profile', icon: <Person />, public: false },
+    { label: 'Admin', path: '/admin', icon: <DashboardIcon />, public: false, adminOnly: true },
   ];
 
   const drawer = (
@@ -133,6 +140,7 @@ function App() {
       <List>
         {navigationItems.map((item) => {
           if (!item.public && !internalUser) return null;
+          if (item.adminOnly && (!internalUser || (internalUser.role !== 'admin' && internalUser.role !== 'moderator'))) return null;
           return (
             <ListItem button component={Link} to={item.path} key={item.path}>
               <ListItemIcon>{item.icon}</ListItemIcon>
@@ -284,6 +292,7 @@ function App() {
           <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/search" element={<Search />} />
               <Route path="/login" element={<Login setUser={setInternalUser} />} />
               <Route path="/register" element={<Register setUser={setInternalUser} />} />
               <Route path="/videos" element={<Videos user={internalUser} />} />
@@ -321,6 +330,18 @@ function App() {
               <Route
                 path="/profile"
                 element={internalUser ? <Profile user={internalUser} /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/admin"
+                element={internalUser && (internalUser.role === 'admin' || internalUser.role === 'moderator') ? <AdminDashboard /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/security"
+                element={internalUser ? <SecuritySettings /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/analytics"
+                element={internalUser ? <Analytics user={internalUser} /> : <Navigate to="/login" />}
               />
             </Routes>
           </Container>
