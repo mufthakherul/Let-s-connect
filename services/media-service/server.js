@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const AWS = require('aws-sdk');
 const { Sequelize, DataTypes } = require('sequelize');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -196,7 +197,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
           for (const [sizeName, sizeData] of Object.entries(processedImage.sizes)) {
             if (sizeData.path) {
               const sizeFilename = `${Date.now()}-${sizeName}-${file.originalname}`;
-              const fs = require('fs');
               const sizeBuffer = fs.readFileSync(sizeData.path);
               
               const sizeUploadParams = {
@@ -221,7 +221,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         
         // Upload blur placeholder if available
         if (processedImage.blurPlaceholder) {
-          const fs = require('fs');
           const blurBuffer = fs.readFileSync(processedImage.blurPlaceholder);
           optimizationData.blurPlaceholder = `data:image/webp;base64,${blurBuffer.toString('base64')}`;
           fs.unlinkSync(processedImage.blurPlaceholder);
