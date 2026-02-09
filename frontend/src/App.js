@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import {
   AppBar, Toolbar, Typography, Button, Container, Box, IconButton,
   CssBaseline, ThemeProvider, createTheme, Drawer, List,
-  ListItem, ListItemIcon, ListItemText, useMediaQuery, Divider, Avatar
+  ListItem, ListItemIcon, ListItemText, useMediaQuery, Divider, Avatar,
+  CircularProgress
 } from '@mui/material';
 import {
   Brightness4, Brightness7, Menu as MenuIcon, Home as HomeIcon,
@@ -19,32 +20,36 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/authStore';
 import NotificationCenter from './components/common/NotificationCenter';
+
+// Eager load critical components (needed for initial render)
 import Home from './components/Home';
 import Login from './components/Login';
 import Register from './components/Register';
-import Feed from './components/Feed';
-import Videos from './components/Videos';
-import Shop from './components/Shop';
-import Docs from './components/Docs';
-import Chat from './components/Chat';
-import Profile from './components/Profile';
-import Groups from './components/Groups';
-import Bookmarks from './components/Bookmarks';
-import Cart from './components/Cart';
-import Blog from './components/Blog';
-import Pages from './components/Pages';
-import Projects from './components/Projects';
-import AdminDashboard from './components/AdminDashboard';
-import SecuritySettings from './components/SecuritySettings';
-import Analytics from './components/Analytics';
-import Search from './components/Search';
-import EmailPreferences from './components/EmailPreferences';
-import OAuthLogin from './components/OAuthLogin';
-import ElasticsearchSearch from './components/ElasticsearchSearch';
-import FolderBrowser from './components/FolderBrowser';
-import WikiDiffViewer from './components/WikiDiffViewer';
-import WebRTCCallWidget from './components/WebRTCCallWidget';
-import DatabaseViews from './components/DatabaseViews';
+
+// Lazy load non-critical components (Phase 4: Performance Optimization)
+const Feed = lazy(() => import('./components/Feed'));
+const Videos = lazy(() => import('./components/Videos'));
+const Shop = lazy(() => import('./components/Shop'));
+const Docs = lazy(() => import('./components/Docs'));
+const Chat = lazy(() => import('./components/Chat'));
+const Profile = lazy(() => import('./components/Profile'));
+const Groups = lazy(() => import('./components/Groups'));
+const Bookmarks = lazy(() => import('./components/Bookmarks'));
+const Cart = lazy(() => import('./components/Cart'));
+const Blog = lazy(() => import('./components/Blog'));
+const Pages = lazy(() => import('./components/Pages'));
+const Projects = lazy(() => import('./components/Projects'));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
+const SecuritySettings = lazy(() => import('./components/SecuritySettings'));
+const Analytics = lazy(() => import('./components/Analytics'));
+const Search = lazy(() => import('./components/Search'));
+const EmailPreferences = lazy(() => import('./components/EmailPreferences'));
+const OAuthLogin = lazy(() => import('./components/OAuthLogin'));
+const ElasticsearchSearch = lazy(() => import('./components/ElasticsearchSearch'));
+const FolderBrowser = lazy(() => import('./components/FolderBrowser'));
+const WikiDiffViewer = lazy(() => import('./components/WikiDiffViewer'));
+const WebRTCCallWidget = lazy(() => import('./components/WebRTCCallWidget'));
+const DatabaseViews = lazy(() => import('./components/DatabaseViews'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -55,6 +60,25 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Loading fallback component for lazy-loaded routes
+const PageLoader = () => (
+  <Box
+    sx={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '400px',
+      flexDirection: 'column',
+      gap: 2
+    }}
+  >
+    <CircularProgress size={40} />
+    <Typography variant="body2" color="text.secondary">
+      Loading...
+    </Typography>
+  </Box>
+);
 
 function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -304,92 +328,94 @@ function App() {
           </Drawer>
 
           <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/search" element={<Search />} />
-              <Route path="/login" element={<Login setUser={setInternalUser} />} />
-              <Route path="/register" element={<Register setUser={setInternalUser} />} />
-              <Route path="/videos" element={<Videos user={internalUser} />} />
-              <Route path="/shop" element={<Shop />} />
-              <Route path="/blog" element={<Blog />} />
-              <Route path="/docs" element={<Docs user={internalUser} />} />
-              <Route
-                path="/feed"
-                element={internalUser ? <Feed user={internalUser} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/groups"
-                element={internalUser ? <Groups user={internalUser} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/pages"
-                element={internalUser ? <Pages user={internalUser} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/projects"
-                element={internalUser ? <Projects user={internalUser} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/bookmarks"
-                element={internalUser ? <Bookmarks user={internalUser} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/cart"
-                element={internalUser ? <Cart /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/chat"
-                element={internalUser ? <Chat user={internalUser} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/profile"
-                element={internalUser ? <Profile user={internalUser} /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/admin"
-                element={internalUser && (internalUser.role === 'admin' || internalUser.role === 'moderator') ? <AdminDashboard /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/security"
-                element={internalUser ? <SecuritySettings /> : <Navigate to="/login" />}
-              />
-              <Route
-                path="/analytics"
-                element={internalUser ? <Analytics user={internalUser} /> : <Navigate to="/login" />}
-              />
-              {/* Phase 3 Features - Email Notifications */}
-              <Route
-                path="/notifications/email"
-                element={internalUser ? <EmailPreferences /> : <Navigate to="/login" />}
-              />
-              {/* Phase 3 Features - OAuth Login */}
-              <Route path="/login/oauth" element={<OAuthLogin />} />
-              {/* Phase 3 Features - Elasticsearch Search */}
-              <Route
-                path="/search/advanced"
-                element={internalUser ? <ElasticsearchSearch /> : <Navigate to="/login" />}
-              />
-              {/* Phase 3 Features - Drive Folder Hierarchy */}
-              <Route
-                path="/folders"
-                element={internalUser ? <FolderBrowser /> : <Navigate to="/login" />}
-              />
-              {/* Phase 3 Features - Wiki Diff Viewer */}
-              <Route
-                path="/wikis/diff"
-                element={internalUser ? <WikiDiffViewer /> : <Navigate to="/login" />}
-              />
-              {/* Phase 3 Features - WebRTC Voice/Video */}
-              <Route
-                path="/calls"
-                element={internalUser ? <WebRTCCallWidget /> : <Navigate to="/login" />}
-              />
-              {/* Phase 3 Features - Database Views Builder */}
-              <Route
-                path="/databases/views"
-                element={internalUser ? <DatabaseViews /> : <Navigate to="/login" />}
-              />
-            </Routes>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/search" element={<Search />} />
+                <Route path="/login" element={<Login setUser={setInternalUser} />} />
+                <Route path="/register" element={<Register setUser={setInternalUser} />} />
+                <Route path="/videos" element={<Videos user={internalUser} />} />
+                <Route path="/shop" element={<Shop />} />
+                <Route path="/blog" element={<Blog />} />
+                <Route path="/docs" element={<Docs user={internalUser} />} />
+                <Route
+                  path="/feed"
+                  element={internalUser ? <Feed user={internalUser} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/groups"
+                  element={internalUser ? <Groups user={internalUser} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/pages"
+                  element={internalUser ? <Pages user={internalUser} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/projects"
+                  element={internalUser ? <Projects user={internalUser} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/bookmarks"
+                  element={internalUser ? <Bookmarks user={internalUser} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/cart"
+                  element={internalUser ? <Cart /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/chat"
+                  element={internalUser ? <Chat user={internalUser} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/profile"
+                  element={internalUser ? <Profile user={internalUser} /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/admin"
+                  element={internalUser && (internalUser.role === 'admin' || internalUser.role === 'moderator') ? <AdminDashboard /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/security"
+                  element={internalUser ? <SecuritySettings /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/analytics"
+                  element={internalUser ? <Analytics user={internalUser} /> : <Navigate to="/login" />}
+                />
+                {/* Phase 3 Features - Email Notifications */}
+                <Route
+                  path="/notifications/email"
+                  element={internalUser ? <EmailPreferences /> : <Navigate to="/login" />}
+                />
+                {/* Phase 3 Features - OAuth Login */}
+                <Route path="/login/oauth" element={<OAuthLogin />} />
+                {/* Phase 3 Features - Elasticsearch Search */}
+                <Route
+                  path="/search/advanced"
+                  element={internalUser ? <ElasticsearchSearch /> : <Navigate to="/login" />}
+                />
+                {/* Phase 3 Features - Drive Folder Hierarchy */}
+                <Route
+                  path="/folders"
+                  element={internalUser ? <FolderBrowser /> : <Navigate to="/login" />}
+                />
+                {/* Phase 3 Features - Wiki Diff Viewer */}
+                <Route
+                  path="/wikis/diff"
+                  element={internalUser ? <WikiDiffViewer /> : <Navigate to="/login" />}
+                />
+                {/* Phase 3 Features - WebRTC Voice/Video */}
+                <Route
+                  path="/calls"
+                  element={internalUser ? <WebRTCCallWidget /> : <Navigate to="/login" />}
+                />
+                {/* Phase 3 Features - Database Views Builder */}
+                <Route
+                  path="/databases/views"
+                  element={internalUser ? <DatabaseViews /> : <Navigate to="/login" />}
+                />
+              </Routes>
+            </Suspense>
           </Container>
         </Router>
       </ThemeProvider>
