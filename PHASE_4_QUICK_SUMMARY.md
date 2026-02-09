@@ -9,7 +9,7 @@
 
 ## What Was Done ✅
 
-### 1. Redis Caching - FULLY WIRED ✅
+### 1. Redis Caching - WIRED ✅
 
 **Wired into 3 services** with graceful fallback:
 
@@ -33,24 +33,26 @@
 **Key Features**:
 - Works without Redis (graceful fallback)
 - Automatic cache invalidation on data changes
-- 16 predefined caching strategies
+- 22 predefined caching strategies (includes USER_SKILLS, POST_DETAILS, PRODUCT_REVIEWS, etc.)
+- Cache key generators aligned with route parameters
 
-### 2. Image Optimization - FULLY WIRED ✅
+### 2. Image Optimization - PARTIALLY WIRED ⚠️
 
-**Wired into media-service** with graceful fallback:
-- Generates 4 sizes: thumbnail, small, medium, large
+**Integration prepared in media-service** with graceful fallback:
+- Image optimization utilities loaded
+- Supports 4 sizes: thumbnail, small, medium, large
 - Supports WebP, JPEG, PNG, AVIF
 - Creates blur placeholders
 - Extracts dominant colors
-- Works without sharp library (graceful fallback)
+- **Note**: Optimizer functions loaded but not yet invoked in upload flow
 
-### 3. Health Checks & Metrics - FULLY WIRED ✅
+### 3. Health Checks & Metrics - WIRED ✅
 
 **Enhanced 3 services** (user, content, media):
 
 New endpoints on each service:
 - `GET /health` - Liveness probe
-- `GET /health/ready` - Readiness probe (checks DB, Redis, S3)
+- `GET /health/ready` - Readiness probe (checks DB, Redis, S3 in parallel)
 - `GET /metrics` - Prometheus metrics
 
 **Metrics tracked**:
@@ -58,10 +60,15 @@ New endpoints on each service:
 - Memory (heap, RSS), CPU usage
 - System load averages
 
+**Key improvements**:
+- Health checks run in parallel (3s timeout per check)
+- Monitoring initialized after database connection
+- Readiness probe timeout increased to 5s
+
 ### 4. Kubernetes Deployment - DOCUMENTED ✅
 
 **Created deployment manifests**:
-- `k8s/README.md` - Complete deployment guide
+- `k8s/README.md` - Deployment guide (updated with accurate file list)
 - `k8s/namespace.yaml` - Namespace config
 - `k8s/configmap.yaml` - Environment variables
 - `k8s/user-service.yaml` - Example deployment with auto-scaling
@@ -69,8 +76,10 @@ New endpoints on each service:
 **Features**:
 - 2 replicas by default
 - Auto-scaling: min 2, max 10 (70% CPU threshold)
-- Health probes configured
+- Health probes configured (5s timeout for readiness)
 - Resource limits defined
+
+**Note**: Additional service manifests need to be created based on the user-service.yaml template.
 
 ### 5. Documentation - CREATED ✅
 

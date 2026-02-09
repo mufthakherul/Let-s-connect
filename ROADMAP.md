@@ -977,7 +977,7 @@ From implemented features, these advanced capabilities were deferred:
   - **Status**: Deferred - infrastructure dependent, requires deployment platform setup
   - **Estimated Effort**: 2 hours
 
-- [x] **Image optimization** ✅ WIRED
+- [x] **Image optimization** ⚠️ PARTIALLY WIRED
   - Automatic image processing with Sharp library
   - 4 responsive sizes: thumbnail (150x150), small (400x400), medium (800x800), large (1920x1920)
   - WebP, JPEG, PNG, AVIF format support
@@ -988,7 +988,8 @@ From implemented features, these advanced capabilities were deferred:
   - **Files**:
     - `services/shared/imageOptimization.js` (300+ lines) - Core image utility
     - `services/media-service/image-integration.js` - Media service integration
-  - **Status**: ✅ Wired into media-service with graceful fallback
+  - **Status**: ⚠️ Integration prepared in media-service but not yet invoked in upload flow
+  - **Remaining**: Wire optimizer into actual upload endpoint to generate responsive sizes
   - **Expected Performance**: 40-70% smaller file sizes, faster load times
 
 - [x] **Lazy loading** ✅ WIRED
@@ -1023,14 +1024,14 @@ From implemented features, these advanced capabilities were deferred:
 ### 4.2 Infrastructure Enhancement
 
 - [x] **Health checks and metrics** ✅ WIRED
-  - Enhanced health endpoints for all services (/health, /health/ready)
+  - Enhanced health endpoints (/health, /health/ready)
   - Prometheus-compatible metrics endpoint (/metrics)
   - System monitoring (CPU, memory, uptime)
-  - Dependency health checks (database, Redis, S3)
+  - Dependency health checks (database, Redis, S3) run in parallel
   - Request tracking and error rate monitoring
   - **File**: `services/shared/monitoring.js` (250+ lines) - HealthChecker class
   - **Wired Services**: user-service, content-service, media-service
-  - **Status**: ✅ Implemented with graceful fallback
+  - **Status**: ✅ Implemented with graceful fallback and parallel health checks
 
 - [x] **Kubernetes deployment** ✅ DOCUMENTED
   - Created K8s deployment manifests and documentation

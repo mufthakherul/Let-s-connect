@@ -30,7 +30,7 @@ class HealthChecker {
     }
 
     /**
-     * Run all health checks
+     * Run all health checks (in parallel for better performance)
      * @returns {Object} Health status with all check results
      */
     async runChecks() {
@@ -43,33 +43,45 @@ class HealthChecker {
             system: this.getSystemInfo()
         };
 
-        // Run all registered checks
-        for (const [name, checkFn] of this.checks) {
+        // Run all registered checks in parallel
+        const checkPromises = Array.from(this.checks.entries()).map(async ([name, checkFn]) => {
             try {
                 const startTime = Date.now();
                 const result = await Promise.race([
                     checkFn(),
                     new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('Check timeout')), 5000)
+                        setTimeout(() => reject(new Error('Check timeout')), 3000)
                     )
                 ]);
                 const latency = Date.now() - startTime;
 
-                results.checks[name] = {
-                    healthy: result.healthy !== false,
-                    message: result.message || 'OK',
-                    latency: result.latency || latency
+                return {
+                    name,
+                    check: {
+                        healthy: result.healthy !== false,
+                        message: result.message || 'OK',
+                        latency: result.latency || latency
+                    }
                 };
-
-                if (!results.checks[name].healthy) {
-                    results.status = 'unhealthy';
-                }
             } catch (error) {
-                results.checks[name] = {
-                    healthy: false,
-                    message: error.message,
-                    latency: 5000
+                return {
+                    name,
+                    check: {
+                        healthy: false,
+                        message: error.message,
+                        latency: 3000
+                    }
                 };
+            }
+        });
+
+        // Wait for all checks to complete
+        const checkResults = await Promise.all(checkPromises);
+        
+        // Aggregate results
+        for (const { name, check } of checkResults) {
+            results.checks[name] = check;
+            if (!check.healthy) {
                 results.status = 'unhealthy';
             }
         }

@@ -12,14 +12,14 @@ const { CacheManager, CachingStrategies, InvalidationPatterns } = require('../sh
 const cache = new CacheManager();
 
 /**
- * Cache middleware for GET /posts feed endpoint
+ * Cache middleware for GET /feed/:userId endpoint
  * Caches post feed for 2 minutes
  */
 const cachePostFeed = cache.middleware('post:feed', {
     ttl: CachingStrategies.POST_FEED.ttl,
     keyGenerator: (req) => {
-        const { userId, visibility, limit, offset } = req.query;
-        return `${userId || 'all'}-${visibility || 'all'}-${limit || 20}-${offset || 0}`;
+        const { page = 1, limit = 20 } = req.query;
+        return `${req.params.userId || 'all'}-${page}-${limit}`;
     }
 });
 
@@ -33,12 +33,12 @@ const cachePost = cache.middleware('post:detail', {
 });
 
 /**
- * Cache middleware for GET /posts/:id/comments endpoint
+ * Cache middleware for GET /posts/:postId/comments endpoint
  * Caches post comments for 3 minutes
  */
 const cacheComments = cache.middleware('post:comments', {
     ttl: CachingStrategies.COMMENTS.ttl,
-    keyGenerator: (req) => req.params.id
+    keyGenerator: (req) => req.params.postId
 });
 
 /**
