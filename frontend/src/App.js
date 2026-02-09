@@ -10,7 +10,7 @@ import {
   VideoLibrary, ShoppingCart, Description, Chat as ChatIcon,
   Person, ExitToApp, Login as LoginIcon,
   PersonAdd, Feed as FeedIcon, Group as GroupIcon, Bookmark,
-  ShoppingCartOutlined
+  ShoppingCartOutlined, Article
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -29,6 +29,7 @@ import Profile from './components/Profile';
 import Groups from './components/Groups';
 import Bookmarks from './components/Bookmarks';
 import Cart from './components/Cart';
+import Blog from './components/Blog';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -107,6 +108,7 @@ function App() {
     { label: 'Home', path: '/', icon: <HomeIcon />, public: true },
     { label: 'Videos', path: '/videos', icon: <VideoLibrary />, public: true },
     { label: 'Shop', path: '/shop', icon: <ShoppingCart />, public: true },
+    { label: 'Blog', path: '/blog', icon: <Article />, public: true },
     { label: 'Docs', path: '/docs', icon: <Description />, public: true },
     { label: 'Feed', path: '/feed', icon: <FeedIcon />, public: false },
     { label: 'Groups', path: '/groups', icon: <GroupIcon />, public: false },
@@ -282,6 +284,7 @@ function App() {
               <Route path="/register" element={<Register setUser={setInternalUser} />} />
               <Route path="/videos" element={<Videos user={internalUser} />} />
               <Route path="/shop" element={<Shop />} />
+              <Route path="/blog" element={<Blog />} />
               <Route path="/docs" element={<Docs user={internalUser} />} />
               <Route
                 path="/feed"

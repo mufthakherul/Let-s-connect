@@ -746,6 +746,104 @@ const LiveStream = sequelize.define('LiveStream', {
   category: DataTypes.STRING
 });
 
+// NEW: Phase 2 - Blog/Article Model (Blogger-inspired)
+const Blog = sequelize.define('Blog', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  slug: {
+    type: DataTypes.STRING,
+    unique: true,
+    allowNull: false
+  },
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  excerpt: DataTypes.TEXT, // Short summary
+  featuredImage: DataTypes.STRING,
+  category: DataTypes.STRING,
+  tags: DataTypes.ARRAY(DataTypes.STRING),
+  readingTime: DataTypes.INTEGER, // in minutes
+  status: {
+    type: DataTypes.ENUM('draft', 'published', 'archived'),
+    defaultValue: 'draft'
+  },
+  publishedAt: DataTypes.DATE,
+  views: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  likes: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  // SEO metadata
+  metaTitle: DataTypes.STRING,
+  metaDescription: DataTypes.TEXT,
+  metaKeywords: DataTypes.ARRAY(DataTypes.STRING)
+});
+
+// NEW: Phase 2 - Blog Category Model
+const BlogCategory = sequelize.define('BlogCategory', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  name: {
+    type: DataTypes.STRING,
+    unique: true,
+    allowNull: false
+  },
+  slug: {
+    type: DataTypes.STRING,
+    unique: true,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  postCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+});
+
+// NEW: Phase 2 - Blog Comment Model
+const BlogComment = sequelize.define('BlogComment', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  blogId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  parentId: DataTypes.UUID, // for nested comments
+  isApproved: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  }
+});
+
 // Relationships
 Post.hasMany(Comment, { foreignKey: 'postId' });
 Comment.belongsTo(Post, { foreignKey: 'postId' });
@@ -777,6 +875,10 @@ Post.belongsTo(Post, { as: 'ParentPost', foreignKey: 'parentId' });
 Comment.hasMany(CommentVote, { foreignKey: 'commentId' });
 Post.belongsTo(Flair, { foreignKey: 'flairId' });
 Flair.hasMany(Post, { foreignKey: 'flairId' });
+Blog.hasMany(BlogComment, { foreignKey: 'blogId' });
+BlogComment.belongsTo(Blog, { foreignKey: 'blogId' });
+BlogComment.hasMany(BlogComment, { as: 'Replies', foreignKey: 'parentId' });
+BlogComment.belongsTo(BlogComment, { as: 'ParentComment', foreignKey: 'parentId' });
 
 sequelize.sync().then(async () => {
   // Initialize default awards if they don't exist
@@ -3007,6 +3109,410 @@ app.get('/posts/sorted', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch sorted posts' });
+  }
+});
+
+// ========== PHASE 2: BLOGGER-INSPIRED BLOG/ARTICLE FEATURES ==========
+
+// Helper function to calculate reading time
+function calculateReadingTime(content) {
+  const wordsPerMinute = 200;
+  const wordCount = content.split(/\s+/).length;
+  return Math.ceil(wordCount / wordsPerMinute);
+}
+
+// Helper function to generate slug
+function generateSlug(title) {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// Create a blog post
+app.post('/blogs', async (req, res) => {
+  try {
+    const {
+      title,
+      content,
+      excerpt,
+      featuredImage,
+      category,
+      tags,
+      status,
+      metaTitle,
+      metaDescription,
+      metaKeywords
+    } = req.body;
+
+    // Get authenticated user ID from header
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Generate slug from title
+    let slug = generateSlug(title);
+    
+    // Ensure slug is unique
+    let counter = 1;
+    let uniqueSlug = slug;
+    while (await Blog.findOne({ where: { slug: uniqueSlug } })) {
+      uniqueSlug = `${slug}-${counter}`;
+      counter++;
+    }
+
+    // Calculate reading time
+    const readingTime = calculateReadingTime(content);
+
+    const blog = await Blog.create({
+      userId,
+      title,
+      slug: uniqueSlug,
+      content,
+      excerpt: excerpt || content.substring(0, 200),
+      featuredImage,
+      category,
+      tags: tags || [],
+      readingTime,
+      status: status || 'draft',
+      publishedAt: status === 'published' ? new Date() : null,
+      metaTitle: metaTitle || title,
+      metaDescription: metaDescription || excerpt,
+      metaKeywords: metaKeywords || tags || []
+    });
+
+    res.status(201).json(blog);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create blog post' });
+  }
+});
+
+// Get all published blogs (public)
+app.get('/blogs/public', async (req, res) => {
+  try {
+    const { category, tag, page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const where = { status: 'published' };
+
+    if (category) {
+      where.category = category;
+    }
+
+    if (tag) {
+      where.tags = { [Op.contains]: [tag] };
+    }
+
+    const blogs = await Blog.findAll({
+      where,
+      order: [['publishedAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      attributes: { exclude: ['content'] } // Don't return full content in list
+    });
+
+    res.json(blogs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch blogs' });
+  }
+});
+
+// Get a single blog by slug (public)
+app.get('/blogs/public/:slug', async (req, res) => {
+  try {
+    const blog = await Blog.findOne({
+      where: { slug: req.params.slug, status: 'published' },
+      include: [
+        {
+          model: BlogComment,
+          where: { isApproved: true },
+          required: false,
+          include: [
+            {
+              model: BlogComment,
+              as: 'Replies',
+              required: false
+            }
+          ]
+        }
+      ]
+    });
+
+    if (!blog) {
+      return res.status(404).json({ error: 'Blog post not found' });
+    }
+
+    // Increment view count
+    await blog.increment('views');
+
+    res.json(blog);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch blog' });
+  }
+});
+
+// Get user's blogs (authenticated)
+app.get('/blogs/user/:userId', async (req, res) => {
+  try {
+    const { status, page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    // Get authenticated user ID from header
+    const authUserId = req.header('x-user-id');
+    if (!authUserId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Ensure user can only access their own drafts
+    if (authUserId !== req.params.userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const where = { userId: req.params.userId };
+
+    if (status) {
+      where.status = status;
+    }
+
+    const blogs = await Blog.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.json(blogs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch blogs' });
+  }
+});
+
+// Update a blog post
+app.put('/blogs/:id', async (req, res) => {
+  try {
+    const blog = await Blog.findByPk(req.params.id);
+
+    if (!blog) {
+      return res.status(404).json({ error: 'Blog post not found' });
+    }
+
+    // Get authenticated user ID from header
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Verify ownership
+    if (blog.userId !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const {
+      title,
+      content,
+      excerpt,
+      featuredImage,
+      category,
+      tags,
+      status,
+      metaTitle,
+      metaDescription,
+      metaKeywords
+    } = req.body;
+
+    // If title changed, regenerate slug
+    if (title && title !== blog.title) {
+      let slug = generateSlug(title);
+      let counter = 1;
+      let uniqueSlug = slug;
+      while (await Blog.findOne({ where: { slug: uniqueSlug, id: { [Op.ne]: blog.id } } })) {
+        uniqueSlug = `${slug}-${counter}`;
+        counter++;
+      }
+      blog.slug = uniqueSlug;
+      blog.title = title;
+    }
+
+    // Update fields
+    if (content) {
+      blog.content = content;
+      blog.readingTime = calculateReadingTime(content);
+    }
+    if (excerpt !== undefined) blog.excerpt = excerpt;
+    if (featuredImage !== undefined) blog.featuredImage = featuredImage;
+    if (category !== undefined) blog.category = category;
+    if (tags !== undefined) blog.tags = tags;
+    if (metaTitle !== undefined) blog.metaTitle = metaTitle;
+    if (metaDescription !== undefined) blog.metaDescription = metaDescription;
+    if (metaKeywords !== undefined) blog.metaKeywords = metaKeywords;
+
+    // Handle status change
+    if (status && status !== blog.status) {
+      blog.status = status;
+      if (status === 'published' && !blog.publishedAt) {
+        blog.publishedAt = new Date();
+      }
+    }
+
+    await blog.save();
+    res.json(blog);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update blog post' });
+  }
+});
+
+// Delete a blog post
+app.delete('/blogs/:id', async (req, res) => {
+  try {
+    const blog = await Blog.findByPk(req.params.id);
+
+    if (!blog) {
+      return res.status(404).json({ error: 'Blog post not found' });
+    }
+
+    // Get authenticated user ID from header
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Verify ownership
+    if (blog.userId !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    await blog.destroy();
+    res.json({ message: 'Blog post deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete blog post' });
+  }
+});
+
+// Like a blog post
+app.post('/blogs/:id/like', async (req, res) => {
+  try {
+    // Get authenticated user ID from header
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const blog = await Blog.findByPk(req.params.id);
+
+    if (!blog) {
+      return res.status(404).json({ error: 'Blog post not found' });
+    }
+
+    await blog.increment('likes');
+    res.json({ message: 'Blog liked', likes: blog.likes + 1 });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to like blog' });
+  }
+});
+
+// Add comment to blog
+app.post('/blogs/:blogId/comments', async (req, res) => {
+  try {
+    const { content, parentId } = req.body;
+
+    // Get authenticated user ID from header
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Verify blog exists
+    const blog = await Blog.findByPk(req.params.blogId);
+    if (!blog) {
+      return res.status(404).json({ error: 'Blog post not found' });
+    }
+
+    const comment = await BlogComment.create({
+      blogId: req.params.blogId,
+      userId,
+      content,
+      parentId: parentId || null
+    });
+
+    res.status(201).json(comment);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to add comment' });
+  }
+});
+
+// Get blog comments
+app.get('/blogs/:blogId/comments', async (req, res) => {
+  try {
+    const comments = await BlogComment.findAll({
+      where: {
+        blogId: req.params.blogId,
+        isApproved: true,
+        parentId: null // Get only top-level comments
+      },
+      include: [
+        {
+          model: BlogComment,
+          as: 'Replies',
+          where: { isApproved: true },
+          required: false
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(comments);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch comments' });
+  }
+});
+
+// Get all blog categories (public)
+app.get('/blogs/categories/all', async (req, res) => {
+  try {
+    const categories = await BlogCategory.findAll({
+      order: [['name', 'ASC']]
+    });
+
+    res.json(categories);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch categories' });
+  }
+});
+
+// Create blog category (admin/moderator only for now, no auth check for simplicity)
+app.post('/blogs/categories', async (req, res) => {
+  try {
+    const { name, description } = req.body;
+
+    const slug = generateSlug(name);
+
+    // Check if already exists
+    const existing = await BlogCategory.findOne({ where: { slug } });
+    if (existing) {
+      return res.status(400).json({ error: 'Category already exists' });
+    }
+
+    const category = await BlogCategory.create({
+      name,
+      slug,
+      description
+    });
+
+    res.status(201).json(category);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create category' });
   }
 });
 
