@@ -10,37 +10,41 @@ This directory contains Kubernetes deployment manifests for all services.
 - kubectl configured
 - Docker images built and pushed to registry
 
-### Deploy All Services
+### Deploy Services
+
+**Note**: This repository currently includes example manifests. Additional manifests for all services need to be created based on the user-service.yaml template.
+
+**Available manifests**:
+- `namespace.yaml` - Namespace configuration
+- `configmap.yaml` - Environment variables  
+- `user-service.yaml` - Complete example (Deployment + Service + HPA)
+
+**To deploy the example**:
 
 ```bash
 # Create namespace
 kubectl create namespace lets-connect
 
-# Deploy database and dependencies (if not using external services)
-kubectl apply -f k8s/postgres.yaml
-kubectl apply -f k8s/redis.yaml
-kubectl apply -f k8s/minio.yaml
+# Apply namespace and config
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml
 
-# Wait for dependencies to be ready
-kubectl wait --for=condition=ready pod -l app=postgres -n lets-connect --timeout=120s
-kubectl wait --for=condition=ready pod -l app=redis -n lets-connect --timeout=120s
-kubectl wait --for=condition=ready pod -l app=minio -n lets-connect --timeout=120s
+# NOTE: Database dependencies (postgres, redis, minio) need to be deployed separately
+# Use external managed services or create manifests based on your infrastructure
 
-# Deploy services
+# Deploy user-service (example)
 kubectl apply -f k8s/user-service.yaml
-kubectl apply -f k8s/content-service.yaml
-kubectl apply -f k8s/messaging-service.yaml
-kubectl apply -f k8s/collaboration-service.yaml
-kubectl apply -f k8s/media-service.yaml
-kubectl apply -f k8s/shop-service.yaml
-kubectl apply -f k8s/ai-service.yaml
-kubectl apply -f k8s/api-gateway.yaml
 
-# Deploy frontend
-kubectl apply -f k8s/frontend.yaml
-
-# Deploy ingress
-kubectl apply -f k8s/ingress.yaml
+# TODO: Create additional service manifests for:
+# - content-service.yaml
+# - messaging-service.yaml
+# - collaboration-service.yaml
+# - media-service.yaml
+# - shop-service.yaml
+# - ai-service.yaml
+# - api-gateway.yaml
+# - frontend.yaml
+# - ingress.yaml
 ```
 
 ### Check Status

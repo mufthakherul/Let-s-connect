@@ -32,6 +32,12 @@ try {
 
 app.use(express.json());
 
+// Database connection
+const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/users', {
+  dialect: 'postgres',
+  logging: false
+});
+
 // Phase 4: Monitoring and health checks
 let healthChecker;
 try {
@@ -49,11 +55,6 @@ try {
   console.log('[Monitoring] Advanced monitoring disabled');
 }
 
-// Database connection
-const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/users', {
-  dialect: 'postgres',
-  logging: false
-});
 
 // User Model
 const User = sequelize.define('User', {

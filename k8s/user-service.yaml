@@ -65,7 +65,7 @@ spec:
             port: 8001
           initialDelaySeconds: 10
           periodSeconds: 5
-          timeoutSeconds: 3
+          timeoutSeconds: 5
           failureThreshold: 3
 ---
 apiVersion: v1

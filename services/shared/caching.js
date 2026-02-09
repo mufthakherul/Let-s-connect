@@ -176,8 +176,14 @@ const CachingStrategies = {
     // User profile cache (10 minutes)
     USER_PROFILE: { namespace: 'user:profile', ttl: 600 },
 
+    // User skills cache (10 minutes)
+    USER_SKILLS: { namespace: 'user:skills', ttl: 600 },
+
     // Post feed cache (2 minutes)
     POST_FEED: { namespace: 'post:feed', ttl: 120 },
+
+    // Post details cache (5 minutes)
+    POST_DETAILS: { namespace: 'post:detail', ttl: 300 },
 
     // User posts cache (5 minutes)
     USER_POSTS: { namespace: 'post:user', ttl: 300 },
@@ -191,11 +197,20 @@ const CachingStrategies = {
     // Product details cache (15 minutes)
     PRODUCT_DETAILS: { namespace: 'shop:product', ttl: 900 },
 
-    // Video listings cache (5 minutes)
-    VIDEOS: { namespace: 'videos', ttl: 300 },
+    // Product reviews cache (5 minutes)
+    PRODUCT_REVIEWS: { namespace: 'shop:reviews', ttl: 300 },
+
+    // Order details cache (5 minutes)
+    ORDER_DETAILS: { namespace: 'shop:order', ttl: 300 },
+
+    // Video listings cache (10 minutes)
+    VIDEO_LIST: { namespace: 'videos', ttl: 600 },
 
     // Wiki pages cache (30 minutes - less frequently changed)
-    WIKI_PAGES: { namespace: 'wiki:page', ttl: 1800 },
+    WIKI_PAGES: { namespace: 'wiki:pages', ttl: 1800 },
+
+    // Wiki page details cache (30 minutes)
+    WIKI_PAGE_DETAILS: { namespace: 'wiki:page', ttl: 1800 },
 
     // Document listings cache (5 minutes)
     DOCUMENTS: { namespace: 'documents', ttl: 300 },
