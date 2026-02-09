@@ -19,6 +19,8 @@ const imageOptimizer = new ImageOptimizer();
  * Works with buffer-based uploads (multer.memoryStorage)
  */
 async function processSingleImage(file, options = {}) {
+    const tempDir = path.join(os.tmpdir(), 'image-optimization', Date.now().toString());
+    
     try {
         const {
             generateSizes = true,
@@ -27,7 +29,6 @@ async function processSingleImage(file, options = {}) {
         } = options;
 
         // Create temp directory for processing
-        const tempDir = path.join(os.tmpdir(), 'image-optimization', Date.now().toString());
         await fs.mkdir(tempDir, { recursive: true });
 
         // Write buffer to temp file
@@ -74,6 +75,12 @@ async function processSingleImage(file, options = {}) {
         return results;
     } catch (error) {
         console.error('[ImageOptimization] Error processing image:', error);
+        // Clean up temp directory on error
+        try {
+            await fs.rm(tempDir, { recursive: true, force: true });
+        } catch (cleanupError) {
+            console.error('[ImageOptimization] Failed to cleanup temp directory:', cleanupError);
+        }
         throw error;
     }
 }
