@@ -22,6 +22,9 @@ import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/authStore';
 import NotificationCenter from './components/common/NotificationCenter';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import Breadcrumbs from './components/common/Breadcrumbs';
+import QuickAccessMenu from './components/common/QuickAccessMenu';
+import Onboarding from './components/common/Onboarding';
 
 // Eager load critical components (needed for initial render)
 import Home from './components/Home';
@@ -370,6 +373,7 @@ function App() {
           </Drawer>
 
           <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+            <Breadcrumbs />
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/" element={<Home />} />
@@ -467,7 +471,9 @@ function App() {
               </Routes>
             </Suspense>
           </Container>
-        </Router>
+            <QuickAccessMenu />
+            <Onboarding />
+          </Router>
         </ErrorBoundary>
       </ThemeProvider>
     </QueryClientProvider>
