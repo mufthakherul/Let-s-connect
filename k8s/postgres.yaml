@@ -64,6 +64,8 @@ spec:
             secretKeyRef:
               name: lets-connect-secrets
               key: DATABASE_PASSWORD
+        # POSTGRES_MULTIPLE_DATABASES is a custom variable used by init-databases.sh
+        # The init script reads this variable and creates all specified databases
         - name: POSTGRES_MULTIPLE_DATABASES
           value: "users,content,messages,collaboration,media,shop"
         - name: PGDATA
