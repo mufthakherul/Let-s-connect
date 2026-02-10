@@ -5,10 +5,11 @@ This guide provides detailed, step-by-step instructions for deploying the Let's 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Docker Compose Deployment (Development)](#docker-compose-deployment-development)
-3. [Kubernetes Deployment (Production)](#kubernetes-deployment-production)
-4. [Troubleshooting](#troubleshooting)
-5. [FAQ](#faq)
+2. [Installing Prerequisites](#installing-prerequisites)
+3. [Docker Compose Deployment (Development)](#docker-compose-deployment-development)
+4. [Kubernetes Deployment (Production)](#kubernetes-deployment-production)
+5. [Troubleshooting](#troubleshooting)
+6. [FAQ](#faq)
 
 ---
 
@@ -32,6 +33,516 @@ Let's Connect is a microservices-based social platform with the following archit
 - **Redis**: Caching and real-time features
 - **Elasticsearch**: Full-text search
 - **MinIO**: S3-compatible object storage
+
+---
+
+## Installing Prerequisites
+
+This section provides detailed instructions for installing all the tools you need to deploy Let's Connect. Choose the appropriate section based on your operating system.
+
+### 1. Installing Git
+
+Git is required for cloning the repository and version control.
+
+#### Linux (Ubuntu/Debian)
+
+```bash
+# Update package index
+sudo apt update
+
+# Install Git
+sudo apt install git -y
+
+# Verify installation
+git --version
+# Expected: git version 2.x.x or higher
+```
+
+#### Linux (CentOS/RHEL/Fedora)
+
+```bash
+# Install Git
+sudo dnf install git -y
+# or for older versions: sudo yum install git -y
+
+# Verify installation
+git --version
+```
+
+#### macOS
+
+```bash
+# Option 1: Install via Homebrew (recommended)
+# First install Homebrew if not already installed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install Git
+brew install git
+
+# Option 2: Install Xcode Command Line Tools (includes Git)
+xcode-select --install
+
+# Verify installation
+git --version
+```
+
+#### Windows
+
+1. **Download Git for Windows**: Visit https://git-scm.com/download/win
+2. **Run the installer** and follow the installation wizard
+3. **Use default settings** (recommended for beginners)
+4. **Verify installation**: Open Command Prompt or PowerShell and run:
+   ```bash
+   git --version
+   ```
+
+### 2. Installing Docker
+
+Docker is required for both Docker Compose (development) and Kubernetes (production) deployments.
+
+#### Linux (Ubuntu/Debian)
+
+```bash
+# Remove old versions
+sudo apt remove docker docker-engine docker.io containerd runc
+
+# Update package index
+sudo apt update
+
+# Install prerequisites
+sudo apt install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release
+
+# Add Docker's official GPG key
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+# Set up the repository
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker Engine
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Verify installation
+docker --version
+docker compose version
+
+# Add your user to the docker group (to run docker without sudo)
+sudo usermod -aG docker $USER
+
+# Log out and log back in for group changes to take effect
+# Or run: newgrp docker
+```
+
+#### Linux (CentOS/RHEL/Fedora)
+
+```bash
+# Remove old versions
+sudo dnf remove docker \
+    docker-client \
+    docker-client-latest \
+    docker-common \
+    docker-latest \
+    docker-latest-logrotate \
+    docker-logrotate \
+    docker-engine
+
+# Install Docker using the official repository
+sudo dnf install -y dnf-plugins-core
+sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+
+# Install Docker Engine
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Start and enable Docker
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Verify installation
+docker --version
+docker compose version
+
+# Add your user to the docker group
+sudo usermod -aG docker $USER
+```
+
+#### macOS
+
+```bash
+# Option 1: Install Docker Desktop (Recommended)
+# 1. Visit https://www.docker.com/products/docker-desktop
+# 2. Download Docker Desktop for Mac
+# 3. Install by dragging Docker to Applications folder
+# 4. Launch Docker Desktop from Applications
+# 5. Wait for Docker to start (whale icon in menu bar)
+
+# Option 2: Install via Homebrew
+brew install --cask docker
+
+# Verify installation
+docker --version
+docker compose version
+```
+
+**Note for macOS:** Docker Desktop for Mac includes Docker Engine, Docker CLI, Docker Compose, and Kubernetes.
+
+#### Windows
+
+**Option 1: Docker Desktop (Recommended)**
+
+1. **System Requirements:**
+   - Windows 10/11 Pro, Enterprise, or Education (64-bit)
+   - Enable Hyper-V and Containers Windows features
+   - OR use WSL 2 (Windows Subsystem for Linux)
+
+2. **Install WSL 2 (Recommended):**
+   ```powershell
+   # Run in PowerShell as Administrator
+   wsl --install
+   
+   # Restart your computer
+   
+   # Set WSL 2 as default
+   wsl --set-default-version 2
+   ```
+
+3. **Install Docker Desktop:**
+   - Download from: https://www.docker.com/products/docker-desktop
+   - Run the installer
+   - Choose "Use WSL 2 instead of Hyper-V" option
+   - Restart when prompted
+
+4. **Verify installation:**
+   ```powershell
+   docker --version
+   docker compose version
+   ```
+
+### 3. Installing Docker Compose (Standalone)
+
+**Note:** If you installed Docker Desktop or recent Docker Engine versions, Docker Compose is already included. Skip this section unless using an older Docker installation.
+
+#### Linux (Standalone Docker Compose)
+
+```bash
+# Download the latest version
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+
+# Make it executable
+sudo chmod +x /usr/local/bin/docker-compose
+
+# Create symbolic link (optional, for 'docker-compose' command)
+sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+
+# Verify installation
+docker-compose --version
+```
+
+### 4. Installing Kubernetes Tools
+
+Kubernetes tools are required for production deployments.
+
+#### Installing kubectl (Kubernetes CLI)
+
+**Linux:**
+
+```bash
+# Download the latest release
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+
+# Validate the binary (optional)
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+
+# Install kubectl
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+# Verify installation
+kubectl version --client
+```
+
+**macOS:**
+
+```bash
+# Using Homebrew
+brew install kubectl
+
+# Or using curl
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/amd64/kubectl"
+chmod +x ./kubectl
+sudo mv ./kubectl /usr/local/bin/kubectl
+
+# Verify installation
+kubectl version --client
+```
+
+**Windows:**
+
+```powershell
+# Using Chocolatey
+choco install kubernetes-cli
+
+# Or download directly from:
+# https://dl.k8s.io/release/v1.28.0/bin/windows/amd64/kubectl.exe
+# Add the binary to your PATH
+
+# Verify installation
+kubectl version --client
+```
+
+#### Installing Minikube (Local Kubernetes Cluster)
+
+Minikube is useful for testing Kubernetes deployments locally.
+
+**Linux:**
+
+```bash
+# Download and install
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+
+# Start minikube
+minikube start --driver=docker
+
+# Verify installation
+kubectl get nodes
+minikube status
+```
+
+**macOS:**
+
+```bash
+# Using Homebrew
+brew install minikube
+
+# Start minikube
+minikube start
+
+# Verify installation
+kubectl get nodes
+minikube status
+```
+
+**Windows:**
+
+```powershell
+# Using Chocolatey
+choco install minikube
+
+# Or download the installer from:
+# https://minikube.sigs.k8s.io/docs/start/
+
+# Start minikube (use PowerShell as Administrator)
+minikube start --driver=hyperv
+# Or with Docker Desktop:
+minikube start --driver=docker
+
+# Verify installation
+kubectl get nodes
+minikube status
+```
+
+#### Installing Helm (Optional but Recommended)
+
+Helm is a package manager for Kubernetes that simplifies deployments.
+
+**Linux:**
+
+```bash
+# Using script
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Verify installation
+helm version
+```
+
+**macOS:**
+
+```bash
+# Using Homebrew
+brew install helm
+
+# Verify installation
+helm version
+```
+
+**Windows:**
+
+```powershell
+# Using Chocolatey
+choco install kubernetes-helm
+
+# Verify installation
+helm version
+```
+
+### 5. Additional Useful Tools
+
+#### Installing Make (Optional)
+
+Make is useful for running build scripts.
+
+**Linux:**
+```bash
+# Ubuntu/Debian
+sudo apt install build-essential -y
+
+# CentOS/RHEL/Fedora
+sudo dnf groupinstall "Development Tools" -y
+```
+
+**macOS:**
+```bash
+# Included in Xcode Command Line Tools
+xcode-select --install
+```
+
+**Windows:**
+```powershell
+# Using Chocolatey
+choco install make
+```
+
+#### Installing curl and wget
+
+**Linux:**
+```bash
+# Ubuntu/Debian
+sudo apt install curl wget -y
+
+# CentOS/RHEL/Fedora
+sudo dnf install curl wget -y
+```
+
+**macOS:**
+```bash
+# Usually pre-installed, if not:
+brew install curl wget
+```
+
+**Windows:**
+```powershell
+# curl is included in Windows 10+
+# For wget:
+choco install wget
+```
+
+### 6. Post-Installation Verification
+
+After installing all prerequisites, verify everything is working:
+
+```bash
+# Check Git
+git --version
+# Expected: git version 2.x.x or higher
+
+# Check Docker
+docker --version
+# Expected: Docker version 20.10.x or higher
+
+# Check Docker Compose
+docker compose version
+# Expected: Docker Compose version v2.x.x or higher
+
+# Check Docker is running
+docker ps
+# Expected: Empty list or existing containers
+
+# Check kubectl (if installed)
+kubectl version --client
+# Expected: Client Version information
+
+# Check Helm (if installed)
+helm version
+# Expected: version.BuildInfo information
+```
+
+**Test Docker Installation:**
+
+```bash
+# Run a test container
+docker run hello-world
+
+# Expected output:
+# "Hello from Docker!"
+# "This message shows that your installation appears to be working correctly."
+```
+
+### System Requirements Summary
+
+For successful deployment, ensure your system meets these requirements:
+
+**For Docker Compose (Development):**
+- **RAM**: 8GB minimum (16GB recommended)
+- **CPU**: 4 cores minimum
+- **Disk Space**: 30GB free space
+- **OS**: Linux, macOS, or Windows with WSL2
+- **Docker**: Version 20.10 or higher
+- **Docker Compose**: Version 2.0 or higher
+
+**For Kubernetes (Production):**
+- **RAM**: 16GB minimum (32GB+ recommended)
+- **CPU**: 8 cores minimum
+- **Disk Space**: 100GB free space
+- **Kubernetes**: Version 1.20 or higher
+- **kubectl**: Latest stable version
+- **Container Registry Access**: Docker Hub, AWS ECR, GCR, or private registry
+
+### Troubleshooting Installation Issues
+
+#### Docker Permission Denied
+
+```bash
+# If you get "permission denied" errors:
+sudo usermod -aG docker $USER
+newgrp docker
+# Or log out and log back in
+```
+
+#### Docker Daemon Not Running
+
+```bash
+# Linux
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Check status
+sudo systemctl status docker
+```
+
+#### WSL 2 Issues (Windows)
+
+```powershell
+# Update WSL
+wsl --update
+
+# Check WSL version
+wsl --list --verbose
+
+# Convert distro to WSL 2 if needed
+wsl --set-version Ubuntu 2
+```
+
+#### kubectl Connection Issues
+
+```bash
+# Check cluster connection
+kubectl cluster-info
+
+# Check configuration
+kubectl config view
+
+# For minikube
+minikube status
+minikube start
+```
 
 ---
 
@@ -144,7 +655,19 @@ MINIO_ROOT_PASSWORD=minioadmin
 
 # ==================== ELASTICSEARCH ====================
 ELASTICSEARCH_URL=http://elasticsearch:9200
+
+# ==================== FRONTEND ====================
+# IMPORTANT: This is used at build time for the React app
+# Use localhost for local development so the browser can access the API
+REACT_APP_API_URL=http://localhost:8000
 ```
+
+**⚠️ Important Note about REACT_APP_API_URL:**
+- The frontend React app is built at Docker image build time
+- `REACT_APP_API_URL` must be accessible from your browser, not just from inside Docker
+- For local development, use `http://localhost:8000`
+- For production, use your public API URL (e.g., `https://api.yourdomain.com`)
+- If you change this value, you must rebuild the frontend: `docker compose build frontend`
 
 ### Step 3: Initialize Database Script
 
