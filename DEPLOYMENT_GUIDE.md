@@ -655,7 +655,19 @@ MINIO_ROOT_PASSWORD=minioadmin
 
 # ==================== ELASTICSEARCH ====================
 ELASTICSEARCH_URL=http://elasticsearch:9200
+
+# ==================== FRONTEND ====================
+# IMPORTANT: This is used at build time for the React app
+# Use localhost for local development so the browser can access the API
+REACT_APP_API_URL=http://localhost:8000
 ```
+
+**⚠️ Important Note about REACT_APP_API_URL:**
+- The frontend React app is built at Docker image build time
+- `REACT_APP_API_URL` must be accessible from your browser, not just from inside Docker
+- For local development, use `http://localhost:8000`
+- For production, use your public API URL (e.g., `https://api.yourdomain.com`)
+- If you change this value, you must rebuild the frontend: `docker compose build frontend`
 
 ### Step 3: Initialize Database Script
 
