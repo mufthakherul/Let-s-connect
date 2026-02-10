@@ -11,8 +11,9 @@ import {
 import { formatRelativeTime } from '../utils/helpers';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import { getApiBaseUrl } from '../utils/api';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = getApiBaseUrl();
 
 const Bookmarks = ({ user }) => {
   const [bookmarks, setBookmarks] = useState([]);

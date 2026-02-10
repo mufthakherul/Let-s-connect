@@ -892,6 +892,53 @@ const BlogComment = sequelize.define('BlogComment', {
   }
 });
 
+// NEW: Phase 5 - Blog Tag Model (replacing array-based tags)
+const BlogTag = sequelize.define('BlogTag', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  },
+  slug: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  },
+  description: DataTypes.TEXT,
+  color: {
+    type: DataTypes.STRING,
+    defaultValue: '#2196f3'
+  },
+  blogCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+});
+
+// NEW: Phase 5 - Blog-Tag Junction Table
+const BlogTagAssociation = sequelize.define('BlogTagAssociation', {
+  blogId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  tagId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['blogId', 'tagId']
+    }
+  ]
+});
+
 // Relationships
 Post.hasMany(Comment, { foreignKey: 'postId' });
 Comment.belongsTo(Post, { foreignKey: 'postId' });
@@ -927,6 +974,8 @@ Blog.hasMany(BlogComment, { foreignKey: 'blogId' });
 BlogComment.belongsTo(Blog, { foreignKey: 'blogId' });
 BlogComment.hasMany(BlogComment, { as: 'Replies', foreignKey: 'parentId' });
 BlogComment.belongsTo(BlogComment, { as: 'ParentComment', foreignKey: 'parentId' });
+Blog.belongsToMany(BlogTag, { through: BlogTagAssociation, foreignKey: 'blogId', as: 'blogTags' });
+BlogTag.belongsToMany(Blog, { through: BlogTagAssociation, foreignKey: 'tagId' });
 
 sequelize.sync().then(async () => {
   // Initialize default awards if they don't exist
@@ -3220,7 +3269,7 @@ app.post('/blogs', async (req, res) => {
       excerpt,
       featuredImage,
       category,
-      tags,
+      tags, // Now expects array of tag names or IDs
       status,
       metaTitle,
       metaDescription,
@@ -3255,7 +3304,7 @@ app.post('/blogs', async (req, res) => {
       excerpt: excerpt || (content && content.substring(0, 200)) || '',
       featuredImage,
       category,
-      tags: tags || [],
+      tags: tags || [], // Keep for backward compatibility
       readingTime,
       status: status || 'draft',
       publishedAt: status === 'published' ? new Date() : null,
@@ -3264,7 +3313,52 @@ app.post('/blogs', async (req, res) => {
       metaKeywords: metaKeywords || tags || []
     });
 
-    res.status(201).json(blog);
+    // Handle new tag model (Phase 5)
+    if (tags && Array.isArray(tags) && tags.length > 0) {
+      for (const tagNameOrId of tags) {
+        let tag;
+        
+        // Check if it's a UUID (existing tag ID)
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tagNameOrId);
+        
+        if (isUUID) {
+          tag = await BlogTag.findByPk(tagNameOrId);
+        } else {
+          // It's a tag name - find or create
+          const tagSlug = tagNameOrId.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          tag = await BlogTag.findOne({ where: { slug: tagSlug } });
+          
+          if (!tag) {
+            tag = await BlogTag.create({
+              name: tagNameOrId,
+              slug: tagSlug,
+              blogCount: 0
+            });
+          }
+        }
+        
+        if (tag) {
+          await BlogTagAssociation.create({
+            blogId: blog.id,
+            tagId: tag.id
+          });
+          await tag.increment('blogCount');
+        }
+      }
+    }
+
+    // Fetch blog with tags
+    const blogWithTags = await Blog.findByPk(blog.id, {
+      include: [
+        {
+          model: BlogTag,
+          as: 'blogTags',
+          attributes: ['id', 'name', 'slug', 'color']
+        }
+      ]
+    });
+
+    res.status(201).json(blogWithTags);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to create blog post' });
@@ -3292,7 +3386,14 @@ app.get('/blogs/public', async (req, res) => {
       order: [['publishedAt', 'DESC']],
       limit: parseInt(limit),
       offset: parseInt(offset),
-      attributes: { exclude: ['content'] } // Don't return full content in list
+      attributes: { exclude: ['content'] }, // Don't return full content in list
+      include: [
+        {
+          model: BlogTag,
+          as: 'blogTags',
+          attributes: ['id', 'name', 'slug', 'color']
+        }
+      ]
     });
 
     res.json(blogs);
@@ -3308,6 +3409,11 @@ app.get('/blogs/public/:slug', async (req, res) => {
     const blog = await Blog.findOne({
       where: { slug: req.params.slug, status: 'published' },
       include: [
+        {
+          model: BlogTag,
+          as: 'blogTags',
+          attributes: ['id', 'name', 'slug', 'color']
+        },
         {
           model: BlogComment,
           where: { isApproved: true },
@@ -3428,7 +3534,7 @@ app.put('/blogs/:id', async (req, res) => {
     if (excerpt !== undefined) blog.excerpt = excerpt;
     if (featuredImage !== undefined) blog.featuredImage = featuredImage;
     if (category !== undefined) blog.category = category;
-    if (tags !== undefined) blog.tags = tags;
+    if (tags !== undefined) blog.tags = tags; // Keep for backward compatibility
     if (metaTitle !== undefined) blog.metaTitle = metaTitle;
     if (metaDescription !== undefined) blog.metaDescription = metaDescription;
     if (metaKeywords !== undefined) blog.metaKeywords = metaKeywords;
@@ -3442,7 +3548,66 @@ app.put('/blogs/:id', async (req, res) => {
     }
 
     await blog.save();
-    res.json(blog);
+
+    // Handle tag updates (Phase 5)
+    if (tags !== undefined && Array.isArray(tags)) {
+      // Remove all existing tag associations
+      const existingAssociations = await BlogTagAssociation.findAll({
+        where: { blogId: blog.id }
+      });
+      
+      for (const assoc of existingAssociations) {
+        const tag = await BlogTag.findByPk(assoc.tagId);
+        if (tag) {
+          await tag.decrement('blogCount');
+        }
+      }
+      
+      await BlogTagAssociation.destroy({ where: { blogId: blog.id } });
+
+      // Add new tag associations
+      for (const tagNameOrId of tags) {
+        let tag;
+        
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tagNameOrId);
+        
+        if (isUUID) {
+          tag = await BlogTag.findByPk(tagNameOrId);
+        } else {
+          const tagSlug = tagNameOrId.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          tag = await BlogTag.findOne({ where: { slug: tagSlug } });
+          
+          if (!tag) {
+            tag = await BlogTag.create({
+              name: tagNameOrId,
+              slug: tagSlug,
+              blogCount: 0
+            });
+          }
+        }
+        
+        if (tag) {
+          await BlogTagAssociation.create({
+            blogId: blog.id,
+            tagId: tag.id
+          });
+          await tag.increment('blogCount');
+        }
+      }
+    }
+
+    // Fetch blog with tags
+    const blogWithTags = await Blog.findByPk(blog.id, {
+      include: [
+        {
+          model: BlogTag,
+          as: 'blogTags',
+          attributes: ['id', 'name', 'slug', 'color']
+        }
+      ]
+    });
+
+    res.json(blogWithTags);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to update blog post' });
@@ -3467,6 +3632,18 @@ app.delete('/blogs/:id', async (req, res) => {
     // Verify ownership
     if (blog.userId !== userId) {
       return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Decrement tag counts (Phase 5)
+    const tagAssociations = await BlogTagAssociation.findAll({
+      where: { blogId: blog.id }
+    });
+    
+    for (const assoc of tagAssociations) {
+      const tag = await BlogTag.findByPk(assoc.tagId);
+      if (tag) {
+        await tag.decrement('blogCount');
+      }
     }
 
     await blog.destroy();
@@ -3605,6 +3782,166 @@ app.post('/blogs/categories', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to create category' });
+  }
+});
+
+// ==================== PHASE 5: BLOG TAG MANAGEMENT APIs ====================
+
+// Get all blog tags
+app.get('/blogs/tags', async (req, res) => {
+  try {
+    const { sort = 'name', limit = 50 } = req.query;
+    
+    const orderBy = sort === 'popular' ? [['blogCount', 'DESC']] : [['name', 'ASC']];
+    
+    const tags = await BlogTag.findAll({
+      order: orderBy,
+      limit: parseInt(limit)
+    });
+    
+    res.json(tags);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch tags' });
+  }
+});
+
+// Get popular/trending blog tags
+app.get('/blogs/tags/trending', async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    
+    const tags = await BlogTag.findAll({
+      where: {
+        blogCount: { [Op.gt]: 0 }
+      },
+      order: [['blogCount', 'DESC']],
+      limit: parseInt(limit)
+    });
+    
+    res.json(tags);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch trending tags' });
+  }
+});
+
+// Create a new blog tag (admin/moderator only)
+app.post('/blogs/tags', async (req, res) => {
+  try {
+    const { name, description, color } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ error: 'Tag name is required' });
+    }
+    
+    // Generate slug
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    
+    // Check if already exists
+    const existing = await BlogTag.findOne({ where: { slug } });
+    if (existing) {
+      return res.status(400).json({ error: 'Tag already exists' });
+    }
+    
+    const tag = await BlogTag.create({
+      name,
+      slug,
+      description,
+      color: color || '#2196f3'
+    });
+    
+    res.status(201).json(tag);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create tag' });
+  }
+});
+
+// Get blogs by tag
+app.get('/blogs/tags/:tagSlug/blogs', async (req, res) => {
+  try {
+    const { tagSlug } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+    
+    const tag = await BlogTag.findOne({ where: { slug: tagSlug } });
+    
+    if (!tag) {
+      return res.status(404).json({ error: 'Tag not found' });
+    }
+    
+    const blogs = await tag.getBlogs({
+      where: { status: 'published' },
+      order: [['publishedAt', 'DESC']],
+      limit: parseInt(limit),
+      offset,
+      include: [
+        {
+          model: BlogTag,
+          as: 'blogTags',
+          attributes: ['id', 'name', 'slug', 'color']
+        }
+      ]
+    });
+    
+    res.json({
+      tag,
+      blogs,
+      total: tag.blogCount
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch blogs by tag' });
+  }
+});
+
+// Update a blog tag (admin/moderator only)
+app.put('/blogs/tags/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, color } = req.body;
+    
+    const tag = await BlogTag.findByPk(id);
+    if (!tag) {
+      return res.status(404).json({ error: 'Tag not found' });
+    }
+    
+    if (name) {
+      tag.name = name;
+      tag.slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    }
+    if (description !== undefined) tag.description = description;
+    if (color !== undefined) tag.color = color;
+    
+    await tag.save();
+    
+    res.json(tag);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update tag' });
+  }
+});
+
+// Delete a blog tag (admin/moderator only)
+app.delete('/blogs/tags/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const tag = await BlogTag.findByPk(id);
+    if (!tag) {
+      return res.status(404).json({ error: 'Tag not found' });
+    }
+    
+    // Remove all associations
+    await BlogTagAssociation.destroy({ where: { tagId: id } });
+    
+    await tag.destroy();
+    
+    res.json({ message: 'Tag deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete tag' });
   }
 });
 

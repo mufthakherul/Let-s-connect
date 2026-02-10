@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import { getApiUrl } from '../utils/api';
 
 const EmailPreferences = () => {
     const [preferences, setPreferences] = useState({
@@ -49,7 +50,7 @@ const EmailPreferences = () => {
         setLoading(true);
         try {
             const userId = localStorage.getItem('userId');
-            const response = await fetch(`http://localhost:8000/user/email-preferences/${userId}`, {
+            const response = await fetch(getApiUrl(`/user/email-preferences/${userId}`), {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -81,7 +82,7 @@ const EmailPreferences = () => {
         setTestLoading(true);
         try {
             const userId = localStorage.getItem('userId');
-            const response = await fetch(`http://localhost:8000/notifications/${userId}/email`, {
+            const response = await fetch(getApiUrl(`/notifications/${userId}/email`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -90,7 +91,7 @@ const EmailPreferences = () => {
                 body: JSON.stringify({
                     title: 'Test Email from Let\'s Connect',
                     message: 'This is a test email to verify your email preferences are working correctly.',
-                    actionUrl: 'https://letconnect.local/dashboard'
+                    actionUrl: window.location.origin + '/dashboard'
                 })
             });
 

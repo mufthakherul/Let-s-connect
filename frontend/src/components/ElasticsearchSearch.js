@@ -23,6 +23,7 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import HistoryIcon from '@mui/icons-material/History';
+import { getApiUrl } from '../utils/api';
 
 const ElasticsearchSearch = () => {
     const [query, setQuery] = useState('');
@@ -57,7 +58,7 @@ const ElasticsearchSearch = () => {
     const fetchTrending = async () => {
         try {
             const response = await fetch(
-                'http://localhost:8000/search/trending?type=posts&days=7&limit=10',
+                getApiUrl('/search/trending?type=posts&days=7&limit=10'),
                 {
                     headers: { 'x-user-id': localStorage.getItem('userId') }
                 }
@@ -74,7 +75,7 @@ const ElasticsearchSearch = () => {
     const fetchSuggestions = async () => {
         try {
             const response = await fetch(
-                `http://localhost:8000/search/suggest?query=${encodeURIComponent(query)}&type=${searchType}&limit=8`,
+                getApiUrl(`/search/suggest?query=${encodeURIComponent(query)}&type=${searchType}&limit=8`),
                 {
                     headers: { 'x-user-id': localStorage.getItem('userId') }
                 }
@@ -91,7 +92,7 @@ const ElasticsearchSearch = () => {
     const fetchAnalytics = async () => {
         try {
             const response = await fetch(
-                'http://localhost:8000/search/analytics?type=posts&days=30',
+                getApiUrl('/search/analytics?type=posts&days=30'),
                 {
                     headers: { 'x-user-id': localStorage.getItem('userId') }
                 }
@@ -111,7 +112,7 @@ const ElasticsearchSearch = () => {
 
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:8000/search/elasticsearch', {
+            const response = await fetch(getApiUrl('/search/elasticsearch'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

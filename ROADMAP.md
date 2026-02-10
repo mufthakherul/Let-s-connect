@@ -28,12 +28,15 @@ This roadmap outlines the future development phases of Let's Connect platform, f
 
 **Objective:** Enhance user interface, improve user experience, and polish existing features
 
+**Status:** 🟢 In Progress (Started February 10, 2026)
+
 ### 5.1 User Interface Refinement
-- [ ] **Dark Mode Enhancement**
-  - Improve color contrast ratios for accessibility
-  - Add theme customization options (accent colors)
-  - Support system theme preference detection
-  - Smooth theme transition animations
+- [x] **Dark Mode Enhancement** ✅ *Completed Feb 10, 2026*
+  - ✅ Improved color contrast ratios for accessibility
+  - ✅ Added theme customization options (6 accent color presets per theme)
+  - ✅ Implemented system theme preference detection with auto-switching
+  - ✅ Added smooth theme transition animations (0.3s ease-in-out)
+  - ✅ Created ThemeSettings component at /settings/theme
 
 - [ ] **Responsive Design Improvements**
   - Optimize mobile layouts for all components
@@ -41,11 +44,11 @@ This roadmap outlines the future development phases of Let's Connect platform, f
   - Touch-friendly interface elements
   - Mobile gesture support (swipe, pull-to-refresh)
 
-- [ ] **Component Library Expansion**
-  - Create consistent loading skeletons
-  - Standardize error boundaries and fallback UIs
-  - Implement toast notification system
-  - Add empty state illustrations
+- [x] **Component Library Expansion** ✅ *Completed Feb 10, 2026*
+  - ✅ Created consistent loading skeletons (8 variants: card, list, avatar, table, profile, grid, feed, default)
+  - ✅ Standardized error boundaries (page and component-level fallbacks)
+  - ✅ Implemented toast notification system (4 types: success, error, warning, info)
+  - ✅ Added empty state illustrations (10+ specialized components)
 
 - [ ] **Animation & Microinteractions**
   - Page transition animations
@@ -98,15 +101,20 @@ This roadmap outlines the future development phases of Let's Connect platform, f
   - Role hierarchy visualization
   - Channel permission overrides UI
 
-- [ ] **Blog System Improvements**
-  - Implement Tag model (replace array-based tags)
-  - Tag management interface
-  - Tag-based content discovery
+- [x] **Blog System Improvements** ✅ *Completed Feb 10, 2026*
+  - ✅ Implemented BlogTag model (replaced array-based tags)
+  - ✅ Created BlogTagAssociation junction table
+  - ✅ Added tag management API endpoints (GET, POST, PUT, DELETE /blogs/tags)
+  - ✅ Implemented tag-based blog filtering (GET /blogs/tags/:tagSlug/blogs)
+  - ✅ Added trending tags endpoint (GET /blogs/tags/trending)
+  - ✅ Updated blog create/update/delete to manage tag associations
+  - ✅ Tag counts automatically maintained
 
-- [ ] **Configuration Management**
-  - Remove hardcoded URLs from MediaGallery
-  - Remove hardcoded URLs from WebRTCCallWidget
-  - Centralize all API endpoints
+- [x] **Configuration Management** ✅ *Completed Feb 10, 2026*
+  - ✅ Centralized API URL configuration with getApiUrl() and getApiBaseUrl() helpers
+  - ✅ Removed all hardcoded URLs from components (7 components updated)
+  - ✅ All API calls now use centralized configuration
+  - ✅ MediaGallery and WebRTCCallWidget already used proper configuration
 
 ---
 
@@ -488,16 +496,23 @@ This roadmap outlines the future development phases of Let's Connect platform, f
 ### Immediate Actions (Next 30 Days)
 1. ✅ Archive v1.0-v2.5 roadmap
 2. ✅ Create v3.0+ roadmap
-3. [ ] Conduct user survey for Phase 5 priorities
-4. [ ] Assemble Phase 5 team
-5. [ ] Create detailed Phase 5 implementation plan
+3. ✅ Begin Phase 5 development (UI/UX Polish) - *Started Feb 10, 2026*
+4. ✅ Implement dark mode enhancements - *Completed Feb 10, 2026*
+5. ✅ Implement blog tag system - *Completed Feb 10, 2026*
+6. ✅ Centralize API configuration - *Completed Feb 10, 2026*
+7. [ ] Conduct user survey for Phase 5 priorities
+8. [ ] Complete accessibility audit
 
 ### Short-term Goals (Next 90 Days)
-1. [ ] Begin Phase 5 development (UI/UX Polish)
-2. [ ] Complete accessibility audit
-3. [ ] Implement dark mode enhancements
-4. [ ] Improve mobile responsive layouts
-5. [ ] Create onboarding experience
+1. 🟢 Phase 5 development (UI/UX Polish) - *In Progress*
+2. ✅ Dark mode enhancements - *Completed*
+3. ✅ Component library expansion - *Completed*
+4. ✅ Blog system improvements - *Completed*
+5. [ ] Improve mobile responsive layouts
+6. [ ] Implement responsive design improvements
+7. [ ] Add animation & microinteractions
+8. [ ] Create onboarding experience
+9. [ ] Complete Phase 5.4 minor feature completions
 
 ### Long-term Vision (1-2 Years)
 1. Establish Let's Connect as a leading self-hosted platform
