@@ -410,6 +410,7 @@ function DiscordAdmin({ user }) {
 
   const openRoleEditDialog = (role) => {
     setRoleForm({
+      id: role.id,
       name: role.name || '',
       color: role.color || '#3498db',
       position: role.position || 0,

@@ -1582,9 +1582,11 @@ app.delete('/folders/:folderId', async (req, res) => {
 
     if (subfolders > 0 || documents > 0) {
       return res.status(400).json({ 
-        error: 'Folder must be empty before deletion',
+        error: 'Cannot delete folder: folder must be empty before deletion',
+        details: `This folder contains ${subfolders} subfolder(s) and ${documents} document(s)`,
         subfolders,
-        documents
+        documents,
+        suggestion: 'Please remove all contents before deleting this folder'
       });
     }
 
