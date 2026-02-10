@@ -1,5 +1,11 @@
 # Deployment Guide
 
+> **📖 For a comprehensive, step-by-step deployment guide covering both Docker Compose and Kubernetes, see [DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md) in the repository root.**
+
+This document provides a quick reference for deployment. For detailed instructions, troubleshooting, and production best practices, refer to the comprehensive guide.
+
+---
+
 ## Self-Hosted Deployment with Docker
 
 ### Prerequisites
