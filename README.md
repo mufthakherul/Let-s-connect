@@ -139,16 +139,19 @@ docker-compose up --build
 - **[Features Overview](./FEATURES.md)** - Complete feature checklist
 - **[Development Roadmap](./ROADMAP.md)** - Future plans and progress
 
+### Deployment
+- **[📖 Comprehensive Deployment Guide](./DEPLOYMENT_GUIDE.md)** - **Complete step-by-step guide for Docker Compose & Kubernetes**
+- **[Deployment Quick Reference](./docs/DEPLOYMENT.md)** - Quick deployment reference
+- **[Kubernetes Setup](./k8s/README.md)** - Kubernetes manifests and configuration
+- **[Render Deployment](./docs/RENDER_DEPLOYMENT.md)** - Deploy to Render.com
+
 ### Technical Documentation
 - **[Full Documentation Index](./docs/README.md)** - Complete documentation index
 - **[Architecture Guide](./docs/ARCHITECTURE.md)** - System design and microservices
 - **[API Reference](./docs/API.md)** - Complete REST API documentation
-- **[Deployment Guide](./docs/DEPLOYMENT.md)** - Production deployment instructions
 
 ### Configuration & Setup
 - **[OAuth & Email Setup](./docs/OAUTH_MAILGUN_SETUP.md)** - Configure OAuth and Mailgun
-- **[Render Deployment](./docs/RENDER_DEPLOYMENT.md)** - Deploy to Render.com
-- **[Kubernetes Setup](./k8s/README.md)** - Kubernetes deployment
 
 ### Development Resources
 - **[Testing Guide](./TESTING.md)** - Testing strategies and guidelines
@@ -157,14 +160,36 @@ docker-compose up --build
 
 ## 🚀 Deployment
 
-The platform is designed for **self-hosted deployment** with Docker:
+The platform is designed for **self-hosted deployment** with Docker Compose for development and Kubernetes for production:
 
+### Development (Docker Compose)
 ```bash
-# Production deployment
-docker-compose -f docker-compose.yml up -d
+# Start all services
+docker-compose up --build
+
+# Access at http://localhost:3000
 ```
 
-For detailed deployment instructions, see [DEPLOYMENT.md](./docs/DEPLOYMENT.md)
+### Production (Kubernetes)
+```bash
+# Deploy to Kubernetes cluster
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/secrets.yaml
+kubectl apply -f k8s/
+```
+
+### 📖 Complete Deployment Guide
+
+For detailed step-by-step instructions covering:
+- ✅ Docker Compose setup and configuration
+- ✅ Kubernetes cluster deployment
+- ✅ Database and infrastructure setup
+- ✅ SSL/TLS certificate configuration
+- ✅ Monitoring and scaling
+- ✅ Production best practices
+- ✅ Troubleshooting
+
+**See: [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)**
 
 ## 🤝 Contributing
 
