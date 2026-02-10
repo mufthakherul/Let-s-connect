@@ -1,36 +1,49 @@
-# Environment variables
-.env
-.env.local
-.env.production
+# Render Deployment - Ignore documentation files
 
-# Dependencies
-node_modules/
-__pycache__/
-*.pyc
-venv/
-env/
+# Documentation
+*.md
+!README.md
+docs/
+archives/
 
-# Build outputs
-dist/
-build/
-*.log
+# Development files
+.git/
+.github/
+.vscode/
+.devcontainer/
+
+# Docker files (not needed for Render Node.js deployment)
+docker-compose.yml
+Dockerfile
+**/Dockerfile
+
+# Testing
+tests/
+*.test.js
+*.spec.js
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml
+azure-pipelines.yml
 
 # IDE
-.vscode/
 .idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+
+# Temporary files
+tmp/
+temp/
+*.log
 *.swp
 *.swo
 
-# OS
-.DS_Store
-Thumbs.db
+# Large files
+*.zip
+*.tar.gz
+*.rar
 
-# Data
-data/
-*.db
-*.sqlite
-
-# Secrets
-secrets/
-*.pem
-*.key
+# Scripts (unless needed)
+scripts/
