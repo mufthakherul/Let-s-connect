@@ -2,7 +2,7 @@
 
 # Documentation
 *.md
-!README.md
+# !README.md
 docs/
 archives/
 
