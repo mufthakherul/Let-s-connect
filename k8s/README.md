@@ -12,48 +12,93 @@ This directory contains Kubernetes deployment manifests for all services.
 
 ### Deploy Services
 
-**Note**: This repository currently includes example manifests. Additional manifests for all services need to be created based on the user-service.yaml template.
-
 **Available manifests**:
-- `namespace.yaml` - Namespace configuration
-- `configmap.yaml` - Environment variables  
-- `user-service.yaml` - Complete example (Deployment + Service + HPA)
-- `ingress.yaml` - Load balancing and routing (Phase 4) ✅
-- `prometheus.yaml` - Monitoring and metrics collection (Phase 4) ✅
-- `grafana.yaml` - Metrics visualization and dashboards (Phase 4) ✅
+
+**Core Configuration:**
+- `namespace.yaml` - Namespace and RBAC configuration
+- `configmap.yaml` - Environment variables for all services
+- `secrets.example.yaml` - Template for secrets (copy and customize)
+
+**Infrastructure Services:**
+- `postgres.yaml` - PostgreSQL database with init scripts
+- `redis.yaml` - Redis cache with persistence
+- `elasticsearch.yaml` - Elasticsearch for full-text search
+- `minio.yaml` - MinIO S3-compatible object storage with auto-setup
+
+**Application Services:**
+- `api-gateway.yaml` - API Gateway (main entry point)
+- `user-service.yaml` - User service (auth, profiles, pages)
+- `content-service.yaml` - Content service (posts, feeds, videos)
+- `messaging-service.yaml` - Messaging service (chat, WebRTC)
+- `collaboration-service.yaml` - Collaboration service (docs, wikis)
+- `media-service.yaml` - Media service (files, images)
+- `shop-service.yaml` - Shop service (e-commerce)
+- `ai-service.yaml` - AI service (assistant)
+- `frontend.yaml` - React frontend application
+
+**Networking & Monitoring (Phase 4):**
+- `ingress.yaml` - Load balancing and routing ✅
+- `prometheus.yaml` - Monitoring and metrics collection ✅
+- `grafana.yaml` - Metrics visualization and dashboards ✅
 
 **To deploy the platform**:
 
 ```bash
-# Create namespace
-kubectl create namespace lets-connect
-
-# Apply namespace and config
+# 1. Create namespace
 kubectl apply -f k8s/namespace.yaml
+
+# 2. Configure secrets (IMPORTANT!)
+cp k8s/secrets.example.yaml k8s/secrets.yaml
+# Edit secrets.yaml with your actual values
+nano k8s/secrets.yaml
+kubectl apply -f k8s/secrets.yaml
+
+# 3. Apply configuration
 kubectl apply -f k8s/configmap.yaml
 
-# NOTE: Database dependencies (postgres, redis, minio) need to be deployed separately
-# Use external managed services or create manifests based on your infrastructure
+# 4. Deploy infrastructure services
+kubectl apply -f k8s/postgres.yaml
+kubectl apply -f k8s/redis.yaml
+kubectl apply -f k8s/elasticsearch.yaml
+kubectl apply -f k8s/minio.yaml
 
-# Deploy user-service (example)
+# Wait for infrastructure to be ready
+kubectl wait --for=condition=ready pod -l tier=database -n lets-connect --timeout=300s
+kubectl wait --for=condition=ready pod -l tier=cache -n lets-connect --timeout=120s
+kubectl wait --for=condition=ready pod -l tier=search -n lets-connect --timeout=300s
+kubectl wait --for=condition=ready pod -l tier=storage -n lets-connect --timeout=120s
+
+# 5. Deploy backend microservices
 kubectl apply -f k8s/user-service.yaml
+kubectl apply -f k8s/content-service.yaml
+kubectl apply -f k8s/messaging-service.yaml
+kubectl apply -f k8s/collaboration-service.yaml
+kubectl apply -f k8s/media-service.yaml
+kubectl apply -f k8s/shop-service.yaml
+kubectl apply -f k8s/ai-service.yaml
 
-# TODO: Create additional service manifests for:
-# - content-service.yaml
-# - messaging-service.yaml
-# - collaboration-service.yaml
-# - media-service.yaml
-# - shop-service.yaml
-# - ai-service.yaml
-# - api-gateway.yaml
-# - frontend.yaml
+# Wait for services to be ready
+kubectl wait --for=condition=ready pod -l tier=backend -n lets-connect --timeout=300s
 
-# Deploy Load Balancing (Phase 4)
+# 6. Deploy API Gateway and Frontend
+kubectl apply -f k8s/api-gateway.yaml
+kubectl apply -f k8s/frontend.yaml
+
+# Wait for gateway and frontend
+kubectl wait --for=condition=ready pod -l tier=gateway -n lets-connect --timeout=120s
+kubectl wait --for=condition=ready pod -l tier=frontend -n lets-connect --timeout=120s
+
+# 7. Deploy Load Balancing (Phase 4)
 kubectl apply -f k8s/ingress.yaml
 
-# Deploy Monitoring Stack (Phase 4)
+# 8. Deploy Monitoring Stack (Phase 4)
 kubectl apply -f k8s/prometheus.yaml
 kubectl apply -f k8s/grafana.yaml
+
+# 9. Verify all components
+kubectl get pods -n lets-connect
+kubectl get svc -n lets-connect
+kubectl get ingress -n lets-connect
 ```
 
 ### Access Monitoring
