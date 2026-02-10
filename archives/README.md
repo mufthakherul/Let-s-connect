@@ -13,6 +13,7 @@ Historical audit and assessment reports:
 
 ### 🚀 phase-reports/
 Phase completion reports and summaries:
+- **ROADMAP_V1.0-V2.5.md** - Complete archived roadmap from initial development through Phase 4 (February 2026)
 - Phase 1-4 implementation reports
 - Phase completion summaries
 - Phase comparison reports
