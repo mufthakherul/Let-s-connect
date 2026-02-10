@@ -134,14 +134,26 @@ docker-compose up --build
 
 ## 📚 Documentation
 
-- [Application Screenshots](./SCREENSHOTS.md) - **NEW** Visual guide with screenshots of all pages
-- [Full Documentation](./docs/README.md)
-- [API Reference](./docs/API.md)
-- [New Platform Features API](./docs/API_NEW_FEATURES.md)
-- [Quick Reference Guide](./docs/QUICK_REFERENCE.md)
-- [Development Roadmap](./ROADMAP.md)
-- [Platform Features Mapping](./PLATFORM_FEATURES.md)
-- [Deployment Guide](./docs/DEPLOYMENT.md)
+### Getting Started
+- **[Quick Start Guide](./QUICK_START.md)** - Get running in 5 minutes
+- **[Features Overview](./FEATURES.md)** - Complete feature checklist
+- **[Development Roadmap](./ROADMAP.md)** - Future plans and progress
+
+### Technical Documentation
+- **[Full Documentation Index](./docs/README.md)** - Complete documentation index
+- **[Architecture Guide](./docs/ARCHITECTURE.md)** - System design and microservices
+- **[API Reference](./docs/API.md)** - Complete REST API documentation
+- **[Deployment Guide](./docs/DEPLOYMENT.md)** - Production deployment instructions
+
+### Configuration & Setup
+- **[OAuth & Email Setup](./docs/OAUTH_MAILGUN_SETUP.md)** - Configure OAuth and Mailgun
+- **[Render Deployment](./docs/RENDER_DEPLOYMENT.md)** - Deploy to Render.com
+- **[Kubernetes Setup](./k8s/README.md)** - Kubernetes deployment
+
+### Development Resources
+- **[Testing Guide](./TESTING.md)** - Testing strategies and guidelines
+- **[Security Notes](./SECURITY_NOTES.md)** - Security best practices
+- **[Changelog](./CHANGELOG.md)** - Version history
 
 ## 🚀 Deployment
 
