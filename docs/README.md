@@ -1,90 +1,122 @@
-# Let's Connect - Unified Social Collaboration Platform
+# Documentation Index
 
-## Overview
+Welcome to the Let's Connect documentation. This directory contains comprehensive technical documentation for developers, operators, and contributors.
 
-Let's Connect is a unified social collaboration platform that combines the best features of Facebook, X (Twitter), YouTube, WhatsApp, Telegram, Discord, and Notion into one comprehensive application.
+## 📚 Documentation Overview
 
-## Features
+### Getting Started
+- **[Quick Start Guide](../QUICK_START.md)** - Get up and running in 5 minutes
+- **[Features Overview](../FEATURES.md)** - Complete feature checklist
+- **[README](../README.md)** - Project overview and introduction
 
-### Public Access (No Signup Required)
-- **Video Watching**: Browse and watch public videos
-- **Documentation**: Read public docs and wiki pages
-- **Shop Browsing**: Browse products and view details
+### Architecture & Design
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and microservices design
+- **[API.md](API.md)** - Complete REST API reference for all services
+- **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)** - Current implementation status
 
-### Private Access (Authentication Required)
-- **Social Feed**: Create and view posts, images, and updates
-- **Real-time Messaging**: Chat with individuals and groups
-- **Voice/Video Calls**: Conduct voice and video calls (WebRTC support)
-- **Collaboration**: Create and edit documents, wikis, and manage tasks
-- **File Sharing**: Upload and share files with others
-- **Orders**: Purchase products and track orders
-- **AI Assistant**: Get help from AI-powered features
+### Deployment & Operations
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Deployment guide and infrastructure setup
+- **[RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md)** - Render.com deployment instructions
+- **[Kubernetes Setup](../k8s/README.md)** - Kubernetes deployment configuration
 
-## Architecture
+### Configuration & Setup
+- **[OAUTH_MAILGUN_SETUP.md](OAUTH_MAILGUN_SETUP.md)** - OAuth and Mailgun email configuration
+- **[ELASTICSEARCH_IMPLEMENTATION.md](ELASTICSEARCH_IMPLEMENTATION.md)** - Elasticsearch setup for search functionality
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Quick reference for common tasks
 
-### Microservices
+### Development
+- **[TESTING.md](../TESTING.md)** - Testing strategy and guidelines
+- **[SECURITY_NOTES.md](../SECURITY_NOTES.md)** - Security best practices and guidelines
+- **[CHANGELOG.md](../CHANGELOG.md)** - Version history and changes
+- **[ROADMAP.md](../ROADMAP.md)** - Future development plans
 
-The platform is built using a modular microservices architecture:
+## 🏗️ System Architecture
 
-1. **API Gateway** (Port 8000) - Routes requests, JWT auth, rate limiting
-2. **User Service** (Port 8001) - Authentication and profile management
-3. **Content Service** (Port 8002) - Posts, feeds, and videos
-4. **Messaging Service** (Port 8003) - Real-time chat with WebSocket
-5. **Collaboration Service** (Port 8004) - Documents, wikis, and tasks
-6. **Media Service** (Port 8005) - File uploads and S3 storage
-7. **Shop Service** (Port 8006) - Products and orders
-8. **AI Service** (Port 8007) - AI-powered features
+Let's Connect is built using a microservices architecture with 8 independent services:
 
-### Technology Stack
+| Service | Port | Purpose |
+|---------|------|---------|
+| API Gateway | 8000 | Request routing, authentication, rate limiting |
+| User Service | 8001 | User management, profiles, authentication |
+| Content Service | 8002 | Posts, feeds, videos, comments |
+| Messaging Service | 8003 | Real-time chat, WebRTC calls, notifications |
+| Collaboration Service | 8004 | Documents, wikis, tasks, folders |
+| Media Service | 8005 | File uploads, image optimization, S3 storage |
+| Shop Service | 8006 | Products, orders, inventory |
+| AI Service | 8007 | AI-powered features, content moderation |
 
-**Backend:** Node.js, Express, PostgreSQL, Redis, MinIO, Socket.IO
-**Frontend:** React 18, Material-UI, React Router, Axios
-**Infrastructure:** Docker, Docker Compose, Nginx
+## 🚀 Quick Links
 
-## Getting Started
+### For Developers
+- Start with [QUICK_START.md](../QUICK_START.md) for local setup
+- Review [ARCHITECTURE.md](ARCHITECTURE.md) for system design
+- Check [API.md](API.md) for API endpoints
+- Read [TESTING.md](../TESTING.md) for testing guidelines
 
-### Prerequisites
-- Docker and Docker Compose
-- Git
+### For DevOps
+- See [DEPLOYMENT.md](DEPLOYMENT.md) for deployment options
+- Check [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) for Render.com
+- Review [Kubernetes configs](../k8s/README.md) for K8s deployment
+- Read [SECURITY_NOTES.md](../SECURITY_NOTES.md) for security setup
 
-### Installation
+### For Contributors
+- Review [FEATURES.md](../FEATURES.md) to see what's implemented
+- Check [ROADMAP.md](../ROADMAP.md) for future plans
+- Read [CHANGELOG.md](../CHANGELOG.md) for recent changes
 
-1. Clone the repository:
-\`\`\`bash
-git clone https://github.com/mufthakherul/Let-s-connect.git
-cd Let-s-connect
-\`\`\`
+## 📂 Project Structure
 
-2. Create environment file:
-\`\`\`bash
-cp .env.example .env
-\`\`\`
+```
+Let-s-connect/
+├── docs/                   # Technical documentation (you are here)
+├── services/               # Backend microservices
+│   ├── api-gateway/       # API Gateway service
+│   ├── user-service/      # User management
+│   ├── content-service/   # Content and feeds
+│   ├── messaging-service/ # Chat and calls
+│   ├── collaboration-service/ # Docs and wikis
+│   ├── media-service/     # File storage
+│   ├── shop-service/      # E-commerce
+│   └── ai-service/        # AI features
+├── frontend/              # React frontend application
+├── k8s/                   # Kubernetes manifests
+├── scripts/               # Utility scripts
+└── archives/              # Historical documentation
 
-3. Edit \`.env\` and configure your settings
+```
 
-4. Build and start services:
-\`\`\`bash
-docker-compose up --build
-\`\`\`
+## 🔒 Security
 
-5. Access the application:
-   - Frontend: http://localhost:3000
-   - API Gateway: http://localhost:8000
-   - MinIO Console: http://localhost:9001
+This platform implements enterprise-grade security:
+- JWT-based authentication
+- Role-based access control (RBAC)
+- Rate limiting and DDoS protection
+- Input validation and sanitization
+- Encrypted data storage
+- Security headers and CORS
 
-## Security Features
+See [SECURITY_NOTES.md](../SECURITY_NOTES.md) for detailed security documentation.
 
-- JWT Authentication
-- Role-Based Access Control
-- Rate Limiting
-- Password Hashing (bcrypt)
-- Content Moderation (AI-powered)
-- Encrypted Storage
+## 📝 Technology Stack
 
-## API Documentation
+**Backend**: Node.js, Express, PostgreSQL, Redis, Socket.IO, Sequelize  
+**Frontend**: React 18, Material-UI, React Router, Axios  
+**Storage**: MinIO (S3-compatible), PostgreSQL  
+**Infrastructure**: Docker, Kubernetes, Nginx  
+**Monitoring**: Prometheus, Grafana  
 
-See full API documentation in docs/API.md
+## 🤝 Contributing
 
-## License
+To contribute to this project:
+1. Read the relevant documentation above
+2. Check the [ROADMAP.md](../ROADMAP.md) for planned features
+3. Review [TESTING.md](../TESTING.md) for testing requirements
+4. Follow security guidelines in [SECURITY_NOTES.md](../SECURITY_NOTES.md)
 
-MIT License
+## 📜 License
+
+MIT License - See main [README.md](../README.md) for details.
+
+---
+
+**Need Help?** Start with the [Quick Start Guide](../QUICK_START.md) or check the [Architecture](ARCHITECTURE.md) documentation.
