@@ -9,8 +9,9 @@ import { Add, Group as GroupIcon, Public, Lock, VpnLock } from '@mui/icons-mater
 import { formatRelativeTime, formatNumber } from '../utils/helpers';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import { getApiBaseUrl } from '../utils/api';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = getApiBaseUrl();
 
 const Groups = ({ user }) => {
   const [groups, setGroups] = useState([]);

@@ -21,6 +21,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/authStore';
 import NotificationCenter from './components/common/NotificationCenter';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 // Eager load critical components (needed for initial render)
 import Home from './components/Home';
@@ -53,6 +54,7 @@ const WikiDiffViewer = lazy(() => import('./components/WikiDiffViewer'));
 const WebRTCCallWidget = lazy(() => import('./components/WebRTCCallWidget'));
 const DatabaseViews = lazy(() => import('./components/DatabaseViews'));
 const DiscordAdmin = lazy(() => import('./components/DiscordAdmin'));
+const ThemeSettings = lazy(() => import('./components/ThemeSettings'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -85,7 +87,7 @@ const PageLoader = () => (
 
 function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { mode, toggleTheme } = useThemeStore();
+  const { mode, toggleTheme, getAccentColor, initSystemThemeListener } = useThemeStore();
   const { user, logout } = useAuthStore();
   const isMobile = useMediaQuery('(max-width:900px)');
   const [internalUser, setInternalUser] = useState(user);
@@ -94,18 +96,25 @@ function App() {
     setInternalUser(user);
   }, [user]);
 
+  // Initialize system theme listener
+  useEffect(() => {
+    const cleanup = initSystemThemeListener();
+    return cleanup;
+  }, [initSystemThemeListener]);
+
   const theme = useMemo(
-    () =>
-      createTheme({
+    () => {
+      const accentColor = getAccentColor();
+      return createTheme({
         palette: {
           mode,
           primary: {
-            main: mode === 'dark' ? '#90caf9' : '#1976d2',
+            main: accentColor.primary,
             light: mode === 'dark' ? '#bbdefb' : '#42a5f5',
             dark: mode === 'dark' ? '#648dae' : '#1565c0',
           },
           secondary: {
-            main: mode === 'dark' ? '#f48fb1' : '#dc004e',
+            main: accentColor.secondary,
           },
           background: {
             default: mode === 'dark' ? '#121212' : '#fafafa',
@@ -117,6 +126,17 @@ function App() {
         },
         shape: {
           borderRadius: 12,
+        },
+        transitions: {
+          duration: {
+            shortest: 150,
+            shorter: 200,
+            short: 250,
+            standard: 300,
+            complex: 375,
+            enteringScreen: 225,
+            leavingScreen: 195,
+          },
         },
         components: {
           MuiButton: {
@@ -133,12 +153,28 @@ function App() {
                 boxShadow: mode === 'dark'
                   ? '0 2px 8px rgba(0,0,0,0.4)'
                   : '0 2px 8px rgba(0,0,0,0.1)',
+                transition: 'box-shadow 0.3s ease-in-out, background-color 0.3s ease-in-out',
+              },
+            },
+          },
+          MuiPaper: {
+            styleOverrides: {
+              root: {
+                transition: 'background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
+              },
+            },
+          },
+          MuiAppBar: {
+            styleOverrides: {
+              root: {
+                transition: 'background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
               },
             },
           },
         },
-      }),
-    [mode]
+      });
+    },
+    [mode, getAccentColor]
   );
 
   const handleLogout = () => {
@@ -168,6 +204,7 @@ function App() {
     { label: 'Databases', path: '/databases/views', icon: <DatabaseIcon />, public: false },
     { label: 'Profile', path: '/profile', icon: <Person />, public: false },
     { label: 'Email Settings', path: '/notifications/email', icon: <Article />, public: false },
+    { label: 'Theme Settings', path: '/settings/theme', icon: <SettingsIcon />, public: true },
     { label: 'Admin', path: '/admin', icon: <DashboardIcon />, public: false, adminOnly: true },
   ];
 
@@ -228,7 +265,8 @@ function App() {
             },
           }}
         />
-        <Router>
+        <ErrorBoundary level="page">
+          <Router>
           <AppBar position="sticky" elevation={1}>
             <Toolbar>
               {isMobile && (
@@ -424,10 +462,13 @@ function App() {
                   path="/discord/admin"
                   element={internalUser ? <DiscordAdmin user={internalUser} /> : <Navigate to="/login" />}
                 />
+                {/* Phase 5 Features - Theme Settings */}
+                <Route path="/settings/theme" element={<ThemeSettings />} />
               </Routes>
             </Suspense>
           </Container>
         </Router>
+        </ErrorBoundary>
       </ThemeProvider>
     </QueryClientProvider>
   );

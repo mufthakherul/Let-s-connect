@@ -41,4 +41,12 @@ api.interceptors.response.use(
   }
 );
 
+// Export API URLs for direct fetch usage
+export const getApiUrl = (path = '') => {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${NORMALIZED_API_BASE_URL}${cleanPath}`;
+};
+
+export const getApiBaseUrl = () => NORMALIZED_API_BASE_URL;
+
 export default api;

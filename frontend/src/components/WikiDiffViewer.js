@@ -23,6 +23,7 @@ import {
     FormControl,
     InputLabel
 } from '@mui/material';
+import { getApiUrl } from '../utils/api';
 import CompareIcon from '@mui/icons-material/Compare';
 import DiffIcon from '@mui/icons-material/Difference';
 import AddIcon from '@mui/icons-material/Add';
@@ -47,7 +48,7 @@ const WikiDiffViewer = () => {
         try {
             const userId = localStorage.getItem('userId');
             const response = await fetch(
-                `http://localhost:8000/wikis/${wikiId}/diff?from=${selectedFromVersion}&to=${selectedToVersion}`,
+                getApiUrl(`/wikis/${wikiId}/diff?from=${selectedFromVersion}&to=${selectedToVersion}`),
                 {
                     headers: { 'x-user-id': userId }
                 }
