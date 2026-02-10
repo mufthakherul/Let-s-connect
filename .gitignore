@@ -1,11 +1,13 @@
 # Render Deployment - Ignore documentation files
+# Note: Documentation files in the root are force-committed (git add -f)
+# This .gitignore is primarily for Render deployment to reduce deploy size
 
-# Environment files
+# Environment files (never commit these)
 .env
 .env.local
 .env.*.local
 
-# Documentation
+# Documentation (already tracked files are not affected)
 *.md
 # !README.md
 docs/
