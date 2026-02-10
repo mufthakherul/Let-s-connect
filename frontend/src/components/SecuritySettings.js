@@ -8,7 +8,7 @@ import {
 import {
     Security, Check, ContentCopy, Refresh, VpnKey
 } from '@mui/icons-material';
-import QRCode from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import api from '../utils/api';
 
 const SecuritySettings = () => {
@@ -242,7 +242,7 @@ const SecuritySettings = () => {
                                 Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
                             </Typography>
                             <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
-                                <QRCode value={qrCodeUrl} size={200} />
+                                <QRCodeSVG value={qrCodeUrl} size={200} />
                             </Box>
                             <Typography variant="body2" color="text.secondary" gutterBottom>
                                 Or enter this secret key manually:
