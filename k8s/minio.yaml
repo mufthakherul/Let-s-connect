@@ -130,6 +130,9 @@ spec:
           mc mb myminio/lets-connect-media || true
           
           # Set bucket policy to public (for public media access)
+          # WARNING: This makes all files in the bucket publicly accessible
+          # For production, consider using signed URLs or bucket policies
+          # that restrict access to specific paths or implement authentication
           mc anonymous set public myminio/lets-connect-media
           
           echo "MinIO setup complete!"
