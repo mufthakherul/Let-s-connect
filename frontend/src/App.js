@@ -13,7 +13,8 @@ import {
   PersonAdd, Feed as FeedIcon, Group as GroupIcon, Bookmark,
   ShoppingCartOutlined, Article, Pages as PagesIcon, Work as WorkIcon,
   Dashboard as DashboardIcon, Search as SearchIcon, Folder as FolderIcon,
-  Phone as PhoneIcon, Storage as DatabaseIcon, CompareArrows as DiffIcon
+  Phone as PhoneIcon, Storage as DatabaseIcon, CompareArrows as DiffIcon,
+  Settings as SettingsIcon
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -51,6 +52,7 @@ const FolderBrowser = lazy(() => import('./components/FolderBrowser'));
 const WikiDiffViewer = lazy(() => import('./components/WikiDiffViewer'));
 const WebRTCCallWidget = lazy(() => import('./components/WebRTCCallWidget'));
 const DatabaseViews = lazy(() => import('./components/DatabaseViews'));
+const DiscordAdmin = lazy(() => import('./components/DiscordAdmin'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -159,6 +161,7 @@ function App() {
     { label: 'Cart', path: '/cart', icon: <ShoppingCartOutlined />, public: false },
     { label: 'Bookmarks', path: '/bookmarks', icon: <Bookmark />, public: false },
     { label: 'Chat', path: '/chat', icon: <ChatIcon />, public: false },
+    { label: 'Discord Admin', path: '/discord/admin', icon: <SettingsIcon />, public: false },
     { label: 'Calls', path: '/calls', icon: <PhoneIcon />, public: false },
     { label: 'Folders', path: '/folders', icon: <FolderIcon />, public: false },
     { label: 'Wiki Diff', path: '/wikis/diff', icon: <DiffIcon />, public: false },
@@ -399,7 +402,7 @@ function App() {
                 {/* Phase 3 Features - Drive Folder Hierarchy */}
                 <Route
                   path="/folders"
-                  element={internalUser ? <FolderBrowser /> : <Navigate to="/login" />}
+                  element={internalUser ? <FolderBrowser user={internalUser} /> : <Navigate to="/login" />}
                 />
                 {/* Phase 3 Features - Wiki Diff Viewer */}
                 <Route
@@ -415,6 +418,11 @@ function App() {
                 <Route
                   path="/databases/views"
                   element={internalUser ? <DatabaseViews /> : <Navigate to="/login" />}
+                />
+                {/* Discord Admin Panel */}
+                <Route
+                  path="/discord/admin"
+                  element={internalUser ? <DiscordAdmin user={internalUser} /> : <Navigate to="/login" />}
                 />
               </Routes>
             </Suspense>
