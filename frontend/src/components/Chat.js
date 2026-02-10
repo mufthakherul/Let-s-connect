@@ -33,6 +33,7 @@ import {
 import io from 'socket.io-client';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
+import config from '../config/api';
 
 function Chat({ user }) {
   const [tab, setTab] = useState(0);
@@ -58,7 +59,7 @@ function Chat({ user }) {
 
   useEffect(() => {
     fetchConversations();
-    const newSocket = io('http://localhost:8003');
+    const newSocket = io(config.MESSAGING_SERVICE_URL);
     setSocket(newSocket);
 
     return () => newSocket.close();

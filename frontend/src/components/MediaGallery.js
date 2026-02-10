@@ -29,8 +29,9 @@ import {
   Image as ImageIcon,
   Close
 } from '@mui/icons-material';
+import config from '../config/api';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8005';
+const API_BASE_URL = config.MEDIA_SERVICE_URL;
 
 /**
  * Media Gallery Component
