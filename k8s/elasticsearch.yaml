@@ -53,6 +53,9 @@ spec:
         env:
         - name: discovery.type
           value: "single-node"
+        # WARNING: Security disabled for development/testing only
+        # For production, enable X-Pack security and configure authentication
+        # See: https://www.elastic.co/guide/en/elasticsearch/reference/current/security-settings.html
         - name: xpack.security.enabled
           value: "false"
         - name: ES_JAVA_OPTS

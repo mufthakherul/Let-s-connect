@@ -21,14 +21,20 @@ data:
     #!/bin/bash
     set -e
     
-    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-        CREATE DATABASE users;
-        CREATE DATABASE content;
-        CREATE DATABASE messages;
-        CREATE DATABASE collaboration;
-        CREATE DATABASE media;
-        CREATE DATABASE shop;
-    EOSQL
+    # Read database names from POSTGRES_MULTIPLE_DATABASES environment variable
+    # Format: "db1,db2,db3"
+    if [ -n "$POSTGRES_MULTIPLE_DATABASES" ]; then
+      echo "Creating multiple databases: $POSTGRES_MULTIPLE_DATABASES"
+      for db in $(echo $POSTGRES_MULTIPLE_DATABASES | tr ',' ' '); do
+        echo "Creating database: $db"
+        psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+          CREATE DATABASE $db;
+        EOSQL
+      done
+      echo "All databases created successfully"
+    else
+      echo "POSTGRES_MULTIPLE_DATABASES not set, skipping database creation"
+    fi
 ---
 apiVersion: apps/v1
 kind: StatefulSet

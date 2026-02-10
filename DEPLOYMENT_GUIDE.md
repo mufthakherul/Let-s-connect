@@ -1081,6 +1081,8 @@ For production, use:
 
 **For Testing: In-Cluster Elasticsearch**
 
+> **⚠️ Security Note:** The Elasticsearch configuration below has security disabled for development/testing only. For production, use managed Elasticsearch services (AWS OpenSearch, Elastic Cloud) with proper authentication and authorization enabled.
+
 Create `k8s/elasticsearch.yaml`:
 
 ```yaml
