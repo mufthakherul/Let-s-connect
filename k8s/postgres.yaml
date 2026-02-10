@@ -64,7 +64,6 @@ spec:
             secretKeyRef:
               name: lets-connect-secrets
               key: DATABASE_PASSWORD
-              optional: true
         - name: POSTGRES_MULTIPLE_DATABASES
           value: "users,content,messages,collaboration,media,shop"
         - name: PGDATA
