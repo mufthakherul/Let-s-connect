@@ -402,10 +402,10 @@ function Feed({ user }) {
   };
 
   const handleHashtagClick = (hashtag) => {
-    // Navigate to hashtag search or filter posts by hashtag
+    // TODO: Implement hashtag search/filter functionality
+    // This could navigate to /search?q=%23hashtag or filter current feed
     toast.success(`Searching for #${hashtag}`);
-    // You can implement navigation to a search page with the hashtag
-    // or filter posts in the feed
+    // Future implementation: window.location.href = `/search?q=${encodeURIComponent('#' + hashtag)}`;
   };
 
   const getVisibilityIcon = (vis) => {
