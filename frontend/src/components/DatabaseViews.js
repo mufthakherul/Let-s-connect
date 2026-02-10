@@ -28,6 +28,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import TableChartIcon from '@mui/icons-material/TableChart';
+import { getApiUrl } from '../utils/api';
 import ViewWeekIcon from '@mui/icons-material/ViewWeek';
 import ViewAgendaIcon from '@mui/icons-material/ViewAgenda';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -60,7 +61,7 @@ const DatabaseViews = () => {
         setLoading(true);
         try {
             const userId = localStorage.getItem('userId');
-            const response = await fetch(`http://localhost:8000/databases/${databaseId}/views`, {
+            const response = await fetch(getApiUrl(`/databases/${databaseId}/views`), {
                 headers: { 'x-user-id': userId }
             });
 
@@ -78,7 +79,7 @@ const DatabaseViews = () => {
     const fetchProperties = async () => {
         try {
             const userId = localStorage.getItem('userId');
-            const response = await fetch(`http://localhost:8000/databases/${databaseId}/properties`, {
+            const response = await fetch(getApiUrl(`/databases/${databaseId}/properties`), {
                 headers: { 'x-user-id': userId }
             });
 
@@ -96,7 +97,7 @@ const DatabaseViews = () => {
 
         try {
             const userId = localStorage.getItem('userId');
-            const response = await fetch(`http://localhost:8000/databases/${databaseId}/views`, {
+            const response = await fetch(getApiUrl(`/databases/${databaseId}/views`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -141,7 +142,7 @@ const DatabaseViews = () => {
                     .map(opt => ({ name: opt.trim(), color: 'blue' }));
             }
 
-            const response = await fetch(`http://localhost:8000/databases/${databaseId}/properties`, {
+            const response = await fetch(getApiUrl(`/databases/${databaseId}/properties`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -166,7 +167,7 @@ const DatabaseViews = () => {
     const handleDeleteView = async (viewId) => {
         try {
             const userId = localStorage.getItem('userId');
-            await fetch(`http://localhost:8000/databases/views/${viewId}`, {
+            await fetch(getApiUrl(`/databases/views/${viewId}`), {
                 method: 'DELETE',
                 headers: { 'x-user-id': userId }
             });
