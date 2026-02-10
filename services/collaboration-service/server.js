@@ -1485,6 +1485,117 @@ app.get('/folders/tree/:folderId', async (req, res) => {
   }
 });
 
+// Get folders (root level or by parent)
+app.get('/folders', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    const { parentId } = req.query;
+
+    const where = {
+      [Op.or]: [
+        { ownerId: userId },
+        { isPublic: true }
+      ]
+    };
+
+    // If parentId is provided, filter by it (null for root level)
+    if (parentId !== undefined) {
+      where.parentId = parentId === 'null' || parentId === null ? null : parentId;
+    }
+
+    const folders = await DocumentFolder.findAll({
+      where,
+      order: [['name', 'ASC']]
+    });
+
+    res.json(folders);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch folders' });
+  }
+});
+
+// Update folder
+app.put('/folders/:folderId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { folderId } = req.params;
+
+    // Whitelist allowed fields
+    const allowedFields = ['name', 'description', 'isPublic'];
+    const updates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    const folder = await DocumentFolder.findByPk(folderId);
+    if (!folder) {
+      return res.status(404).json({ error: 'Folder not found' });
+    }
+
+    // Only owner can update
+    if (folder.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only folder owner can update' });
+    }
+
+    await folder.update(updates);
+    res.json(folder);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update folder' });
+  }
+});
+
+// Delete folder
+app.delete('/folders/:folderId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { folderId } = req.params;
+
+    const folder = await DocumentFolder.findByPk(folderId);
+    if (!folder) {
+      return res.status(404).json({ error: 'Folder not found' });
+    }
+
+    // Only owner can delete
+    if (folder.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only folder owner can delete' });
+    }
+
+    // Check if folder has contents
+    const subfolders = await DocumentFolder.count({ where: { parentId: folderId } });
+    const documents = await Document.count({ where: { parentFolderId: folderId } });
+
+    if (subfolders > 0 || documents > 0) {
+      return res.status(400).json({ 
+        error: 'Folder must be empty before deletion',
+        subfolders,
+        documents
+      });
+    }
+
+    await folder.destroy();
+    res.json({ message: 'Folder deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete folder' });
+  }
+});
+
 // ==================== NOTION DATABASE VIEWS ====================
 
 // Database View Model

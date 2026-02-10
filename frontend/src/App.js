@@ -402,7 +402,7 @@ function App() {
                 {/* Phase 3 Features - Drive Folder Hierarchy */}
                 <Route
                   path="/folders"
-                  element={internalUser ? <FolderBrowser /> : <Navigate to="/login" />}
+                  element={internalUser ? <FolderBrowser user={internalUser} /> : <Navigate to="/login" />}
                 />
                 {/* Phase 3 Features - Wiki Diff Viewer */}
                 <Route

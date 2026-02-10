@@ -23,7 +23,8 @@ import {
   Chip,
   Stack,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  Link as MuiLink
 } from '@mui/material';
 import {
   ThumbUpOutlined,
@@ -40,7 +41,8 @@ import {
   VideoLibrary,
   Repeat,
   AutoAwesome,
-  Forum
+  Forum,
+  Tag
 } from '@mui/icons-material';
 import { useInView } from 'react-intersection-observer';
 import { formatRelativeTime, formatNumber, getInitials } from '../utils/helpers';
@@ -356,6 +358,56 @@ function Feed({ user }) {
     }
   };
 
+  const renderContentWithHashtags = (content) => {
+    if (!content) return null;
+    
+    // Regular expression to match hashtags (# followed by word characters)
+    const hashtagRegex = /#(\w+)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = hashtagRegex.exec(content)) !== null) {
+      // Add text before the hashtag
+      if (match.index > lastIndex) {
+        parts.push(content.substring(lastIndex, match.index));
+      }
+      
+      // Add the hashtag as a clickable chip
+      const hashtag = match[1];
+      parts.push(
+        <Chip
+          key={match.index}
+          label={`#${hashtag}`}
+          size="small"
+          icon={<Tag fontSize="small" />}
+          onClick={() => handleHashtagClick(hashtag)}
+          sx={{ 
+            mx: 0.5, 
+            cursor: 'pointer',
+            '&:hover': { bgcolor: 'primary.light' }
+          }}
+        />
+      );
+      
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text after the last hashtag
+    if (lastIndex < content.length) {
+      parts.push(content.substring(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : content;
+  };
+
+  const handleHashtagClick = (hashtag) => {
+    // Navigate to hashtag search or filter posts by hashtag
+    toast.success(`Searching for #${hashtag}`);
+    // You can implement navigation to a search page with the hashtag
+    // or filter posts in the feed
+  };
+
   const getVisibilityIcon = (vis) => {
     const option = VISIBILITY_OPTIONS.find((o) => o.value === vis);
     return option?.icon || <Public fontSize="small" />;
@@ -552,8 +604,8 @@ function Feed({ user }) {
             />
 
             <CardContent>
-              <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                {post.content}
+              <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
+                {renderContentWithHashtags(post.content)}
               </Typography>
 
               {post.mediaUrls && post.mediaUrls.length > 0 && (
