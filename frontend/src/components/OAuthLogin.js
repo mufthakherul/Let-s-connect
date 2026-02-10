@@ -17,6 +17,7 @@ import GoogleIcon from '@mui/icons-material/Google';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
+import { getApiUrl } from '../utils/api';
 
 const Login = () => {
     const [loginMode, setLoginMode] = useState('email'); // 'email' or 'oauth'
@@ -31,7 +32,7 @@ const Login = () => {
         setError(null);
 
         try {
-            const response = await fetch('http://localhost:8000/auth/login', {
+            const response = await fetch(getApiUrl('/auth/login'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
@@ -58,7 +59,7 @@ const Login = () => {
         setLoading(true);
         try {
             // Get authorization URL from backend
-            const response = await fetch('http://localhost:8000/auth/oauth/google/authorize', {
+            const response = await fetch(getApiUrl('/auth/oauth/google/authorize'), {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -81,7 +82,7 @@ const Login = () => {
         setLoading(true);
         try {
             // Get authorization URL from backend
-            const response = await fetch('http://localhost:8000/auth/oauth/github/authorize', {
+            const response = await fetch(getApiUrl('/auth/oauth/github/authorize'), {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' }
             });
