@@ -29,6 +29,7 @@ import MicOffIcon from '@mui/icons-material/MicOff';
 import VideocamOffIcon from '@mui/icons-material/VideocamOff';
 import GroupIcon from '@mui/icons-material/Group';
 import HistoryIcon from '@mui/icons-material/History';
+import config from '../config/api';
 
 const WebRTCCallWidget = () => {
     const [incomingCall, setIncomingCall] = useState(null);
@@ -68,7 +69,7 @@ const WebRTCCallWidget = () => {
 
     const initializeWebRTC = async () => {
         try {
-            const iceServersResponse = await fetch('http://localhost:8000/calls/ice-servers', {
+            const iceServersResponse = await fetch(`${config.API_BASE_URL}/calls/ice-servers`, {
                 headers: { 'x-user-id': localStorage.getItem('userId') }
             });
 
@@ -86,7 +87,7 @@ const WebRTCCallWidget = () => {
     const fetchCallHistory = async () => {
         try {
             const userId = localStorage.getItem('userId');
-            const response = await fetch(`http://localhost:8000/calls/history?limit=20&offset=0`, {
+            const response = await fetch(`${config.API_BASE_URL}/calls/history?limit=20&offset=0`, {
                 headers: { 'x-user-id': userId }
             });
 
@@ -148,7 +149,7 @@ const WebRTCCallWidget = () => {
 
             // Send call initiation
             const userId = localStorage.getItem('userId');
-            const response = await fetch('http://localhost:8000/calls/initiate', {
+            const response = await fetch(`${config.API_BASE_URL}/calls/initiate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -204,7 +205,7 @@ const WebRTCCallWidget = () => {
 
             // Send acceptance
             const userId = localStorage.getItem('userId');
-            const response = await fetch(`http://localhost:8000/calls/${incomingCall.id}/accept`, {
+            const response = await fetch(`${config.API_BASE_URL}/calls/${incomingCall.id}/accept`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -233,7 +234,7 @@ const WebRTCCallWidget = () => {
 
         try {
             const userId = localStorage.getItem('userId');
-            await fetch(`http://localhost:8000/calls/${incomingCall.id}/reject`, {
+            await fetch(`${config.API_BASE_URL}/calls/${incomingCall.id}/reject`, {
                 method: 'POST',
                 headers: { 'x-user-id': userId }
             });
@@ -248,7 +249,7 @@ const WebRTCCallWidget = () => {
 
         try {
             const userId = localStorage.getItem('userId');
-            await fetch(`http://localhost:8000/calls/${activeCall.id}/end`, {
+            await fetch(`${config.API_BASE_URL}/calls/${activeCall.id}/end`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

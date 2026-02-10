@@ -1826,6 +1826,292 @@ app.post('/calls/:callId/end', async (req, res) => {
   }
 });
 
+// Update server settings
+app.put('/servers/:serverId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { serverId } = req.params;
+
+    // Whitelist allowed fields
+    const allowedFields = ['name', 'description', 'category', 'isPublic', 'icon'];
+    const updates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    const server = await Server.findByPk(serverId);
+    if (!server) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+
+    // Only server owner can update
+    if (server.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only server owner can update server settings' });
+    }
+
+    await server.update(updates);
+    res.json(server);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update server' });
+  }
+});
+
+// Delete server
+app.delete('/servers/:serverId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { serverId } = req.params;
+
+    const server = await Server.findByPk(serverId);
+    if (!server) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+
+    // Only server owner can delete
+    if (server.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only server owner can delete server' });
+    }
+
+    await server.destroy();
+    res.json({ message: 'Server deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete server' });
+  }
+});
+
+// Get roles for a server
+app.get('/servers/:serverId/roles', async (req, res) => {
+  try {
+    const { serverId } = req.params;
+
+    const roles = await Role.findAll({
+      where: { serverId },
+      order: [['position', 'DESC'], ['createdAt', 'ASC']]
+    });
+
+    res.json(roles);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch roles' });
+  }
+});
+
+// Update role
+app.put('/roles/:roleId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { roleId } = req.params;
+
+    // Whitelist allowed fields
+    const allowedFields = ['name', 'color', 'position', 'permissions'];
+    const updates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    const role = await Role.findByPk(roleId);
+    if (!role) {
+      return res.status(404).json({ error: 'Role not found' });
+    }
+
+    // Verify permissions
+    const server = await Server.findByPk(role.serverId);
+    if (server.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only server owner can update roles' });
+    }
+
+    await role.update(updates);
+    res.json(role);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update role' });
+  }
+});
+
+// Delete role
+app.delete('/roles/:roleId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { roleId } = req.params;
+
+    const role = await Role.findByPk(roleId);
+    if (!role) {
+      return res.status(404).json({ error: 'Role not found' });
+    }
+
+    // Verify permissions
+    const server = await Server.findByPk(role.serverId);
+    if (server.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only server owner can delete roles' });
+    }
+
+    await role.destroy();
+    res.json({ message: 'Role deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete role' });
+  }
+});
+
+// Delete text channel
+app.delete('/channels/text/:channelId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { channelId } = req.params;
+
+    const channel = await TextChannel.findByPk(channelId);
+    if (!channel) {
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    // Verify permissions
+    const server = await Server.findByPk(channel.serverId);
+    if (server.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only server owner can delete channels' });
+    }
+
+    await channel.destroy();
+    res.json({ message: 'Channel deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete text channel' });
+  }
+});
+
+// Update voice channel
+app.put('/channels/voice/:channelId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { channelId } = req.params;
+
+    // Whitelist allowed fields
+    const allowedFields = ['name', 'position', 'userLimit', 'bitrate'];
+    const updates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    const channel = await VoiceChannel.findByPk(channelId);
+    if (!channel) {
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    // Verify permissions
+    const server = await Server.findByPk(channel.serverId);
+    if (server.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only server owner can update channels' });
+    }
+
+    await channel.update(updates);
+    res.json(channel);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update voice channel' });
+  }
+});
+
+// Delete voice channel
+app.delete('/channels/voice/:channelId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { channelId } = req.params;
+
+    const channel = await VoiceChannel.findByPk(channelId);
+    if (!channel) {
+      return res.status(404).json({ error: 'Channel not found' });
+    }
+
+    // Verify permissions
+    const server = await Server.findByPk(channel.serverId);
+    if (server.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only server owner can delete channels' });
+    }
+
+    await channel.destroy();
+    res.json({ message: 'Channel deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete voice channel' });
+  }
+});
+
+// Delete category
+app.delete('/categories/:categoryId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { categoryId } = req.params;
+
+    const category = await ChannelCategory.findByPk(categoryId);
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    // Verify permissions
+    const server = await Server.findByPk(category.serverId);
+    if (server.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only server owner can delete categories' });
+    }
+
+    await category.destroy();
+    res.json({ message: 'Category deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete category' });
+  }
+});
+
 server.listen(PORT, () => {
   console.log(`Messaging service running on port ${PORT}`);
 });
