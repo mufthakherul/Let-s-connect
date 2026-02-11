@@ -1726,6 +1726,308 @@ const MeetingBrief = sequelize.define('MeetingBrief', {
   }
 });
 
+// ==================== PHASE 12 MODELS ====================
+
+// Phase 12.1: User Experience Preferences
+const UserExperienceProfile = sequelize.define('UserExperienceProfile', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    unique: true
+  },
+  experienceLevel: {
+    type: DataTypes.ENUM('novice', 'intermediate', 'expert'),
+    defaultValue: 'novice'
+  },
+  preferredComplexity: {
+    type: DataTypes.ENUM('simple', 'balanced', 'advanced'),
+    defaultValue: 'simple'
+  },
+  completedOnboarding: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  onboardingProgress: DataTypes.JSONB, // Track which onboarding steps completed
+  interfacePreferences: DataTypes.JSONB, // UI customizations
+  roleSpecificSettings: DataTypes.JSONB, // Settings per role (host, participant, etc)
+  meetingTypePreferences: DataTypes.JSONB // Preferences per meeting type
+});
+
+// Phase 12.1: Onboarding Progress
+const OnboardingStep = sequelize.define('OnboardingStep', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  stepType: {
+    type: DataTypes.ENUM('role_selection', 'meeting_mode_intro', 'feature_tour', 'keyboard_shortcuts', 'accessibility_setup'),
+    allowNull: false
+  },
+  context: {
+    type: DataTypes.STRING,
+    allowNull: false
+  }, // e.g., 'debate_mode', 'host_role'
+  completed: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  completedAt: DataTypes.DATE,
+  skipped: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+});
+
+// Phase 12.2: Live Captions
+const LiveCaption = sequelize.define('LiveCaption', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  speakerId: DataTypes.UUID,
+  speakerName: DataTypes.STRING,
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  timestamp: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
+  },
+  duration: DataTypes.INTEGER, // in milliseconds
+  confidence: DataTypes.FLOAT,
+  language: {
+    type: DataTypes.STRING,
+    defaultValue: 'en'
+  },
+  isFinal: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+});
+
+// Phase 12.2: Accessibility Settings
+const AccessibilitySettings = sequelize.define('AccessibilitySettings', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    unique: true
+  },
+  screenReaderEnabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  highContrastMode: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  dyslexiaFriendlyFont: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  keyboardNavigationOnly: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  captionsEnabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  captionSize: {
+    type: DataTypes.ENUM('small', 'medium', 'large', 'extra-large'),
+    defaultValue: 'medium'
+  },
+  reducedMotion: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  colorBlindMode: {
+    type: DataTypes.ENUM('none', 'protanopia', 'deuteranopia', 'tritanopia'),
+    defaultValue: 'none'
+  },
+  fontSize: {
+    type: DataTypes.INTEGER,
+    defaultValue: 16
+  },
+  customTheme: DataTypes.JSONB
+});
+
+// Phase 12.2: Theme Configuration
+const ThemeConfiguration = sequelize.define('ThemeConfiguration', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  themeType: {
+    type: DataTypes.ENUM('standard', 'high-contrast', 'dark', 'dyslexia-friendly', 'custom'),
+    allowNull: false
+  },
+  colors: {
+    type: DataTypes.JSONB,
+    allowNull: false
+  }, // Color palette
+  typography: DataTypes.JSONB, // Font settings
+  spacing: DataTypes.JSONB, // Layout spacing
+  isSystem: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  createdBy: DataTypes.UUID,
+  isPublic: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+});
+
+// Phase 12.3: Meeting Edge Routing
+const MeetingEdgeNode = sequelize.define('MeetingEdgeNode', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  region: {
+    type: DataTypes.STRING,
+    allowNull: false
+  }, // e.g., 'us-east', 'eu-west', 'ap-south'
+  endpoint: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  capacity: {
+    type: DataTypes.INTEGER,
+    defaultValue: 100
+  },
+  currentLoad: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  status: {
+    type: DataTypes.ENUM('active', 'maintenance', 'offline'),
+    defaultValue: 'active'
+  },
+  latencyMs: DataTypes.INTEGER,
+  lastHealthCheck: DataTypes.DATE
+});
+
+// Phase 12.3: Meeting Route Assignment
+const MeetingRoute = sequelize.define('MeetingRoute', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  edgeNodeId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  participantLocations: DataTypes.JSONB, // Geographic distribution
+  routingStrategy: {
+    type: DataTypes.ENUM('nearest', 'load-balanced', 'quality-optimized'),
+    defaultValue: 'nearest'
+  },
+  assignedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// Phase 12.3: Media Quality Settings
+const MediaQualityProfile = sequelize.define('MediaQualityProfile', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  meetingId: DataTypes.UUID,
+  bandwidth: {
+    type: DataTypes.ENUM('low', 'medium', 'high', 'auto'),
+    defaultValue: 'auto'
+  },
+  videoQuality: {
+    type: DataTypes.ENUM('360p', '480p', '720p', '1080p', 'auto'),
+    defaultValue: 'auto'
+  },
+  audioQuality: {
+    type: DataTypes.ENUM('narrow', 'wide', 'fullband', 'auto'),
+    defaultValue: 'auto'
+  },
+  adaptiveMode: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  currentBandwidthKbps: DataTypes.INTEGER,
+  packetLoss: DataTypes.FLOAT,
+  jitter: DataTypes.INTEGER
+});
+
+// Phase 12.3: Large Meeting Configuration
+const LargeMeetingConfig = sequelize.define('LargeMeetingConfig', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    unique: true
+  },
+  mode: {
+    type: DataTypes.ENUM('stage', 'audience', 'hybrid'),
+    defaultValue: 'hybrid'
+  },
+  maxStageParticipants: {
+    type: DataTypes.INTEGER,
+    defaultValue: 10
+  },
+  audienceSize: DataTypes.INTEGER,
+  stageParticipants: DataTypes.ARRAY(DataTypes.UUID),
+  viewMode: {
+    type: DataTypes.ENUM('speaker', 'gallery', 'presentation'),
+    defaultValue: 'speaker'
+  },
+  enableQA: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  moderationSettings: DataTypes.JSONB
+});
+
 // Relationships
 Issue.hasMany(IssueComment, { foreignKey: 'issueId' });
 IssueComment.belongsTo(Issue, { foreignKey: 'issueId' });
@@ -1786,6 +2088,15 @@ Meeting.hasMany(AIActionItem, { foreignKey: 'meetingId', as: 'aiActionItems' });
 AIActionItem.belongsTo(Meeting, { foreignKey: 'meetingId' });
 Meeting.hasMany(MeetingBrief, { foreignKey: 'meetingId', as: 'briefs' });
 MeetingBrief.belongsTo(Meeting, { foreignKey: 'meetingId' });
+
+// Phase 12: Experience, Accessibility, and Performance relationships
+Meeting.hasMany(LiveCaption, { foreignKey: 'meetingId', as: 'captions' });
+LiveCaption.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(MeetingRoute, { foreignKey: 'meetingId', as: 'routes' });
+MeetingRoute.belongsTo(Meeting, { foreignKey: 'meetingId' });
+MeetingRoute.belongsTo(MeetingEdgeNode, { foreignKey: 'edgeNodeId', as: 'edgeNode' });
+Meeting.hasOne(LargeMeetingConfig, { foreignKey: 'meetingId', as: 'largeMeetingConfig' });
+LargeMeetingConfig.belongsTo(Meeting, { foreignKey: 'meetingId' });
 
 // Phase 2: Document and Wiki history relationships
 Document.hasMany(DocumentVersion, { foreignKey: 'documentId', as: 'versions' });
@@ -5659,6 +5970,578 @@ app.get('/meetings/:id/brief', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(error.status || 500).json({ error: error.message || 'Failed to get meeting brief' });
+  }
+});
+
+// ==================== PHASE 12: EXPERIENCE, ACCESSIBILITY, AND PERFORMANCE ====================
+
+// ==================== 12.1 ADVANCED UX ====================
+
+// User Experience Profile - Get or Create
+app.get('/user/experience-profile', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    let profile = await UserExperienceProfile.findOne({ where: { userId } });
+    
+    if (!profile) {
+      profile = await UserExperienceProfile.create({ userId });
+    }
+
+    res.json(profile);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get experience profile' });
+  }
+});
+
+// Update Experience Profile
+app.put('/user/experience-profile', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { experienceLevel, preferredComplexity, interfacePreferences, roleSpecificSettings, meetingTypePreferences } = req.body;
+
+    let profile = await UserExperienceProfile.findOne({ where: { userId } });
+    
+    if (!profile) {
+      profile = await UserExperienceProfile.create({
+        userId,
+        experienceLevel,
+        preferredComplexity,
+        interfacePreferences,
+        roleSpecificSettings,
+        meetingTypePreferences
+      });
+    } else {
+      await profile.update({
+        experienceLevel,
+        preferredComplexity,
+        interfacePreferences,
+        roleSpecificSettings,
+        meetingTypePreferences
+      });
+    }
+
+    res.json(profile);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update experience profile' });
+  }
+});
+
+// Onboarding Steps - Create/Update
+app.post('/user/onboarding-step', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { stepType, context, completed, skipped } = req.body;
+
+    const [step, created] = await OnboardingStep.findOrCreate({
+      where: { userId, stepType, context },
+      defaults: {
+        completed: completed || false,
+        skipped: skipped || false,
+        completedAt: completed ? new Date() : null
+      }
+    });
+
+    if (!created) {
+      await step.update({
+        completed,
+        skipped,
+        completedAt: completed ? new Date() : step.completedAt
+      });
+    }
+
+    // Update profile onboarding progress
+    const profile = await UserExperienceProfile.findOne({ where: { userId } });
+    if (profile && completed) {
+      const allSteps = await OnboardingStep.findAll({ where: { userId } });
+      const completedSteps = allSteps.filter(s => s.completed).length;
+      const totalSteps = allSteps.length;
+      
+      await profile.update({
+        completedOnboarding: completedSteps === totalSteps,
+        onboardingProgress: { completedSteps, totalSteps }
+      });
+    }
+
+    res.json(step);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update onboarding step' });
+  }
+});
+
+// Get Onboarding Steps
+app.get('/user/onboarding-steps', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const steps = await OnboardingStep.findAll({
+      where: { userId },
+      order: [['createdAt', 'ASC']]
+    });
+
+    res.json(steps);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get onboarding steps' });
+  }
+});
+
+// ==================== 12.2 ACCESSIBILITY EXCELLENCE ====================
+
+// Live Captions - Create
+app.post('/meetings/:id/captions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { speakerId, speakerName, content, duration, confidence, language, isFinal } = req.body;
+
+    const caption = await LiveCaption.create({
+      meetingId: req.params.id,
+      speakerId,
+      speakerName,
+      content,
+      duration,
+      confidence,
+      language,
+      isFinal
+    });
+
+    // Emit caption via Socket.IO for real-time display
+    io.to(req.params.id).emit('live-caption', caption);
+
+    res.status(201).json(caption);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create caption' });
+  }
+});
+
+// Get Live Captions
+app.get('/meetings/:id/captions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { startTime, endTime, speakerId } = req.query;
+    const where = { meetingId: req.params.id };
+    
+    if (startTime) {
+      where.timestamp = { [Op.gte]: new Date(startTime) };
+    }
+    if (endTime) {
+      where.timestamp = { ...where.timestamp, [Op.lte]: new Date(endTime) };
+    }
+    if (speakerId) {
+      where.speakerId = speakerId;
+    }
+
+    const captions = await LiveCaption.findAll({
+      where,
+      order: [['timestamp', 'ASC']]
+    });
+
+    res.json(captions);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get captions' });
+  }
+});
+
+// Accessibility Settings - Get or Create
+app.get('/user/accessibility-settings', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    let settings = await AccessibilitySettings.findOne({ where: { userId } });
+    
+    if (!settings) {
+      settings = await AccessibilitySettings.create({ userId });
+    }
+
+    res.json(settings);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get accessibility settings' });
+  }
+});
+
+// Update Accessibility Settings
+app.put('/user/accessibility-settings', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const updateData = req.body;
+
+    let settings = await AccessibilitySettings.findOne({ where: { userId } });
+    
+    if (!settings) {
+      settings = await AccessibilitySettings.create({ userId, ...updateData });
+    } else {
+      await settings.update(updateData);
+    }
+
+    res.json(settings);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update accessibility settings' });
+  }
+});
+
+// Theme Configurations - List
+app.get('/themes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const themes = await ThemeConfiguration.findAll({
+      where: {
+        [Op.or]: [
+          { isSystem: true },
+          { isPublic: true },
+          { createdBy: userId }
+        ]
+      },
+      order: [['isSystem', 'DESC'], ['name', 'ASC']]
+    });
+
+    res.json(themes);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get themes' });
+  }
+});
+
+// Create Custom Theme
+app.post('/themes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { name, themeType, colors, typography, spacing, isPublic } = req.body;
+
+    const theme = await ThemeConfiguration.create({
+      name,
+      themeType: themeType || 'custom',
+      colors,
+      typography,
+      spacing,
+      createdBy: userId,
+      isPublic: isPublic || false
+    });
+
+    res.status(201).json(theme);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create theme' });
+  }
+});
+
+// ==================== 12.3 PERFORMANCE AND SCALABILITY ====================
+
+// Edge Nodes - List
+app.get('/edge-nodes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { region, status } = req.query;
+    const where = {};
+    if (region) where.region = region;
+    if (status) where.status = status;
+
+    const nodes = await MeetingEdgeNode.findAll({
+      where,
+      order: [['region', 'ASC'], ['latencyMs', 'ASC']]
+    });
+
+    res.json(nodes);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get edge nodes' });
+  }
+});
+
+// Meeting Route - Get Optimal Route
+app.post('/meetings/:id/route', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { participantLocations, routingStrategy } = req.body;
+
+    // Find optimal edge node (simplified logic)
+    const activeNodes = await MeetingEdgeNode.findAll({
+      where: { status: 'active' },
+      order: [['currentLoad', 'ASC'], ['latencyMs', 'ASC']]
+    });
+
+    if (activeNodes.length === 0) {
+      return res.status(503).json({ error: 'No edge nodes available' });
+    }
+
+    // Select first available node (in real implementation, this would use geo-location logic)
+    const selectedNode = activeNodes[0];
+
+    // Create route assignment
+    const route = await MeetingRoute.create({
+      meetingId: req.params.id,
+      edgeNodeId: selectedNode.id,
+      participantLocations,
+      routingStrategy: routingStrategy || 'nearest'
+    });
+
+    // Update node load
+    await selectedNode.increment('currentLoad');
+
+    const routeWithNode = await MeetingRoute.findByPk(route.id, {
+      include: [{ model: MeetingEdgeNode, as: 'edgeNode' }]
+    });
+
+    res.status(201).json(routeWithNode);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create route' });
+  }
+});
+
+// Get Meeting Route
+app.get('/meetings/:id/route', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const route = await MeetingRoute.findOne({
+      where: { meetingId: req.params.id },
+      include: [{ model: MeetingEdgeNode, as: 'edgeNode' }],
+      order: [['assignedAt', 'DESC']]
+    });
+
+    if (!route) {
+      return res.status(404).json({ error: 'No route assigned' });
+    }
+
+    res.json(route);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get route' });
+  }
+});
+
+// Media Quality Profile - Get or Create
+app.get('/user/media-quality', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { meetingId } = req.query;
+    const where = { userId };
+    if (meetingId) where.meetingId = meetingId;
+
+    let profile = await MediaQualityProfile.findOne({ where });
+    
+    if (!profile) {
+      profile = await MediaQualityProfile.create({ userId, meetingId });
+    }
+
+    res.json(profile);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get media quality profile' });
+  }
+});
+
+// Update Media Quality Profile
+app.put('/user/media-quality', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { meetingId, bandwidth, videoQuality, audioQuality, adaptiveMode, currentBandwidthKbps, packetLoss, jitter } = req.body;
+
+    const where = { userId };
+    if (meetingId) where.meetingId = meetingId;
+
+    let profile = await MediaQualityProfile.findOne({ where });
+    
+    if (!profile) {
+      profile = await MediaQualityProfile.create({
+        userId,
+        meetingId,
+        bandwidth,
+        videoQuality,
+        audioQuality,
+        adaptiveMode,
+        currentBandwidthKbps,
+        packetLoss,
+        jitter
+      });
+    } else {
+      await profile.update({
+        bandwidth,
+        videoQuality,
+        audioQuality,
+        adaptiveMode,
+        currentBandwidthKbps,
+        packetLoss,
+        jitter
+      });
+    }
+
+    res.json(profile);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update media quality profile' });
+  }
+});
+
+// Large Meeting Configuration - Create or Update
+app.post('/meetings/:id/large-meeting-config', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const meeting = await requireMeetingAccess(req.params.id, userId);
+
+    // Only host can configure large meeting
+    if (meeting.hostId !== userId) {
+      return res.status(403).json({ error: 'Only the host can configure large meeting settings' });
+    }
+
+    const { mode, maxStageParticipants, stageParticipants, viewMode, enableQA, moderationSettings } = req.body;
+
+    let config = await LargeMeetingConfig.findOne({ where: { meetingId: req.params.id } });
+
+    if (!config) {
+      config = await LargeMeetingConfig.create({
+        meetingId: req.params.id,
+        mode,
+        maxStageParticipants,
+        stageParticipants,
+        viewMode,
+        enableQA,
+        moderationSettings
+      });
+    } else {
+      await config.update({
+        mode,
+        maxStageParticipants,
+        stageParticipants,
+        viewMode,
+        enableQA,
+        moderationSettings
+      });
+    }
+
+    res.json(config);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to configure large meeting' });
+  }
+});
+
+// Get Large Meeting Configuration
+app.get('/meetings/:id/large-meeting-config', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const config = await LargeMeetingConfig.findOne({
+      where: { meetingId: req.params.id }
+    });
+
+    if (!config) {
+      return res.status(404).json({ error: 'No large meeting configuration found' });
+    }
+
+    res.json(config);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get large meeting config' });
+  }
+});
+
+// Update Audience Size (for analytics)
+app.put('/meetings/:id/large-meeting-config/audience-size', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { audienceSize } = req.body;
+
+    const config = await LargeMeetingConfig.findOne({
+      where: { meetingId: req.params.id }
+    });
+
+    if (!config) {
+      return res.status(404).json({ error: 'No large meeting configuration found' });
+    }
+
+    await config.update({ audienceSize });
+
+    res.json(config);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update audience size' });
   }
 });
 

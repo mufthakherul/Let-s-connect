@@ -26,6 +26,7 @@ import TownHallMode from './meeting-modes/TownHallMode';
 import { CourtMode, ConferenceMode, QuizMode } from './meeting-modes/OtherModes';
 import GovernanceTools from './meeting-modes/GovernanceTools';
 import KnowledgeIntelligence from './meeting-modes/KnowledgeIntelligence';
+import ExperienceAccessibility from './meeting-modes/ExperienceAccessibility';
 
 const AGENDA_STATUS_OPTIONS = ['planned', 'in_progress', 'completed'];
 const ACTION_STATUS_OPTIONS = ['open', 'in_progress', 'blocked', 'done'];
@@ -347,6 +348,7 @@ function MeetingRoom({ user }) {
                         {meeting && meeting.mode !== 'standard' && <Tab label={`${meeting.mode.replace('_', ' ')} Mode`} />}
                         <Tab label="Governance & Safety" />
                         <Tab label="Knowledge & Intelligence" />
+                        <Tab label="Experience & Accessibility" />
                     </Tabs>
                 </CardContent>
             </Card>
@@ -387,6 +389,11 @@ function MeetingRoom({ user }) {
             {/* Knowledge & Intelligence - Tab 6 for modes, Tab 5 for standard */}
             {meeting && activeTab === (meeting.mode !== 'standard' ? 6 : 5) && (
                 <KnowledgeIntelligence meetingId={id} user={user} />
+            )}
+
+            {/* Experience & Accessibility - Tab 7 for modes, Tab 6 for standard */}
+            {meeting && activeTab === (meeting.mode !== 'standard' ? 7 : 6) && (
+                <ExperienceAccessibility meetingId={id} user={user} />
             )}
 
             {activeTab === 0 && (
