@@ -8,10 +8,10 @@
 .env.*.local
 
 # Documentation (already tracked files are not affected)
-*.md
+#*.md
 # !README.md
-docs/
-archives/
+#docs/
+#archives/
 
 # Development files
 .git/
