@@ -24,6 +24,7 @@ import RoundTableMode from './meeting-modes/RoundTableMode';
 import WorkshopMode from './meeting-modes/WorkshopMode';
 import TownHallMode from './meeting-modes/TownHallMode';
 import { CourtMode, ConferenceMode, QuizMode } from './meeting-modes/OtherModes';
+import GovernanceTools from './meeting-modes/GovernanceTools';
 
 const AGENDA_STATUS_OPTIONS = ['planned', 'in_progress', 'completed'];
 const ACTION_STATUS_OPTIONS = ['open', 'in_progress', 'blocked', 'done'];
@@ -39,6 +40,7 @@ const toDateTimeLocal = (value) => {
 function MeetingRoom({ user }) {
     const { id } = useParams();
     const [meeting, setMeeting] = useState(null);
+    const [currentParticipant, setCurrentParticipant] = useState(null);
     const [agenda, setAgenda] = useState([]);
     const [notes, setNotes] = useState([]);
     const [actions, setActions] = useState([]);
@@ -101,6 +103,13 @@ function MeetingRoom({ user }) {
             setNotes(notesResponse.data || []);
             setActions(actionsResponse.data || []);
             setDecisions(decisionsResponse.data || []);
+
+            // Find current user's participant record
+            const meetingData = meetingResponse.data;
+            if (meetingData.participants && user) {
+                const participant = meetingData.participants.find(p => p.userId === user.id);
+                setCurrentParticipant(participant);
+            }
         } catch (err) {
             console.error(err);
             setError(err.response?.data?.error || 'Failed to load meeting');
@@ -335,6 +344,7 @@ function MeetingRoom({ user }) {
                         <Tab label="Action Items" />
                         <Tab label="Decisions" />
                         {meeting && meeting.mode !== 'standard' && <Tab label={`${meeting.mode.replace('_', ' ')} Mode`} />}
+                        <Tab label="Governance & Safety" />
                     </Tabs>
                 </CardContent>
             </Card>
@@ -365,6 +375,11 @@ function MeetingRoom({ user }) {
 
             {meeting && meeting.mode === 'quiz' && activeTab === 4 && (
                 <QuizMode meetingId={id} user={user} />
+            )}
+
+            {/* Governance & Safety Tools - Tab 5 for modes, Tab 4 for standard */}
+            {meeting && activeTab === (meeting.mode !== 'standard' ? 5 : 4) && (
+                <GovernanceTools meetingId={id} user={user} participant={currentParticipant} />
             )}
 
             {activeTab === 0 && (
