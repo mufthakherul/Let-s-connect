@@ -9,6 +9,8 @@ const Redis = require('ioredis');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger-config');
 const webhookRoutes = require('./webhook-routes');
+const postmanGenerator = require('./postman-generator');
+const { reducedDataMode, addDataModeHeaders, getDataModeStats } = require('./reduced-data-mode');
 require('dotenv').config();
 
 const app = express();
@@ -22,6 +24,10 @@ const redisClient = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
+// Phase 7: Reduced Data Mode for mobile optimization
+app.use(addDataModeHeaders);
+app.use(reducedDataMode);
 
 // Phase 6: Enhanced Rate Limiting with Redis
 
@@ -246,6 +252,11 @@ if (process.env.NODE_ENV !== 'production') {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
+// Data mode info endpoint (Phase 7)
+app.get('/api/data-mode/info', (req, res) => {
+  res.json(getDataModeStats());
 });
 
 // Phase 6: Rate limit status endpoint
@@ -601,6 +612,30 @@ app.get('/api/docs/swagger.json', (req, res) => {
 
 // Swagger UI
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerOptions));
+
+// Postman Collection export (Phase 7)
+app.get('/api/docs/postman', (req, res) => {
+  try {
+    const collection = postmanGenerator.exportPostmanCollection();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="lets-connect-api.postman_collection.json"');
+    res.send(collection);
+  } catch (error) {
+    console.error('Postman collection generation error:', error);
+    res.status(500).json({ error: 'Failed to generate Postman collection' });
+  }
+});
+
+// Postman Collection info
+app.get('/api/docs/postman/info', (req, res) => {
+  try {
+    const info = postmanGenerator.getCollectionInfo();
+    res.json(info);
+  } catch (error) {
+    console.error('Postman collection info error:', error);
+    res.status(500).json({ error: 'Failed to get collection info' });
+  }
+});
 
 // Redoc alternative documentation (optional, lighter weight)
 app.get('/api/redoc', (req, res) => {
