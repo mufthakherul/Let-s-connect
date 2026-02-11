@@ -14,10 +14,11 @@ Historical audit and assessment reports:
 ### 🚀 phase-reports/
 Phase completion reports and summaries:
 - **ROADMAP_V1.0-V2.5.md** - Complete archived roadmap from initial development through Phase 4 (February 2026)
-- Phase 1-4 implementation reports
+- Phase 1-8 implementation reports
 - Phase completion summaries
 - Phase comparison reports
 - WebRTC implementation details
+- ROADMAP_PHASE_6_UPDATE.md - Phase 6 roadmap update
 
 ### 💻 implementation-reports/
 Implementation summaries and status reports:
@@ -25,12 +26,14 @@ Implementation summaries and status reports:
 - Dated implementation reports
 - Execution summaries
 - Final implementation reports
+- DEFERRED_FEATURES_IMPLEMENTATION_SUMMARY.md - Deferred features implementation summary
 
 ### ✅ task-reports/
 Task completion and work tracking:
 - Task completion reports
 - Work completed summaries
 - Execution reports
+- TASK_COMPLETION_SUMMARY.md - Task completion summary
 
 ### 📁 other-docs/
 Miscellaneous archived documentation:
@@ -39,6 +42,9 @@ Miscellaneous archived documentation:
 - Frontend integration summaries
 - Visual guides
 - Platform feature mappings
+- DEPLOYMENT_CHECKLIST.md - Deployment checklist
+- DEPLOYMENT_TESTING_SUMMARY.md - Deployment testing summary
+- DOCUMENTATION_SUMMARY.md - Documentation organization summary
 
 ## Why These Documents Are Archived
 

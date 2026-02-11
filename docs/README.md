@@ -27,7 +27,7 @@ Welcome to the Let's Connect documentation. This directory contains comprehensiv
 ### Development
 - **[TESTING.md](../TESTING.md)** - Testing strategy and guidelines
 - **[SECURITY_NOTES.md](../SECURITY_NOTES.md)** - Security best practices and guidelines
-- **[CHANGELOG.md](../CHANGELOG.md)** - Version history and changes
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history and changes
 - **[ROADMAP.md](../ROADMAP.md)** - Future development plans
 
 ## 🏗️ System Architecture
@@ -62,7 +62,7 @@ Let's Connect is built using a microservices architecture with 8 independent ser
 ### For Contributors
 - Review [FEATURES.md](../FEATURES.md) to see what's implemented
 - Check [ROADMAP.md](../ROADMAP.md) for future plans
-- Read [CHANGELOG.md](../CHANGELOG.md) for recent changes
+- Read [CHANGELOG.md](CHANGELOG.md) for recent changes
 
 ## 📂 Project Structure
 
