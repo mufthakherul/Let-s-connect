@@ -139,7 +139,8 @@ app.post('/suggest', async (req, res) => {
 });
 
 // ============================================================================
-// Phase 6: Content Recommendation API (Deferred from Phase 6 to Phase 7)
+// Phase 6: Content Recommendation API (Originally deferred, now implemented)
+// Note: Rate limiting is handled at API Gateway level via aiRequestLimiter
 // ============================================================================
 
 // AI-powered content recommendations
