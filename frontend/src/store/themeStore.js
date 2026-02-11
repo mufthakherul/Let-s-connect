@@ -23,11 +23,11 @@ const initializeThemeMode = () => {
   try {
     const savedMode = localStorage.getItem('theme-mode');
     const useSystemTheme = localStorage.getItem('use-system-theme') === 'true';
-    
+
     if (useSystemTheme) {
       return getSystemTheme();
     }
-    
+
     return savedMode || 'light';
   } catch {
     return 'light';
@@ -44,6 +44,32 @@ const initializeAccentColor = () => {
   }
 };
 
+// Initialize accessibility settings
+const initializeAccessibilitySettings = () => {
+  try {
+    const saved = localStorage.getItem('accessibility-settings');
+    return saved ? JSON.parse(saved) : {
+      highContrast: false,
+      largeText: false,
+      textScale: 1.0,
+      colorBlindSupport: null, // null, 'deuteranopia', 'protanopia', 'tritanopia'
+      magnification: 1.0,
+      reducedMotion: false,
+      fontFamily: 'default', // 'default', 'dyslexic', 'high-legibility'
+    };
+  } catch {
+    return {
+      highContrast: false,
+      largeText: false,
+      textScale: 1.0,
+      colorBlindSupport: null,
+      magnification: 1.0,
+      reducedMotion: false,
+      fontFamily: 'default',
+    };
+  }
+};
+
 export const useThemeStore = create((set, get) => ({
   mode: initializeThemeMode(),
   useSystemTheme: (() => {
@@ -54,7 +80,8 @@ export const useThemeStore = create((set, get) => ({
     }
   })(),
   accentColor: initializeAccentColor(),
-  
+  accessibility: initializeAccessibilitySettings(),
+
   toggleTheme: () => set((state) => {
     const newMode = state.mode === 'light' ? 'dark' : 'light';
     try {
@@ -66,7 +93,7 @@ export const useThemeStore = create((set, get) => ({
     }
     return { mode: newMode, useSystemTheme: false };
   }),
-  
+
   setMode: (mode) => {
     try {
       localStorage.setItem('theme-mode', mode);
@@ -76,7 +103,36 @@ export const useThemeStore = create((set, get) => ({
     }
     set({ mode, useSystemTheme: false });
   },
-  
+
+  // Accessibility settings
+  updateAccessibilitySetting: (key, value) => set((state) => {
+    const newAccessibility = { ...state.accessibility, [key]: value };
+    try {
+      localStorage.setItem('accessibility-settings', JSON.stringify(newAccessibility));
+    } catch (error) {
+      console.error('Failed to save accessibility settings:', error);
+    }
+    return { accessibility: newAccessibility };
+  }),
+
+  resetAccessibilitySettings: () => {
+    const defaultSettings = {
+      highContrast: false,
+      largeText: false,
+      textScale: 1.0,
+      colorBlindSupport: null,
+      magnification: 1.0,
+      reducedMotion: false,
+      fontFamily: 'default',
+    };
+    try {
+      localStorage.setItem('accessibility-settings', JSON.stringify(defaultSettings));
+    } catch (error) {
+      console.error('Failed to reset accessibility settings:', error);
+    }
+    set({ accessibility: defaultSettings });
+  },
+
   setUseSystemTheme: (useSystem) => {
     try {
       localStorage.setItem('use-system-theme', useSystem.toString());
@@ -91,7 +147,7 @@ export const useThemeStore = create((set, get) => ({
       console.error('Failed to save system theme preference:', error);
     }
   },
-  
+
   setAccentColor: (color) => {
     try {
       if (color) {
@@ -104,16 +160,16 @@ export const useThemeStore = create((set, get) => ({
     }
     set({ accentColor: color });
   },
-  
+
   getAccentColor: () => {
     const state = get();
     return state.accentColor || DEFAULT_ACCENT_COLORS[state.mode];
   },
-  
+
   // Listen to system theme changes
   initSystemThemeListener: () => {
     if (typeof window === 'undefined') return;
-    
+
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e) => {
       const state = get();
@@ -127,7 +183,7 @@ export const useThemeStore = create((set, get) => ({
         set({ mode: newMode });
       }
     };
-    
+
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
   },
