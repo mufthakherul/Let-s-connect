@@ -6,6 +6,11 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const RedisStore = require('rate-limit-redis');
 const Redis = require('ioredis');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./swagger-config');
+const webhookRoutes = require('./webhook-routes');
+const postmanGenerator = require('./postman-generator');
+const { reducedDataMode, addDataModeHeaders, getDataModeStats } = require('./reduced-data-mode');
 require('dotenv').config();
 
 const app = express();
@@ -19,6 +24,10 @@ const redisClient = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
+// Phase 7: Reduced Data Mode for mobile optimization
+app.use(addDataModeHeaders);
+app.use(reducedDataMode);
 
 // Phase 6: Enhanced Rate Limiting with Redis
 
@@ -245,6 +254,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
+// Data mode info endpoint (Phase 7)
+app.get('/api/data-mode/info', (req, res) => {
+  res.json(getDataModeStats());
+});
+
 // Phase 6: Rate limit status endpoint
 app.get('/api/rate-limit-status', authMiddleware, async (req, res) => {
   try {
@@ -296,6 +310,9 @@ app.get('/api/rate-limit-status', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch rate limit status' });
   }
 });
+
+// Phase 7: Webhooks System
+app.use('/api/webhooks', authMiddleware, webhookRoutes);
 
 // Phase 6: API Versioning System
 const API_VERSION = process.env.API_VERSION || 'v1';
@@ -577,6 +594,72 @@ app.get('/api/auth/oauth/github/callback', (req, res, next) => {
       return `/oauth/github/callback${req.url.substring(req.url.indexOf('?'))}`;;
     }
   })(req, res, next);
+});
+
+// Phase 7: Swagger/OpenAPI Documentation
+// Swagger UI options
+const swaggerOptions = {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Let\'s Connect API Documentation',
+  customfavIcon: '/favicon.ico'
+};
+
+// Swagger JSON endpoint
+app.get('/api/docs/swagger.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+// Swagger UI
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerOptions));
+
+// Postman Collection export (Phase 7)
+app.get('/api/docs/postman', (req, res) => {
+  try {
+    const collection = postmanGenerator.exportPostmanCollection();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="lets-connect-api.postman_collection.json"');
+    res.send(collection);
+  } catch (error) {
+    console.error('Postman collection generation error:', error);
+    res.status(500).json({ error: 'Failed to generate Postman collection' });
+  }
+});
+
+// Postman Collection info
+app.get('/api/docs/postman/info', (req, res) => {
+  try {
+    const info = postmanGenerator.getCollectionInfo();
+    res.json(info);
+  } catch (error) {
+    console.error('Postman collection info error:', error);
+    res.status(500).json({ error: 'Failed to get collection info' });
+  }
+});
+
+// Redoc alternative documentation (optional, lighter weight)
+app.get('/api/redoc', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Let's Connect API Documentation</title>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+          }
+        </style>
+      </head>
+      <body>
+        <redoc spec-url='/api/docs/swagger.json'></redoc>
+        <script src="https://cdn.jsdelivr.net/npm/redoc@latest/bundles/redoc.standalone.js"></script>
+      </body>
+    </html>
+  `);
 });
 
 // Error handling

@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const Joi = require('joi');
+const emailService = require('./email-service');
 require('dotenv').config();
 
 const app = express();
@@ -2147,6 +2148,46 @@ const githubOAuth = oauth2.create({
   }
 });
 
+// Facebook OAuth setup
+const facebookOAuth = oauth2.create({
+  client: {
+    id: process.env.FACEBOOK_APP_ID || 'your-app-id',
+    secret: process.env.FACEBOOK_APP_SECRET || 'your-app-secret'
+  },
+  auth: {
+    tokenHost: 'https://graph.facebook.com',
+    authorizeHost: 'https://www.facebook.com',
+    tokenPath: '/v18.0/oauth/access_token',
+    authorizePath: '/v18.0/dialog/oauth'
+  }
+});
+
+// Twitter/X OAuth setup
+const twitterOAuth = oauth2.create({
+  client: {
+    id: process.env.TWITTER_CLIENT_ID || 'your-client-id',
+    secret: process.env.TWITTER_CLIENT_SECRET || 'your-client-secret'
+  },
+  auth: {
+    tokenHost: 'https://api.twitter.com',
+    tokenPath: '/2/oauth2/token',
+    authorizePath: '/i/oauth2/authorize'
+  }
+});
+
+// LinkedIn OAuth setup
+const linkedinOAuth = oauth2.create({
+  client: {
+    id: process.env.LINKEDIN_CLIENT_ID || 'your-client-id',
+    secret: process.env.LINKEDIN_CLIENT_SECRET || 'your-client-secret'
+  },
+  auth: {
+    tokenHost: 'https://www.linkedin.com',
+    tokenPath: '/oauth/v2/accessToken',
+    authorizePath: '/oauth/v2/authorization'
+  }
+});
+
 // Get OAuth authorization URL (Google)
 app.get('/oauth/google/authorize', (req, res) => {
   try {
@@ -2265,6 +2306,373 @@ app.post('/oauth/github/callback', async (req, res) => {
     res.status(500).json({ error: 'GitHub OAuth failed' });
   }
 });
+
+// Facebook OAuth authorize
+app.get('/oauth/facebook/authorize', (req, res) => {
+  try {
+    const authorizationUri = facebookOAuth.authorizationCode.authorizeURL({
+      redirect_uri: process.env.FACEBOOK_REDIRECT_URI || 'http://localhost:8001/oauth/facebook/callback',
+      scope: ['email', 'public_profile'],
+      state: 'random-state-string'
+    });
+
+    res.json({ authorizationUri });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get Facebook authorization URL' });
+  }
+});
+
+// Facebook OAuth callback
+app.post('/oauth/facebook/callback', async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+
+    const token = await facebookOAuth.authorizationCode.getToken({
+      code,
+      redirect_uri: process.env.FACEBOOK_REDIRECT_URI || 'http://localhost:8001/oauth/facebook/callback'
+    });
+
+    // Fetch user info from Facebook
+    const facebookUser = await fetch(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${token.access_token}`)
+      .then(r => r.json());
+
+    if (!facebookUser.email) {
+      return res.status(400).json({ error: 'Email permission required' });
+    }
+
+    // Find or create user
+    let user = await User.findOne({ where: { email: facebookUser.email } });
+
+    if (!user) {
+      const nameParts = facebookUser.name?.split(' ') || ['User'];
+      user = await User.create({
+        email: facebookUser.email,
+        username: facebookUser.email.split('@')[0],
+        firstName: nameParts[0],
+        lastName: nameParts.slice(1).join(' ') || '',
+        avatar: facebookUser.picture?.data?.url,
+        password: bcrypt.hashSync(require('crypto').randomBytes(32).toString('hex'), 10)
+      });
+    }
+
+    // Generate JWT token
+    const jwtToken = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({
+      message: 'Facebook OAuth successful',
+      user: { id: user.id, email: user.email, firstName: user.firstName },
+      token: jwtToken
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Facebook OAuth failed' });
+  }
+});
+
+// Twitter/X OAuth authorize
+app.get('/oauth/twitter/authorize', (req, res) => {
+  try {
+    const authorizationUri = twitterOAuth.authorizationCode.authorizeURL({
+      redirect_uri: process.env.TWITTER_REDIRECT_URI || 'http://localhost:8001/oauth/twitter/callback',
+      scope: ['tweet.read', 'users.read'],
+      state: 'random-state-string',
+      code_challenge: 'challenge',
+      code_challenge_method: 'plain'
+    });
+
+    res.json({ authorizationUri });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get Twitter authorization URL' });
+  }
+});
+
+// Twitter/X OAuth callback
+app.post('/oauth/twitter/callback', async (req, res) => {
+  try {
+    const { code, code_verifier } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+
+    const token = await twitterOAuth.authorizationCode.getToken({
+      code,
+      redirect_uri: process.env.TWITTER_REDIRECT_URI || 'http://localhost:8001/oauth/twitter/callback',
+      code_verifier: code_verifier || 'challenge'
+    });
+
+    // Fetch user info from Twitter
+    const twitterUser = await fetch('https://api.twitter.com/2/users/me?user.fields=profile_image_url', {
+      headers: { Authorization: `Bearer ${token.access_token}` }
+    }).then(r => r.json());
+
+    // Derive a base username from Twitter and ensure it is unique to avoid collisions
+    const baseUsername = twitterUser.data?.username || `twitter_${Date.now()}`;
+    let username = baseUsername;
+    let suffix = 1;
+
+    // Ensure the generated username does not collide with an existing local account
+    // to prevent unintended linking of accounts based solely on username.
+    while (true) {
+      const existingUser = await User.findOne({ where: { username } });
+      if (!existingUser) {
+        break;
+      }
+      username = `${baseUsername}_${suffix++}`;
+    }
+
+    const email = `${username}@twitter.local`; // Twitter doesn't always provide email
+
+    // Always create a new user for this Twitter login instead of reusing an
+    // existing user with the same username, to avoid account takeover.
+    const user = await User.create({
+      email,
+      username,
+      firstName: twitterUser.data?.name?.split(' ')[0] || username,
+      lastName: twitterUser.data?.name?.split(' ').slice(1).join(' ') || '',
+      avatar: twitterUser.data?.profile_image_url,
+      password: bcrypt.hashSync(require('crypto').randomBytes(32).toString('hex'), 10)
+    });
+
+    // Generate JWT token
+    const jwtToken = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({
+      message: 'Twitter OAuth successful',
+      user: { id: user.id, email: user.email, firstName: user.firstName },
+      token: jwtToken
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Twitter OAuth failed' });
+  }
+});
+
+// LinkedIn OAuth authorize
+app.get('/oauth/linkedin/authorize', (req, res) => {
+  try {
+    const authorizationUri = linkedinOAuth.authorizationCode.authorizeURL({
+      redirect_uri: process.env.LINKEDIN_REDIRECT_URI || 'http://localhost:8001/oauth/linkedin/callback',
+      scope: ['r_liteprofile', 'r_emailaddress'],
+      state: 'random-state-string'
+    });
+
+    res.json({ authorizationUri });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get LinkedIn authorization URL' });
+  }
+});
+
+// LinkedIn OAuth callback
+app.post('/oauth/linkedin/callback', async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+
+    const token = await linkedinOAuth.authorizationCode.getToken({
+      code,
+      redirect_uri: process.env.LINKEDIN_REDIRECT_URI || 'http://localhost:8001/oauth/linkedin/callback'
+    });
+
+    // Fetch user info from LinkedIn
+    const [profileData, emailData] = await Promise.all([
+      fetch('https://api.linkedin.com/v2/me', {
+        headers: { Authorization: `Bearer ${token.access_token}` }
+      }).then(r => r.json()),
+      fetch('https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))', {
+        headers: { Authorization: `Bearer ${token.access_token}` }
+      }).then(r => r.json())
+    ]);
+
+    const email = emailData.elements?.[0]?.['handle~']?.emailAddress;
+    if (!email) {
+      return res.status(400).json({ error: 'Email permission required' });
+    }
+
+    const firstName = profileData.localizedFirstName || 'User';
+    const lastName = profileData.localizedLastName || '';
+
+    // Find or create user
+    let user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      user = await User.create({
+        email,
+        username: email.split('@')[0],
+        firstName,
+        lastName,
+        password: bcrypt.hashSync(require('crypto').randomBytes(32).toString('hex'), 10)
+      });
+    }
+
+    // Generate JWT token
+    const jwtToken = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({
+      message: 'LinkedIn OAuth successful',
+      user: { id: user.id, email: user.email, firstName: user.firstName },
+      token: jwtToken
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'LinkedIn OAuth failed' });
+  }
+});
+
+// ==================== EMAIL NOTIFICATIONS (Phase 7) ====================
+
+// Send email notification
+app.post('/email/send', authMiddleware, async (req, res) => {
+  try {
+    const { to, template, data } = req.body;
+
+    if (!to || !template) {
+      return res.status(400).json({ error: 'Email address and template are required' });
+    }
+
+    // Admin check for sending to arbitrary addresses
+    if (to !== req.user.email && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Can only send to your own email' });
+    }
+
+    const result = await emailService.sendEmail(to, template, { user: req.user, data });
+
+    if (result.success) {
+      res.json({
+        message: 'Email sent successfully',
+        messageId: result.messageId
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to send email', details: result.error });
+    }
+  } catch (error) {
+    console.error('Email send error:', error);
+    res.status(500).json({ error: 'Failed to send email' });
+  }
+});
+
+// Send welcome email (internal use or admin)
+app.post('/email/welcome', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const targetUserId = userId || req.user.id;
+
+    // Only allow sending to self or admin sending to anyone
+    if (targetUserId !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const user = await User.findByPk(targetUserId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const result = await emailService.sendEmail(
+      user.email,
+      'welcome',
+      { user: { firstName: user.firstName, email: user.email } }
+    );
+
+    if (result.success) {
+      res.json({ message: 'Welcome email sent', messageId: result.messageId });
+    } else {
+      res.status(500).json({ error: 'Failed to send welcome email', details: result.error });
+    }
+  } catch (error) {
+    console.error('Welcome email error:', error);
+    res.status(500).json({ error: 'Failed to send welcome email' });
+  }
+});
+
+// Send digest emails (admin only or automated)
+app.post('/email/digest', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { recipients } = req.body; // Array of {userId, period, items}
+
+    if (!recipients || !Array.isArray(recipients)) {
+      return res.status(400).json({ error: 'Recipients array required' });
+    }
+
+    const emailTasks = [];
+    for (const recipient of recipients) {
+      const user = await User.findByPk(recipient.userId);
+      if (user) {
+        emailTasks.push({
+          email: user.email,
+          template: 'digest',
+          data: {
+            user: { firstName: user.firstName, email: user.email },
+            data: {
+              period: recipient.period || 'Weekly',
+              items: recipient.items || []
+            }
+          }
+        });
+      }
+    }
+
+    const results = await emailService.sendBulkEmails(emailTasks);
+
+    res.json({
+      message: 'Digest emails processed',
+      sent: results.sent,
+      failed: results.failed,
+      errors: results.errors
+    });
+  } catch (error) {
+    console.error('Digest email error:', error);
+    res.status(500).json({ error: 'Failed to send digest emails' });
+  }
+});
+
+// Verify email connection (admin only)
+app.get('/email/verify', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const isConnected = await emailService.verifyConnection();
+
+    res.json({
+      configured: isConnected,
+      message: isConnected ? 'SMTP connection verified' : 'SMTP not configured or connection failed'
+    });
+  } catch (error) {
+    console.error('Email verification error:', error);
+    res.status(500).json({ error: 'Failed to verify email connection' });
+  }
+});
+
+// Get available email templates
+app.get('/email/templates', authMiddleware, async (req, res) => {
+  try {
+    const templates = Object.keys(emailService.emailTemplates);
+    res.json({
+      templates,
+      count: templates.length
+    });
+  } catch (error) {
+    console.error('Email templates error:', error);
+    res.status(500).json({ error: 'Failed to get email templates' });
+  }
+});
+
+// ==================== END EMAIL NOTIFICATIONS ====================
 
 // ==================== END EMAIL & OAUTH ====================
 
