@@ -484,6 +484,7 @@ const publicRoutes = [
   '/api/media/public',
   '/api/shop/public',
   '/api/collaboration/public',
+  '/api/collaboration/meetings/public',
   '/api/user/register',
   '/api/user/login',
   '/api/auth/oauth/google/authorize',

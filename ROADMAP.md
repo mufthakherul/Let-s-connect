@@ -28,11 +28,11 @@ This roadmap continues beyond the completed Phase 8 enterprise release. The goal
 **Objective:** Add advanced meeting types with role-based flows and UI that adjusts to context.
 
 ### 9.1 Unified Meeting Hub
-- [ ] Unified meeting scheduler and lobby
+- [x] Unified meeting scheduler and lobby (basic)
 - [ ] Calendar integrations (Google, Outlook) for invites and reminders
-- [ ] Join links for external participants with access controls
+- [x] Join links for external participants with access controls (meeting ID + access code)
 - [ ] Recording policies per organization and per meeting
-- [ ] Unregistered participant flow with email capture and limited access eg. (just join others' meetings, no scheduling or hosting)
+- [x] Unregistered participant flow with email capture and limited access (join-only)
 
 ### 9.2 External Meeting Integrations
 - [ ] Google Meet deep links and scheduling bridge
@@ -41,8 +41,8 @@ This roadmap continues beyond the completed Phase 8 enterprise release. The goal
 - [ ] Meeting metadata sync (title, time, participants, artifacts)
 
 ### 9.3 Meeting Modes (Mode-Driven UX)
-- [ ] **Standard Meeting Mode**
-  - Agenda, notes, action items, and decision log
+- [x] **Standard Meeting Mode**
+  - Agenda, notes, action items, decision log, and guest lobby (read-only notes)
 - [ ] **Debate Mode**
   - Pro/Con roles, timed rounds, rebuttal queue, moderator controls
   - Evidence cards and sources panel
@@ -55,7 +55,30 @@ This roadmap continues beyond the completed Phase 8 enterprise release. The goal
   - Roles: judge, counsel, witnesses, clerk, observers
   - Evidence vault, exhibits, chain-of-custody log
   - Motions queue, rulings, and verdict record
-
+- [ ] **Workshop Mode**
+  - Collaborative brainstorming with idea boards
+  - Voting and prioritization tools
+  - Action item extraction and assignment
+- [ ] **Town Hall Mode**
+  - Audience Q&A with upvoting
+  - Live polling and sentiment tracking
+  - Speaker queue and time limits
+- [ ] **Virtual Conference Mode**
+  - Multiple concurrent sessions with tracks
+  - Attendee networking and matchmaking
+  - Session feedback and resource sharing
+- [ ] **Virtual Quiz Mode**
+  - Live quizzes with real-time scoring
+  - Team and individual modes
+  - Question bank and randomization
+- [ ] **Custom Mode Builder (Admin Feature)**
+  - Drag-and-drop role and flow builder
+  - Customizable UI components per mode
+  - Save and share custom modes across organization
+- [ ] Mode templates for common use cases (e.g. project kickoff, retrospective, client meeting)
+- [ ] Mode-specific analytics and reporting (e.g. debate sentiment, round table consensus, court evidence usage)
+- [ ] Mode-aware notifications and reminders (e.g. debate round starting, court motion ruling)
+- [ ] Mode-specific onboarding and tooltips for new users
 ### 9.4 Frontend UX Enhancements for Modes
 - [ ] Layout presets per mode (debate, round table, court)
 - [ ] Role-aware controls and toolbars
@@ -64,7 +87,7 @@ This roadmap continues beyond the completed Phase 8 enterprise release. The goal
 - [ ] Mode-specific summaries at end of session
 
 ### 9.5 Backend Infrastructure for Modes
-- [ ] Meeting entity with mode, roles, and policy schemas
+- [x] Meeting entity with mode, roles, and policy schemas (core)
 - [ ] Real-time state machine for round tracking and timers
 - [ ] Evidence and exhibit storage with immutable logs
 - [ ] Audit events for all role actions

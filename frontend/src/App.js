@@ -14,6 +14,7 @@ import {
   ShoppingCartOutlined, Article, Pages as PagesIcon, Work as WorkIcon,
   Dashboard as DashboardIcon, Search as SearchIcon, Folder as FolderIcon,
   Phone as PhoneIcon, Storage as DatabaseIcon, CompareArrows as DiffIcon,
+  Event as EventIcon,
   Settings as SettingsIcon
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
@@ -58,6 +59,9 @@ const WebRTCCallWidget = lazy(() => import('./components/WebRTCCallWidget'));
 const DatabaseViews = lazy(() => import('./components/DatabaseViews'));
 const DiscordAdmin = lazy(() => import('./components/DiscordAdmin'));
 const ThemeSettings = lazy(() => import('./components/ThemeSettings'));
+const Meetings = lazy(() => import('./components/Meetings'));
+const MeetingRoom = lazy(() => import('./components/MeetingRoom'));
+const MeetingLobby = lazy(() => import('./components/MeetingLobby'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -193,6 +197,7 @@ function App() {
     { label: 'Shop', path: '/shop', icon: <ShoppingCart />, public: true },
     { label: 'Blog', path: '/blog', icon: <Article />, public: true },
     { label: 'Docs', path: '/docs', icon: <Description />, public: true },
+    { label: 'Meetings', path: '/meetings', icon: <EventIcon />, public: true },
     { label: 'Feed', path: '/feed', icon: <FeedIcon />, public: false },
     { label: 'Groups', path: '/groups', icon: <GroupIcon />, public: false },
     { label: 'Pages', path: '/pages', icon: <PagesIcon />, public: false },
@@ -308,6 +313,9 @@ function App() {
                     <Button color="inherit" component={Link} to="/docs" startIcon={<Description />}>
                       Docs
                     </Button>
+                    <Button color="inherit" component={Link} to="/meetings" startIcon={<EventIcon />}>
+                      Meetings
+                    </Button>
                     {internalUser && (
                       <>
                         <Button color="inherit" component={Link} to="/feed" startIcon={<FeedIcon />}>
@@ -387,6 +395,12 @@ function App() {
                   <Route path="/shop" element={<Shop />} />
                   <Route path="/blog" element={<Blog />} />
                   <Route path="/docs" element={<Docs user={internalUser} />} />
+                  <Route path="/meetings" element={<Meetings user={internalUser} />} />
+                  <Route
+                    path="/meetings/:id"
+                    element={internalUser ? <MeetingRoom user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  <Route path="/meetings/guest/:id" element={<MeetingLobby />} />
                   <Route path="/media" element={<MediaGallery />} />
                   <Route
                     path="/feed"

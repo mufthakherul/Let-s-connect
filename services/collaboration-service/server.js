@@ -23,6 +23,33 @@ const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 
 app.use(express.json());
 
+const generateAccessCode = () => {
+  return crypto.randomBytes(4).toString('hex').toUpperCase();
+};
+
+const requireMeetingAccess = async (meetingId, userId) => {
+  const meeting = await Meeting.findByPk(meetingId, {
+    include: [{ model: MeetingParticipant, as: 'participants' }]
+  });
+
+  if (!meeting) {
+    const error = new Error('Meeting not found');
+    error.status = 404;
+    throw error;
+  }
+
+  const isParticipant = meeting.hostId === userId
+    || meeting.participants.some((participant) => participant.userId === userId);
+
+  if (!isParticipant) {
+    const error = new Error('Access denied');
+    error.status = 403;
+    throw error;
+  }
+
+  return meeting;
+};
+
 // Database
 const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/collaboration', {
   dialect: 'postgres',
@@ -266,6 +293,183 @@ const WikiHistory = sequelize.define('WikiHistory', {
   contentHash: DataTypes.STRING
 });
 
+// Phase 9: Meeting Modes and Live Sessions (Core)
+const Meeting = sequelize.define('Meeting', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  mode: {
+    type: DataTypes.ENUM(
+      'standard',
+      'debate',
+      'round_table',
+      'court',
+      'workshop',
+      'town_hall',
+      'conference',
+      'quiz',
+      'custom'
+    ),
+    defaultValue: 'standard'
+  },
+  scheduledAt: DataTypes.DATE,
+  durationMinutes: {
+    type: DataTypes.INTEGER,
+    defaultValue: 30
+  },
+  status: {
+    type: DataTypes.ENUM('scheduled', 'live', 'ended', 'cancelled'),
+    defaultValue: 'scheduled'
+  },
+  hostId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  accessCode: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  allowGuests: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  maxParticipants: DataTypes.INTEGER,
+  settings: DataTypes.JSONB
+});
+
+const MeetingParticipant = sequelize.define('MeetingParticipant', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: DataTypes.UUID,
+  guestEmail: DataTypes.STRING,
+  guestName: DataTypes.STRING,
+  role: {
+    type: DataTypes.ENUM('host', 'participant', 'moderator', 'guest'),
+    defaultValue: 'participant'
+  },
+  joinedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  },
+  leftAt: DataTypes.DATE,
+  isGuest: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+});
+
+const MeetingAgendaItem = sequelize.define('MeetingAgendaItem', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  orderIndex: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  status: {
+    type: DataTypes.ENUM('planned', 'in_progress', 'completed'),
+    defaultValue: 'planned'
+  }
+});
+
+const MeetingNote = sequelize.define('MeetingNote', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  authorId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  isPublic: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  pinned: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+});
+
+const MeetingActionItem = sequelize.define('MeetingActionItem', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  assigneeId: DataTypes.UUID,
+  dueDate: DataTypes.DATE,
+  status: {
+    type: DataTypes.ENUM('open', 'in_progress', 'done'),
+    defaultValue: 'open'
+  }
+});
+
+const MeetingDecision = sequelize.define('MeetingDecision', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  summary: DataTypes.TEXT,
+  decidedBy: DataTypes.UUID,
+  decidedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
 // Relationships
 Issue.hasMany(IssueComment, { foreignKey: 'issueId' });
 IssueComment.belongsTo(Issue, { foreignKey: 'issueId' });
@@ -274,6 +478,18 @@ Project.hasMany(Task, { foreignKey: 'projectId' });
 Project.hasMany(Milestone, { foreignKey: 'projectId' });
 Milestone.hasMany(Issue, { foreignKey: 'milestoneId' });
 Issue.belongsTo(Milestone, { foreignKey: 'milestoneId' });
+
+// Phase 9: Meeting relationships
+Meeting.hasMany(MeetingParticipant, { foreignKey: 'meetingId', as: 'participants' });
+MeetingParticipant.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(MeetingAgendaItem, { foreignKey: 'meetingId', as: 'agenda' });
+MeetingAgendaItem.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(MeetingNote, { foreignKey: 'meetingId', as: 'notes' });
+MeetingNote.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(MeetingActionItem, { foreignKey: 'meetingId', as: 'actions' });
+MeetingActionItem.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(MeetingDecision, { foreignKey: 'meetingId', as: 'decisions' });
+MeetingDecision.belongsTo(Meeting, { foreignKey: 'meetingId' });
 
 // Phase 2: Document and Wiki history relationships
 Document.hasMany(DocumentVersion, { foreignKey: 'documentId', as: 'versions' });
@@ -433,6 +649,671 @@ app.get('/public/wiki/:slug', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch page' });
+  }
+});
+
+// ==================== PHASE 9: MEETING MODES (CORE) ====================
+
+// Create meeting
+app.post('/meetings', async (req, res) => {
+  try {
+    const hostId = req.header('x-user-id');
+    if (!hostId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const {
+      title,
+      description,
+      mode = 'standard',
+      scheduledAt,
+      durationMinutes = 30,
+      allowGuests = true,
+      maxParticipants,
+      settings
+    } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const meeting = await Meeting.create({
+      title,
+      description,
+      mode,
+      scheduledAt,
+      durationMinutes,
+      hostId,
+      accessCode: generateAccessCode(),
+      allowGuests,
+      maxParticipants,
+      settings: settings || {}
+    });
+
+    await MeetingParticipant.create({
+      meetingId: meeting.id,
+      userId: hostId,
+      role: 'host',
+      isGuest: false
+    });
+
+    res.status(201).json(meeting);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create meeting' });
+  }
+});
+
+// List meetings for user
+app.get('/meetings', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const meetings = await Meeting.findAll({
+      where: {
+        [Op.or]: [
+          { hostId: userId },
+          { '$participants.userId$': userId }
+        ]
+      },
+      include: [
+        {
+          model: MeetingParticipant,
+          as: 'participants',
+          required: false
+        }
+      ],
+      distinct: true,
+      order: [['scheduledAt', 'DESC']]
+    });
+
+    res.json(meetings);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch meetings' });
+  }
+});
+
+// Get meeting details (authenticated)
+app.get('/meetings/:id', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const meeting = await Meeting.findByPk(req.params.id, {
+      include: [{ model: MeetingParticipant, as: 'participants' }]
+    });
+
+    if (!meeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    const isParticipant = meeting.hostId === userId || meeting.participants.some((p) => p.userId === userId);
+    if (!isParticipant) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    res.json(meeting);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch meeting' });
+  }
+});
+
+// Join meeting (authenticated)
+app.post('/meetings/:id/join', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const meeting = await Meeting.findByPk(req.params.id);
+    if (!meeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    const existing = await MeetingParticipant.findOne({
+      where: { meetingId: meeting.id, userId }
+    });
+
+    if (existing) {
+      return res.json(existing);
+    }
+
+    const participant = await MeetingParticipant.create({
+      meetingId: meeting.id,
+      userId,
+      role: 'participant',
+      isGuest: false
+    });
+
+    res.status(201).json(participant);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to join meeting' });
+  }
+});
+
+// Leave meeting (authenticated)
+app.post('/meetings/:id/leave', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const participant = await MeetingParticipant.findOne({
+      where: { meetingId: req.params.id, userId }
+    });
+
+    if (!participant) {
+      return res.status(404).json({ error: 'Participant not found' });
+    }
+
+    await participant.update({ leftAt: new Date() });
+
+    res.json({ message: 'Left meeting' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to leave meeting' });
+  }
+});
+
+// Public meeting info (requires access code)
+app.get('/meetings/public/:id', async (req, res) => {
+  try {
+    const { accessCode } = req.query;
+    const meeting = await Meeting.findByPk(req.params.id);
+
+    if (!meeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    if (!meeting.allowGuests || meeting.accessCode !== accessCode) {
+      return res.status(403).json({ error: 'Invalid access code' });
+    }
+
+    res.json({
+      id: meeting.id,
+      title: meeting.title,
+      description: meeting.description,
+      mode: meeting.mode,
+      scheduledAt: meeting.scheduledAt,
+      durationMinutes: meeting.durationMinutes,
+      status: meeting.status
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch meeting' });
+  }
+});
+
+// Public join for unregistered participants
+app.post('/meetings/public/join', async (req, res) => {
+  try {
+    const { meetingId, accessCode, email, name } = req.body;
+
+    if (!meetingId || !accessCode || !email || !name) {
+      return res.status(400).json({ error: 'meetingId, accessCode, email, and name are required' });
+    }
+
+    const meeting = await Meeting.findByPk(meetingId);
+    if (!meeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    if (!meeting.allowGuests || meeting.accessCode !== accessCode) {
+      return res.status(403).json({ error: 'Invalid access code' });
+    }
+
+    const existing = await MeetingParticipant.findOne({
+      where: { meetingId: meeting.id, guestEmail: email }
+    });
+
+    if (existing) {
+      return res.json(existing);
+    }
+
+    const participant = await MeetingParticipant.create({
+      meetingId: meeting.id,
+      guestEmail: email,
+      guestName: name,
+      role: 'guest',
+      isGuest: true
+    });
+
+    res.status(201).json({
+      meeting: {
+        id: meeting.id,
+        title: meeting.title,
+        mode: meeting.mode,
+        scheduledAt: meeting.scheduledAt,
+        status: meeting.status
+      },
+      participant
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to join meeting' });
+  }
+});
+
+// Public lobby for guests (read-only notes)
+app.get('/meetings/public/:id/lobby', async (req, res) => {
+  try {
+    const { accessCode } = req.query;
+    const meeting = await Meeting.findByPk(req.params.id);
+
+    if (!meeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    if (!meeting.allowGuests || meeting.accessCode !== accessCode) {
+      return res.status(403).json({ error: 'Invalid access code' });
+    }
+
+    const notes = await MeetingNote.findAll({
+      where: { meetingId: meeting.id, isPublic: true },
+      order: [['createdAt', 'ASC']]
+    });
+
+    res.json({
+      meeting: {
+        id: meeting.id,
+        title: meeting.title,
+        description: meeting.description,
+        mode: meeting.mode,
+        scheduledAt: meeting.scheduledAt,
+        durationMinutes: meeting.durationMinutes,
+        status: meeting.status
+      },
+      notes
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to load lobby' });
+  }
+});
+
+// Agenda endpoints
+app.get('/meetings/:id/agenda', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const agenda = await MeetingAgendaItem.findAll({
+      where: { meetingId: req.params.id },
+      order: [['orderIndex', 'ASC']]
+    });
+
+    res.json(agenda);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to fetch agenda' });
+  }
+});
+
+app.post('/meetings/:id/agenda', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { title, description, orderIndex, status } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const item = await MeetingAgendaItem.create({
+      meetingId: req.params.id,
+      title,
+      description,
+      orderIndex: orderIndex ?? 0,
+      status: status || 'planned'
+    });
+
+    res.status(201).json(item);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create agenda item' });
+  }
+});
+
+app.put('/meetings/:id/agenda/:itemId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const item = await MeetingAgendaItem.findByPk(req.params.itemId);
+
+    if (!item || item.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Agenda item not found' });
+    }
+
+    const { title, description, orderIndex, status } = req.body;
+    await item.update({
+      title: title ?? item.title,
+      description: description ?? item.description,
+      orderIndex: orderIndex ?? item.orderIndex,
+      status: status ?? item.status
+    });
+
+    res.json(item);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update agenda item' });
+  }
+});
+
+app.delete('/meetings/:id/agenda/:itemId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const item = await MeetingAgendaItem.findByPk(req.params.itemId);
+
+    if (!item || item.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Agenda item not found' });
+    }
+
+    await item.destroy();
+    res.json({ message: 'Agenda item deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to delete agenda item' });
+  }
+});
+
+// Notes endpoints
+app.get('/meetings/:id/notes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const notes = await MeetingNote.findAll({
+      where: { meetingId: req.params.id },
+      order: [['pinned', 'DESC'], ['createdAt', 'ASC']]
+    });
+
+    res.json(notes);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to fetch notes' });
+  }
+});
+
+app.post('/meetings/:id/notes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { content, isPublic = true, pinned = false } = req.body;
+
+    if (!content) {
+      return res.status(400).json({ error: 'Content is required' });
+    }
+
+    const note = await MeetingNote.create({
+      meetingId: req.params.id,
+      authorId: userId,
+      content,
+      isPublic,
+      pinned
+    });
+
+    res.status(201).json(note);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create note' });
+  }
+});
+
+app.put('/meetings/:id/notes/:noteId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const note = await MeetingNote.findByPk(req.params.noteId);
+
+    if (!note || note.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Note not found' });
+    }
+
+    const { content, isPublic, pinned } = req.body;
+    await note.update({
+      content: content ?? note.content,
+      isPublic: isPublic ?? note.isPublic,
+      pinned: pinned ?? note.pinned
+    });
+
+    res.json(note);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update note' });
+  }
+});
+
+app.delete('/meetings/:id/notes/:noteId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const note = await MeetingNote.findByPk(req.params.noteId);
+
+    if (!note || note.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Note not found' });
+    }
+
+    await note.destroy();
+    res.json({ message: 'Note deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to delete note' });
+  }
+});
+
+// Action items
+app.get('/meetings/:id/actions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const actions = await MeetingActionItem.findAll({
+      where: { meetingId: req.params.id },
+      order: [['createdAt', 'ASC']]
+    });
+
+    res.json(actions);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to fetch action items' });
+  }
+});
+
+app.post('/meetings/:id/actions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { title, description, assigneeId, dueDate, status } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const action = await MeetingActionItem.create({
+      meetingId: req.params.id,
+      title,
+      description,
+      assigneeId,
+      dueDate,
+      status: status || 'open'
+    });
+
+    res.status(201).json(action);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create action item' });
+  }
+});
+
+app.put('/meetings/:id/actions/:actionId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const action = await MeetingActionItem.findByPk(req.params.actionId);
+
+    if (!action || action.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Action item not found' });
+    }
+
+    const { title, description, assigneeId, dueDate, status } = req.body;
+    await action.update({
+      title: title ?? action.title,
+      description: description ?? action.description,
+      assigneeId: assigneeId ?? action.assigneeId,
+      dueDate: dueDate ?? action.dueDate,
+      status: status ?? action.status
+    });
+
+    res.json(action);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update action item' });
+  }
+});
+
+app.delete('/meetings/:id/actions/:actionId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const action = await MeetingActionItem.findByPk(req.params.actionId);
+
+    if (!action || action.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Action item not found' });
+    }
+
+    await action.destroy();
+    res.json({ message: 'Action item deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to delete action item' });
+  }
+});
+
+// Decisions
+app.get('/meetings/:id/decisions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const decisions = await MeetingDecision.findAll({
+      where: { meetingId: req.params.id },
+      order: [['decidedAt', 'DESC']]
+    });
+
+    res.json(decisions);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to fetch decisions' });
+  }
+});
+
+app.post('/meetings/:id/decisions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { title, summary, decidedAt } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const decision = await MeetingDecision.create({
+      meetingId: req.params.id,
+      title,
+      summary,
+      decidedBy: userId,
+      decidedAt: decidedAt ? new Date(decidedAt) : new Date()
+    });
+
+    res.status(201).json(decision);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create decision' });
+  }
+});
+
+app.delete('/meetings/:id/decisions/:decisionId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const decision = await MeetingDecision.findByPk(req.params.decisionId);
+
+    if (!decision || decision.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Decision not found' });
+    }
+
+    await decision.destroy();
+    res.json({ message: 'Decision deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to delete decision' });
   }
 });
 
@@ -1693,7 +2574,7 @@ app.delete('/folders/:folderId', async (req, res) => {
     const documents = await Document.count({ where: { parentFolderId: folderId } });
 
     if (subfolders > 0 || documents > 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Cannot delete folder: folder must be empty before deletion',
         details: `This folder contains ${subfolders} subfolder(s) and ${documents} document(s)`,
         subfolders,
@@ -2141,8 +3022,8 @@ app.get('/collaborative/sessions/:documentId', async (req, res) => {
       where: { documentId: req.params.documentId },
       include: [
         { model: UserPresence, as: 'presences' },
-        { 
-          model: CollaborativeOperation, 
+        {
+          model: CollaborativeOperation,
           as: 'operations',
           limit: 100,
           order: [['createdAt', 'DESC']]
@@ -2276,7 +3157,7 @@ app.put('/collaborative/sessions/:documentId/cursor', async (req, res) => {
         cursorPosition,
         selectionStart,
         selectionEnd,
-        color: color || `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`
+        color: color || `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`
       });
     }
 
@@ -2329,7 +3210,7 @@ io.on('connection', (socket) => {
       }
 
       // Create user presence
-      const color = `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`;
+      const color = `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
       await UserPresence.create({
         sessionId: session.id,
         userId,
