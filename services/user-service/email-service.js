@@ -139,7 +139,7 @@ async function sendEmail(to, template, data) {
     }
 
     const { subject, html, text } = typeof templateData === 'function' 
-      ? templateData(data.user, data.data)
+      ? templateData(data.user, data.data || data)
       : templateData;
 
     const mailOptions = {

@@ -3,8 +3,7 @@ const {
   Webhook, 
   WebhookDelivery, 
   WEBHOOK_EVENTS, 
-  generateWebhookSecret,
-  triggerWebhooks
+  generateWebhookSecret
 } = require('./webhooks');
 
 const router = express.Router();
@@ -146,8 +145,8 @@ router.post('/', requireAuth, async (req, res) => {
       events,
       description,
       headers: headers || {},
-      retryCount: retryCount || 3,
-      timeout: timeout || 10000
+      retryCount: retryCount ?? 3,
+      timeout: timeout ?? 10000
     });
 
     res.status(201).json({
@@ -158,6 +157,23 @@ router.post('/', requireAuth, async (req, res) => {
     console.error('Error creating webhook:', error);
     res.status(500).json({ error: 'Failed to create webhook' });
   }
+});
+
+/**
+ * @swagger
+ * /api/webhooks/events:
+ *   get:
+ *     summary: List available events
+ *     description: Get list of all available webhook events
+ *     tags: [Webhooks]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/events', requireAuth, async (req, res) => {
+  res.json({
+    events: WEBHOOK_EVENTS,
+    count: WEBHOOK_EVENTS.length
+  });
 });
 
 /**
@@ -425,23 +441,6 @@ router.post('/:id/secret/rotate', requireAuth, async (req, res) => {
     console.error('Error rotating secret:', error);
     res.status(500).json({ error: 'Failed to rotate secret' });
   }
-});
-
-/**
- * @swagger
- * /api/webhooks/events:
- *   get:
- *     summary: List available events
- *     description: Get list of all available webhook events
- *     tags: [Webhooks]
- *     security:
- *       - bearerAuth: []
- */
-router.get('/events', requireAuth, async (req, res) => {
-  res.json({
-    events: WEBHOOK_EVENTS,
-    count: WEBHOOK_EVENTS.length
-  });
 });
 
 module.exports = router;

@@ -2155,7 +2155,8 @@ const facebookOAuth = oauth2.create({
     secret: process.env.FACEBOOK_APP_SECRET || 'your-app-secret'
   },
   auth: {
-    tokenHost: 'https://www.facebook.com',
+    tokenHost: 'https://graph.facebook.com',
+    authorizeHost: 'https://www.facebook.com',
     tokenPath: '/v18.0/oauth/access_token',
     authorizePath: '/v18.0/dialog/oauth'
   }
@@ -2168,7 +2169,7 @@ const twitterOAuth = oauth2.create({
     secret: process.env.TWITTER_CLIENT_SECRET || 'your-client-secret'
   },
   auth: {
-    tokenHost: 'https://twitter.com',
+    tokenHost: 'https://api.twitter.com',
     tokenPath: '/2/oauth2/token',
     authorizePath: '/i/oauth2/authorize'
   }
@@ -2394,7 +2395,7 @@ app.get('/oauth/twitter/authorize', (req, res) => {
 // Twitter/X OAuth callback
 app.post('/oauth/twitter/callback', async (req, res) => {
   try {
-    const { code } = req.body;
+    const { code, code_verifier } = req.body;
 
     if (!code) {
       return res.status(400).json({ error: 'Authorization code required' });
@@ -2403,7 +2404,7 @@ app.post('/oauth/twitter/callback', async (req, res) => {
     const token = await twitterOAuth.authorizationCode.getToken({
       code,
       redirect_uri: process.env.TWITTER_REDIRECT_URI || 'http://localhost:8001/oauth/twitter/callback',
-      code_verifier: 'challenge'
+      code_verifier: code_verifier || 'challenge'
     });
 
     // Fetch user info from Twitter
@@ -2411,22 +2412,33 @@ app.post('/oauth/twitter/callback', async (req, res) => {
       headers: { Authorization: `Bearer ${token.access_token}` }
     }).then(r => r.json());
 
-    const username = twitterUser.data?.username || `twitter_${Date.now()}`;
+    // Derive a base username from Twitter and ensure it is unique to avoid collisions
+    const baseUsername = twitterUser.data?.username || `twitter_${Date.now()}`;
+    let username = baseUsername;
+    let suffix = 1;
+
+    // Ensure the generated username does not collide with an existing local account
+    // to prevent unintended linking of accounts based solely on username.
+    while (true) {
+      const existingUser = await User.findOne({ where: { username } });
+      if (!existingUser) {
+        break;
+      }
+      username = `${baseUsername}_${suffix++}`;
+    }
+
     const email = `${username}@twitter.local`; // Twitter doesn't always provide email
 
-    // Find or create user
-    let user = await User.findOne({ where: { username } });
-
-    if (!user) {
-      user = await User.create({
-        email,
-        username,
-        firstName: twitterUser.data?.name?.split(' ')[0] || username,
-        lastName: twitterUser.data?.name?.split(' ').slice(1).join(' ') || '',
-        avatar: twitterUser.data?.profile_image_url,
-        password: bcrypt.hashSync(require('crypto').randomBytes(32).toString('hex'), 10)
-      });
-    }
+    // Always create a new user for this Twitter login instead of reusing an
+    // existing user with the same username, to avoid account takeover.
+    const user = await User.create({
+      email,
+      username,
+      firstName: twitterUser.data?.name?.split(' ')[0] || username,
+      lastName: twitterUser.data?.name?.split(' ').slice(1).join(' ') || '',
+      avatar: twitterUser.data?.profile_image_url,
+      password: bcrypt.hashSync(require('crypto').randomBytes(32).toString('hex'), 10)
+    });
 
     // Generate JWT token
     const jwtToken = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
