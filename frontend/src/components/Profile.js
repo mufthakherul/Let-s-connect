@@ -32,14 +32,15 @@ function Profile({ user }) {
     lastName: user.lastName || '',
     bio: ''
   });
-  
+
   const [skills, setSkills] = useState([]);
   const [skillDialogOpen, setSkillDialogOpen] = useState(false);
   const [newSkill, setNewSkill] = useState({ name: '', level: 'intermediate' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [tabValue, setTabValue] = useState(0);
-  
+  const [saving, setSaving] = useState(false);
+
   const token = localStorage.getItem('token');
 
   useEffect(() => {
@@ -61,10 +62,44 @@ function Profile({ user }) {
     setProfile({ ...profile, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO: Implement profile update API call
-    console.log('Update profile:', profile);
+    setError('');
+    setSuccess('');
+
+    try {
+      setSaving(true);
+      const payload = {
+        firstName: profile.firstName.trim(),
+        lastName: profile.lastName.trim(),
+        bio: profile.bio
+      };
+
+      const response = await axios.put(
+        `/api/user/profile/${user.id}`,
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const updatedUser = response.data?.user;
+      if (updatedUser) {
+        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const mergedUser = { ...storedUser, ...updatedUser };
+        localStorage.setItem('user', JSON.stringify(mergedUser));
+      }
+
+      setSuccess('Profile updated successfully!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Failed to update profile:', err);
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else {
+        setError('Failed to update profile');
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const addSkill = async () => {
@@ -79,7 +114,7 @@ function Profile({ user }) {
         { name: newSkill.name.trim(), level: newSkill.level },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       setSkills([...skills, response.data]);
       setNewSkill({ name: '', level: 'intermediate' });
       setSkillDialogOpen(false);
@@ -104,7 +139,7 @@ function Profile({ user }) {
       await axios.delete(`/api/user/skills/${skillId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       setSkills(skills.filter(s => s.id !== skillId));
       setSuccess('Skill removed successfully!');
       setTimeout(() => setSuccess(''), 3000);
@@ -121,7 +156,7 @@ function Profile({ user }) {
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       // Refresh skills to show updated endorsement count
       fetchSkills();
       setSuccess('Skill endorsed!');
@@ -172,7 +207,7 @@ function Profile({ user }) {
             </Avatar>
             <Box>
               <Typography variant="h5">
-                {user.firstName} {user.lastName}
+                {profile.firstName || user.firstName} {profile.lastName || user.lastName}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 @{user.username}
@@ -216,8 +251,8 @@ function Profile({ user }) {
                 onChange={handleChange}
                 margin="normal"
               />
-              <Button type="submit" variant="contained" sx={{ mt: 2 }}>
-                Update Profile
+              <Button type="submit" variant="contained" sx={{ mt: 2 }} disabled={saving}>
+                {saving ? 'Saving...' : 'Update Profile'}
               </Button>
             </form>
           )}
@@ -259,16 +294,16 @@ function Profile({ user }) {
                               <Delete fontSize="small" />
                             </IconButton>
                           </Box>
-                          
+
                           <Chip
                             label={skill.level}
                             color={getLevelColor(skill.level)}
                             size="small"
                             sx={{ mb: 1 }}
                           />
-                          
+
                           <Divider sx={{ my: 1 }} />
-                          
+
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Typography variant="body2" color="text.secondary">
                               {skill.endorsements || 0} endorsement{(skill.endorsements || 0) !== 1 ? 's' : ''}
@@ -304,7 +339,7 @@ function Profile({ user }) {
             margin="normal"
             placeholder="e.g., JavaScript, Project Management, Design"
           />
-          
+
           <FormControl fullWidth margin="normal">
             <InputLabel>Proficiency Level</InputLabel>
             <Select

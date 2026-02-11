@@ -45,6 +45,7 @@ import {
   Tag
 } from '@mui/icons-material';
 import { useInView } from 'react-intersection-observer';
+import { useNavigate } from 'react-router-dom';
 import { formatRelativeTime, formatNumber, getInitials } from '../utils/helpers';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
@@ -65,6 +66,7 @@ const REACTIONS = [
 ];
 
 function Feed({ user }) {
+  const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [newPost, setNewPost] = useState('');
   const [visibility, setVisibility] = useState('public');
@@ -360,7 +362,7 @@ function Feed({ user }) {
 
   const renderContentWithHashtags = (content) => {
     if (!content) return null;
-    
+
     // Regular expression to match hashtags (# followed by word characters)
     const hashtagRegex = /#(\w+)/g;
     const parts = [];
@@ -372,7 +374,7 @@ function Feed({ user }) {
       if (match.index > lastIndex) {
         parts.push(content.substring(lastIndex, match.index));
       }
-      
+
       // Add the hashtag as a clickable chip
       const hashtag = match[1];
       parts.push(
@@ -382,14 +384,14 @@ function Feed({ user }) {
           size="small"
           icon={<Tag fontSize="small" />}
           onClick={() => handleHashtagClick(hashtag)}
-          sx={{ 
-            mx: 0.5, 
+          sx={{
+            mx: 0.5,
             cursor: 'pointer',
             '&:hover': { bgcolor: 'primary.light' }
           }}
         />
       );
-      
+
       lastIndex = match.index + match[0].length;
     }
 
@@ -402,10 +404,9 @@ function Feed({ user }) {
   };
 
   const handleHashtagClick = (hashtag) => {
-    // TODO: Implement hashtag search/filter functionality
-    // This could navigate to /search?q=%23hashtag or filter current feed
-    toast.success(`Searching for #${hashtag}`);
-    // Future implementation: window.location.href = `/search?q=${encodeURIComponent('#' + hashtag)}`;
+    const searchQuery = `#${hashtag}`;
+    toast.success(`Searching for ${searchQuery}`);
+    navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
   };
 
   const getVisibilityIcon = (vis) => {

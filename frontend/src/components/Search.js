@@ -6,9 +6,11 @@ import {
     CircularProgress, Alert, Card, CardContent, Divider
 } from '@mui/material';
 import { Search as SearchIcon, Schedule } from '@mui/icons-material';
+import { useLocation } from 'react-router-dom';
 import api from '../utils/api';
 
 const Search = () => {
+    const location = useLocation();
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState(null);
@@ -21,6 +23,15 @@ const Search = () => {
     useEffect(() => {
         fetchSearchHistory();
     }, []);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const queryParam = params.get('q');
+        if (queryParam) {
+            setQuery(queryParam);
+            handleSearch(queryParam);
+        }
+    }, [location.search]);
 
     const fetchSearchHistory = async () => {
         try {
