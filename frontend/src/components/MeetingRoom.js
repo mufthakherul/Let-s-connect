@@ -19,6 +19,7 @@ import {
     Typography,
 } from '@mui/material';
 import api from '../utils/api';
+import DebateMode from './meeting-modes/DebateMode';
 
 const AGENDA_STATUS_OPTIONS = ['planned', 'in_progress', 'completed'];
 const ACTION_STATUS_OPTIONS = ['open', 'in_progress', 'blocked', 'done'];
@@ -329,9 +330,14 @@ function MeetingRoom({ user }) {
                         <Tab label="Notes" />
                         <Tab label="Action Items" />
                         <Tab label="Decisions" />
+                        {meeting && meeting.mode !== 'standard' && <Tab label={`${meeting.mode.replace('_', ' ')} Mode`} />}
                     </Tabs>
                 </CardContent>
             </Card>
+
+            {meeting && meeting.mode === 'debate' && activeTab === 4 && (
+                <DebateMode meetingId={id} user={user} />
+            )}
 
             {activeTab === 0 && (
                 <Card>
