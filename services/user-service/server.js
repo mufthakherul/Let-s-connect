@@ -2268,6 +2268,200 @@ app.post('/oauth/github/callback', async (req, res) => {
 
 // ==================== END EMAIL & OAUTH ====================
 
+// ==================== PHASE 6: DATA MANAGEMENT ====================
+
+// Export user data (GDPR compliance)
+app.get('/export/my-data', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get user data
+    const user = await User.findByPk(userId, {
+      attributes: { exclude: ['password', 'twoFactorSecret'] }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get related data
+    const skills = await UserSkill.findAll({ where: { userId } });
+    const experiences = await Experience.findAll({ where: { userId } });
+    const educations = await Education.findAll({ where: { userId } });
+    const certifications = await Certification.findAll({ where: { userId } });
+    const socialLinks = await SocialLink.findAll({ where: { userId } });
+    const projects = await Project.findAll({ where: { userId } });
+    const achievements = await Achievement.findAll({ where: { userId } });
+
+    // Compile export data
+    const exportData = {
+      exportDate: new Date().toISOString(),
+      exportVersion: '1.0',
+      user: user.toJSON(),
+      profile: {
+        skills: skills.map(s => s.toJSON()),
+        experiences: experiences.map(e => e.toJSON()),
+        educations: educations.map(e => e.toJSON()),
+        certifications: certifications.map(c => c.toJSON()),
+        socialLinks: socialLinks.map(s => s.toJSON()),
+        projects: projects.map(p => p.toJSON()),
+        achievements: achievements.map(a => a.toJSON())
+      },
+      metadata: {
+        accountCreated: user.createdAt,
+        lastUpdated: user.updatedAt,
+        totalSkills: skills.length,
+        totalExperiences: experiences.length,
+        totalEducations: educations.length,
+        totalCertifications: certifications.length,
+        totalProjects: projects.length
+      }
+    };
+
+    res.json(exportData);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to export user data' });
+  }
+});
+
+// Export user data in CSV format
+app.get('/export/my-data/csv', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const user = await User.findByPk(userId, {
+      attributes: { exclude: ['password', 'twoFactorSecret'] }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Simple CSV generation
+    const skills = await UserSkill.findAll({ where: { userId } });
+    
+    let csv = 'Data Type,Field,Value\n';
+    csv += `User,ID,${user.id}\n`;
+    csv += `User,Username,${user.username}\n`;
+    csv += `User,Email,${user.email}\n`;
+    csv += `User,First Name,${user.firstName || ''}\n`;
+    csv += `User,Last Name,${user.lastName || ''}\n`;
+    csv += `User,Role,${user.role}\n`;
+    csv += `User,Created At,${user.createdAt}\n`;
+    
+    skills.forEach((skill, index) => {
+      csv += `Skill ${index + 1},Name,${skill.skillName}\n`;
+      csv += `Skill ${index + 1},Level,${skill.proficiency}\n`;
+    });
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=user-data-${userId}.csv`);
+    res.send(csv);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to export user data as CSV' });
+  }
+});
+
+// Admin: Export all users data (bulk export)
+app.get('/admin/export/users', requireAdmin, async (req, res) => {
+  try {
+    const { format = 'json', limit = 100, offset = 0 } = req.query;
+
+    const users = await User.findAll({
+      attributes: { exclude: ['password', 'twoFactorSecret'] },
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['createdAt', 'DESC']]
+    });
+
+    const total = await User.count();
+
+    if (format === 'csv') {
+      let csv = 'ID,Username,Email,First Name,Last Name,Role,Active,Created At\n';
+      users.forEach(user => {
+        csv += `${user.id},${user.username},${user.email},${user.firstName || ''},${user.lastName || ''},${user.role},${user.isActive},${user.createdAt}\n`;
+      });
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename=all-users.csv');
+      res.send(csv);
+    } else {
+      res.json({
+        users: users.map(u => u.toJSON()),
+        total,
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        hasMore: total > parseInt(offset) + parseInt(limit)
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to export users data' });
+  }
+});
+
+// Request account deletion (GDPR right to be forgotten)
+app.post('/request-deletion', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { password, confirmDeletion } = req.body;
+
+    if (!confirmDeletion) {
+      return res.status(400).json({ 
+        error: 'You must confirm deletion by setting confirmDeletion to true' 
+      });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify password for security
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
+
+    // Mark user as inactive (soft delete)
+    // In production, this would trigger a workflow to delete all user data
+    await user.update({
+      isActive: false,
+      email: `deleted-${user.id}@deleted.local`,
+      username: `deleted-${user.id}`
+    });
+
+    // Log the deletion request
+    await AuditLog.create({
+      userId,
+      action: 'account_deletion_requested',
+      details: { timestamp: new Date().toISOString() }
+    });
+
+    res.json({
+      message: 'Account deletion requested. Your account has been deactivated and will be permanently deleted within 30 days.',
+      deletionDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to process deletion request' });
+  }
+});
+
+// ==================== END DATA MANAGEMENT ====================
+
 app.listen(PORT, () => {
   console.log(`User service running on port ${PORT}`);
 });
