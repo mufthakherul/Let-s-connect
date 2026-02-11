@@ -49,7 +49,7 @@ const getCommands = (user, toggleTheme, mode) => {
     { id: 'nav-shop', label: 'Go to Shop', icon: <ShoppingCart />, action: '/shop', type: 'navigation', keywords: ['shop', 'store', 'buy', 'purchase'] },
     { id: 'nav-blog', label: 'Go to Blog', icon: <Article />, action: '/blog', type: 'navigation', keywords: ['blog', 'articles', 'posts'] },
     { id: 'nav-docs', label: 'Go to Documentation', icon: <Description />, action: '/docs', type: 'navigation', keywords: ['docs', 'documentation', 'help', 'guide'] },
-    
+
     // Theme command
     {
       id: 'toggle-theme',
