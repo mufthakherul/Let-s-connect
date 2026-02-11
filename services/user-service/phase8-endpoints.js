@@ -511,12 +511,14 @@ function setupPhase8Endpoints(app, models, services) {
       const userId = req.header('x-user-id');
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
+      const { Op } = require('sequelize');
+      
       const dashboards = await models.Dashboard.findAll({
         where: {
-          $or: [
+          [Op.or]: [
             { userId },
             { isPublic: true },
-            { sharedWith: { $contains: [userId] } }
+            { sharedWith: { [Op.contains]: [userId] } }
           ]
         }
       });

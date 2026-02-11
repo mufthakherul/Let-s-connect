@@ -414,6 +414,7 @@ class AnalyticsService {
    * Calculate feature adoption metrics
    */
   async calculateFeatureAdoption(featureName, totalUserCount) {
+    const { fn, col } = require('sequelize');
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -423,7 +424,7 @@ class AnalyticsService {
         eventName: featureName,
         userId: { [Op.ne]: null }
       },
-      attributes: [[sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('userId'))), 'count']],
+      attributes: [[fn('COUNT', fn('DISTINCT', col('userId'))), 'count']],
       raw: true
     });
 
