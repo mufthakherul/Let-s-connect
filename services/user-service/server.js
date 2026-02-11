@@ -2885,6 +2885,182 @@ app.post('/request-deletion', async (req, res) => {
 
 // ==================== END DATA MANAGEMENT ====================
 
+// ==================== PHASE 8: ENTERPRISE FEATURES ====================
+
+console.log('[Phase 8] Initializing Enterprise Features...');
+
+// Import Phase 8 services
+const {
+  SAMLProvider,
+  LDAPProvider,
+  SSOSessionManager
+} = require('./enterprise-auth');
+
+const {
+  initializeAuditModels,
+  AuditLogger,
+  auditMiddleware
+} = require('./audit-service');
+
+const {
+  initializeOrganizationModels,
+  OrganizationService
+} = require('./organization-service');
+
+const {
+  initializeAnalyticsModels,
+  AnalyticsService
+} = require('./analytics-service');
+
+const {
+  initializeWorkflowModels,
+  WorkflowEngine
+} = require('./workflow-service');
+
+const {
+  initializeSecurityModels,
+  SecurityService,
+  securityHeadersMiddleware,
+  cspMiddleware
+} = require('./security-service');
+
+const {
+  SalesforceIntegration,
+  MicrosoftTeamsIntegration,
+  JiraIntegration,
+  ServiceNowIntegration,
+  IntegrationManager,
+  ZapierMakeIntegration
+} = require('./enterprise-integrations');
+
+const { setupPhase8Endpoints } = require('./phase8-endpoints');
+
+// Initialize Phase 8 models
+const auditModels = initializeAuditModels(sequelize);
+const organizationModels = initializeOrganizationModels(sequelize);
+const analyticsModels = initializeAnalyticsModels(sequelize);
+const workflowModels = initializeWorkflowModels(sequelize);
+const securityModels = initializeSecurityModels(sequelize);
+
+// Combine all models
+const phase8Models = {
+  ...auditModels,
+  ...organizationModels,
+  ...analyticsModels,
+  ...workflowModels,
+  ...securityModels
+};
+
+// Initialize services
+const enterpriseAuth = {
+  saml: new SAMLProvider({
+    entityId: process.env.SAML_ENTITY_ID || 'lets-connect-sp',
+    identityProviderUrl: process.env.SAML_IDP_URL || 'https://idp.example.com/saml',
+    identityProviderCert: process.env.SAML_IDP_CERT,
+    assertionConsumerServiceUrl: process.env.SAML_ACS_URL || '/auth/saml/callback'
+  }),
+  ldap: new LDAPProvider({
+    url: process.env.LDAP_URL || 'ldap://localhost:389',
+    baseDN: process.env.LDAP_BASE_DN || 'dc=example,dc=com',
+    bindDN: process.env.LDAP_BIND_DN,
+    bindPassword: process.env.LDAP_BIND_PASSWORD
+  }),
+  sso: new SSOSessionManager()
+};
+
+const auditService = new AuditLogger(auditModels.AuditLog);
+const organizationService = new OrganizationService(organizationModels);
+const analyticsService = new AnalyticsService(analyticsModels);
+const workflowEngine = new WorkflowEngine(workflowModels);
+const securityService = new SecurityService(securityModels);
+
+// Initialize integration manager
+const integrationManager = new IntegrationManager();
+
+// Register integrations (using environment variables for configuration)
+if (process.env.SALESFORCE_CLIENT_ID) {
+  integrationManager.register('salesforce', new SalesforceIntegration({
+    clientId: process.env.SALESFORCE_CLIENT_ID,
+    clientSecret: process.env.SALESFORCE_CLIENT_SECRET,
+    instanceUrl: process.env.SALESFORCE_INSTANCE_URL
+  }));
+}
+
+if (process.env.TEAMS_WEBHOOK_URL || process.env.TEAMS_CLIENT_ID) {
+  integrationManager.register('teams', new MicrosoftTeamsIntegration({
+    webhookUrl: process.env.TEAMS_WEBHOOK_URL,
+    clientId: process.env.TEAMS_CLIENT_ID,
+    clientSecret: process.env.TEAMS_CLIENT_SECRET,
+    tenantId: process.env.TEAMS_TENANT_ID
+  }));
+}
+
+if (process.env.JIRA_HOST) {
+  integrationManager.register('jira', new JiraIntegration({
+    host: process.env.JIRA_HOST,
+    email: process.env.JIRA_EMAIL,
+    apiToken: process.env.JIRA_API_TOKEN
+  }));
+}
+
+if (process.env.SERVICENOW_INSTANCE) {
+  integrationManager.register('servicenow', new ServiceNowIntegration({
+    instance: process.env.SERVICENOW_INSTANCE,
+    username: process.env.SERVICENOW_USERNAME,
+    password: process.env.SERVICENOW_PASSWORD
+  }));
+}
+
+const zapierIntegration = new ZapierMakeIntegration();
+integrationManager.register('zapier', zapierIntegration);
+
+// Apply global security middleware
+app.use(securityHeadersMiddleware({
+  frameOptions: 'DENY',
+  hsts: true,
+  hstsMaxAge: 31536000,
+  referrerPolicy: 'strict-origin-when-cross-origin'
+}));
+
+app.use(cspMiddleware({
+  defaultSrc: ["'self'"],
+  scriptSrc: ["'self'", "'unsafe-inline'"],
+  styleSrc: ["'self'", "'unsafe-inline'"],
+  imgSrc: ["'self'", 'data:', 'https:'],
+  connectSrc: ["'self'", 'https:'],
+  frameAncestors: ["'none'"]
+}));
+
+// Sync Phase 8 models with database
+sequelize.sync().then(() => {
+  console.log('[Phase 8] Database models synchronized');
+  
+  // Setup Phase 8 endpoints
+  setupPhase8Endpoints(app, phase8Models, {
+    enterpriseAuth,
+    auditService,
+    organizationService,
+    analyticsService,
+    workflowEngine,
+    securityService,
+    integrationManager
+  });
+
+  console.log('[Phase 8] ✅ Enterprise Features initialized successfully');
+  console.log('[Phase 8] Features enabled:');
+  console.log('  - SAML 2.0 & LDAP Authentication');
+  console.log('  - Audit & Compliance Logging');
+  console.log('  - Multi-tenant Organizations');
+  console.log('  - Advanced Analytics & Dashboards');
+  console.log('  - Workflow Automation');
+  console.log('  - Enterprise Integrations:', integrationManager.list().join(', '));
+  console.log('  - Enhanced Security (IP Whitelist, CSP, Advanced Sessions)');
+}).catch(err => {
+  console.error('[Phase 8] Failed to initialize:', err);
+});
+
+// ==================== END PHASE 8 ====================
+
 app.listen(PORT, () => {
   console.log(`User service running on port ${PORT}`);
 });
