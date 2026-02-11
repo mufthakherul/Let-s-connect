@@ -158,7 +158,7 @@ S3_SECRET_KEY=your-r2-secret-key
 S3_BUCKET=lets-connect-media
 
 # AI Service (Optional)
-OPENAI_API_KEY=sk-your-openai-api-key
+GEMINI_API_KEY=your-gemini-api-key
 
 # Service URLs (Fill in after deploying each service)
 API_GATEWAY_URL=https://your-api-gateway.onrender.com

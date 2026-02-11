@@ -207,14 +207,14 @@ Let's Connect is built on a **modular microservices architecture** designed for 
 - Smart features
 
 **Features:**
-- OpenAI GPT integration
+- Gemini 2.5 Flash integration
 - Response caching in Redis
 - Content moderation for safety
 - Context-aware suggestions
 
 **Technology:**
 - Node.js + Express
-- OpenAI API
+- Gemini API (Google Generative AI)
 - Redis for caching responses
 
 ## Data Layer

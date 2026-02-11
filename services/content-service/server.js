@@ -44,8 +44,8 @@ try {
   cacheWikiPages = (req, res, next) => next();
   cacheWikiPage = (req, res, next) => next();
   cacheVideos = (req, res, next) => next();
-  invalidatePostCaches = async () => {};
-  invalidateWikiPageCaches = async () => {};
+  invalidatePostCaches = async () => { };
+  invalidateWikiPageCaches = async () => { };
 }
 
 // Phase 4: Monitoring and health checks
@@ -53,14 +53,14 @@ let healthChecker;
 try {
   const { HealthChecker, checkDatabase, checkRedis } = require('../shared/monitoring');
   healthChecker = new HealthChecker('content-service');
-  
+
   // Register database and Redis health checks
   healthChecker.registerCheck('database', () => checkDatabase(sequelize));
   healthChecker.registerCheck('redis', () => checkRedis(redis));
-  
+
   // Add metrics middleware
   app.use(healthChecker.metricsMiddleware());
-  
+
   console.log('[Monitoring] Health checks and metrics enabled');
 } catch (error) {
   console.log('[Monitoring] Advanced monitoring disabled');
@@ -1131,7 +1131,7 @@ app.get('/health/ready', async (req, res) => {
   if (!healthChecker) {
     return res.json({ status: 'healthy', service: 'content-service', message: 'Basic health check' });
   }
-  
+
   try {
     const health = await healthChecker.runChecks();
     const statusCode = health.status === 'healthy' ? 200 : 503;
@@ -1146,7 +1146,7 @@ app.get('/metrics', (req, res) => {
   if (!healthChecker) {
     return res.type('text/plain').send('# Metrics not available\n');
   }
-  
+
   const metrics = healthChecker.getPrometheusMetrics();
   res.type('text/plain').send(metrics);
 });
@@ -3435,17 +3435,17 @@ app.post('/blogs', async (req, res) => {
     if (tags && Array.isArray(tags) && tags.length > 0) {
       for (const tagNameOrId of tags) {
         let tag;
-        
+
         // Check if it's a UUID (existing tag ID)
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tagNameOrId);
-        
+
         if (isUUID) {
           tag = await BlogTag.findByPk(tagNameOrId);
         } else {
           // It's a tag name - find or create
           const tagSlug = tagNameOrId.toLowerCase().replace(/[^a-z0-9]+/g, '-');
           tag = await BlogTag.findOne({ where: { slug: tagSlug } });
-          
+
           if (!tag) {
             tag = await BlogTag.create({
               name: tagNameOrId,
@@ -3454,7 +3454,7 @@ app.post('/blogs', async (req, res) => {
             });
           }
         }
-        
+
         if (tag) {
           await BlogTagAssociation.create({
             blogId: blog.id,
@@ -3673,28 +3673,28 @@ app.put('/blogs/:id', async (req, res) => {
       const existingAssociations = await BlogTagAssociation.findAll({
         where: { blogId: blog.id }
       });
-      
+
       for (const assoc of existingAssociations) {
         const tag = await BlogTag.findByPk(assoc.tagId);
         if (tag) {
           await tag.decrement('blogCount');
         }
       }
-      
+
       await BlogTagAssociation.destroy({ where: { blogId: blog.id } });
 
       // Add new tag associations
       for (const tagNameOrId of tags) {
         let tag;
-        
+
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tagNameOrId);
-        
+
         if (isUUID) {
           tag = await BlogTag.findByPk(tagNameOrId);
         } else {
           const tagSlug = tagNameOrId.toLowerCase().replace(/[^a-z0-9]+/g, '-');
           tag = await BlogTag.findOne({ where: { slug: tagSlug } });
-          
+
           if (!tag) {
             tag = await BlogTag.create({
               name: tagNameOrId,
@@ -3703,7 +3703,7 @@ app.put('/blogs/:id', async (req, res) => {
             });
           }
         }
-        
+
         if (tag) {
           await BlogTagAssociation.create({
             blogId: blog.id,
@@ -3756,7 +3756,7 @@ app.delete('/blogs/:id', async (req, res) => {
     const tagAssociations = await BlogTagAssociation.findAll({
       where: { blogId: blog.id }
     });
-    
+
     for (const assoc of tagAssociations) {
       const tag = await BlogTag.findByPk(assoc.tagId);
       if (tag) {
@@ -3909,14 +3909,14 @@ app.post('/blogs/categories', async (req, res) => {
 app.get('/blogs/tags', async (req, res) => {
   try {
     const { sort = 'name', limit = 50 } = req.query;
-    
+
     const orderBy = sort === 'popular' ? [['blogCount', 'DESC']] : [['name', 'ASC']];
-    
+
     const tags = await BlogTag.findAll({
       order: orderBy,
       limit: parseInt(limit)
     });
-    
+
     res.json(tags);
   } catch (error) {
     console.error(error);
@@ -3928,7 +3928,7 @@ app.get('/blogs/tags', async (req, res) => {
 app.get('/blogs/tags/trending', async (req, res) => {
   try {
     const { limit = 10 } = req.query;
-    
+
     const tags = await BlogTag.findAll({
       where: {
         blogCount: { [Op.gt]: 0 }
@@ -3936,7 +3936,7 @@ app.get('/blogs/tags/trending', async (req, res) => {
       order: [['blogCount', 'DESC']],
       limit: parseInt(limit)
     });
-    
+
     res.json(tags);
   } catch (error) {
     console.error(error);
@@ -3948,27 +3948,27 @@ app.get('/blogs/tags/trending', async (req, res) => {
 app.post('/blogs/tags', async (req, res) => {
   try {
     const { name, description, color } = req.body;
-    
+
     if (!name) {
       return res.status(400).json({ error: 'Tag name is required' });
     }
-    
+
     // Generate slug
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    
+
     // Check if already exists
     const existing = await BlogTag.findOne({ where: { slug } });
     if (existing) {
       return res.status(400).json({ error: 'Tag already exists' });
     }
-    
+
     const tag = await BlogTag.create({
       name,
       slug,
       description,
       color: color || '#2196f3'
     });
-    
+
     res.status(201).json(tag);
   } catch (error) {
     console.error(error);
@@ -3982,13 +3982,13 @@ app.get('/blogs/tags/:tagSlug/blogs', async (req, res) => {
     const { tagSlug } = req.params;
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
-    
+
     const tag = await BlogTag.findOne({ where: { slug: tagSlug } });
-    
+
     if (!tag) {
       return res.status(404).json({ error: 'Tag not found' });
     }
-    
+
     const blogs = await tag.getBlogs({
       where: { status: 'published' },
       order: [['publishedAt', 'DESC']],
@@ -4002,7 +4002,7 @@ app.get('/blogs/tags/:tagSlug/blogs', async (req, res) => {
         }
       ]
     });
-    
+
     res.json({
       tag,
       blogs,
@@ -4019,21 +4019,21 @@ app.put('/blogs/tags/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, color } = req.body;
-    
+
     const tag = await BlogTag.findByPk(id);
     if (!tag) {
       return res.status(404).json({ error: 'Tag not found' });
     }
-    
+
     if (name) {
       tag.name = name;
       tag.slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     }
     if (description !== undefined) tag.description = description;
     if (color !== undefined) tag.color = color;
-    
+
     await tag.save();
-    
+
     res.json(tag);
   } catch (error) {
     console.error(error);
@@ -4045,17 +4045,17 @@ app.put('/blogs/tags/:id', async (req, res) => {
 app.delete('/blogs/tags/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const tag = await BlogTag.findByPk(id);
     if (!tag) {
       return res.status(404).json({ error: 'Tag not found' });
     }
-    
+
     // Remove all associations
     await BlogTagAssociation.destroy({ where: { tagId: id } });
-    
+
     await tag.destroy();
-    
+
     res.json({ message: 'Tag deleted successfully' });
   } catch (error) {
     console.error(error);
@@ -4076,7 +4076,7 @@ app.get('/analytics/user/:userId', async (req, res) => {
 
     // Get post stats
     const totalPosts = await Post.count({ where: { userId } });
-    const periodPosts = await Post.count({
+    const periodPostCount = await Post.count({
       where: {
         userId,
         createdAt: { [Op.gte]: startDate }
@@ -4095,7 +4095,7 @@ app.get('/analytics/user/:userId', async (req, res) => {
       raw: true
     });
 
-    const periodPosts = await Post.findAll({
+    const periodPostEngagement = await Post.findAll({
       where: {
         userId,
         createdAt: { [Op.gte]: startDate }
@@ -4176,14 +4176,14 @@ app.get('/analytics/user/:userId', async (req, res) => {
       period: parseInt(period),
       posts: {
         total: totalPosts,
-        period: periodPosts,
+        period: periodPostCount,
         totalLikes: parseInt(posts[0]?.totalLikes || 0),
         totalComments: parseInt(posts[0]?.totalComments || 0),
         totalShares: parseInt(posts[0]?.totalShares || 0),
         avgLikes: parseFloat(posts[0]?.avgLikes || 0).toFixed(2),
-        periodLikes: parseInt(periodPosts[0]?.periodLikes || 0),
-        periodComments: parseInt(periodPosts[0]?.periodComments || 0),
-        periodShares: parseInt(periodPosts[0]?.periodShares || 0)
+        periodLikes: parseInt(periodPostEngagement[0]?.periodLikes || 0),
+        periodComments: parseInt(periodPostEngagement[0]?.periodComments || 0),
+        periodShares: parseInt(periodPostEngagement[0]?.periodShares || 0)
       },
       comments: {
         total: totalComments,
@@ -5177,7 +5177,7 @@ app.post('/archive', async (req, res) => {
     // Fetch content based on type
     let content;
     let Model;
-    
+
     switch (contentType) {
       case 'post':
         Model = Post;
@@ -5199,7 +5199,7 @@ app.post('/archive', async (req, res) => {
     }
 
     content = await Model.findByPk(contentId);
-    
+
     if (!content) {
       return res.status(404).json({ error: 'Content not found' });
     }
@@ -5284,7 +5284,7 @@ app.get('/archive/:archiveId', async (req, res) => {
     const { archiveId } = req.params;
 
     const archive = await Archive.findByPk(archiveId);
-    
+
     if (!archive) {
       return res.status(404).json({ error: 'Archive not found' });
     }
@@ -5311,7 +5311,7 @@ app.post('/archive/:archiveId/restore', async (req, res) => {
     const { archiveId } = req.params;
 
     const archive = await Archive.findByPk(archiveId);
-    
+
     if (!archive) {
       return res.status(404).json({ error: 'Archive not found' });
     }
@@ -5342,8 +5342,8 @@ app.post('/archive/:archiveId/restore', async (req, res) => {
     // Check if content already exists
     const existing = await Model.findByPk(archive.contentId);
     if (existing) {
-      return res.status(409).json({ 
-        error: 'Content already exists. Delete it first or use a different restore method.' 
+      return res.status(409).json({
+        error: 'Content already exists. Delete it first or use a different restore method.'
       });
     }
 
@@ -5380,7 +5380,7 @@ app.delete('/archive/:archiveId', async (req, res) => {
     const { archiveId } = req.params;
 
     const archive = await Archive.findByPk(archiveId);
-    
+
     if (!archive) {
       return res.status(404).json({ error: 'Archive not found' });
     }
@@ -5409,7 +5409,7 @@ app.get('/archive/search', async (req, res) => {
     const { query, contentType, dateFrom, dateTo, limit = 50, offset = 0 } = req.query;
 
     const whereClause = { userId };
-    
+
     if (contentType) {
       whereClause.contentType = contentType;
     }
@@ -5524,7 +5524,7 @@ app.get('/saved-searches/:searchId/execute', async (req, res) => {
     const { limit = 50, offset = 0 } = req.query;
 
     const savedSearch = await SavedSearch.findByPk(searchId);
-    
+
     if (!savedSearch) {
       return res.status(404).json({ error: 'Saved search not found' });
     }
@@ -5562,7 +5562,7 @@ app.get('/saved-searches/:searchId/execute', async (req, res) => {
 
     // Build where clause from filters
     const whereClause = {};
-    
+
     if (filters.keywords) {
       // Apply keyword filtering to appropriate field per model
       if (savedSearch.contentType === 'video') {
@@ -5576,11 +5576,11 @@ app.get('/saved-searches/:searchId/execute', async (req, res) => {
         whereClause.content = { [Op.iLike]: `%${filters.keywords}%` };
       }
     }
-    
+
     if (filters.userId) {
       whereClause.userId = filters.userId;
     }
-    
+
     if (filters.dateFrom || filters.dateTo) {
       whereClause.createdAt = {};
       if (filters.dateFrom) whereClause.createdAt[Op.gte] = new Date(filters.dateFrom);
@@ -5628,7 +5628,7 @@ app.put('/saved-searches/:searchId', async (req, res) => {
     const updates = req.body;
 
     const savedSearch = await SavedSearch.findByPk(searchId);
-    
+
     if (!savedSearch) {
       return res.status(404).json({ error: 'Saved search not found' });
     }
@@ -5639,7 +5639,7 @@ app.put('/saved-searches/:searchId', async (req, res) => {
 
     const allowedFields = ['name', 'description', 'filters', 'isPublic'];
     const updateData = {};
-    
+
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
         updateData[field] = updates[field];
@@ -5666,7 +5666,7 @@ app.delete('/saved-searches/:searchId', async (req, res) => {
     const { searchId } = req.params;
 
     const savedSearch = await SavedSearch.findByPk(searchId);
-    
+
     if (!savedSearch) {
       return res.status(404).json({ error: 'Saved search not found' });
     }

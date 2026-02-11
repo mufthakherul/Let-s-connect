@@ -614,8 +614,8 @@ ENCRYPTION_KEY=another-strong-random-encryption-key
 
 ```bash
 # ==================== AI SERVICE (Optional) ====================
-# Get your API key from: https://platform.openai.com/api-keys
-OPENAI_API_KEY=sk-your-openai-api-key-here
+# Get your API key from: https://aistudio.google.com/app/apikey
+GEMINI_API_KEY=your-gemini-api-key-here
 
 # ==================== MAILGUN EMAIL (Optional) ====================
 # Get credentials from: https://app.mailgun.com/app/account/security/api_keys
@@ -1370,7 +1370,7 @@ stringData:
   GITHUB_CLIENT_SECRET: "your-github-oauth-secret"
   
   # AI Service
-  OPENAI_API_KEY: "sk-your-openai-api-key"
+  GEMINI_API_KEY: "your-gemini-api-key"
 ```
 
 **Apply the secrets:**

@@ -93,7 +93,7 @@ A comprehensive enterprise-grade social collaboration platform combining feature
 - 📝 **Collaboration** - Documents, wikis, issues, projects, milestones, boards
 - 📁 **File Sharing** - Upload and share files with S3-compatible storage
 - 🛍️ **E-commerce** - Shopping cart, reviews, wishlist, and order tracking
-- 🤖 **AI Assistant** - Smart features powered by OpenAI
+- 🤖 **AI Assistant** - Smart features powered by Gemini 2.5 Flash
 - 🎯 **Communities** - Reddit-style communities with voting
 - 💡 **Skills** - LinkedIn-style skills and endorsements
 - 📊 **Projects** - GitHub-style project management
@@ -110,7 +110,7 @@ Built with **modular microservices** for scalability and maintainability:
 - **Collaboration Service** - Docs, wiki, and task management
 - **Media Service** - File storage with MinIO (S3-compatible)
 - **Shop Service** - E-commerce and order management
-- **AI Service** - OpenAI integration for smart features
+- **AI Service** - Gemini integration for smart features
 
 ## 🛠️ Technology Stack
 

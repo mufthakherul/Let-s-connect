@@ -33,7 +33,7 @@ JWT_SECRET=your-super-secret-jwt-key-change-this
 ENCRYPTION_KEY=your-encryption-key-for-sensitive-data
 
 # AI Service (optional)
-OPENAI_API_KEY=your-openai-api-key-here
+GEMINI_API_KEY=your-gemini-api-key-here
 
 # Object Storage
 S3_BUCKET=lets-connect-media
