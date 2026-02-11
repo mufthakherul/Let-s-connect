@@ -25,6 +25,7 @@ import WorkshopMode from './meeting-modes/WorkshopMode';
 import TownHallMode from './meeting-modes/TownHallMode';
 import { CourtMode, ConferenceMode, QuizMode } from './meeting-modes/OtherModes';
 import GovernanceTools from './meeting-modes/GovernanceTools';
+import KnowledgeIntelligence from './meeting-modes/KnowledgeIntelligence';
 
 const AGENDA_STATUS_OPTIONS = ['planned', 'in_progress', 'completed'];
 const ACTION_STATUS_OPTIONS = ['open', 'in_progress', 'blocked', 'done'];
@@ -345,6 +346,7 @@ function MeetingRoom({ user }) {
                         <Tab label="Decisions" />
                         {meeting && meeting.mode !== 'standard' && <Tab label={`${meeting.mode.replace('_', ' ')} Mode`} />}
                         <Tab label="Governance & Safety" />
+                        <Tab label="Knowledge & Intelligence" />
                     </Tabs>
                 </CardContent>
             </Card>
@@ -380,6 +382,11 @@ function MeetingRoom({ user }) {
             {/* Governance & Safety Tools - Tab 5 for modes, Tab 4 for standard */}
             {meeting && activeTab === (meeting.mode !== 'standard' ? 5 : 4) && (
                 <GovernanceTools meetingId={id} user={user} participant={currentParticipant} />
+            )}
+
+            {/* Knowledge & Intelligence - Tab 6 for modes, Tab 5 for standard */}
+            {meeting && activeTab === (meeting.mode !== 'standard' ? 6 : 5) && (
+                <KnowledgeIntelligence meetingId={id} user={user} />
             )}
 
             {activeTab === 0 && (

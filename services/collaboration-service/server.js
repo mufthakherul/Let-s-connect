@@ -1400,6 +1400,332 @@ const ComplianceExport = sequelize.define('ComplianceExport', {
   completedAt: DataTypes.DATE
 });
 
+// ==================== PHASE 11 MODELS ====================
+
+// Phase 11.1: Decision Log with Enhanced Tracking
+const DecisionLog = sequelize.define('DecisionLog', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  rationale: DataTypes.TEXT,
+  decidedBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  decision: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  alternatives: DataTypes.JSONB, // [{option: '', pros: [], cons: []}]
+  evidenceLinks: DataTypes.ARRAY(DataTypes.UUID),
+  impactAssessment: DataTypes.JSONB,
+  status: {
+    type: DataTypes.ENUM('proposed', 'approved', 'implemented', 'rejected', 'reversed'),
+    defaultValue: 'proposed'
+  },
+  implementationDate: DataTypes.DATE,
+  reviewDate: DataTypes.DATE,
+  tags: DataTypes.ARRAY(DataTypes.STRING)
+});
+
+// Phase 11.1: Follow-up Task Automation
+const FollowUpTask = sequelize.define('FollowUpTask', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  decisionLogId: DataTypes.UUID,
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  assignedTo: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  dueDate: {
+    type: DataTypes.DATE,
+    allowNull: false
+  },
+  priority: {
+    type: DataTypes.ENUM('low', 'medium', 'high', 'critical'),
+    defaultValue: 'medium'
+  },
+  status: {
+    type: DataTypes.ENUM('pending', 'in_progress', 'completed', 'blocked', 'cancelled'),
+    defaultValue: 'pending'
+  },
+  automationRules: DataTypes.JSONB, // {reminders: [], escalations: []}
+  dependencies: DataTypes.ARRAY(DataTypes.UUID),
+  completedAt: DataTypes.DATE,
+  blockedReason: DataTypes.TEXT
+});
+
+// Phase 11.1: Outcome Tracking
+const OutcomeTracker = sequelize.define('OutcomeTracker', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  decisionLogId: DataTypes.UUID,
+  followUpTaskId: DataTypes.UUID,
+  metric: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  targetValue: DataTypes.FLOAT,
+  actualValue: DataTypes.FLOAT,
+  unit: DataTypes.STRING,
+  measurementDate: DataTypes.DATE,
+  notes: DataTypes.TEXT,
+  status: {
+    type: DataTypes.ENUM('on_track', 'at_risk', 'delayed', 'achieved', 'failed'),
+    defaultValue: 'on_track'
+  },
+  accountability: DataTypes.JSONB // {responsible: userId, reviewers: []}
+});
+
+// Phase 11.2: Knowledge Graph Entities
+const KnowledgeEntity = sequelize.define('KnowledgeEntity', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  entityType: {
+    type: DataTypes.ENUM('person', 'topic', 'decision', 'outcome', 'concept', 'project'),
+    allowNull: false
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  metadata: DataTypes.JSONB,
+  mentionCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  importance: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.5
+  },
+  tags: DataTypes.ARRAY(DataTypes.STRING)
+});
+
+// Phase 11.2: Knowledge Graph Relationships
+const KnowledgeRelation = sequelize.define('KnowledgeRelation', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  sourceEntityId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  targetEntityId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  relationType: {
+    type: DataTypes.ENUM('mentions', 'leads_to', 'depends_on', 'related_to', 'contradicts', 'supports'),
+    allowNull: false
+  },
+  meetingId: DataTypes.UUID,
+  strength: {
+    type: DataTypes.FLOAT,
+    defaultValue: 1.0
+  },
+  context: DataTypes.TEXT
+});
+
+// Phase 11.2: Meeting Topics
+const MeetingTopic = sequelize.define('MeetingTopic', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  topic: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  sentiment: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.0
+  },
+  discussionTime: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  participants: DataTypes.ARRAY(DataTypes.UUID),
+  keywords: DataTypes.ARRAY(DataTypes.STRING),
+  relatedTopics: DataTypes.ARRAY(DataTypes.UUID)
+});
+
+// Phase 11.2: Transcript Highlights
+const TranscriptHighlight = sequelize.define('TranscriptHighlight', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  speakerId: DataTypes.UUID,
+  timestamp: {
+    type: DataTypes.DATE,
+    allowNull: false
+  },
+  duration: DataTypes.INTEGER,
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  highlightType: {
+    type: DataTypes.ENUM('decision', 'action_item', 'key_point', 'question', 'agreement', 'disagreement'),
+    allowNull: false
+  },
+  importance: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.5
+  },
+  citations: DataTypes.ARRAY(DataTypes.UUID),
+  searchVector: DataTypes.TEXT // For full-text search
+});
+
+// Phase 11.3: AI-Generated Summaries
+const AISummary = sequelize.define('AISummary', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  agendaItemId: DataTypes.UUID,
+  summaryType: {
+    type: DataTypes.ENUM('agenda_section', 'full_meeting', 'debate', 'decision', 'action_items'),
+    allowNull: false
+  },
+  summary: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  keyPoints: DataTypes.ARRAY(DataTypes.STRING),
+  sentiment: DataTypes.JSONB, // {overall: 0.7, participants: {}}
+  neutralityScore: DataTypes.FLOAT,
+  confidence: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.8
+  },
+  generatedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  },
+  reviewStatus: {
+    type: DataTypes.ENUM('pending', 'approved', 'rejected', 'edited'),
+    defaultValue: 'pending'
+  }
+});
+
+// Phase 11.3: AI Action Item Extraction
+const AIActionItem = sequelize.define('AIActionItem', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  extractedFrom: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  suggestedAssignee: DataTypes.UUID,
+  suggestedDueDate: DataTypes.DATE,
+  confidence: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.8
+  },
+  verificationStatus: {
+    type: DataTypes.ENUM('pending', 'verified', 'rejected', 'modified'),
+    defaultValue: 'pending'
+  },
+  verifiedBy: DataTypes.UUID,
+  convertedToTask: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  taskId: DataTypes.UUID
+});
+
+// Phase 11.3: Meeting Brief
+const MeetingBrief = sequelize.define('MeetingBrief', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  generatedFor: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  contextSummary: DataTypes.TEXT,
+  relevantDecisions: DataTypes.ARRAY(DataTypes.UUID),
+  relatedMeetings: DataTypes.ARRAY(DataTypes.UUID),
+  backgroundTopics: DataTypes.JSONB,
+  suggestedPreparation: DataTypes.ARRAY(DataTypes.STRING),
+  participantProfiles: DataTypes.JSONB,
+  generatedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
 // Relationships
 Issue.hasMany(IssueComment, { foreignKey: 'issueId' });
 IssueComment.belongsTo(Issue, { foreignKey: 'issueId' });
@@ -1438,6 +1764,28 @@ Meeting.hasMany(DisputeFlag, { foreignKey: 'meetingId', as: 'disputes' });
 DisputeFlag.belongsTo(Meeting, { foreignKey: 'meetingId' });
 Meeting.hasMany(ComplianceExport, { foreignKey: 'meetingId', as: 'exports' });
 ComplianceExport.belongsTo(Meeting, { foreignKey: 'meetingId' });
+
+// Phase 11: Knowledge, Decisions, and Intelligence relationships
+Meeting.hasMany(DecisionLog, { foreignKey: 'meetingId', as: 'decisionLogs' });
+DecisionLog.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(FollowUpTask, { foreignKey: 'meetingId', as: 'followUpTasks' });
+FollowUpTask.belongsTo(Meeting, { foreignKey: 'meetingId' });
+DecisionLog.hasMany(FollowUpTask, { foreignKey: 'decisionLogId', as: 'tasks' });
+FollowUpTask.belongsTo(DecisionLog, { foreignKey: 'decisionLogId' });
+Meeting.hasMany(OutcomeTracker, { foreignKey: 'meetingId', as: 'outcomes' });
+OutcomeTracker.belongsTo(Meeting, { foreignKey: 'meetingId' });
+DecisionLog.hasMany(OutcomeTracker, { foreignKey: 'decisionLogId', as: 'trackers' });
+OutcomeTracker.belongsTo(DecisionLog, { foreignKey: 'decisionLogId' });
+Meeting.hasMany(MeetingTopic, { foreignKey: 'meetingId', as: 'topics' });
+MeetingTopic.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(TranscriptHighlight, { foreignKey: 'meetingId', as: 'highlights' });
+TranscriptHighlight.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(AISummary, { foreignKey: 'meetingId', as: 'aiSummaries' });
+AISummary.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(AIActionItem, { foreignKey: 'meetingId', as: 'aiActionItems' });
+AIActionItem.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(MeetingBrief, { foreignKey: 'meetingId', as: 'briefs' });
+MeetingBrief.belongsTo(Meeting, { foreignKey: 'meetingId' });
 
 // Phase 2: Document and Wiki history relationships
 Document.hasMany(DocumentVersion, { foreignKey: 'documentId', as: 'versions' });
@@ -4523,6 +4871,794 @@ app.get('/compliance-exports/:id', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(error.status || 500).json({ error: error.message || 'Failed to get export' });
+  }
+});
+
+// ==================== PHASE 11: KNOWLEDGE, DECISIONS, AND INTELLIGENCE ====================
+
+// ==================== 11.1 DECISION INTELLIGENCE ====================
+
+// Decision Log - Create
+app.post('/meetings/:id/decision-log', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { title, description, rationale, decision, alternatives, evidenceLinks, impactAssessment, tags } = req.body;
+
+    const decisionLog = await DecisionLog.create({
+      meetingId: req.params.id,
+      title,
+      description,
+      rationale,
+      decidedBy: userId,
+      decision,
+      alternatives,
+      evidenceLinks,
+      impactAssessment,
+      tags
+    });
+
+    res.status(201).json(decisionLog);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create decision log' });
+  }
+});
+
+// Get Decision Logs
+app.get('/meetings/:id/decision-log', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { status } = req.query;
+    const where = { meetingId: req.params.id };
+    if (status) where.status = status;
+
+    const decisionLogs = await DecisionLog.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      include: [
+        { model: FollowUpTask, as: 'tasks' },
+        { model: OutcomeTracker, as: 'trackers' }
+      ]
+    });
+
+    res.json(decisionLogs);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get decision logs' });
+  }
+});
+
+// Update Decision Log Status
+app.put('/meetings/:id/decision-log/:logId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const decisionLog = await DecisionLog.findByPk(req.params.logId);
+    if (!decisionLog || decisionLog.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Decision log not found' });
+    }
+
+    const { status, implementationDate, reviewDate } = req.body;
+    await decisionLog.update({ status, implementationDate, reviewDate });
+
+    res.json(decisionLog);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update decision log' });
+  }
+});
+
+// Follow-Up Task - Create
+app.post('/meetings/:id/follow-up-tasks', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { title, description, assignedTo, dueDate, priority, decisionLogId, automationRules, dependencies } = req.body;
+
+    const task = await FollowUpTask.create({
+      meetingId: req.params.id,
+      decisionLogId,
+      title,
+      description,
+      assignedTo,
+      dueDate,
+      priority,
+      automationRules,
+      dependencies
+    });
+
+    res.status(201).json(task);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create follow-up task' });
+  }
+});
+
+// Get Follow-Up Tasks
+app.get('/meetings/:id/follow-up-tasks', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { status, assignedTo } = req.query;
+    const where = { meetingId: req.params.id };
+    if (status) where.status = status;
+    if (assignedTo) where.assignedTo = assignedTo;
+
+    const tasks = await FollowUpTask.findAll({
+      where,
+      order: [['dueDate', 'ASC']]
+    });
+
+    res.json(tasks);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get follow-up tasks' });
+  }
+});
+
+// Update Follow-Up Task
+app.put('/meetings/:id/follow-up-tasks/:taskId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const task = await FollowUpTask.findByPk(req.params.taskId);
+    if (!task || task.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    const { status, blockedReason, completedAt } = req.body;
+    await task.update({ status, blockedReason, completedAt: completedAt || (status === 'completed' ? new Date() : null) });
+
+    res.json(task);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update task' });
+  }
+});
+
+// Outcome Tracker - Create
+app.post('/meetings/:id/outcomes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { decisionLogId, followUpTaskId, metric, targetValue, actualValue, unit, measurementDate, notes, accountability } = req.body;
+
+    const outcome = await OutcomeTracker.create({
+      meetingId: req.params.id,
+      decisionLogId,
+      followUpTaskId,
+      metric,
+      targetValue,
+      actualValue,
+      unit,
+      measurementDate,
+      notes,
+      accountability
+    });
+
+    // Auto-calculate status
+    if (actualValue && targetValue) {
+      const percentage = (actualValue / targetValue) * 100;
+      let status = 'on_track';
+      if (percentage >= 100) status = 'achieved';
+      else if (percentage >= 80) status = 'on_track';
+      else if (percentage >= 60) status = 'at_risk';
+      else status = 'delayed';
+      await outcome.update({ status });
+    }
+
+    res.status(201).json(outcome);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create outcome tracker' });
+  }
+});
+
+// Get Outcomes
+app.get('/meetings/:id/outcomes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const outcomes = await OutcomeTracker.findAll({
+      where: { meetingId: req.params.id },
+      order: [['measurementDate', 'DESC']]
+    });
+
+    res.json(outcomes);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get outcomes' });
+  }
+});
+
+// ==================== 11.2 KNOWLEDGE GRAPH AND MEMORY ====================
+
+// Knowledge Entity - Create
+app.post('/knowledge/entities', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { entityType, name, description, metadata, tags } = req.body;
+
+    const entity = await KnowledgeEntity.create({
+      entityType,
+      name,
+      description,
+      metadata,
+      tags
+    });
+
+    res.status(201).json(entity);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create knowledge entity' });
+  }
+});
+
+// Get Knowledge Entities
+app.get('/knowledge/entities', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { entityType, search } = req.query;
+    const where = {};
+    if (entityType) where.entityType = entityType;
+    if (search) where.name = { [Op.iLike]: `%${search}%` };
+
+    const entities = await KnowledgeEntity.findAll({
+      where,
+      order: [['importance', 'DESC'], ['mentionCount', 'DESC']]
+    });
+
+    res.json(entities);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get knowledge entities' });
+  }
+});
+
+// Knowledge Relation - Create
+app.post('/knowledge/relations', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { sourceEntityId, targetEntityId, relationType, meetingId, strength, context } = req.body;
+
+    const relation = await KnowledgeRelation.create({
+      sourceEntityId,
+      targetEntityId,
+      relationType,
+      meetingId,
+      strength,
+      context
+    });
+
+    res.status(201).json(relation);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create knowledge relation' });
+  }
+});
+
+// Get Knowledge Graph
+app.get('/knowledge/graph', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { entityId, depth = 2 } = req.query;
+
+    if (!entityId) {
+      return res.status(400).json({ error: 'entityId is required' });
+    }
+
+    // Get entity
+    const entity = await KnowledgeEntity.findByPk(entityId);
+    if (!entity) {
+      return res.status(404).json({ error: 'Entity not found' });
+    }
+
+    // Get related entities up to specified depth
+    const relations = await KnowledgeRelation.findAll({
+      where: {
+        [Op.or]: [
+          { sourceEntityId: entityId },
+          { targetEntityId: entityId }
+        ]
+      }
+    });
+
+    const relatedEntityIds = new Set();
+    relations.forEach(rel => {
+      relatedEntityIds.add(rel.sourceEntityId);
+      relatedEntityIds.add(rel.targetEntityId);
+    });
+
+    const relatedEntities = await KnowledgeEntity.findAll({
+      where: { id: Array.from(relatedEntityIds) }
+    });
+
+    res.json({
+      entity,
+      relations,
+      relatedEntities
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get knowledge graph' });
+  }
+});
+
+// Meeting Topics - Create/Update
+app.post('/meetings/:id/topics', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { topic, description, sentiment, discussionTime, participants, keywords, relatedTopics } = req.body;
+
+    const meetingTopic = await MeetingTopic.create({
+      meetingId: req.params.id,
+      topic,
+      description,
+      sentiment,
+      discussionTime,
+      participants,
+      keywords,
+      relatedTopics
+    });
+
+    res.status(201).json(meetingTopic);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create meeting topic' });
+  }
+});
+
+// Get Meeting Topics
+app.get('/meetings/:id/topics', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const topics = await MeetingTopic.findAll({
+      where: { meetingId: req.params.id },
+      order: [['discussionTime', 'DESC']]
+    });
+
+    res.json(topics);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get topics' });
+  }
+});
+
+// Cross-Meeting Topic Analysis
+app.get('/topics/analysis', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { keyword, startDate, endDate } = req.query;
+
+    const where = {};
+    if (keyword) {
+      where.keywords = { [Op.contains]: [keyword] };
+    }
+
+    const topics = await MeetingTopic.findAll({
+      where,
+      include: [{ model: Meeting, as: 'meeting', where: {} }],
+      order: [['createdAt', 'DESC']],
+      limit: 100
+    });
+
+    // Cluster by similarity
+    const topicClusters = {};
+    topics.forEach(topic => {
+      const key = topic.topic.toLowerCase();
+      if (!topicClusters[key]) {
+        topicClusters[key] = [];
+      }
+      topicClusters[key].push(topic);
+    });
+
+    res.json({
+      clusters: topicClusters,
+      totalTopics: topics.length,
+      trends: Object.keys(topicClusters).map(key => ({
+        topic: key,
+        frequency: topicClusters[key].length,
+        avgSentiment: topicClusters[key].reduce((sum, t) => sum + (t.sentiment || 0), 0) / topicClusters[key].length
+      }))
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to analyze topics' });
+  }
+});
+
+// Transcript Highlights - Create
+app.post('/meetings/:id/highlights', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { speakerId, timestamp, duration, content, highlightType, importance, citations } = req.body;
+
+    const highlight = await TranscriptHighlight.create({
+      meetingId: req.params.id,
+      speakerId,
+      timestamp,
+      duration,
+      content,
+      highlightType,
+      importance,
+      citations
+    });
+
+    res.status(201).json(highlight);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create highlight' });
+  }
+});
+
+// Search Transcript Highlights
+app.get('/meetings/:id/highlights', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { search, highlightType } = req.query;
+    const where = { meetingId: req.params.id };
+    if (highlightType) where.highlightType = highlightType;
+    if (search) where.content = { [Op.iLike]: `%${search}%` };
+
+    const highlights = await TranscriptHighlight.findAll({
+      where,
+      order: [['timestamp', 'ASC']]
+    });
+
+    res.json(highlights);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to search highlights' });
+  }
+});
+
+// ==================== 11.3 AI ASSISTANCE ====================
+
+// AI Summary - Generate
+app.post('/meetings/:id/ai-summary', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { agendaItemId, summaryType } = req.body;
+
+    // In a real implementation, this would call an AI service
+    // For now, we'll create a placeholder summary
+    const meeting = await Meeting.findByPk(req.params.id);
+    
+    const summary = await AISummary.create({
+      meetingId: req.params.id,
+      agendaItemId,
+      summaryType: summaryType || 'full_meeting',
+      summary: `AI-generated summary for ${meeting.title}. This is a placeholder that would be replaced with actual AI-generated content.`,
+      keyPoints: ['Key point 1', 'Key point 2', 'Key point 3'],
+      sentiment: { overall: 0.7 },
+      neutralityScore: 0.85,
+      confidence: 0.8
+    });
+
+    res.status(201).json(summary);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to generate AI summary' });
+  }
+});
+
+// Get AI Summaries
+app.get('/meetings/:id/ai-summary', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { summaryType } = req.query;
+    const where = { meetingId: req.params.id };
+    if (summaryType) where.summaryType = summaryType;
+
+    const summaries = await AISummary.findAll({
+      where,
+      order: [['generatedAt', 'DESC']]
+    });
+
+    res.json(summaries);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get AI summaries' });
+  }
+});
+
+// Update AI Summary Review Status
+app.put('/meetings/:id/ai-summary/:summaryId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const summary = await AISummary.findByPk(req.params.summaryId);
+    if (!summary || summary.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Summary not found' });
+    }
+
+    const { reviewStatus, summary: editedSummary } = req.body;
+    await summary.update({ 
+      reviewStatus,
+      summary: editedSummary || summary.summary
+    });
+
+    res.json(summary);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update summary' });
+  }
+});
+
+// AI Action Item Extraction
+app.post('/meetings/:id/ai-extract-actions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { extractedFrom } = req.body;
+
+    // In a real implementation, this would use AI to extract action items
+    // For now, we'll create placeholder extracted items
+    const actionItem = await AIActionItem.create({
+      meetingId: req.params.id,
+      extractedFrom: extractedFrom || 'Meeting transcript',
+      title: 'AI-extracted action item',
+      description: 'This is a placeholder for an AI-extracted action item',
+      confidence: 0.85
+    });
+
+    res.status(201).json(actionItem);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to extract action items' });
+  }
+});
+
+// Get AI Action Items
+app.get('/meetings/:id/ai-action-items', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { verificationStatus } = req.query;
+    const where = { meetingId: req.params.id };
+    if (verificationStatus) where.verificationStatus = verificationStatus;
+
+    const actionItems = await AIActionItem.findAll({
+      where,
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(actionItems);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get AI action items' });
+  }
+});
+
+// Verify AI Action Item
+app.put('/meetings/:id/ai-action-items/:itemId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const actionItem = await AIActionItem.findByPk(req.params.itemId);
+    if (!actionItem || actionItem.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Action item not found' });
+    }
+
+    const { verificationStatus, title, description } = req.body;
+    await actionItem.update({
+      verificationStatus,
+      title: title || actionItem.title,
+      description: description || actionItem.description,
+      verifiedBy: userId
+    });
+
+    // If verified, optionally convert to actual task
+    if (verificationStatus === 'verified' && req.body.convertToTask) {
+      const task = await MeetingActionItem.create({
+        meetingId: req.params.id,
+        title: actionItem.title,
+        description: actionItem.description,
+        assigneeId: actionItem.suggestedAssignee,
+        dueDate: actionItem.suggestedDueDate,
+        status: 'open'
+      });
+
+      await actionItem.update({
+        convertedToTask: true,
+        taskId: task.id
+      });
+    }
+
+    res.json(actionItem);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to verify action item' });
+  }
+});
+
+// Meeting Brief - Generate
+app.post('/meetings/:id/brief', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    // In a real implementation, this would generate a contextual brief using AI
+    // For now, we'll create a placeholder
+    const meeting = await Meeting.findByPk(req.params.id);
+    
+    // Get related decisions
+    const recentDecisions = await DecisionLog.findAll({
+      where: { meetingId: { [Op.ne]: req.params.id } },
+      order: [['createdAt', 'DESC']],
+      limit: 5
+    });
+
+    const brief = await MeetingBrief.create({
+      meetingId: req.params.id,
+      generatedFor: userId,
+      contextSummary: `Brief for ${meeting.title}. This is a placeholder for AI-generated contextual information.`,
+      relevantDecisions: recentDecisions.map(d => d.id),
+      relatedMeetings: [],
+      backgroundTopics: {},
+      suggestedPreparation: [
+        'Review previous decisions',
+        'Prepare agenda topics',
+        'Gather relevant documents'
+      ],
+      participantProfiles: {}
+    });
+
+    res.status(201).json(brief);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to generate meeting brief' });
+  }
+});
+
+// Get Meeting Brief
+app.get('/meetings/:id/brief', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const brief = await MeetingBrief.findOne({
+      where: {
+        meetingId: req.params.id,
+        generatedFor: userId
+      },
+      order: [['generatedAt', 'DESC']]
+    });
+
+    if (!brief) {
+      return res.status(404).json({ error: 'No brief found for this meeting' });
+    }
+
+    res.json(brief);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get meeting brief' });
   }
 });
 
