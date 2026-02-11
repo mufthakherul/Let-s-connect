@@ -281,7 +281,7 @@ DocumentVersion.belongsTo(Document, { foreignKey: 'documentId' });
 Wiki.hasMany(WikiHistory, { foreignKey: 'wikiId', as: 'history' });
 WikiHistory.belongsTo(Wiki, { foreignKey: 'wikiId' });
 
-// Phase 6: Collaborative Editing Models (Deferred from Phase 6 to Phase 7)
+// Phase 6: Collaborative Editing Models (Originally deferred, now implemented)
 const CollaborativeSession = sequelize.define('CollaborativeSession', {
   id: {
     type: DataTypes.UUID,
@@ -2096,7 +2096,7 @@ app.get('/webrtc/ice-servers', (req, res) => {
 });
 
 // ============================================================================
-// Phase 6: Collaborative Editing API Endpoints (Deferred from Phase 6 to Phase 7)
+// Phase 6: Collaborative Editing API Endpoints (Originally deferred, now implemented)
 // ============================================================================
 
 // Create or join a collaborative session
@@ -2276,7 +2276,7 @@ app.put('/collaborative/sessions/:documentId/cursor', async (req, res) => {
         cursorPosition,
         selectionStart,
         selectionEnd,
-        color: color || `#${Math.floor(Math.random()*16777215).toString(16)}`
+        color: color || `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`
       });
     }
 
@@ -2329,7 +2329,7 @@ io.on('connection', (socket) => {
       }
 
       // Create user presence
-      const color = `#${Math.floor(Math.random()*16777215).toString(16)}`;
+      const color = `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`;
       await UserPresence.create({
         sessionId: session.id,
         userId,
