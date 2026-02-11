@@ -19,6 +19,11 @@ import {
     Typography,
 } from '@mui/material';
 import api from '../utils/api';
+import DebateMode from './meeting-modes/DebateMode';
+import RoundTableMode from './meeting-modes/RoundTableMode';
+import WorkshopMode from './meeting-modes/WorkshopMode';
+import TownHallMode from './meeting-modes/TownHallMode';
+import { CourtMode, ConferenceMode, QuizMode } from './meeting-modes/OtherModes';
 
 const AGENDA_STATUS_OPTIONS = ['planned', 'in_progress', 'completed'];
 const ACTION_STATUS_OPTIONS = ['open', 'in_progress', 'blocked', 'done'];
@@ -329,9 +334,38 @@ function MeetingRoom({ user }) {
                         <Tab label="Notes" />
                         <Tab label="Action Items" />
                         <Tab label="Decisions" />
+                        {meeting && meeting.mode !== 'standard' && <Tab label={`${meeting.mode.replace('_', ' ')} Mode`} />}
                     </Tabs>
                 </CardContent>
             </Card>
+
+            {meeting && meeting.mode === 'debate' && activeTab === 4 && (
+                <DebateMode meetingId={id} user={user} />
+            )}
+
+            {meeting && meeting.mode === 'round_table' && activeTab === 4 && (
+                <RoundTableMode meetingId={id} user={user} />
+            )}
+
+            {meeting && meeting.mode === 'court' && activeTab === 4 && (
+                <CourtMode meetingId={id} user={user} />
+            )}
+
+            {meeting && meeting.mode === 'workshop' && activeTab === 4 && (
+                <WorkshopMode meetingId={id} user={user} />
+            )}
+
+            {meeting && meeting.mode === 'town_hall' && activeTab === 4 && (
+                <TownHallMode meetingId={id} user={user} />
+            )}
+
+            {meeting && meeting.mode === 'conference' && activeTab === 4 && (
+                <ConferenceMode meetingId={id} user={user} />
+            )}
+
+            {meeting && meeting.mode === 'quiz' && activeTab === 4 && (
+                <QuizMode meetingId={id} user={user} />
+            )}
 
             {activeTab === 0 && (
                 <Card>
