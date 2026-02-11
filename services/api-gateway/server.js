@@ -6,6 +6,8 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const RedisStore = require('rate-limit-redis');
 const Redis = require('ioredis');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./swagger-config');
 require('dotenv').config();
 
 const app = express();
@@ -577,6 +579,48 @@ app.get('/api/auth/oauth/github/callback', (req, res, next) => {
       return `/oauth/github/callback${req.url.substring(req.url.indexOf('?'))}`;;
     }
   })(req, res, next);
+});
+
+// Phase 7: Swagger/OpenAPI Documentation
+// Swagger UI options
+const swaggerOptions = {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Let\'s Connect API Documentation',
+  customfavIcon: '/favicon.ico'
+};
+
+// Swagger JSON endpoint
+app.get('/api/docs/swagger.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+// Swagger UI
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerOptions));
+
+// Redoc alternative documentation (optional, lighter weight)
+app.get('/api/redoc', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Let's Connect API Documentation</title>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+          }
+        </style>
+      </head>
+      <body>
+        <redoc spec-url='/api/docs/swagger.json'></redoc>
+        <script src="https://cdn.jsdelivr.net/npm/redoc@latest/bundles/redoc.standalone.js"></script>
+      </body>
+    </html>
+  `);
 });
 
 // Error handling
