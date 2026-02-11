@@ -1,5 +1,5 @@
 const express = require('express');
-const OpenAI = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Redis = require('ioredis');
 require('dotenv').config();
 
@@ -8,13 +8,79 @@ const PORT = process.env.PORT || 8007;
 
 app.use(express.json());
 
-// OpenAI Configuration
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Gemini Configuration
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Redis for caching
 const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
+
+const buildGeminiRequest = (messages) => {
+  const contents = [];
+  const systemParts = [];
+
+  (messages || []).forEach((message) => {
+    if (!message || typeof message.content !== 'string') {
+      return;
+    }
+
+    if (message.role === 'system') {
+      systemParts.push(message.content);
+      return;
+    }
+
+    const role = message.role === 'assistant' ? 'model' : 'user';
+    contents.push({ role, parts: [{ text: message.content }] });
+  });
+
+  return {
+    contents,
+    systemInstruction: systemParts.length ? systemParts.join('\n') : undefined
+  };
+};
+
+const generateTextFromMessages = async (messages, maxOutputTokens) => {
+  const { contents, systemInstruction } = buildGeminiRequest(messages);
+  const model = genAI.getGenerativeModel(
+    systemInstruction
+      ? { model: GEMINI_MODEL, systemInstruction }
+      : { model: GEMINI_MODEL }
+  );
+  const result = await model.generateContent({
+    contents,
+    generationConfig: { maxOutputTokens }
+  });
+
+  return result.response.text();
+};
+
+const generateTextFromPrompt = async ({ system, prompt, maxOutputTokens }) => {
+  const messages = [];
+
+  if (system) {
+    messages.push({ role: 'system', content: system });
+  }
+
+  messages.push({ role: 'user', content: prompt });
+
+  return generateTextFromMessages(messages, maxOutputTokens);
+};
+
+const parseJsonFromText = (text) => {
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    const match = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+    if (match) {
+      return JSON.parse(match[0]);
+    }
+    throw error;
+  }
+};
 
 // Routes
 
@@ -34,19 +100,12 @@ app.post('/chat', async (req, res) => {
     // Check cache
     const cacheKey = `ai:chat:${JSON.stringify(messages)}`;
     const cached = await redis.get(cacheKey);
-    
+
     if (cached) {
       return res.json({ response: cached, cached: true });
     }
 
-    // Call OpenAI
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: messages,
-      max_tokens: 500
-    });
-
-    const response = completion.choices[0].message.content;
+    const response = await generateTextFromMessages(messages, 500);
 
     // Cache response
     await redis.setex(cacheKey, 3600, response);
@@ -67,16 +126,11 @@ app.post('/summarize', async (req, res) => {
       return res.status(400).json({ error: 'Text required' });
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { role: "system", content: "You are a helpful assistant that summarizes text concisely." },
-        { role: "user", content: `Summarize the following text:\n\n${text}` }
-      ],
-      max_tokens: 200
+    const summary = await generateTextFromPrompt({
+      system: "You are a helpful assistant that summarizes text concisely.",
+      prompt: `Summarize the following text:\n\n${text}`,
+      maxOutputTokens: 200
     });
-
-    const summary = completion.choices[0].message.content;
 
     res.json({ summary });
   } catch (error) {
@@ -94,16 +148,45 @@ app.post('/moderate', async (req, res) => {
       return res.status(400).json({ error: 'Text required' });
     }
 
-    const moderation = await openai.moderations.create({
-      input: text
+    const moderationText = await generateTextFromPrompt({
+      system: "You are a content moderation classifier.",
+      prompt: `Classify the following text for safety. Return JSON only with fields: flagged (boolean), categories (object of booleans), scores (object of numbers 0-1). Categories: hate, harassment, self_harm, sexual, violence, other.\n\nText:\n${text}`,
+      maxOutputTokens: 300
     });
 
-    const result = moderation.results[0];
+    let result = null;
+    try {
+      result = parseJsonFromText(moderationText);
+    } catch (parseError) {
+      result = null;
+    }
+
+    const categories = result && result.categories ? result.categories : {
+      hate: false,
+      harassment: false,
+      self_harm: false,
+      sexual: false,
+      violence: false,
+      other: false
+    };
+    const scores = result && (result.scores || result.category_scores)
+      ? (result.scores || result.category_scores)
+      : {
+        hate: 0,
+        harassment: 0,
+        self_harm: 0,
+        sexual: 0,
+        violence: 0,
+        other: 0
+      };
+    const flagged = result && typeof result.flagged === 'boolean'
+      ? result.flagged
+      : Object.values(categories).some(Boolean);
 
     res.json({
-      flagged: result.flagged,
-      categories: result.categories,
-      scores: result.category_scores
+      flagged,
+      categories,
+      scores
     });
   } catch (error) {
     console.error(error);
@@ -120,16 +203,13 @@ app.post('/suggest', async (req, res) => {
       return res.status(400).json({ error: 'Query required' });
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { role: "system", content: "You are a search suggestion assistant. Provide 5 relevant search suggestions based on the query." },
-        { role: "user", content: `Query: ${query}\nContext: ${context || 'general'}` }
-      ],
-      max_tokens: 100
+    const suggestionText = await generateTextFromPrompt({
+      system: "You are a search suggestion assistant. Provide 5 relevant search suggestions based on the query.",
+      prompt: `Query: ${query}\nContext: ${context || 'general'}`,
+      maxOutputTokens: 200
     });
 
-    const suggestions = completion.choices[0].message.content.split('\n').filter(s => s.trim());
+    const suggestions = suggestionText.split('\n').filter(s => s.trim());
 
     res.json({ suggestions });
   } catch (error) {
@@ -155,7 +235,7 @@ app.post('/recommend/content', async (req, res) => {
     // Check cache
     const cacheKey = `ai:recommendations:${userId}:${contentType}`;
     const cached = await redis.get(cacheKey);
-    
+
     if (cached) {
       return res.json({ recommendations: JSON.parse(cached), cached: true });
     }
@@ -167,28 +247,19 @@ Recent Activity: ${JSON.stringify(recentActivity || [])}
 Content Type: ${contentType || 'general'}
     `.trim();
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { 
-          role: "system", 
-          content: "You are a content recommendation engine. Based on user preferences and activity, suggest relevant content with brief explanations. Return a JSON array of recommendations with 'title', 'reason', and 'score' fields." 
-        },
-        { role: "user", content: context }
-      ],
-      max_tokens: 500
+    const recommendationText = await generateTextFromPrompt({
+      system: "You are a content recommendation engine. Based on user preferences and activity, suggest relevant content with brief explanations. Return a JSON array of recommendations with 'title', 'reason', and 'score' fields.",
+      prompt: context,
+      maxOutputTokens: 500
     });
 
     let recommendations = [];
     try {
-      const content = completion.choices[0].message.content;
-      // Try to parse JSON from the response
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        recommendations = JSON.parse(jsonMatch[0]);
+      const parsed = parseJsonFromText(recommendationText);
+      if (Array.isArray(parsed)) {
+        recommendations = parsed;
       } else {
-        // Fallback: create structured recommendations from text
-        const lines = content.split('\n').filter(l => l.trim());
+        const lines = recommendationText.split('\n').filter(l => l.trim());
         recommendations = lines.slice(0, limit).map((line, idx) => ({
           title: line.replace(/^\d+\.\s*/, '').trim(),
           reason: 'AI-suggested based on your preferences',
@@ -226,7 +297,7 @@ app.post('/recommend/collaborative', async (req, res) => {
     // Check cache
     const cacheKey = `ai:collaborative:${userId}`;
     const cached = await redis.get(cacheKey);
-    
+
     if (cached) {
       return res.json({ recommendations: JSON.parse(cached), cached: true });
     }
@@ -239,26 +310,19 @@ Content Interactions: ${JSON.stringify(contentInteractions || {})}
 Task: Recommend content based on what similar users have engaged with.
     `.trim();
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { 
-          role: "system", 
-          content: "You are a collaborative filtering recommendation system. Analyze similar users' behavior to suggest content. Return a JSON array with 'contentId', 'contentType', 'reason', and 'similarity' fields." 
-        },
-        { role: "user", content: context }
-      ],
-      max_tokens: 400
+    const collaborativeText = await generateTextFromPrompt({
+      system: "You are a collaborative filtering recommendation system. Analyze similar users' behavior to suggest content. Return a JSON array with 'contentId', 'contentType', 'reason', and 'similarity' fields.",
+      prompt: context,
+      maxOutputTokens: 400
     });
 
     let recommendations = [];
     try {
-      const content = completion.choices[0].message.content;
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        recommendations = JSON.parse(jsonMatch[0]);
+      const parsed = parseJsonFromText(collaborativeText);
+      if (Array.isArray(parsed)) {
+        recommendations = parsed;
       } else {
-        recommendations = [{ 
+        recommendations = [{
           message: 'Collaborative filtering results available',
           note: 'Analyzing similar user patterns'
         }];
@@ -293,7 +357,7 @@ app.post('/recommend/learn-preferences', async (req, res) => {
     // Get existing interactions
     const existingInteractions = await redis.get(interactionKey);
     let allInteractions = existingInteractions ? JSON.parse(existingInteractions) : [];
-    
+
     // Add new interactions
     allInteractions = [...allInteractions, ...interactions].slice(-100); // Keep last 100
 
@@ -308,24 +372,17 @@ ${JSON.stringify(allInteractions)}
 Feedback: ${JSON.stringify(feedbackData || {})}
     `.trim();
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { 
-          role: "system", 
-          content: "You are a user preference learning system. Analyze interactions and extract user preferences in categories like topics, formats, authors, and engagement patterns. Return a JSON object with preference categories and scores." 
-        },
-        { role: "user", content: context }
-      ],
-      max_tokens: 300
+    const preferenceText = await generateTextFromPrompt({
+      system: "You are a user preference learning system. Analyze interactions and extract user preferences in categories like topics, formats, authors, and engagement patterns. Return a JSON object with preference categories and scores.",
+      prompt: context,
+      maxOutputTokens: 300
     });
 
     let preferences = {};
     try {
-      const content = completion.choices[0].message.content;
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        preferences = JSON.parse(jsonMatch[0]);
+      const parsed = parseJsonFromText(preferenceText);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        preferences = parsed;
       }
     } catch (parseError) {
       console.error('Failed to parse preferences:', parseError);
@@ -335,7 +392,7 @@ Feedback: ${JSON.stringify(feedbackData || {})}
     // Store learned preferences
     await redis.setex(preferenceKey, 86400 * 30, JSON.stringify(preferences));
 
-    res.json({ 
+    res.json({
       message: 'Preferences updated successfully',
       preferences,
       interactionCount: allInteractions.length
@@ -383,7 +440,7 @@ app.post('/recommend/trending', async (req, res) => {
     // Check cache
     const cacheKey = `ai:trending:${contentType}:${timeframe}`;
     const cached = await redis.get(cacheKey);
-    
+
     if (cached) {
       return res.json({ trending: JSON.parse(cached), cached: true });
     }
@@ -397,24 +454,17 @@ Metrics: ${JSON.stringify(metrics || {})}
 Identify what's trending and why.
     `.trim();
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { 
-          role: "system", 
-          content: "You are a trending content analyzer. Identify patterns in engagement metrics to determine what content is trending and why. Return a JSON array with 'contentId', 'trendScore', 'reason', and 'momentum' fields." 
-        },
-        { role: "user", content: context }
-      ],
-      max_tokens: 400
+    const trendingText = await generateTextFromPrompt({
+      system: "You are a trending content analyzer. Identify patterns in engagement metrics to determine what content is trending and why. Return a JSON array with 'contentId', 'trendScore', 'reason', and 'momentum' fields.",
+      prompt: context,
+      maxOutputTokens: 400
     });
 
     let trending = [];
     try {
-      const content = completion.choices[0].message.content;
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        trending = JSON.parse(jsonMatch[0]);
+      const parsed = parseJsonFromText(trendingText);
+      if (Array.isArray(parsed)) {
+        trending = parsed;
       } else {
         trending = [{ message: 'Analyzing trending patterns', timeframe }];
       }

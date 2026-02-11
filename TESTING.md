@@ -281,7 +281,7 @@ curl -X POST http://localhost:8000/api/shop/orders \
 
 ### 8. AI Features (Authenticated)
 
-**Note:** Requires OPENAI_API_KEY in .env
+**Note:** Requires GEMINI_API_KEY in .env
 
 **Chat with AI:**
 

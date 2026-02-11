@@ -5,6 +5,9 @@ WORKDIR /app
 # Accept build-time environment variables
 ARG REACT_APP_API_URL
 ENV REACT_APP_API_URL=${REACT_APP_API_URL}
+ENV NODE_OPTIONS=--max_old_space_size=1536
+ENV GENERATE_SOURCEMAP=false
+ENV DISABLE_ESLINT_PLUGIN=true
 
 COPY package*.json ./
 

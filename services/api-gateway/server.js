@@ -19,6 +19,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Redis client for rate limiting
 const redisClient = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
+const sendRedisCommand = (...args) => redisClient.call(...args);
 
 // Security middleware
 app.use(helmet());
@@ -38,7 +39,7 @@ const globalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new RedisStore({
-    client: redisClient,
+    sendCommand: sendRedisCommand,
     prefix: 'rl:global:'
   }),
   message: { error: 'Too many requests from this IP, please try again later.' }
@@ -51,7 +52,7 @@ const userLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new RedisStore({
-    client: redisClient,
+    sendCommand: sendRedisCommand,
     prefix: 'rl:user:'
   }),
   keyGenerator: (req) => {
@@ -72,7 +73,7 @@ const strictLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new RedisStore({
-    client: redisClient,
+    sendCommand: sendRedisCommand,
     prefix: 'rl:strict:'
   }),
   keyGenerator: (req) => req.user?.id || req.ip,
@@ -85,7 +86,7 @@ const mediaUploadLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new RedisStore({
-    client: redisClient,
+    sendCommand: sendRedisCommand,
     prefix: 'rl:upload:'
   }),
   keyGenerator: (req) => req.user?.id || req.ip,
@@ -98,7 +99,7 @@ const aiRequestLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new RedisStore({
-    client: redisClient,
+    sendCommand: sendRedisCommand,
     prefix: 'rl:ai:'
   }),
   keyGenerator: (req) => req.user?.id || req.ip,
@@ -263,7 +264,7 @@ app.get('/api/data-mode/info', (req, res) => {
 app.get('/api/rate-limit-status', authMiddleware, async (req, res) => {
   try {
     const userId = req.user?.id || req.ip;
-    
+
     // Define max limits for each tier
     const maxLimits = {
       global: 100,
@@ -272,7 +273,7 @@ app.get('/api/rate-limit-status', authMiddleware, async (req, res) => {
       upload: 50,
       ai: 100
     };
-    
+
     const keys = [
       `rl:global:${req.ip}`,
       `rl:user:${userId}`,
@@ -282,15 +283,15 @@ app.get('/api/rate-limit-status', authMiddleware, async (req, res) => {
     ];
 
     const limits = {};
-    
+
     for (const key of keys) {
       const ttl = await redisClient.ttl(key);
       const count = await redisClient.get(key);
-      
+
       const limitType = key.split(':')[1];
       const used = count ? parseInt(count) : 0;
       const max = maxLimits[limitType] || 100;
-      
+
       limits[limitType] = {
         used: used,
         remaining: Math.max(0, max - used),
@@ -322,10 +323,10 @@ const SUPPORTED_VERSIONS = ['v1', 'v2'];
 const versionMiddleware = (req, res, next) => {
   // Extract version from URL path (/v1/api/..., /v2/api/...)
   const versionMatch = req.path.match(/^\/(v\d+)\//);
-  
+
   if (versionMatch) {
     const requestedVersion = versionMatch[1];
-    
+
     if (!SUPPORTED_VERSIONS.includes(requestedVersion)) {
       return res.status(400).json({
         error: 'Unsupported API version',
@@ -334,9 +335,9 @@ const versionMiddleware = (req, res, next) => {
         message: `API version ${requestedVersion} is not supported. Please use one of: ${SUPPORTED_VERSIONS.join(', ')}`
       });
     }
-    
+
     req.apiVersion = requestedVersion;
-    
+
     // Add deprecation warning for old versions
     if (requestedVersion === 'v1') {
       res.setHeader('X-API-Deprecation', 'v1 API will be deprecated on 2026-12-31. Please migrate to v2.');
@@ -346,7 +347,7 @@ const versionMiddleware = (req, res, next) => {
     // Default to v1 if no version specified
     req.apiVersion = 'v1';
   }
-  
+
   res.setHeader('X-API-Version', req.apiVersion);
   next();
 };

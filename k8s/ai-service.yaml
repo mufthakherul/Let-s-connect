@@ -32,11 +32,13 @@ spec:
           value: "8007"
         - name: NODE_ENV
           value: "production"
-        - name: OPENAI_API_KEY
+        - name: GEMINI_MODEL
+          value: "gemini-2.5-flash"
+        - name: GEMINI_API_KEY
           valueFrom:
             secretKeyRef:
               name: lets-connect-secrets
-              key: OPENAI_API_KEY
+              key: GEMINI_API_KEY
         - name: REDIS_URL
           valueFrom:
             configMapKeyRef:

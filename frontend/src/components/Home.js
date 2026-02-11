@@ -45,7 +45,7 @@ function Home() {
     },
     {
       title: 'AI Assistant',
-      description: 'Get help from GPT-powered intelligent assistant',
+      description: 'Get help from Gemini-powered intelligent assistant',
       link: '/chat',
       icon: <SmartToy sx={{ fontSize: 40, color: 'secondary.main' }} />
     }

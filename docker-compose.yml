@@ -10,13 +10,22 @@ services:
       - NODE_ENV=production
       - JWT_SECRET=${JWT_SECRET:-your-secret-key}
     depends_on:
-      - user-service
-      - content-service
-      - messaging-service
-      - collaboration-service
-      - media-service
-      - shop-service
-      - ai-service
+      user-service:
+        condition: service_started
+      content-service:
+        condition: service_started
+      messaging-service:
+        condition: service_started
+      collaboration-service:
+        condition: service_started
+      media-service:
+        condition: service_started
+      shop-service:
+        condition: service_started
+      ai-service:
+        condition: service_started
+      redis:
+        condition: service_healthy
     networks:
       - lets-connect-network
 
@@ -43,8 +52,10 @@ services:
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
       - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI:-http://localhost:8001/oauth/github/callback}
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - lets-connect-network
 
@@ -58,9 +69,12 @@ services:
       - REDIS_URL=redis://redis:6379
       - ELASTICSEARCH_URL=http://elasticsearch:9200
     depends_on:
-      - postgres
-      - redis
-      - elasticsearch
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
     networks:
       - lets-connect-network
 
@@ -73,8 +87,10 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/messages
       - REDIS_URL=redis://redis:6379
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - lets-connect-network
 
@@ -86,7 +102,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/collaboration
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - lets-connect-network
 
@@ -100,8 +117,10 @@ services:
       - S3_BUCKET=${S3_BUCKET:-lets-connect-media}
       - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
     depends_on:
-      - postgres
-      - minio
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
     networks:
       - lets-connect-network
 
@@ -113,7 +132,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/shop
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - lets-connect-network
 
@@ -123,10 +143,12 @@ services:
     ports:
       - "8007:8007"
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
       - REDIS_URL=redis://redis:6379
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     networks:
       - lets-connect-network
 
@@ -139,7 +161,8 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - api-gateway
+      api-gateway:
+        condition: service_started
     networks:
       - lets-connect-network
 
@@ -155,6 +178,11 @@ services:
       - ./scripts/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
     ports:
       - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - lets-connect-network
 
@@ -165,6 +193,11 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - lets-connect-network
 

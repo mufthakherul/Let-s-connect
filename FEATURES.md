@@ -172,7 +172,7 @@ This platform brings together features from:
 - ✅ **Verified Purchase**: Mark reviews from actual buyers
 
 ### 🤖 AI Assistant
-- ✅ Chat with AI (OpenAI GPT)
+- ✅ Chat with AI (Gemini 2.5 Flash)
 - ✅ Text summarization
 - ✅ Content moderation
 - ✅ Search suggestions
@@ -617,7 +617,7 @@ This platform brings together features from:
 
 ## Integration Ready
 
-- ✅ OpenAI API integration
+- ✅ Gemini API integration
 - ⏳ Email service (SMTP ready)
 - ⏳ SMS service (Twilio ready)
 - ⏳ Payment gateway (Stripe ready)
