@@ -1,4 +1,3 @@
-const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
 const { Sequelize, DataTypes } = require('sequelize');
@@ -7,13 +6,17 @@ const { Sequelize, DataTypes } = require('sequelize');
 const sequelize = new Sequelize(
   process.env.DB_NAME || 'letsconnect_webhooks',
   process.env.DB_USER || 'postgres',
-  process.env.DB_PASSWORD || 'password',
+  process.env.DB_PASSWORD,
   {
     host: process.env.DB_HOST || 'postgres',
     dialect: 'postgres',
     logging: false
   }
 );
+
+if (!process.env.DB_PASSWORD) {
+  console.warn('[Webhooks] WARNING: DB_PASSWORD not set. Database connection may fail.');
+}
 
 // Webhook Model
 const Webhook = sequelize.define('Webhook', {
@@ -154,8 +157,10 @@ const WebhookDelivery = sequelize.define('WebhookDelivery', {
 Webhook.hasMany(WebhookDelivery, { foreignKey: 'webhookId', as: 'deliveries' });
 WebhookDelivery.belongsTo(Webhook, { foreignKey: 'webhookId', as: 'webhook' });
 
-// Sync database
-sequelize.sync();
+// Sync database - with error handling
+sequelize.sync()
+  .then(() => console.log('[Webhooks] Database synced'))
+  .catch(err => console.error('[Webhooks] Database sync failed:', err));
 
 // Max response body length for logging (5KB)
 const MAX_RESPONSE_BODY_LENGTH = 5000;

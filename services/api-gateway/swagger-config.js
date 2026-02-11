@@ -127,6 +127,44 @@ const options = {
             reset: { type: 'integer', description: 'Unix timestamp when limit resets' },
             retryAfter: { type: 'integer', description: 'Seconds until retry (when limited)', nullable: true }
           }
+        },
+        Webhook: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            userId: { type: 'string', format: 'uuid' },
+            name: { type: 'string', maxLength: 100 },
+            url: { type: 'string', format: 'uri', maxLength: 500 },
+            secret: { type: 'string', description: 'HMAC secret for signature verification' },
+            events: { type: 'array', items: { type: 'string' }, description: 'Subscribed event types' },
+            isActive: { type: 'boolean', default: true },
+            description: { type: 'string', nullable: true },
+            headers: { type: 'object', description: 'Custom HTTP headers' },
+            retryCount: { type: 'integer', minimum: 0, maximum: 5, default: 3 },
+            timeout: { type: 'integer', minimum: 1000, maximum: 30000, default: 10000 },
+            lastTriggeredAt: { type: 'string', format: 'date-time', nullable: true },
+            successCount: { type: 'integer', minimum: 0, default: 0 },
+            failureCount: { type: 'integer', minimum: 0, default: 0 },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' }
+          }
+        },
+        WebhookDelivery: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            webhookId: { type: 'string', format: 'uuid' },
+            event: { type: 'string', maxLength: 100 },
+            payload: { type: 'object', description: 'Event payload (JSONB)' },
+            responseStatus: { type: 'integer', nullable: true },
+            responseBody: { type: 'string', nullable: true },
+            responseTime: { type: 'integer', description: 'Response time in ms', nullable: true },
+            success: { type: 'boolean', default: false },
+            error: { type: 'string', nullable: true },
+            attempts: { type: 'integer', default: 1 },
+            nextRetryAt: { type: 'string', format: 'date-time', nullable: true },
+            createdAt: { type: 'string', format: 'date-time' }
+          }
         }
       },
       parameters: {
@@ -244,7 +282,7 @@ const options = {
       { name: 'System', description: 'System information and health checks' }
     ]
   },
-  apis: ['./server.js', './swagger-routes.js']
+  apis: ['./server.js', './swagger-routes.js', './webhook-routes.js']
 };
 
 const swaggerSpec = swaggerJsdoc(options);

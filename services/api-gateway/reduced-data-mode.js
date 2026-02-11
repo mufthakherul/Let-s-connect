@@ -43,6 +43,15 @@ function reduceDataSize(data, path) {
     
     // Remove or truncate fields based on context
     if (path.includes('/posts') || path.includes('/feed')) {
+      // Some endpoints return an envelope like { posts: [...], total, ... }.
+      // In that case, reduce each post item while preserving envelope fields.
+      if (Array.isArray(reduced.posts)) {
+        return {
+          ...reduced,
+          posts: reduced.posts.map(post => reducePostData(post))
+        };
+      }
+      // Fallback for endpoints that return a single post object
       return reducePostData(reduced);
     }
     
@@ -113,17 +122,17 @@ function reduceUserData(user) {
     reduced.bioTruncated = true;
   }
   
+  // Keep skill count before removing detailed fields
+  if (reduced.skills && Array.isArray(reduced.skills)) {
+    reduced.skillCount = reduced.skills.length;
+  }
+  
   // Remove detailed fields
   delete reduced.skills;
   delete reduced.experiences;
   delete reduced.education;
   delete reduced.certifications;
   delete reduced.projects;
-  
-  // Keep only essential fields
-  if (reduced.skills && Array.isArray(reduced.skills)) {
-    reduced.skillCount = reduced.skills.length;
-  }
   
   return reduced;
 }

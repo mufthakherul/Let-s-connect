@@ -311,8 +311,8 @@ app.get('/api/rate-limit-status', authMiddleware, async (req, res) => {
   }
 });
 
-// Phase 7: Webhooks System (authentication handled by individual routes)
-app.use('/api/webhooks', webhookRoutes);
+// Phase 7: Webhooks System
+app.use('/api/webhooks', authMiddleware, webhookRoutes);
 
 // Phase 6: API Versioning System
 const API_VERSION = process.env.API_VERSION || 'v1';

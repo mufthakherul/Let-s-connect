@@ -13,9 +13,9 @@ const STATIC_ASSETS = [
 
 // API patterns that should be cached
 const API_CACHE_PATTERNS = [
-  /\/api\/users\/profile/,
-  /\/api\/posts/,
-  /\/api\/blogs/
+  /\/api\/user\/profile/,
+  /\/api\/content\/posts/,
+  /\/api\/content\/blogs/
 ];
 
 // Max age for cached API responses (2 minutes for real-time content)
