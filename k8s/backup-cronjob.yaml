@@ -1,0 +1,250 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-storage
+  namespace: lets-connect
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: database-backup
+  namespace: lets-connect
+  labels:
+    app: database-backup
+    component: backup
+spec:
+  # Run daily at 2:00 AM UTC
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        app: database-backup
+        component: backup
+    spec:
+      template:
+        metadata:
+          labels:
+            app: database-backup
+            component: backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: backup
+            image: postgres:15-alpine
+            command:
+              - /bin/sh
+              - -c
+              - |
+                apk add --no-cache bash redis
+                chmod +x /scripts/backup-db.sh
+                /scripts/backup-db.sh
+            env:
+            - name: POSTGRES_HOST
+              value: "postgres"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: password
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: BACKUP_DIR
+              value: "/backups"
+            - name: RETENTION_DAYS
+              value: "30"
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+            - name: backup-scripts
+              mountPath: /scripts
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "100m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-storage
+          - name: backup-scripts
+            configMap:
+              name: backup-scripts
+              defaultMode: 0755
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-scripts
+  namespace: lets-connect
+data:
+  backup-db.sh: |
+    #!/bin/bash
+    # Backup script will be mounted from this ConfigMap
+    # In production, mount the actual script from services/shared/backup-db.sh
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-cleanup
+  namespace: lets-connect
+  labels:
+    app: backup-cleanup
+    component: backup
+spec:
+  # Run monthly on the 1st at 4:00 AM UTC
+  schedule: "0 4 1 * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    metadata:
+      labels:
+        app: backup-cleanup
+        component: backup
+    spec:
+      template:
+        metadata:
+          labels:
+            app: backup-cleanup
+            component: backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: cleanup
+            image: alpine:latest
+            command:
+              - /bin/sh
+              - -c
+              - |
+                echo "Cleaning up backups older than 30 days..."
+                find /backups -name "*.sql.gz" -mtime +30 -delete
+                find /backups -name "*.meta" -mtime +30 -delete
+                find /backups -name "*.rdb" -mtime +30 -delete
+                echo "Cleanup completed"
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "50m"
+              limits:
+                memory: "128Mi"
+                cpu: "100m"
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-storage
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backup-restore
+  namespace: lets-connect
+  labels:
+    app: backup-restore
+    component: backup
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: backup-restore
+    component: backup
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backup-restore
+  namespace: lets-connect
+  labels:
+    app: backup-restore
+    component: backup
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backup-restore
+      component: backup
+  template:
+    metadata:
+      labels:
+        app: backup-restore
+        component: backup
+    spec:
+      containers:
+      - name: restore-api
+        image: postgres:15-alpine
+        command:
+          - /bin/sh
+          - -c
+          - |
+            apk add --no-cache bash python3 py3-pip
+            pip3 install flask
+            chmod +x /scripts/restore-db.sh
+            # Run a simple Flask API for restore operations
+            python3 /app/restore-api.py
+        env:
+        - name: POSTGRES_HOST
+          value: "postgres"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: password
+        - name: BACKUP_DIR
+          value: "/backups"
+        ports:
+        - containerPort: 8080
+          name: http
+        volumeMounts:
+        - name: backup-storage
+          mountPath: /backups
+        - name: backup-scripts
+          mountPath: /scripts
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      volumes:
+      - name: backup-storage
+        persistentVolumeClaim:
+          claimName: backup-storage
+      - name: backup-scripts
+        configMap:
+          name: backup-scripts
+          defaultMode: 0755
