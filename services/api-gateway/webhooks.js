@@ -157,6 +157,9 @@ WebhookDelivery.belongsTo(Webhook, { foreignKey: 'webhookId', as: 'webhook' });
 // Sync database
 sequelize.sync();
 
+// Max response body length for logging (5KB)
+const MAX_RESPONSE_BODY_LENGTH = 5000;
+
 // Available webhook events
 const WEBHOOK_EVENTS = [
   'user.created',
@@ -232,7 +235,7 @@ async function deliverWebhook(webhook, event, payload) {
       await delivery.update({
         success: true,
         responseStatus: response.status,
-        responseBody: JSON.stringify(response.data).substring(0, 5000),
+        responseBody: JSON.stringify(response.data).substring(0, MAX_RESPONSE_BODY_LENGTH),
         responseTime,
         attempts: attempt
       });
@@ -252,7 +255,7 @@ async function deliverWebhook(webhook, event, payload) {
         success: false,
         error: error.message,
         responseStatus: error.response?.status,
-        responseBody: error.response?.data ? JSON.stringify(error.response.data).substring(0, 5000) : null,
+        responseBody: error.response?.data ? JSON.stringify(error.response.data).substring(0, MAX_RESPONSE_BODY_LENGTH) : null,
         attempts: attempt,
         nextRetryAt
       });

@@ -18,8 +18,8 @@ const API_CACHE_PATTERNS = [
   /\/api\/blogs/
 ];
 
-// Max age for cached API responses (5 minutes)
-const API_CACHE_MAX_AGE = 5 * 60 * 1000;
+// Max age for cached API responses (2 minutes for real-time content)
+const API_CACHE_MAX_AGE = 2 * 60 * 1000;
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {

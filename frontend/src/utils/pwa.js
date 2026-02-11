@@ -11,10 +11,23 @@ export function registerServiceWorker() {
         const registration = await navigator.serviceWorker.register('/service-worker.js');
         console.log('[PWA] Service Worker registered:', registration);
 
-        // Check for updates periodically
+        // Check for updates when app regains focus
+        let isCheckingForUpdate = false;
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden && !isCheckingForUpdate) {
+            isCheckingForUpdate = true;
+            registration.update().finally(() => {
+              isCheckingForUpdate = false;
+            });
+          }
+        });
+
+        // Also check periodically (every 5 minutes) for updates
         setInterval(() => {
-          registration.update();
-        }, 60000); // Check every minute
+          if (!document.hidden) {
+            registration.update();
+          }
+        }, 300000); // 5 minutes
 
         // Listen for updates
         registration.addEventListener('updatefound', () => {

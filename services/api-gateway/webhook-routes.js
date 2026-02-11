@@ -437,7 +437,7 @@ router.post('/:id/secret/rotate', requireAuth, async (req, res) => {
  *     security:
  *       - bearerAuth: []
  */
-router.get('/meta/events', requireAuth, async (req, res) => {
+router.get('/events', requireAuth, async (req, res) => {
   res.json({
     events: WEBHOOK_EVENTS,
     count: WEBHOOK_EVENTS.length
