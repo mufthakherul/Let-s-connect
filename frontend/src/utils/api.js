@@ -7,6 +7,10 @@ const resolveRuntimeApiBase = () => {
 
   const origin = window.location.origin;
 
+  if (process.env.NODE_ENV === 'production') {
+    return origin;
+  }
+
   if (origin.includes('.app.github.dev') && origin.includes('-3000')) {
     return origin.replace('-3000.app.github.dev', '-8000.app.github.dev');
   }

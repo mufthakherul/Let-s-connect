@@ -22,7 +22,7 @@ import api from '../../utils/api';
 
 function DebateMode({ meetingId, user }) {
     const [evidence, setEvidence] = useState([]);
-    const [arguments, setArguments] = useState([]);
+    const [debateArguments, setDebateArguments] = useState([]);
     const [votes, setVotes] = useState({ votes: [], results: { pro: 0, con: 0, tie: 0, total: 0 } });
     const [activeTab, setActiveTab] = useState(0);
     const [error, setError] = useState('');
@@ -64,7 +64,7 @@ function DebateMode({ meetingId, user }) {
                 api.get(`/collaboration/meetings/${meetingId}/debate/votes`)
             ]);
             setEvidence(evidenceRes.data || []);
-            setArguments(argumentsRes.data || []);
+            setDebateArguments(argumentsRes.data || []);
             setVotes(votesRes.data || { votes: [], results: { pro: 0, con: 0, tie: 0, total: 0 } });
         } catch (err) {
             console.error(err);
@@ -132,8 +132,8 @@ function DebateMode({ meetingId, user }) {
 
     const proEvidence = evidence.filter(e => e.side === 'pro');
     const conEvidence = evidence.filter(e => e.side === 'con');
-    const proArguments = arguments.filter(a => a.side === 'pro');
-    const conArguments = arguments.filter(a => a.side === 'con');
+    const proArguments = debateArguments.filter(a => a.side === 'pro');
+    const conArguments = debateArguments.filter(a => a.side === 'con');
 
     return (
         <Box>
