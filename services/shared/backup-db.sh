@@ -37,8 +37,15 @@ log "Starting database backup process..."
 PG_HOST="${POSTGRES_HOST:-postgres}"
 PG_PORT="${POSTGRES_PORT:-5432}"
 PG_USER="${POSTGRES_USER:-postgres}"
-PG_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
 
+# Fail fast if password is not set (security requirement)
+if [ -z "${POSTGRES_PASSWORD+x}" ] || [ -z "$POSTGRES_PASSWORD" ]; then
+    error "POSTGRES_PASSWORD environment variable must be set for backups"
+    error "Refusing to continue with an insecure default password"
+    exit 1
+fi
+
+PG_PASSWORD="$POSTGRES_PASSWORD"
 export PGPASSWORD="$PG_PASSWORD"
 
 # Function to backup a single database

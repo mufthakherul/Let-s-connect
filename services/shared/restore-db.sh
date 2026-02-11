@@ -114,21 +114,27 @@ restore_database() {
         exit 0
     fi
     
-    # Drop existing connections
+    # Validate database name to prevent SQL injection
+    if ! [[ "$db_name" =~ ^[a-zA-Z0-9_]+$ ]]; then
+        error "Invalid database name. Only alphanumeric characters and underscores are allowed."
+        exit 1
+    fi
+    
+    # Drop existing connections (using parameterized query via psql variable)
     log "Terminating existing connections to database '$db_name'..."
-    psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d postgres -c \
-        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$db_name' AND pid <> pg_backend_pid();" \
+    psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d postgres -v dbname="$db_name" -c \
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = :'dbname' AND pid <> pg_backend_pid();" \
         2>/dev/null || true
     
-    # Drop and recreate database
+    # Drop and recreate database (identifier properly quoted)
     log "Dropping database '$db_name'..."
-    psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d postgres -c "DROP DATABASE IF EXISTS $db_name;" || {
+    psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d postgres -c "DROP DATABASE IF EXISTS \"$db_name\";" || {
         error "Failed to drop database"
         exit 1
     }
     
     log "Creating database '$db_name'..."
-    psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d postgres -c "CREATE DATABASE $db_name;" || {
+    psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d postgres -c "CREATE DATABASE \"$db_name\";" || {
         error "Failed to create database"
         exit 1
     }

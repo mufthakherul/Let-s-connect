@@ -100,8 +100,20 @@ metadata:
 data:
   backup-db.sh: |
     #!/bin/bash
-    # Backup script will be mounted from this ConfigMap
-    # In production, mount the actual script from services/shared/backup-db.sh
+    # NOTE: This is a placeholder. In production:
+    # 1. Option A: Build scripts into the container image
+    # 2. Option B: Mount actual scripts from a Git-synced volume
+    # 3. Option C: Use kubectl create configmap --from-file=services/shared/backup-db.sh
+    #
+    # The actual backup script is located at: services/shared/backup-db.sh
+    # To populate this ConfigMap with the real script, run:
+    # kubectl create configmap backup-scripts --from-file=backup-db.sh=services/shared/backup-db.sh --from-file=restore-db.sh=services/shared/restore-db.sh -n lets-connect
+    echo "Error: Backup script not configured. See ConfigMap comments for setup instructions."
+    exit 1
+  restore-db.sh: |
+    #!/bin/bash
+    echo "Error: Restore script not configured. See ConfigMap comments for setup instructions."
+    exit 1
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -203,11 +215,11 @@ spec:
           - /bin/sh
           - -c
           - |
-            apk add --no-cache bash python3 py3-pip
-            pip3 install flask
-            chmod +x /scripts/restore-db.sh
-            # Run a simple Flask API for restore operations
-            python3 /app/restore-api.py
+            echo "Restore API deployment placeholder"
+            echo "In production, implement a proper restore API or use manual restore via restore-db.sh"
+            echo "For now, this container provides access to backup storage for manual operations"
+            # Keep container running for manual restore operations
+            tail -f /dev/null
         env:
         - name: POSTGRES_HOST
           value: "postgres"

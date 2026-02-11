@@ -2258,9 +2258,15 @@ app.get('/notifications', async (req, res) => {
   }
 });
 
-// Create notification (system use)
+// Create notification (system/internal use only)
 app.post('/notifications', async (req, res) => {
   try {
+    // Restrict this endpoint to trusted internal callers
+    const internalToken = req.header('x-internal-token');
+    if (!internalToken || internalToken !== process.env.INTERNAL_NOTIFICATION_TOKEN) {
+      return res.status(401).json({ error: 'Unauthorized - internal service token required' });
+    }
+
     const { userId, type, title, body, actionUrl, metadata, priority } = req.body;
 
     if (!userId || !type || !title || !body) {
@@ -2276,9 +2282,22 @@ app.post('/notifications', async (req, res) => {
       preferences = await NotificationPreference.create({ userId });
     }
 
-    // Check if user wants this type of notification
-    const typeKey = `enable${type.charAt(0).toUpperCase() + type.slice(1).replace('_', '')}`;
-    if (preferences[typeKey] === false) {
+    // Check if user wants this type of notification - fix field name mapping
+    const typeFieldMap = {
+      'message': 'enableMessages',
+      'mention': 'enableMentions',
+      'reply': 'enableReplies',
+      'reaction': 'enableReactions',
+      'call': 'enableCalls',
+      'friend_request': 'enableFriendRequests',
+      'server_invite': 'enableServerInvites',
+      'role_update': 'enableRoleUpdates',
+      'system': 'enableSystem',
+      'announcement': 'enableAnnouncements'
+    };
+    
+    const typeKey = typeFieldMap[type];
+    if (typeKey && preferences[typeKey] === false) {
       return res.json({ 
         message: 'Notification blocked by user preferences',
         delivered: false
@@ -2295,8 +2314,8 @@ app.post('/notifications', async (req, res) => {
       priority: priority || 'normal'
     });
 
-    // Emit real-time notification via WebSocket
-    io.emit(`notification-${userId}`, {
+    // Emit real-time notification via WebSocket to specific user room
+    io.to(`user-${userId}`).emit('notification', {
       id: notification.id,
       type: notification.type,
       title: notification.title,
