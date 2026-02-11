@@ -33,6 +33,7 @@ import Login from './components/Login';
 import Register from './components/Register';
 
 // Lazy load non-critical components (Phase 4: Performance Optimization)
+const Homepage = lazy(() => import('./components/Homepage'));
 const Feed = lazy(() => import('./components/Feed'));
 const Videos = lazy(() => import('./components/Videos'));
 const Shop = lazy(() => import('./components/Shop'));
@@ -384,9 +385,15 @@ function App() {
               <Breadcrumbs />
               <Suspense fallback={<PageLoader />}>
                 <Routes>
+                  {/* Root route - Homepage for logged-in users showing all public posts */}
                   <Route
                     path="/"
-                    element={internalUser ? <Feed user={internalUser} /> : <Home />}
+                    element={internalUser ? <Homepage user={internalUser} /> : <Home user={internalUser} />}
+                  />
+                  {/* Unregister landing page - smart router for unregistered users */}
+                  <Route
+                    path="/unregister"
+                    element={<Home user={internalUser} />}
                   />
                   <Route path="/search" element={<Search />} />
                   <Route path="/login" element={<Login setUser={setInternalUser} />} />
