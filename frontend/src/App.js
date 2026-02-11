@@ -270,207 +270,210 @@ function App() {
         />
         <ErrorBoundary level="page">
           <Router>
-          <AppBar position="sticky" elevation={1}>
-            <Toolbar>
-              {isMobile && (
-                <IconButton
-                  edge="start"
-                  color="inherit"
-                  onClick={() => setDrawerOpen(true)}
-                  sx={{ mr: 2 }}
+            <AppBar position="sticky" elevation={1}>
+              <Toolbar>
+                {isMobile && (
+                  <IconButton
+                    edge="start"
+                    color="inherit"
+                    onClick={() => setDrawerOpen(true)}
+                    sx={{ mr: 2 }}
+                  >
+                    <MenuIcon />
+                  </IconButton>
+                )}
+                <Typography
+                  variant="h6"
+                  component={Link}
+                  to="/"
+                  sx={{
+                    flexGrow: isMobile ? 1 : 0,
+                    mr: isMobile ? 0 : 4,
+                    textDecoration: 'none',
+                    color: 'inherit',
+                    fontWeight: 700,
+                  }}
                 >
-                  <MenuIcon />
-                </IconButton>
-              )}
-              <Typography
-                variant="h6"
-                component={Link}
-                to="/"
-                sx={{
-                  flexGrow: isMobile ? 1 : 0,
-                  mr: isMobile ? 0 : 4,
-                  textDecoration: 'none',
-                  color: 'inherit',
-                  fontWeight: 700,
-                }}
-              >
-                Let's Connect
-              </Typography>
+                  Let's Connect
+                </Typography>
 
-              {!isMobile && (
-                <Box sx={{ flexGrow: 1, display: 'flex', gap: 1 }}>
-                  <Button color="inherit" component={Link} to="/videos" startIcon={<VideoLibrary />}>
-                    Videos
-                  </Button>
-                  <Button color="inherit" component={Link} to="/shop" startIcon={<ShoppingCart />}>
-                    Shop
-                  </Button>
-                  <Button color="inherit" component={Link} to="/docs" startIcon={<Description />}>
-                    Docs
-                  </Button>
+                {!isMobile && (
+                  <Box sx={{ flexGrow: 1, display: 'flex', gap: 1 }}>
+                    <Button color="inherit" component={Link} to="/videos" startIcon={<VideoLibrary />}>
+                      Videos
+                    </Button>
+                    <Button color="inherit" component={Link} to="/shop" startIcon={<ShoppingCart />}>
+                      Shop
+                    </Button>
+                    <Button color="inherit" component={Link} to="/docs" startIcon={<Description />}>
+                      Docs
+                    </Button>
+                    {internalUser && (
+                      <>
+                        <Button color="inherit" component={Link} to="/feed" startIcon={<FeedIcon />}>
+                          Feed
+                        </Button>
+                        <Button color="inherit" component={Link} to="/groups" startIcon={<GroupIcon />}>
+                          Groups
+                        </Button>
+                        <Button color="inherit" component={Link} to="/chat" startIcon={<ChatIcon />}>
+                          Chat
+                        </Button>
+                      </>
+                    )}
+                  </Box>
+                )}
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <IconButton color="inherit" onClick={toggleTheme}>
+                    {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+                  </IconButton>
+
                   {internalUser && (
                     <>
-                      <Button color="inherit" component={Link} to="/feed" startIcon={<FeedIcon />}>
-                        Feed
-                      </Button>
-                      <Button color="inherit" component={Link} to="/groups" startIcon={<GroupIcon />}>
-                        Groups
-                      </Button>
-                      <Button color="inherit" component={Link} to="/chat" startIcon={<ChatIcon />}>
-                        Chat
+                      <NotificationCenter />
+                      {!isMobile && (
+                        <>
+                          <Button
+                            color="inherit"
+                            component={Link}
+                            to="/profile"
+                            startIcon={<Avatar sx={{ width: 28, height: 28 }}>{internalUser.name?.[0]}</Avatar>}
+                          >
+                            {internalUser.name}
+                          </Button>
+                          <Button color="inherit" onClick={handleLogout} startIcon={<ExitToApp />}>
+                            Logout
+                          </Button>
+                        </>
+                      )}
+                    </>
+                  )}
+
+                  {!internalUser && !isMobile && (
+                    <>
+                      <Button color="inherit" component={Link} to="/login">Login</Button>
+                      <Button
+                        variant="contained"
+                        color="secondary"
+                        component={Link}
+                        to="/register"
+                        sx={{ ml: 1 }}
+                      >
+                        Sign Up
                       </Button>
                     </>
                   )}
                 </Box>
-              )}
+              </Toolbar>
+            </AppBar>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <IconButton color="inherit" onClick={toggleTheme}>
-                  {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
-                </IconButton>
+            <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+              {drawer}
+            </Drawer>
 
-                {internalUser && (
-                  <>
-                    <NotificationCenter />
-                    {!isMobile && (
-                      <>
-                        <Button
-                          color="inherit"
-                          component={Link}
-                          to="/profile"
-                          startIcon={<Avatar sx={{ width: 28, height: 28 }}>{internalUser.name?.[0]}</Avatar>}
-                        >
-                          {internalUser.name}
-                        </Button>
-                        <Button color="inherit" onClick={handleLogout} startIcon={<ExitToApp />}>
-                          Logout
-                        </Button>
-                      </>
-                    )}
-                  </>
-                )}
-
-                {!internalUser && !isMobile && (
-                  <>
-                    <Button color="inherit" component={Link} to="/login">Login</Button>
-                    <Button
-                      variant="contained"
-                      color="secondary"
-                      component={Link}
-                      to="/register"
-                      sx={{ ml: 1 }}
-                    >
-                      Sign Up
-                    </Button>
-                  </>
-                )}
-              </Box>
-            </Toolbar>
-          </AppBar>
-
-          <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-            {drawer}
-          </Drawer>
-
-          <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-            <Breadcrumbs />
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/search" element={<Search />} />
-                <Route path="/login" element={<Login setUser={setInternalUser} />} />
-                <Route path="/register" element={<Register setUser={setInternalUser} />} />
-                <Route path="/videos" element={<Videos user={internalUser} />} />
-                <Route path="/shop" element={<Shop />} />
-                <Route path="/blog" element={<Blog />} />
-                <Route path="/docs" element={<Docs user={internalUser} />} />
-                <Route path="/media" element={<MediaGallery />} />
-                <Route
-                  path="/feed"
-                  element={internalUser ? <Feed user={internalUser} /> : <Navigate to="/login" />}
-                />
-                <Route
-                  path="/groups"
-                  element={internalUser ? <Groups user={internalUser} /> : <Navigate to="/login" />}
-                />
-                <Route
-                  path="/pages"
-                  element={internalUser ? <Pages user={internalUser} /> : <Navigate to="/login" />}
-                />
-                <Route
-                  path="/projects"
-                  element={internalUser ? <Projects user={internalUser} /> : <Navigate to="/login" />}
-                />
-                <Route
-                  path="/bookmarks"
-                  element={internalUser ? <Bookmarks user={internalUser} /> : <Navigate to="/login" />}
-                />
-                <Route
-                  path="/cart"
-                  element={internalUser ? <Cart /> : <Navigate to="/login" />}
-                />
-                <Route
-                  path="/chat"
-                  element={internalUser ? <Chat user={internalUser} /> : <Navigate to="/login" />}
-                />
-                <Route
-                  path="/profile"
-                  element={internalUser ? <Profile user={internalUser} /> : <Navigate to="/login" />}
-                />
-                <Route
-                  path="/admin"
-                  element={internalUser && (internalUser.role === 'admin' || internalUser.role === 'moderator') ? <AdminDashboard /> : <Navigate to="/login" />}
-                />
-                <Route
-                  path="/security"
-                  element={internalUser ? <SecuritySettings /> : <Navigate to="/login" />}
-                />
-                <Route
-                  path="/analytics"
-                  element={internalUser ? <Analytics user={internalUser} /> : <Navigate to="/login" />}
-                />
-                {/* Phase 3 Features - Email Notifications */}
-                <Route
-                  path="/notifications/email"
-                  element={internalUser ? <EmailPreferences /> : <Navigate to="/login" />}
-                />
-                {/* Phase 3 Features - OAuth Login */}
-                <Route path="/login/oauth" element={<OAuthLogin />} />
-                {/* Phase 3 Features - Elasticsearch Search */}
-                <Route
-                  path="/search/advanced"
-                  element={internalUser ? <ElasticsearchSearch /> : <Navigate to="/login" />}
-                />
-                {/* Phase 3 Features - Drive Folder Hierarchy */}
-                <Route
-                  path="/folders"
-                  element={internalUser ? <FolderBrowser user={internalUser} /> : <Navigate to="/login" />}
-                />
-                {/* Phase 3 Features - Wiki Diff Viewer */}
-                <Route
-                  path="/wikis/diff"
-                  element={internalUser ? <WikiDiffViewer /> : <Navigate to="/login" />}
-                />
-                {/* Phase 3 Features - WebRTC Voice/Video */}
-                <Route
-                  path="/calls"
-                  element={internalUser ? <WebRTCCallWidget /> : <Navigate to="/login" />}
-                />
-                {/* Phase 3 Features - Database Views Builder */}
-                <Route
-                  path="/databases/views"
-                  element={internalUser ? <DatabaseViews /> : <Navigate to="/login" />}
-                />
-                {/* Discord Admin Panel */}
-                <Route
-                  path="/discord/admin"
-                  element={internalUser ? <DiscordAdmin user={internalUser} /> : <Navigate to="/login" />}
-                />
-                {/* Phase 5 Features - Theme Settings */}
-                <Route path="/settings/theme" element={<ThemeSettings />} />
-              </Routes>
-            </Suspense>
-          </Container>
+            <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+              <Breadcrumbs />
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  <Route
+                    path="/"
+                    element={internalUser ? <Feed user={internalUser} /> : <Home />}
+                  />
+                  <Route path="/search" element={<Search />} />
+                  <Route path="/login" element={<Login setUser={setInternalUser} />} />
+                  <Route path="/register" element={<Register setUser={setInternalUser} />} />
+                  <Route path="/videos" element={<Videos user={internalUser} />} />
+                  <Route path="/shop" element={<Shop />} />
+                  <Route path="/blog" element={<Blog />} />
+                  <Route path="/docs" element={<Docs user={internalUser} />} />
+                  <Route path="/media" element={<MediaGallery />} />
+                  <Route
+                    path="/feed"
+                    element={internalUser ? <Feed user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/groups"
+                    element={internalUser ? <Groups user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/pages"
+                    element={internalUser ? <Pages user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/projects"
+                    element={internalUser ? <Projects user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/bookmarks"
+                    element={internalUser ? <Bookmarks user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/cart"
+                    element={internalUser ? <Cart /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/chat"
+                    element={internalUser ? <Chat user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/profile"
+                    element={internalUser ? <Profile user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/admin"
+                    element={internalUser && (internalUser.role === 'admin' || internalUser.role === 'moderator') ? <AdminDashboard /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/security"
+                    element={internalUser ? <SecuritySettings /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/analytics"
+                    element={internalUser ? <Analytics user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  {/* Phase 3 Features - Email Notifications */}
+                  <Route
+                    path="/notifications/email"
+                    element={internalUser ? <EmailPreferences /> : <Navigate to="/login" />}
+                  />
+                  {/* Phase 3 Features - OAuth Login */}
+                  <Route path="/login/oauth" element={<OAuthLogin />} />
+                  {/* Phase 3 Features - Elasticsearch Search */}
+                  <Route
+                    path="/search/advanced"
+                    element={internalUser ? <ElasticsearchSearch /> : <Navigate to="/login" />}
+                  />
+                  {/* Phase 3 Features - Drive Folder Hierarchy */}
+                  <Route
+                    path="/folders"
+                    element={internalUser ? <FolderBrowser user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  {/* Phase 3 Features - Wiki Diff Viewer */}
+                  <Route
+                    path="/wikis/diff"
+                    element={internalUser ? <WikiDiffViewer /> : <Navigate to="/login" />}
+                  />
+                  {/* Phase 3 Features - WebRTC Voice/Video */}
+                  <Route
+                    path="/calls"
+                    element={internalUser ? <WebRTCCallWidget /> : <Navigate to="/login" />}
+                  />
+                  {/* Phase 3 Features - Database Views Builder */}
+                  <Route
+                    path="/databases/views"
+                    element={internalUser ? <DatabaseViews /> : <Navigate to="/login" />}
+                  />
+                  {/* Discord Admin Panel */}
+                  <Route
+                    path="/discord/admin"
+                    element={internalUser ? <DiscordAdmin user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  {/* Phase 5 Features - Theme Settings */}
+                  <Route path="/settings/theme" element={<ThemeSettings />} />
+                </Routes>
+              </Suspense>
+            </Container>
             <QuickAccessMenu />
             <Onboarding />
           </Router>

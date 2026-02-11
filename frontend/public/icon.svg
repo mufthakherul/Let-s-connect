@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Let's Connect">
+  <defs>
+    <linearGradient id="lcGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1976d2" />
+      <stop offset="100%" stop-color="#4caf50" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="url(#lcGradient)" />
+  <circle cx="96" cy="108" r="28" fill="#ffffff" opacity="0.9" />
+  <circle cx="160" cy="148" r="28" fill="#ffffff" opacity="0.9" />
+  <path d="M114 124 L142 132" stroke="#ffffff" stroke-width="12" stroke-linecap="round" />
+  <path d="M72 184 C92 160 164 160 184 184" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" />
+</svg>
