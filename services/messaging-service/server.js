@@ -372,6 +372,32 @@ const Call = sequelize.define('Call', {
   endedAt: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  // Phase 6: Enhanced WebRTC features
+  isScreenSharing: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Whether screen sharing is active'
+  },
+  isRecording: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Whether call is being recorded'
+  },
+  recordingUrl: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'URL to recorded call file'
+  },
+  qualityMetrics: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    comment: 'Call quality metrics (bitrate, packet loss, jitter, latency)'
+  },
+  networkQuality: {
+    type: DataTypes.ENUM('excellent', 'good', 'fair', 'poor', 'disconnected'),
+    defaultValue: 'good',
+    comment: 'Overall network quality indicator'
   }
 }, {
   indexes: [
@@ -383,6 +409,162 @@ const Call = sequelize.define('Call', {
     },
     {
       fields: ['status']
+    }
+  ]
+});
+
+// Phase 6: Notification System
+const Notification = sequelize.define('Notification', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'User who receives the notification'
+  },
+  type: {
+    type: DataTypes.ENUM(
+      'message', 'mention', 'reply', 'reaction',
+      'call', 'friend_request', 'server_invite',
+      'role_update', 'system', 'announcement'
+    ),
+    allowNull: false,
+    defaultValue: 'system'
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  body: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  actionUrl: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'URL to navigate to when notification is clicked'
+  },
+  metadata: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    comment: 'Additional data (senderId, serverId, channelId, etc.)'
+  },
+  isRead: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  readAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  priority: {
+    type: DataTypes.ENUM('low', 'normal', 'high', 'urgent'),
+    defaultValue: 'normal'
+  },
+  expiresAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'When notification should be auto-deleted'
+  }
+}, {
+  indexes: [
+    {
+      fields: ['userId']
+    },
+    {
+      fields: ['userId', 'isRead']
+    },
+    {
+      fields: ['type']
+    },
+    {
+      fields: ['createdAt']
+    }
+  ]
+});
+
+// Phase 6: Notification Preferences
+const NotificationPreference = sequelize.define('NotificationPreference', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    unique: true
+  },
+  enableMessages: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  enableMentions: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  enableReplies: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  enableReactions: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  enableCalls: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  enableFriendRequests: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  enableServerInvites: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  enableRoleUpdates: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  enableSystem: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  enableAnnouncements: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  enablePushNotifications: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Web Push API notifications'
+  },
+  enableEmailDigest: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  digestFrequency: {
+    type: DataTypes.ENUM('daily', 'weekly', 'never'),
+    defaultValue: 'never'
+  },
+  quietHoursStart: {
+    type: DataTypes.TIME,
+    allowNull: true,
+    comment: 'Start time for quiet hours (HH:MM)'
+  },
+  quietHoursEnd: {
+    type: DataTypes.TIME,
+    allowNull: true,
+    comment: 'End time for quiet hours (HH:MM)'
+  }
+}, {
+  indexes: [
+    {
+      fields: ['userId']
     }
   ]
 });
@@ -1823,6 +2005,502 @@ app.post('/calls/:callId/end', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to end call' });
+  }
+});
+
+// Phase 6: Toggle screen sharing
+app.post('/calls/:callId/screen-sharing', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { callId } = req.params;
+    const { enabled } = req.body;
+
+    const call = await Call.findByPk(callId);
+    if (!call) {
+      return res.status(404).json({ error: 'Call not found' });
+    }
+
+    // Verify user is part of the call
+    if (call.callerId !== userId && call.recipientId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to modify this call' });
+    }
+
+    // Update screen sharing status
+    await call.update({
+      isScreenSharing: enabled
+    });
+
+    // Emit real-time event to other party
+    const otherPartyId = call.callerId === userId ? call.recipientId : call.callerId;
+    io.emit(`screen-sharing-${otherPartyId}`, {
+      callId: call.id,
+      enabled,
+      userId
+    });
+
+    res.json({
+      callId: call.id,
+      isScreenSharing: call.isScreenSharing
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to toggle screen sharing' });
+  }
+});
+
+// Phase 6: Start/stop call recording
+app.post('/calls/:callId/recording', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { callId } = req.params;
+    const { action } = req.body; // 'start' or 'stop'
+
+    const call = await Call.findByPk(callId);
+    if (!call) {
+      return res.status(404).json({ error: 'Call not found' });
+    }
+
+    // Verify user is part of the call
+    if (call.callerId !== userId && call.recipientId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to record this call' });
+    }
+
+    if (action === 'start') {
+      await call.update({
+        isRecording: true
+      });
+
+      // Emit notification to other party (legal requirement in many jurisdictions)
+      const otherPartyId = call.callerId === userId ? call.recipientId : call.callerId;
+      io.emit(`recording-started-${otherPartyId}`, {
+        callId: call.id,
+        startedBy: userId
+      });
+
+      res.json({
+        callId: call.id,
+        isRecording: true,
+        message: 'Recording started. Other party has been notified.'
+      });
+    } else if (action === 'stop') {
+      // In production, this would save the recording to MinIO/S3
+      const recordingUrl = `recordings/${callId}-${Date.now()}.webm`;
+      
+      await call.update({
+        isRecording: false,
+        recordingUrl
+      });
+
+      res.json({
+        callId: call.id,
+        isRecording: false,
+        recordingUrl: call.recordingUrl,
+        message: 'Recording stopped and saved.'
+      });
+    } else {
+      return res.status(400).json({ error: 'action must be start or stop' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to manage recording' });
+  }
+});
+
+// Phase 6: Update call quality metrics
+app.post('/calls/:callId/quality', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { callId } = req.params;
+    const { bitrate, packetLoss, jitter, latency } = req.body;
+
+    const call = await Call.findByPk(callId);
+    if (!call) {
+      return res.status(404).json({ error: 'Call not found' });
+    }
+
+    // Verify user is part of the call
+    if (call.callerId !== userId && call.recipientId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to update this call' });
+    }
+
+    // Determine network quality based on metrics
+    let networkQuality = 'excellent';
+    if (packetLoss > 5 || latency > 300 || jitter > 50) {
+      networkQuality = 'poor';
+    } else if (packetLoss > 2 || latency > 200 || jitter > 30) {
+      networkQuality = 'fair';
+    } else if (packetLoss > 0.5 || latency > 100 || jitter > 15) {
+      networkQuality = 'good';
+    }
+
+    // Update quality metrics
+    const qualityMetrics = {
+      bitrate: bitrate || 0,
+      packetLoss: packetLoss || 0,
+      jitter: jitter || 0,
+      latency: latency || 0,
+      timestamp: new Date()
+    };
+
+    await call.update({
+      qualityMetrics,
+      networkQuality
+    });
+
+    // Emit real-time quality update to other party
+    const otherPartyId = call.callerId === userId ? call.recipientId : call.callerId;
+    io.emit(`quality-update-${otherPartyId}`, {
+      callId: call.id,
+      networkQuality,
+      qualityMetrics
+    });
+
+    res.json({
+      callId: call.id,
+      networkQuality: call.networkQuality,
+      qualityMetrics: call.qualityMetrics
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update call quality' });
+  }
+});
+
+// Phase 6: Get call recording
+app.get('/calls/:callId/recording', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { callId } = req.params;
+
+    const call = await Call.findByPk(callId);
+    if (!call) {
+      return res.status(404).json({ error: 'Call not found' });
+    }
+
+    // Verify user is part of the call
+    if (call.callerId !== userId && call.recipientId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to access this recording' });
+    }
+
+    if (!call.recordingUrl) {
+      return res.status(404).json({ error: 'No recording available for this call' });
+    }
+
+    res.json({
+      callId: call.id,
+      recordingUrl: call.recordingUrl,
+      duration: call.duration,
+      createdAt: call.createdAt
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch recording' });
+  }
+});
+
+// Phase 6: Notification System Endpoints
+
+// Get user notifications
+app.get('/notifications', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { limit = 50, offset = 0, unreadOnly = false, type } = req.query;
+
+    const whereClause = { userId };
+    if (unreadOnly === 'true') {
+      whereClause.isRead = false;
+    }
+    if (type) {
+      whereClause.type = type;
+    }
+
+    const notifications = await Notification.findAll({
+      where: whereClause,
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    const total = await Notification.count({ where: whereClause });
+    const unreadCount = await Notification.count({ 
+      where: { userId, isRead: false } 
+    });
+
+    res.json({ 
+      notifications, 
+      total,
+      unreadCount,
+      hasMore: total > parseInt(offset) + parseInt(limit)
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// Create notification (system use)
+app.post('/notifications', async (req, res) => {
+  try {
+    const { userId, type, title, body, actionUrl, metadata, priority } = req.body;
+
+    if (!userId || !type || !title || !body) {
+      return res.status(400).json({ 
+        error: 'userId, type, title, and body are required' 
+      });
+    }
+
+    // Get user's notification preferences
+    let preferences = await NotificationPreference.findOne({ where: { userId } });
+    if (!preferences) {
+      // Create default preferences if not exist
+      preferences = await NotificationPreference.create({ userId });
+    }
+
+    // Check if user wants this type of notification
+    const typeKey = `enable${type.charAt(0).toUpperCase() + type.slice(1).replace('_', '')}`;
+    if (preferences[typeKey] === false) {
+      return res.json({ 
+        message: 'Notification blocked by user preferences',
+        delivered: false
+      });
+    }
+
+    const notification = await Notification.create({
+      userId,
+      type,
+      title,
+      body,
+      actionUrl,
+      metadata,
+      priority: priority || 'normal'
+    });
+
+    // Emit real-time notification via WebSocket
+    io.emit(`notification-${userId}`, {
+      id: notification.id,
+      type: notification.type,
+      title: notification.title,
+      body: notification.body,
+      actionUrl: notification.actionUrl,
+      metadata: notification.metadata,
+      priority: notification.priority,
+      createdAt: notification.createdAt
+    });
+
+    res.json({ 
+      notification,
+      delivered: true
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create notification' });
+  }
+});
+
+// Mark notification as read
+app.put('/notifications/:notificationId/read', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { notificationId } = req.params;
+
+    const notification = await Notification.findByPk(notificationId);
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    if (notification.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await notification.update({
+      isRead: true,
+      readAt: new Date()
+    });
+
+    // Get updated unread count
+    const unreadCount = await Notification.count({ 
+      where: { userId, isRead: false } 
+    });
+
+    res.json({ 
+      notification,
+      unreadCount
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+});
+
+// Mark all notifications as read
+app.put('/notifications/read-all', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await Notification.update(
+      { 
+        isRead: true,
+        readAt: new Date()
+      },
+      { 
+        where: { 
+          userId, 
+          isRead: false 
+        } 
+      }
+    );
+
+    res.json({ 
+      message: 'All notifications marked as read',
+      unreadCount: 0
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to mark all as read' });
+  }
+});
+
+// Delete notification
+app.delete('/notifications/:notificationId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { notificationId } = req.params;
+
+    const notification = await Notification.findByPk(notificationId);
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    if (notification.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await notification.destroy();
+
+    res.json({ message: 'Notification deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete notification' });
+  }
+});
+
+// Delete all read notifications
+app.delete('/notifications/clear-read', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const deleted = await Notification.destroy({
+      where: { 
+        userId, 
+        isRead: true 
+      }
+    });
+
+    res.json({ 
+      message: 'Read notifications cleared',
+      deletedCount: deleted
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to clear notifications' });
+  }
+});
+
+// Get notification preferences
+app.get('/notifications/preferences', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    let preferences = await NotificationPreference.findOne({ where: { userId } });
+    
+    if (!preferences) {
+      // Create default preferences
+      preferences = await NotificationPreference.create({ userId });
+    }
+
+    res.json({ preferences });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch preferences' });
+  }
+});
+
+// Update notification preferences
+app.put('/notifications/preferences', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const allowedFields = [
+      'enableMessages', 'enableMentions', 'enableReplies', 'enableReactions',
+      'enableCalls', 'enableFriendRequests', 'enableServerInvites', 
+      'enableRoleUpdates', 'enableSystem', 'enableAnnouncements',
+      'enablePushNotifications', 'enableEmailDigest', 'digestFrequency',
+      'quietHoursStart', 'quietHoursEnd'
+    ];
+
+    const updates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    let preferences = await NotificationPreference.findOne({ where: { userId } });
+    
+    if (!preferences) {
+      preferences = await NotificationPreference.create({ userId, ...updates });
+    } else {
+      await preferences.update(updates);
+    }
+
+    res.json({ preferences });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update preferences' });
   }
 });
 
