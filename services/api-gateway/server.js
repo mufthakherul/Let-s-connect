@@ -4,23 +4,100 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const RedisStore = require('rate-limit-redis');
+const Redis = require('ioredis');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 8000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
+// Redis client for rate limiting
+const redisClient = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
+
 // Security middleware
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100
+// Phase 6: Enhanced Rate Limiting with Redis
+
+// Global rate limiter (fallback for unauthenticated requests)
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: new RedisStore({
+    client: redisClient,
+    prefix: 'rl:global:'
+  }),
+  message: { error: 'Too many requests from this IP, please try again later.' }
 });
-app.use(limiter);
+
+// User-based rate limiter (for authenticated requests)
+const userLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 500, // 500 requests per window per user
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: new RedisStore({
+    client: redisClient,
+    prefix: 'rl:user:'
+  }),
+  keyGenerator: (req) => {
+    // Use user ID if authenticated, otherwise fall back to IP
+    return req.user?.id || req.ip;
+  },
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/health';
+  },
+  message: { error: 'Rate limit exceeded. Please try again later.' }
+});
+
+// Endpoint-specific rate limiters
+const strictLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 requests per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: new RedisStore({
+    client: redisClient,
+    prefix: 'rl:strict:'
+  }),
+  keyGenerator: (req) => req.user?.id || req.ip,
+  message: { error: 'Too many attempts. Please wait before trying again.' }
+});
+
+const mediaUploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 50, // 50 uploads per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: new RedisStore({
+    client: redisClient,
+    prefix: 'rl:upload:'
+  }),
+  keyGenerator: (req) => req.user?.id || req.ip,
+  message: { error: 'Upload limit reached. Please try again later.' }
+});
+
+const aiRequestLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 100, // 100 AI requests per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: new RedisStore({
+    client: redisClient,
+    prefix: 'rl:ai:'
+  }),
+  keyGenerator: (req) => req.user?.id || req.ip,
+  message: { error: 'AI request limit reached. Please try again later.' }
+});
+
+// Apply global rate limiter
+app.use(globalLimiter);
 
 // Authentication middleware for private routes
 const authMiddleware = (req, res, next) => {
@@ -43,9 +120,293 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
+// Phase 6: GraphQL API Integration
+const { graphqlHTTP } = require('express-graphql');
+const { schema, root } = require('./graphql-schema');
+
+// GraphQL endpoint
+app.use('/graphql', authMiddleware, graphqlHTTP((req) => ({
+  schema: schema,
+  rootValue: root,
+  graphiql: process.env.NODE_ENV !== 'production', // Enable GraphiQL in development
+  context: {
+    userId: req.user?.id,
+    user: req.user
+  },
+  customFormatErrorFn: (error) => ({
+    message: error.message,
+    locations: error.locations,
+    path: error.path
+  })
+})));
+
+// GraphQL playground (development only)
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/graphql/playground', (req, res) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>GraphQL Playground</title>
+          <style>
+            body { margin: 0; font-family: Arial, sans-serif; }
+            .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+            h1 { color: #333; }
+            .info { background: #f0f0f0; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            .example { background: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 5px; margin: 10px 0; }
+            pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+            code { color: #d63384; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>GraphQL API - Let's Connect</h1>
+            <div class="info">
+              <p><strong>Endpoint:</strong> <code>/graphql</code></p>
+              <p><strong>GraphiQL Interface:</strong> <a href="/graphql">Open GraphiQL</a></p>
+              <p><strong>Authentication:</strong> Required (Bearer token)</p>
+            </div>
+            
+            <h2>Example Queries</h2>
+            
+            <div class="example">
+              <h3>Get Current User</h3>
+              <pre>query {
+  user(id: "your-user-id") {
+    id
+    username
+    email
+    firstName
+    lastName
+  }
+}</pre>
+            </div>
+            
+            <div class="example">
+              <h3>Get Posts Feed</h3>
+              <pre>query {
+  posts(limit: 20, offset: 0) {
+    posts {
+      id
+      content
+      likes
+      comments
+      createdAt
+    }
+    total
+    hasMore
+  }
+}</pre>
+            </div>
+            
+            <div class="example">
+              <h3>Get Notifications</h3>
+              <pre>query {
+  notifications(unreadOnly: true, limit: 10) {
+    id
+    type
+    title
+    body
+    isRead
+    createdAt
+  }
+}</pre>
+            </div>
+            
+            <div class="example">
+              <h3>Create Post</h3>
+              <pre>mutation {
+  createPost(content: "Hello from GraphQL!", type: "text") {
+    id
+    content
+    createdAt
+  }
+}</pre>
+            </div>
+            
+            <div class="example">
+              <h3>Mark Notification as Read</h3>
+              <pre>mutation {
+  markNotificationRead(id: "notification-id") {
+    id
+    isRead
+  }
+}</pre>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+  });
+}
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
+// Phase 6: Rate limit status endpoint
+app.get('/api/rate-limit-status', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user?.id || req.ip;
+    
+    // Define max limits for each tier
+    const maxLimits = {
+      global: 100,
+      user: 500,
+      strict: 10,
+      upload: 50,
+      ai: 100
+    };
+    
+    const keys = [
+      `rl:global:${req.ip}`,
+      `rl:user:${userId}`,
+      `rl:strict:${userId}`,
+      `rl:upload:${userId}`,
+      `rl:ai:${userId}`
+    ];
+
+    const limits = {};
+    
+    for (const key of keys) {
+      const ttl = await redisClient.ttl(key);
+      const count = await redisClient.get(key);
+      
+      const limitType = key.split(':')[1];
+      const used = count ? parseInt(count) : 0;
+      const max = maxLimits[limitType] || 100;
+      
+      limits[limitType] = {
+        used: used,
+        remaining: Math.max(0, max - used),
+        limit: max,
+        resetIn: ttl > 0 ? ttl : 0,
+        key: key
+      };
+    }
+
+    res.json({
+      userId,
+      limits,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Rate limit status error:', error);
+    res.status(500).json({ error: 'Failed to fetch rate limit status' });
+  }
+});
+
+// Phase 6: API Versioning System
+const API_VERSION = process.env.API_VERSION || 'v1';
+const SUPPORTED_VERSIONS = ['v1', 'v2'];
+
+// API version middleware
+const versionMiddleware = (req, res, next) => {
+  // Extract version from URL path (/v1/api/..., /v2/api/...)
+  const versionMatch = req.path.match(/^\/(v\d+)\//);
+  
+  if (versionMatch) {
+    const requestedVersion = versionMatch[1];
+    
+    if (!SUPPORTED_VERSIONS.includes(requestedVersion)) {
+      return res.status(400).json({
+        error: 'Unsupported API version',
+        requestedVersion,
+        supportedVersions: SUPPORTED_VERSIONS,
+        message: `API version ${requestedVersion} is not supported. Please use one of: ${SUPPORTED_VERSIONS.join(', ')}`
+      });
+    }
+    
+    req.apiVersion = requestedVersion;
+    
+    // Add deprecation warning for old versions
+    if (requestedVersion === 'v1') {
+      res.setHeader('X-API-Deprecation', 'v1 API will be deprecated on 2026-12-31. Please migrate to v2.');
+      res.setHeader('X-API-Migration-Guide', 'https://docs.letsconnect.com/api/migration/v1-to-v2');
+    }
+  } else {
+    // Default to v1 if no version specified
+    req.apiVersion = 'v1';
+  }
+  
+  res.setHeader('X-API-Version', req.apiVersion);
+  next();
+};
+
+// Apply version middleware globally
+app.use(versionMiddleware);
+
+// API version info endpoint
+app.get('/api/version', (req, res) => {
+  res.json({
+    currentVersion: API_VERSION,
+    requestedVersion: req.apiVersion,
+    supportedVersions: SUPPORTED_VERSIONS,
+    deprecations: {
+      v1: {
+        sunsetDate: '2026-12-31',
+        migrationGuide: 'https://docs.letsconnect.com/api/migration/v1-to-v2',
+        changes: [
+          'Authentication: JWT tokens now require refresh tokens',
+          'Pagination: Changed from offset-based to cursor-based',
+          'Response format: All timestamps now in ISO 8601 format',
+          'Error codes: Standardized error response structure'
+        ]
+      }
+    },
+    changelog: {
+      v2: {
+        releaseDate: '2026-06-01',
+        features: [
+          'GraphQL API support',
+          'WebSocket subscriptions for real-time updates',
+          'Improved rate limiting with per-endpoint policies',
+          'Enhanced filtering and search capabilities'
+        ]
+      },
+      v1: {
+        releaseDate: '2025-01-01',
+        status: 'deprecated',
+        features: [
+          'RESTful API',
+          'JWT authentication',
+          'Basic rate limiting'
+        ]
+      }
+    }
+  });
+});
+
+// API changelog endpoint
+app.get('/api/changelog', (req, res) => {
+  res.json({
+    versions: [
+      {
+        version: 'v2',
+        releaseDate: '2026-06-01',
+        status: 'current',
+        changes: [
+          { type: 'feature', description: 'Added GraphQL API gateway' },
+          { type: 'feature', description: 'Implemented WebSocket subscriptions' },
+          { type: 'improvement', description: 'Enhanced rate limiting with Redis' },
+          { type: 'breaking', description: 'Changed pagination to cursor-based' },
+          { type: 'breaking', description: 'Standardized timestamp format to ISO 8601' }
+        ]
+      },
+      {
+        version: 'v1',
+        releaseDate: '2025-01-01',
+        status: 'deprecated',
+        sunsetDate: '2026-12-31',
+        changes: [
+          { type: 'feature', description: 'Initial API release' },
+          { type: 'feature', description: 'RESTful endpoints for all services' },
+          { type: 'feature', description: 'JWT-based authentication' }
+        ]
+      }
+    ]
+  });
 });
 
 // Service routes configuration
@@ -88,50 +449,70 @@ const createAuthProxy = (target) => {
   };
 };
 
+// Apply user-based rate limiter after authentication
+const applyUserLimiter = (req, res, next) => {
+  // Only apply to authenticated requests
+  if (req.user) {
+    return userLimiter(req, res, next);
+  }
+  next();
+};
+
+// Authentication endpoints with strict rate limiting (must be before /api/user proxy)
+app.use('/api/user/login', strictLimiter);
+app.use('/api/user/register', strictLimiter);
+app.use('/api/user/password-reset', strictLimiter);
+
 // User Service routes
-app.use('/api/user', createAuthProxy(services.user), proxy(services.user, {
+app.use('/api/user', createAuthProxy(services.user), applyUserLimiter, proxy(services.user, {
   proxyReqPathResolver: function (req) {
     return req.originalUrl.replace('/api/user', '');
   }
 }));
 
 // Content Service routes
-app.use('/api/content', createAuthProxy(services.content), proxy(services.content, {
+app.use('/api/content', createAuthProxy(services.content), applyUserLimiter, proxy(services.content, {
   proxyReqPathResolver: function (req) {
     return req.originalUrl.replace('/api/content', '');
   }
 }));
 
 // Messaging Service routes
-app.use('/api/messaging', createAuthProxy(services.messaging), proxy(services.messaging, {
+app.use('/api/messaging', createAuthProxy(services.messaging), applyUserLimiter, proxy(services.messaging, {
   proxyReqPathResolver: function (req) {
     return req.originalUrl.replace('/api/messaging', '');
   }
 }));
 
 // Collaboration Service routes
-app.use('/api/collaboration', createAuthProxy(services.collaboration), proxy(services.collaboration, {
+app.use('/api/collaboration', createAuthProxy(services.collaboration), applyUserLimiter, proxy(services.collaboration, {
   proxyReqPathResolver: function (req) {
     return req.originalUrl.replace('/api/collaboration', '');
   }
 }));
 
-// Media Service routes
-app.use('/api/media', createAuthProxy(services.media), proxy(services.media, {
+// Media Service routes with upload limiter
+app.use('/api/media/upload', createAuthProxy(services.media), mediaUploadLimiter, proxy(services.media, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl.replace('/api/media', '');
+  }
+}));
+
+app.use('/api/media', createAuthProxy(services.media), applyUserLimiter, proxy(services.media, {
   proxyReqPathResolver: function (req) {
     return req.originalUrl.replace('/api/media', '');
   }
 }));
 
 // Shop Service routes
-app.use('/api/shop', createAuthProxy(services.shop), proxy(services.shop, {
+app.use('/api/shop', createAuthProxy(services.shop), applyUserLimiter, proxy(services.shop, {
   proxyReqPathResolver: function (req) {
     return req.originalUrl.replace('/api/shop', '');
   }
 }));
 
-// AI Service routes
-app.use('/api/ai', createAuthProxy(services.ai), proxy(services.ai, {
+// AI Service routes with AI-specific limiter
+app.use('/api/ai', createAuthProxy(services.ai), aiRequestLimiter, proxy(services.ai, {
   proxyReqPathResolver: function (req) {
     return req.originalUrl.replace('/api/ai', '');
   }

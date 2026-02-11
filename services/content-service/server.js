@@ -977,6 +977,124 @@ BlogComment.belongsTo(BlogComment, { as: 'ParentComment', foreignKey: 'parentId'
 Blog.belongsToMany(BlogTag, { through: BlogTagAssociation, foreignKey: 'blogId', as: 'blogTags' });
 BlogTag.belongsToMany(Blog, { through: BlogTagAssociation, foreignKey: 'tagId' });
 
+// Phase 6: Content Archiving System
+const Archive = sequelize.define('Archive', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  contentType: {
+    type: DataTypes.ENUM('post', 'comment', 'blog', 'video', 'wiki'),
+    allowNull: false,
+    comment: 'Type of content being archived'
+  },
+  contentId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'Original content ID'
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'User who owns the content'
+  },
+  contentData: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    comment: 'Complete archived content with metadata'
+  },
+  archivedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+    comment: 'When content was archived'
+  },
+  reason: {
+    type: DataTypes.ENUM('auto', 'manual', 'policy', 'moderation', 'deletion'),
+    defaultValue: 'auto',
+    comment: 'Why content was archived'
+  },
+  restoreCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    comment: 'Number of times content was restored'
+  },
+  lastRestored: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Last time content was restored'
+  },
+  expiresAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'When archive should be deleted (null = never)'
+  },
+  metadata: {
+    type: DataTypes.JSONB,
+    comment: 'Additional archive metadata (size, compression, etc.)'
+  }
+}, {
+  indexes: [
+    { fields: ['contentType'] },
+    { fields: ['contentId'] },
+    { fields: ['userId'] },
+    { fields: ['archivedAt'] },
+    { fields: ['reason'] },
+    { fields: ['expiresAt'] }
+  ]
+});
+
+// Phase 6: Saved Search/Filter System
+const SavedSearch = sequelize.define('SavedSearch', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    comment: 'User-defined name for saved search'
+  },
+  description: {
+    type: DataTypes.TEXT,
+    comment: 'Optional description'
+  },
+  contentType: {
+    type: DataTypes.ENUM('post', 'blog', 'video', 'wiki', 'all'),
+    defaultValue: 'all'
+  },
+  filters: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    comment: 'Search filters and criteria'
+  },
+  isPublic: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Whether search is public/shareable'
+  },
+  useCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    comment: 'Number of times used'
+  },
+  lastUsed: {
+    type: DataTypes.DATE,
+    comment: 'Last time search was executed'
+  }
+}, {
+  indexes: [
+    { fields: ['userId'] },
+    { fields: ['contentType'] },
+    { fields: ['isPublic'] }
+  ]
+});
+
 sequelize.sync().then(async () => {
   // Initialize default awards if they don't exist
   try {
@@ -5039,6 +5157,534 @@ initializeElasticsearchIndices().catch(err => {
 });
 
 // ==================== END ELASTICSEARCH INTEGRATION ====================
+
+// ==================== PHASE 6: ARCHIVING SYSTEM ====================
+
+// Archive content (manual or automatic)
+app.post('/archive', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { contentType, contentId, reason = 'manual' } = req.body;
+
+    if (!contentType || !contentId) {
+      return res.status(400).json({ error: 'contentType and contentId are required' });
+    }
+
+    // Fetch content based on type
+    let content;
+    let Model;
+    
+    switch (contentType) {
+      case 'post':
+        Model = Post;
+        break;
+      case 'blog':
+        Model = Blog;
+        break;
+      case 'video':
+        Model = Video;
+        break;
+      case 'comment':
+        Model = Comment;
+        break;
+      case 'wiki':
+        // Wiki archiving not yet implemented
+        return res.status(400).json({ error: 'Wiki archiving is not supported yet' });
+      default:
+        return res.status(400).json({ error: 'Invalid content type. Supported: post, blog, video, comment' });
+    }
+
+    content = await Model.findByPk(contentId);
+    
+    if (!content) {
+      return res.status(404).json({ error: 'Content not found' });
+    }
+
+    // Verify ownership (unless admin/moderator)
+    if (content.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to archive this content' });
+    }
+
+    // Create archive
+    const archive = await Archive.create({
+      contentType,
+      contentId,
+      userId,
+      contentData: content.toJSON(),
+      reason,
+      metadata: {
+        originalCreatedAt: content.createdAt,
+        originalUpdatedAt: content.updatedAt,
+        archiveSize: JSON.stringify(content.toJSON()).length
+      }
+    });
+
+    res.json({
+      message: 'Content archived successfully',
+      archive: {
+        id: archive.id,
+        contentType: archive.contentType,
+        archivedAt: archive.archivedAt
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to archive content' });
+  }
+});
+
+// Get user's archives
+app.get('/archive', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { contentType, limit = 50, offset = 0 } = req.query;
+
+    const whereClause = { userId };
+    if (contentType) {
+      whereClause.contentType = contentType;
+    }
+
+    const archives = await Archive.findAll({
+      where: whereClause,
+      order: [['archivedAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      attributes: { exclude: ['contentData'] } // Don't send full content in list
+    });
+
+    const total = await Archive.count({ where: whereClause });
+
+    res.json({
+      archives,
+      total,
+      hasMore: total > parseInt(offset) + parseInt(limit)
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch archives' });
+  }
+});
+
+// Get archive details with full content
+app.get('/archive/:archiveId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { archiveId } = req.params;
+
+    const archive = await Archive.findByPk(archiveId);
+    
+    if (!archive) {
+      return res.status(404).json({ error: 'Archive not found' });
+    }
+
+    if (archive.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    res.json({ archive });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch archive' });
+  }
+});
+
+// Restore content from archive
+app.post('/archive/:archiveId/restore', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { archiveId } = req.params;
+
+    const archive = await Archive.findByPk(archiveId);
+    
+    if (!archive) {
+      return res.status(404).json({ error: 'Archive not found' });
+    }
+
+    if (archive.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Get appropriate model
+    let Model;
+    switch (archive.contentType) {
+      case 'post':
+        Model = Post;
+        break;
+      case 'blog':
+        Model = Blog;
+        break;
+      case 'video':
+        Model = Video;
+        break;
+      case 'comment':
+        Model = Comment;
+        break;
+      default:
+        return res.status(400).json({ error: 'Invalid content type' });
+    }
+
+    // Check if content already exists
+    const existing = await Model.findByPk(archive.contentId);
+    if (existing) {
+      return res.status(409).json({ 
+        error: 'Content already exists. Delete it first or use a different restore method.' 
+      });
+    }
+
+    // Restore content
+    const restored = await Model.create(archive.contentData);
+
+    // Update archive stats
+    await archive.update({
+      restoreCount: archive.restoreCount + 1,
+      lastRestored: new Date()
+    });
+
+    res.json({
+      message: 'Content restored successfully',
+      restored: {
+        id: restored.id,
+        type: archive.contentType
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to restore content' });
+  }
+});
+
+// Delete archive permanently
+app.delete('/archive/:archiveId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { archiveId } = req.params;
+
+    const archive = await Archive.findByPk(archiveId);
+    
+    if (!archive) {
+      return res.status(404).json({ error: 'Archive not found' });
+    }
+
+    if (archive.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await archive.destroy();
+
+    res.json({ message: 'Archive deleted permanently' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete archive' });
+  }
+});
+
+// Search archives
+app.get('/archive/search', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { query, contentType, dateFrom, dateTo, limit = 50, offset = 0 } = req.query;
+
+    const whereClause = { userId };
+    
+    if (contentType) {
+      whereClause.contentType = contentType;
+    }
+
+    if (dateFrom || dateTo) {
+      whereClause.archivedAt = {};
+      if (dateFrom) whereClause.archivedAt[Op.gte] = new Date(dateFrom);
+      if (dateTo) whereClause.archivedAt[Op.lte] = new Date(dateTo);
+    }
+
+    // Search in contentData JSONB field
+    if (query) {
+      whereClause[Op.or] = [
+        sequelize.where(
+          sequelize.cast(sequelize.col('contentData'), 'text'),
+          { [Op.iLike]: `%${query}%` }
+        )
+      ];
+    }
+
+    const archives = await Archive.findAll({
+      where: whereClause,
+      order: [['archivedAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    const total = await Archive.count({ where: whereClause });
+
+    res.json({
+      archives,
+      total,
+      query,
+      hasMore: total > parseInt(offset) + parseInt(limit)
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to search archives' });
+  }
+});
+
+// ==================== END ARCHIVING SYSTEM ====================
+
+// ==================== PHASE 6: SAVED SEARCHES ====================
+
+// Create saved search
+app.post('/saved-searches', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { name, description, contentType = 'all', filters, isPublic = false } = req.body;
+
+    if (!name || !filters) {
+      return res.status(400).json({ error: 'name and filters are required' });
+    }
+
+    const savedSearch = await SavedSearch.create({
+      userId,
+      name,
+      description,
+      contentType,
+      filters,
+      isPublic
+    });
+
+    res.json({ savedSearch });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create saved search' });
+  }
+});
+
+// Get user's saved searches
+app.get('/saved-searches', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { contentType } = req.query;
+
+    const whereClause = { userId };
+    if (contentType) {
+      whereClause.contentType = contentType;
+    }
+
+    const searches = await SavedSearch.findAll({
+      where: whereClause,
+      order: [['lastUsed', 'DESC NULLS LAST'], ['createdAt', 'DESC']]
+    });
+
+    res.json({ searches });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch saved searches' });
+  }
+});
+
+// Execute saved search
+app.get('/saved-searches/:searchId/execute', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { searchId } = req.params;
+    const { limit = 50, offset = 0 } = req.query;
+
+    const savedSearch = await SavedSearch.findByPk(searchId);
+    
+    if (!savedSearch) {
+      return res.status(404).json({ error: 'Saved search not found' });
+    }
+
+    if (savedSearch.userId !== userId && !savedSearch.isPublic) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Update usage stats
+    await savedSearch.update({
+      useCount: savedSearch.useCount + 1,
+      lastUsed: new Date()
+    });
+
+    // Execute search based on filters
+    const filters = savedSearch.filters;
+    let results = [];
+
+    // Determine which model to search
+    let Model;
+    switch (savedSearch.contentType) {
+      case 'post':
+        Model = Post;
+        break;
+      case 'blog':
+        Model = Blog;
+        break;
+      case 'video':
+        Model = Video;
+        break;
+      default:
+        // Fallback: search posts for 'all' or unknown content types
+        Model = Post;
+    }
+
+    // Build where clause from filters
+    const whereClause = {};
+    
+    if (filters.keywords) {
+      // Apply keyword filtering to appropriate field per model
+      if (savedSearch.contentType === 'video') {
+        // Videos use title/description instead of content
+        whereClause[Op.or] = [
+          { title: { [Op.iLike]: `%${filters.keywords}%` } },
+          { description: { [Op.iLike]: `%${filters.keywords}%` } }
+        ];
+      } else {
+        // Default text field for posts/blogs
+        whereClause.content = { [Op.iLike]: `%${filters.keywords}%` };
+      }
+    }
+    
+    if (filters.userId) {
+      whereClause.userId = filters.userId;
+    }
+    
+    if (filters.dateFrom || filters.dateTo) {
+      whereClause.createdAt = {};
+      if (filters.dateFrom) whereClause.createdAt[Op.gte] = new Date(filters.dateFrom);
+      if (filters.dateTo) whereClause.createdAt[Op.lte] = new Date(filters.dateTo);
+    }
+
+    if (filters.minLikes) {
+      whereClause.likes = { [Op.gte]: filters.minLikes };
+    }
+
+    results = await Model.findAll({
+      where: whereClause,
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    const total = await Model.count({ where: whereClause });
+
+    res.json({
+      savedSearch: {
+        id: savedSearch.id,
+        name: savedSearch.name,
+        contentType: savedSearch.contentType
+      },
+      results,
+      total,
+      hasMore: total > parseInt(offset) + parseInt(limit)
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to execute saved search' });
+  }
+});
+
+// Update saved search
+app.put('/saved-searches/:searchId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { searchId } = req.params;
+    const updates = req.body;
+
+    const savedSearch = await SavedSearch.findByPk(searchId);
+    
+    if (!savedSearch) {
+      return res.status(404).json({ error: 'Saved search not found' });
+    }
+
+    if (savedSearch.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const allowedFields = ['name', 'description', 'filters', 'isPublic'];
+    const updateData = {};
+    
+    for (const field of allowedFields) {
+      if (updates[field] !== undefined) {
+        updateData[field] = updates[field];
+      }
+    }
+
+    await savedSearch.update(updateData);
+
+    res.json({ savedSearch });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update saved search' });
+  }
+});
+
+// Delete saved search
+app.delete('/saved-searches/:searchId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { searchId } = req.params;
+
+    const savedSearch = await SavedSearch.findByPk(searchId);
+    
+    if (!savedSearch) {
+      return res.status(404).json({ error: 'Saved search not found' });
+    }
+
+    if (savedSearch.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await savedSearch.destroy();
+
+    res.json({ message: 'Saved search deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete saved search' });
+  }
+});
+
+// ==================== END SAVED SEARCHES ====================
 
 app.listen(PORT, () => {
   console.log(`Content service running on port ${PORT}`);
