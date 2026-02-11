@@ -588,10 +588,11 @@ class WorkflowEngine {
    * Check workflow triggers
    */
   async checkTriggers(eventType, eventData) {
+    const { literal } = require('sequelize');
     const workflows = await this.Workflow.findAll({
       where: {
         isActive: true,
-        'trigger.type': eventType
+        [literal(`"trigger"->>'type'`)]: eventType
       }
     });
 

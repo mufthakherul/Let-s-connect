@@ -376,8 +376,8 @@ class AuditLogger {
     
     if (startDate || endDate) {
       where.timestamp = {};
-      if (startDate) where.timestamp.$gte = new Date(startDate);
-      if (endDate) where.timestamp.$lte = new Date(endDate);
+      if (startDate) where.timestamp[Op.gte] = new Date(startDate);
+      if (endDate) where.timestamp[Op.lte] = new Date(endDate);
     }
 
     const { page = 1, limit = 50 } = options;
@@ -406,10 +406,10 @@ class AuditLogger {
     const logs = await this.AuditLog.findAll({
       where: {
         timestamp: {
-          $gte: new Date(startDate),
-          $lte: new Date(endDate)
+          [Op.gte]: new Date(startDate),
+          [Op.lte]: new Date(endDate)
         },
-        category: ['data_access', 'data_modification', 'data_deletion', 'compliance']
+        category: { [Op.in]: ['data_access', 'data_modification', 'data_deletion', 'compliance'] }
       },
       order: [['timestamp', 'DESC']]
     });
