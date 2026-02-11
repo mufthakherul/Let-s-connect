@@ -15,7 +15,7 @@ import {
   Dashboard as DashboardIcon, Search as SearchIcon, Folder as FolderIcon,
   Phone as PhoneIcon, Storage as DatabaseIcon, CompareArrows as DiffIcon,
   Event as EventIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon, MoreHoriz as MoreHorizIcon
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -35,17 +35,18 @@ import Register from './components/Register';
 // Lazy load non-critical components (Phase 4: Performance Optimization)
 const Homepage = lazy(() => import('./components/Homepage'));
 const Feed = lazy(() => import('./components/Feed'));
+const Projects = lazy(() => import('./components/Projects'));
 const Videos = lazy(() => import('./components/Videos'));
 const Shop = lazy(() => import('./components/Shop'));
 const Docs = lazy(() => import('./components/Docs'));
 const Chat = lazy(() => import('./components/Chat'));
+
 const Profile = lazy(() => import('./components/Profile'));
 const Groups = lazy(() => import('./components/Groups'));
 const Bookmarks = lazy(() => import('./components/Bookmarks'));
 const Cart = lazy(() => import('./components/Cart'));
 const Blog = lazy(() => import('./components/Blog'));
 const Pages = lazy(() => import('./components/Pages'));
-const Projects = lazy(() => import('./components/Projects'));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const SecuritySettings = lazy(() => import('./components/SecuritySettings'));
 const MediaGallery = lazy(() => import('./components/MediaGallery'));
@@ -276,106 +277,196 @@ function App() {
         />
         <ErrorBoundary level="page">
           <Router>
-            <AppBar position="sticky" elevation={1}>
-              <Toolbar>
-                {isMobile && (
-                  <IconButton
-                    edge="start"
-                    color="inherit"
-                    onClick={() => setDrawerOpen(true)}
-                    sx={{ mr: 2 }}
-                  >
-                    <MenuIcon />
-                  </IconButton>
-                )}
-                <Typography
-                  variant="h6"
-                  component={Link}
-                  to="/"
-                  sx={{
-                    flexGrow: isMobile ? 1 : 0,
-                    mr: isMobile ? 0 : 4,
-                    textDecoration: 'none',
-                    color: 'inherit',
-                    fontWeight: 700,
-                  }}
-                >
-                  Let's Connect
-                </Typography>
+            {/* Conditional Navbar: Different for registered vs unregistered users */}
+            {internalUser ? (
+              /* Facebook-style Navbar for REGISTERED users */
+              <AppBar position="sticky" elevation={1} sx={{ backgroundColor: mode === 'dark' ? '#18191a' : '#fff', borderBottom: `1px solid ${mode === 'dark' ? '#3a3b3c' : '#e5e5e5'}` }}>
+                <Toolbar sx={{ py: 0.5, px: 2 }}>
+                  {/* Left Section: Logo + Search */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    {isMobile && (
+                      <IconButton
+                        edge="start"
+                        color="inherit"
+                        onClick={() => setDrawerOpen(true)}
+                        sx={{ mr: 1 }}
+                      >
+                        <MenuIcon sx={{ color: mode === 'dark' ? '#e4e6eb' : '#000' }} />
+                      </IconButton>
+                    )}
 
-                {!isMobile && (
-                  <Box sx={{ flexGrow: 1, display: 'flex', gap: 1 }}>
-                    <Button color="inherit" component={Link} to="/videos" startIcon={<VideoLibrary />}>
-                      Videos
-                    </Button>
-                    <Button color="inherit" component={Link} to="/shop" startIcon={<ShoppingCart />}>
-                      Shop
-                    </Button>
-                    <Button color="inherit" component={Link} to="/docs" startIcon={<Description />}>
-                      Docs
-                    </Button>
-                    <Button color="inherit" component={Link} to="/meetings" startIcon={<EventIcon />}>
-                      Meetings
-                    </Button>
-                    {internalUser && (
+                    {/* Logo */}
+                    <Typography
+                      variant="h6"
+                      component={Link}
+                      to="/"
+                      sx={{
+                        textDecoration: 'none',
+                        color: mode === 'dark' ? '#e4e6eb' : '#000',
+                        fontWeight: 800,
+                        fontSize: '1.4rem',
+                        minWidth: 'fit-content'
+                      }}
+                    >
+                      f
+                    </Typography>
+
+                    {/* Search Bar */}
+                    {!isMobile && (
+                      <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5',
+                        borderRadius: '20px',
+                        px: 1.5,
+                        py: 0.5,
+                        minWidth: '200px'
+                      }}>
+                        <SearchIcon sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', mr: 1, fontSize: '1.2rem' }} />
+                        <input
+                          type="text"
+                          placeholder="Search..."
+                          style={{
+                            border: 'none',
+                            outline: 'none',
+                            backgroundColor: 'transparent',
+                            color: mode === 'dark' ? '#e4e6eb' : '#000',
+                            fontSize: '0.9rem',
+                            width: '100%',
+                            fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI'
+                          }}
+                        />
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* Center Navigation: Icon-based for registered users */}
+                  {!isMobile && (
+                    <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', gap: 0 }}>
+                      <IconButton component={Link} to="/" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Home">
+                        <HomeIcon sx={{ fontSize: '1.5rem' }} />
+                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/' ? 'block' : 'none' }} />
+                      </IconButton>
+
+                      <IconButton component={Link} to="/feed" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Feed">
+                        <FeedIcon sx={{ fontSize: '1.5rem' }} />
+                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/feed' ? 'block' : 'none' }} />
+                      </IconButton>
+
+                      <IconButton component={Link} to="/videos" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Videos">
+                        <VideoLibrary sx={{ fontSize: '1.5rem' }} />
+                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/videos' ? 'block' : 'none' }} />
+                      </IconButton>
+
+                      <IconButton component={Link} to="/groups" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Groups">
+                        <GroupIcon sx={{ fontSize: '1.5rem' }} />
+                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/groups' ? 'block' : 'none' }} />
+                      </IconButton>
+
+                      <IconButton component={Link} to="/meetings" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Meetings">
+                        <EventIcon sx={{ fontSize: '1.5rem' }} />
+                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/meetings' ? 'block' : 'none' }} />
+                      </IconButton>
+
+                      <IconButton component={Link} to="/shop" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Shop">
+                        <ShoppingCart sx={{ fontSize: '1.5rem' }} />
+                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/shop' ? 'block' : 'none' }} />
+                      </IconButton>
+
+                      <IconButton component={Link} to="/projects" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Projects">
+                        <WorkIcon sx={{ fontSize: '1.5rem' }} />
+                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/projects' ? 'block' : 'none' }} />
+                      </IconButton>
+
+                      <IconButton component={Link} to="/docs" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Docs">
+                        <Article sx={{ fontSize: '1.5rem' }} />
+                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/docs' ? 'block' : 'none' }} />
+                      </IconButton>
+
+                      <IconButton sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1 }} title="More">
+                        <MoreHorizIcon sx={{ fontSize: '1.5rem' }} />
+                      </IconButton>
+                    </Box>
+                  )}
+
+                  {/* Right Section */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
+                    <IconButton onClick={toggleTheme} sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5' }, borderRadius: 1, p: 1 }}>
+                      {mode === 'dark' ? <Brightness7 sx={{ fontSize: '1.3rem' }} /> : <Brightness4 sx={{ fontSize: '1.3rem' }} />}
+                    </IconButton>
+
+                    <NotificationCenter />
+
+                    {!isMobile && (
                       <>
-                        <Button color="inherit" component={Link} to="/feed" startIcon={<FeedIcon />}>
-                          Feed
-                        </Button>
-                        <Button color="inherit" component={Link} to="/groups" startIcon={<GroupIcon />}>
-                          Groups
-                        </Button>
-                        <Button color="inherit" component={Link} to="/chat" startIcon={<ChatIcon />}>
-                          Chat
-                        </Button>
+                        <IconButton component={Link} to="/chat" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5' }, borderRadius: 1, p: 1 }} title="Chat">
+                          <ChatIcon sx={{ fontSize: '1.3rem' }} />
+                        </IconButton>
+
+                        <IconButton component={Link} to="/profile" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5' }, borderRadius: 1, p: 0.5, ml: 1 }} title="Profile">
+                          <Avatar sx={{ width: 32, height: 32, backgroundColor: '#0a66c2', fontSize: '0.875rem', fontWeight: 600 }}>
+                            {internalUser.firstName?.[0]?.toUpperCase()}
+                          </Avatar>
+                        </IconButton>
+
+                        <IconButton onClick={handleLogout} sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5' }, borderRadius: 1, p: 1 }} title="Logout">
+                          <ExitToApp sx={{ fontSize: '1.3rem' }} />
+                        </IconButton>
                       </>
                     )}
                   </Box>
-                )}
-
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <IconButton color="inherit" onClick={toggleTheme}>
-                    {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
-                  </IconButton>
-
-                  {internalUser && (
-                    <>
-                      <NotificationCenter />
-                      {!isMobile && (
-                        <>
-                          <Button
-                            color="inherit"
-                            component={Link}
-                            to="/profile"
-                            startIcon={<Avatar sx={{ width: 28, height: 28 }}>{internalUser.name?.[0]}</Avatar>}
-                          >
-                            {internalUser.name}
-                          </Button>
-                          <Button color="inherit" onClick={handleLogout} startIcon={<ExitToApp />}>
-                            Logout
-                          </Button>
-                        </>
-                      )}
-                    </>
+                </Toolbar>
+              </AppBar>
+            ) : (
+              /* Classic Navbar for UNREGISTERED users */
+              <AppBar position="sticky" elevation={1}>
+                <Toolbar>
+                  {isMobile && (
+                    <IconButton edge="start" color="inherit" onClick={() => setDrawerOpen(true)} sx={{ mr: 2 }}>
+                      <MenuIcon />
+                    </IconButton>
                   )}
 
-                  {!internalUser && !isMobile && (
-                    <>
-                      <Button color="inherit" component={Link} to="/login">Login</Button>
-                      <Button
-                        variant="contained"
-                        color="secondary"
-                        component={Link}
-                        to="/register"
-                        sx={{ ml: 1 }}
-                      >
-                        Sign Up
-                      </Button>
-                    </>
+                  <Typography
+                    variant="h6"
+                    component={Link}
+                    to="/"
+                    sx={{
+                      flexGrow: isMobile ? 1 : 0,
+                      mr: isMobile ? 0 : 4,
+                      textDecoration: 'none',
+                      color: 'inherit',
+                      fontWeight: 700,
+                    }}
+                  >
+                    Let's Connect
+                  </Typography>
+
+                  {!isMobile && (
+                    <Box sx={{ flexGrow: 1, display: 'flex', gap: 1 }}>
+                      <Button color="inherit" component={Link} to="/videos" startIcon={<VideoLibrary />}>Videos</Button>
+                      <Button color="inherit" component={Link} to="/shop" startIcon={<ShoppingCart />}>Shop</Button>
+                      <Button color="inherit" component={Link} to="/blog" startIcon={<Article />}>Blog</Button>
+                      <Button color="inherit" component={Link} to="/docs" startIcon={<Description />}>Docs</Button>
+                      <Button color="inherit" component={Link} to="/meetings" startIcon={<EventIcon />}>Meetings</Button>
+                    </Box>
                   )}
-                </Box>
-              </Toolbar>
-            </AppBar>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <IconButton color="inherit" onClick={toggleTheme}>
+                      {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+                    </IconButton>
+
+                    {!isMobile && (
+                      <>
+                        <Button color="inherit" component={Link} to="/login">Login</Button>
+                        <Button variant="contained" color="secondary" component={Link} to="/register" sx={{ ml: 1 }}>Sign Up</Button>
+                      </>
+                    )}
+                  </Box>
+                </Toolbar>
+              </AppBar>
+            )}
 
             <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
               {drawer}
