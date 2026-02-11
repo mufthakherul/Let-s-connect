@@ -8,6 +8,7 @@ const RedisStore = require('rate-limit-redis');
 const Redis = require('ioredis');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger-config');
+const webhookRoutes = require('./webhook-routes');
 require('dotenv').config();
 
 const app = express();
@@ -298,6 +299,9 @@ app.get('/api/rate-limit-status', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch rate limit status' });
   }
 });
+
+// Phase 7: Webhooks System
+app.use('/api/webhooks', authMiddleware, webhookRoutes);
 
 // Phase 6: API Versioning System
 const API_VERSION = process.env.API_VERSION || 'v1';
