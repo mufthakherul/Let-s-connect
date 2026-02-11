@@ -1047,6 +1047,987 @@ const MeetingAuditLog = sequelize.define('MeetingAuditLog', {
   }
 });
 
+// ==================== PHASE 10 MODELS ====================
+
+// Phase 10.1: Role Permission System
+const MeetingRolePermission = sequelize.define('MeetingRolePermission', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  role: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  permissions: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
+    defaultValue: []
+  },
+  restrictions: DataTypes.JSONB
+});
+
+// Phase 10.1: Tamper-Evident Audit Trail
+const AuditTrailEntry = sequelize.define('AuditTrailEntry', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  sequenceNumber: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  previousHash: DataTypes.STRING,
+  currentHash: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  action: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  entityType: DataTypes.STRING,
+  entityId: DataTypes.UUID,
+  details: DataTypes.JSONB,
+  timestamp: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// Phase 10.1: Redaction Records
+const ContentRedaction = sequelize.define('ContentRedaction', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  contentType: {
+    type: DataTypes.ENUM('transcript', 'recording', 'note', 'evidence', 'message'),
+    allowNull: false
+  },
+  contentId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  redactedBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  reason: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  redactionType: {
+    type: DataTypes.ENUM('full', 'partial', 'blur'),
+    defaultValue: 'partial'
+  },
+  originalContent: DataTypes.TEXT,
+  redactedContent: DataTypes.TEXT,
+  timeRanges: DataTypes.JSONB, // For recordings: [{start: 10, end: 15}]
+  redactedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// Phase 10.1: Consent Management
+const ParticipantConsent = sequelize.define('ParticipantConsent', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  participantId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  consentType: {
+    type: DataTypes.ENUM('recording', 'transcript', 'export', 'sharing', 'archival'),
+    allowNull: false
+  },
+  granted: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false
+  },
+  grantedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  },
+  expiresAt: DataTypes.DATE,
+  ipAddress: DataTypes.STRING,
+  userAgent: DataTypes.STRING
+});
+
+// Phase 10.2: Meeting Rulesets
+const MeetingRuleset = sequelize.define('MeetingRuleset', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  rules: {
+    type: DataTypes.JSONB,
+    allowNull: false
+  }, // {timeLimits: {}, civilityRules: {}, evidenceRules: {}}
+  isActive: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  createdBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  }
+});
+
+// Phase 10.2: Moderation Actions
+const ModerationAction = sequelize.define('ModerationAction', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  moderatorId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  targetUserId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  actionType: {
+    type: DataTypes.ENUM('warning', 'mute', 'unmute', 'role_change', 'remove', 'timeout'),
+    allowNull: false
+  },
+  reason: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  duration: DataTypes.INTEGER, // For timeout/mute duration in seconds
+  previousRole: DataTypes.STRING,
+  newRole: DataTypes.STRING,
+  issuedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  },
+  expiresAt: DataTypes.DATE
+});
+
+// Phase 10.2: Dispute Flags
+const DisputeFlag = sequelize.define('DisputeFlag', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  reportedBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  targetType: {
+    type: DataTypes.ENUM('participant', 'content', 'evidence', 'ruling'),
+    allowNull: false
+  },
+  targetId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  reason: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  status: {
+    type: DataTypes.ENUM('pending', 'under_review', 'resolved', 'dismissed'),
+    defaultValue: 'pending'
+  },
+  reviewedBy: DataTypes.UUID,
+  resolution: DataTypes.TEXT,
+  createdAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  },
+  resolvedAt: DataTypes.DATE
+});
+
+// Phase 10.3: Meeting Templates
+const MeetingTemplate = sequelize.define('MeetingTemplate', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  category: {
+    type: DataTypes.ENUM('hearing', 'mediation', 'arbitration', 'town_hall', 'board_meeting', 'custom'),
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  mode: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  roleDefinitions: {
+    type: DataTypes.JSONB,
+    allowNull: false
+  }, // Roles and their permissions
+  rulesetTemplate: DataTypes.JSONB,
+  agendaTemplate: DataTypes.JSONB,
+  documentTemplates: DataTypes.JSONB,
+  isPublic: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  createdBy: DataTypes.UUID,
+  organizationId: DataTypes.UUID,
+  usageCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+});
+
+// Phase 10.3: Verdict and Ruling Templates
+const RulingTemplate = sequelize.define('RulingTemplate', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  templateType: {
+    type: DataTypes.ENUM('verdict', 'ruling', 'decision', 'order'),
+    allowNull: false
+  },
+  category: DataTypes.STRING,
+  structure: {
+    type: DataTypes.JSONB,
+    allowNull: false
+  }, // Template structure with fields
+  legalStandards: DataTypes.JSONB, // Legal standards and requirements
+  isStandard: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  createdBy: DataTypes.UUID
+});
+
+// Phase 10.3: Compliance Exports
+const ComplianceExport = sequelize.define('ComplianceExport', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  exportType: {
+    type: DataTypes.ENUM('full', 'summary', 'evidence_only', 'transcript_only'),
+    defaultValue: 'full'
+  },
+  format: {
+    type: DataTypes.ENUM('pdf', 'json', 'bundle'),
+    defaultValue: 'bundle'
+  },
+  requestedBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  status: {
+    type: DataTypes.ENUM('pending', 'processing', 'completed', 'failed'),
+    defaultValue: 'pending'
+  },
+  fileUrl: DataTypes.STRING,
+  fileSize: DataTypes.INTEGER,
+  metadata: DataTypes.JSONB,
+  includeRedactions: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  includeAuditTrail: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  createdAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  },
+  completedAt: DataTypes.DATE
+});
+
+// ==================== PHASE 11 MODELS ====================
+
+// Phase 11.1: Decision Log with Enhanced Tracking
+const DecisionLog = sequelize.define('DecisionLog', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  rationale: DataTypes.TEXT,
+  decidedBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  decision: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  alternatives: DataTypes.JSONB, // [{option: '', pros: [], cons: []}]
+  evidenceLinks: DataTypes.ARRAY(DataTypes.UUID),
+  impactAssessment: DataTypes.JSONB,
+  status: {
+    type: DataTypes.ENUM('proposed', 'approved', 'implemented', 'rejected', 'reversed'),
+    defaultValue: 'proposed'
+  },
+  implementationDate: DataTypes.DATE,
+  reviewDate: DataTypes.DATE,
+  tags: DataTypes.ARRAY(DataTypes.STRING)
+});
+
+// Phase 11.1: Follow-up Task Automation
+const FollowUpTask = sequelize.define('FollowUpTask', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  decisionLogId: DataTypes.UUID,
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  assignedTo: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  dueDate: {
+    type: DataTypes.DATE,
+    allowNull: false
+  },
+  priority: {
+    type: DataTypes.ENUM('low', 'medium', 'high', 'critical'),
+    defaultValue: 'medium'
+  },
+  status: {
+    type: DataTypes.ENUM('pending', 'in_progress', 'completed', 'blocked', 'cancelled'),
+    defaultValue: 'pending'
+  },
+  automationRules: DataTypes.JSONB, // {reminders: [], escalations: []}
+  dependencies: DataTypes.ARRAY(DataTypes.UUID),
+  completedAt: DataTypes.DATE,
+  blockedReason: DataTypes.TEXT
+});
+
+// Phase 11.1: Outcome Tracking
+const OutcomeTracker = sequelize.define('OutcomeTracker', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  decisionLogId: DataTypes.UUID,
+  followUpTaskId: DataTypes.UUID,
+  metric: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  targetValue: DataTypes.FLOAT,
+  actualValue: DataTypes.FLOAT,
+  unit: DataTypes.STRING,
+  measurementDate: DataTypes.DATE,
+  notes: DataTypes.TEXT,
+  status: {
+    type: DataTypes.ENUM('on_track', 'at_risk', 'delayed', 'achieved', 'failed'),
+    defaultValue: 'on_track'
+  },
+  accountability: DataTypes.JSONB // {responsible: userId, reviewers: []}
+});
+
+// Phase 11.2: Knowledge Graph Entities
+const KnowledgeEntity = sequelize.define('KnowledgeEntity', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  entityType: {
+    type: DataTypes.ENUM('person', 'topic', 'decision', 'outcome', 'concept', 'project'),
+    allowNull: false
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  metadata: DataTypes.JSONB,
+  mentionCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  importance: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.5
+  },
+  tags: DataTypes.ARRAY(DataTypes.STRING)
+});
+
+// Phase 11.2: Knowledge Graph Relationships
+const KnowledgeRelation = sequelize.define('KnowledgeRelation', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  sourceEntityId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  targetEntityId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  relationType: {
+    type: DataTypes.ENUM('mentions', 'leads_to', 'depends_on', 'related_to', 'contradicts', 'supports'),
+    allowNull: false
+  },
+  meetingId: DataTypes.UUID,
+  strength: {
+    type: DataTypes.FLOAT,
+    defaultValue: 1.0
+  },
+  context: DataTypes.TEXT
+});
+
+// Phase 11.2: Meeting Topics
+const MeetingTopic = sequelize.define('MeetingTopic', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  topic: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  sentiment: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.0
+  },
+  discussionTime: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  participants: DataTypes.ARRAY(DataTypes.UUID),
+  keywords: DataTypes.ARRAY(DataTypes.STRING),
+  relatedTopics: DataTypes.ARRAY(DataTypes.UUID)
+});
+
+// Phase 11.2: Transcript Highlights
+const TranscriptHighlight = sequelize.define('TranscriptHighlight', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  speakerId: DataTypes.UUID,
+  timestamp: {
+    type: DataTypes.DATE,
+    allowNull: false
+  },
+  duration: DataTypes.INTEGER,
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  highlightType: {
+    type: DataTypes.ENUM('decision', 'action_item', 'key_point', 'question', 'agreement', 'disagreement'),
+    allowNull: false
+  },
+  importance: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.5
+  },
+  citations: DataTypes.ARRAY(DataTypes.UUID),
+  searchVector: DataTypes.TEXT // For full-text search
+});
+
+// Phase 11.3: AI-Generated Summaries
+const AISummary = sequelize.define('AISummary', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  agendaItemId: DataTypes.UUID,
+  summaryType: {
+    type: DataTypes.ENUM('agenda_section', 'full_meeting', 'debate', 'decision', 'action_items'),
+    allowNull: false
+  },
+  summary: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  keyPoints: DataTypes.ARRAY(DataTypes.STRING),
+  sentiment: DataTypes.JSONB, // {overall: 0.7, participants: {}}
+  neutralityScore: DataTypes.FLOAT,
+  confidence: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.8
+  },
+  generatedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  },
+  reviewStatus: {
+    type: DataTypes.ENUM('pending', 'approved', 'rejected', 'edited'),
+    defaultValue: 'pending'
+  }
+});
+
+// Phase 11.3: AI Action Item Extraction
+const AIActionItem = sequelize.define('AIActionItem', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  extractedFrom: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  suggestedAssignee: DataTypes.UUID,
+  suggestedDueDate: DataTypes.DATE,
+  confidence: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.8
+  },
+  verificationStatus: {
+    type: DataTypes.ENUM('pending', 'verified', 'rejected', 'modified'),
+    defaultValue: 'pending'
+  },
+  verifiedBy: DataTypes.UUID,
+  convertedToTask: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  taskId: DataTypes.UUID
+});
+
+// Phase 11.3: Meeting Brief
+const MeetingBrief = sequelize.define('MeetingBrief', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  generatedFor: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  contextSummary: DataTypes.TEXT,
+  relevantDecisions: DataTypes.ARRAY(DataTypes.UUID),
+  relatedMeetings: DataTypes.ARRAY(DataTypes.UUID),
+  backgroundTopics: DataTypes.JSONB,
+  suggestedPreparation: DataTypes.ARRAY(DataTypes.STRING),
+  participantProfiles: DataTypes.JSONB,
+  generatedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// ==================== PHASE 12 MODELS ====================
+
+// Phase 12.1: User Experience Preferences
+const UserExperienceProfile = sequelize.define('UserExperienceProfile', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    unique: true
+  },
+  experienceLevel: {
+    type: DataTypes.ENUM('novice', 'intermediate', 'expert'),
+    defaultValue: 'novice'
+  },
+  preferredComplexity: {
+    type: DataTypes.ENUM('simple', 'balanced', 'advanced'),
+    defaultValue: 'simple'
+  },
+  completedOnboarding: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  onboardingProgress: DataTypes.JSONB, // Track which onboarding steps completed
+  interfacePreferences: DataTypes.JSONB, // UI customizations
+  roleSpecificSettings: DataTypes.JSONB, // Settings per role (host, participant, etc)
+  meetingTypePreferences: DataTypes.JSONB // Preferences per meeting type
+});
+
+// Phase 12.1: Onboarding Progress
+const OnboardingStep = sequelize.define('OnboardingStep', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  stepType: {
+    type: DataTypes.ENUM('role_selection', 'meeting_mode_intro', 'feature_tour', 'keyboard_shortcuts', 'accessibility_setup'),
+    allowNull: false
+  },
+  context: {
+    type: DataTypes.STRING,
+    allowNull: false
+  }, // e.g., 'debate_mode', 'host_role'
+  completed: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  completedAt: DataTypes.DATE,
+  skipped: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+});
+
+// Phase 12.2: Live Captions
+const LiveCaption = sequelize.define('LiveCaption', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  speakerId: DataTypes.UUID,
+  speakerName: DataTypes.STRING,
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  timestamp: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
+  },
+  duration: DataTypes.INTEGER, // in milliseconds
+  confidence: DataTypes.FLOAT,
+  language: {
+    type: DataTypes.STRING,
+    defaultValue: 'en'
+  },
+  isFinal: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+});
+
+// Phase 12.2: Accessibility Settings
+const AccessibilitySettings = sequelize.define('AccessibilitySettings', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    unique: true
+  },
+  screenReaderEnabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  highContrastMode: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  dyslexiaFriendlyFont: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  keyboardNavigationOnly: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  captionsEnabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  captionSize: {
+    type: DataTypes.ENUM('small', 'medium', 'large', 'extra-large'),
+    defaultValue: 'medium'
+  },
+  reducedMotion: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  colorBlindMode: {
+    type: DataTypes.ENUM('none', 'protanopia', 'deuteranopia', 'tritanopia'),
+    defaultValue: 'none'
+  },
+  fontSize: {
+    type: DataTypes.INTEGER,
+    defaultValue: 16
+  },
+  customTheme: DataTypes.JSONB
+});
+
+// Phase 12.2: Theme Configuration
+const ThemeConfiguration = sequelize.define('ThemeConfiguration', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  themeType: {
+    type: DataTypes.ENUM('standard', 'high-contrast', 'dark', 'dyslexia-friendly', 'custom'),
+    allowNull: false
+  },
+  colors: {
+    type: DataTypes.JSONB,
+    allowNull: false
+  }, // Color palette
+  typography: DataTypes.JSONB, // Font settings
+  spacing: DataTypes.JSONB, // Layout spacing
+  isSystem: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  createdBy: DataTypes.UUID,
+  isPublic: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+});
+
+// Phase 12.3: Meeting Edge Routing
+const MeetingEdgeNode = sequelize.define('MeetingEdgeNode', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  region: {
+    type: DataTypes.STRING,
+    allowNull: false
+  }, // e.g., 'us-east', 'eu-west', 'ap-south'
+  endpoint: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  capacity: {
+    type: DataTypes.INTEGER,
+    defaultValue: 100
+  },
+  currentLoad: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  status: {
+    type: DataTypes.ENUM('active', 'maintenance', 'offline'),
+    defaultValue: 'active'
+  },
+  latencyMs: DataTypes.INTEGER,
+  lastHealthCheck: DataTypes.DATE
+});
+
+// Phase 12.3: Meeting Route Assignment
+const MeetingRoute = sequelize.define('MeetingRoute', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  edgeNodeId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  participantLocations: DataTypes.JSONB, // Geographic distribution
+  routingStrategy: {
+    type: DataTypes.ENUM('nearest', 'load-balanced', 'quality-optimized'),
+    defaultValue: 'nearest'
+  },
+  assignedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// Phase 12.3: Media Quality Settings
+const MediaQualityProfile = sequelize.define('MediaQualityProfile', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  meetingId: DataTypes.UUID,
+  bandwidth: {
+    type: DataTypes.ENUM('low', 'medium', 'high', 'auto'),
+    defaultValue: 'auto'
+  },
+  videoQuality: {
+    type: DataTypes.ENUM('360p', '480p', '720p', '1080p', 'auto'),
+    defaultValue: 'auto'
+  },
+  audioQuality: {
+    type: DataTypes.ENUM('narrow', 'wide', 'fullband', 'auto'),
+    defaultValue: 'auto'
+  },
+  adaptiveMode: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  currentBandwidthKbps: DataTypes.INTEGER,
+  packetLoss: DataTypes.FLOAT,
+  jitter: DataTypes.INTEGER
+});
+
+// Phase 12.3: Large Meeting Configuration
+const LargeMeetingConfig = sequelize.define('LargeMeetingConfig', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    unique: true
+  },
+  mode: {
+    type: DataTypes.ENUM('stage', 'audience', 'hybrid'),
+    defaultValue: 'hybrid'
+  },
+  maxStageParticipants: {
+    type: DataTypes.INTEGER,
+    defaultValue: 10
+  },
+  audienceSize: DataTypes.INTEGER,
+  stageParticipants: DataTypes.ARRAY(DataTypes.UUID),
+  viewMode: {
+    type: DataTypes.ENUM('speaker', 'gallery', 'presentation'),
+    defaultValue: 'speaker'
+  },
+  enableQA: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  moderationSettings: DataTypes.JSONB
+});
+
 // Relationships
 Issue.hasMany(IssueComment, { foreignKey: 'issueId' });
 IssueComment.belongsTo(Issue, { foreignKey: 'issueId' });
@@ -1067,6 +2048,55 @@ Meeting.hasMany(MeetingActionItem, { foreignKey: 'meetingId', as: 'actions' });
 MeetingActionItem.belongsTo(Meeting, { foreignKey: 'meetingId' });
 Meeting.hasMany(MeetingDecision, { foreignKey: 'meetingId', as: 'decisions' });
 MeetingDecision.belongsTo(Meeting, { foreignKey: 'meetingId' });
+
+// Phase 10: Governance, Safety, and Civic relationships
+Meeting.hasMany(MeetingRolePermission, { foreignKey: 'meetingId', as: 'rolePermissions' });
+MeetingRolePermission.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(AuditTrailEntry, { foreignKey: 'meetingId', as: 'auditTrail' });
+AuditTrailEntry.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(ContentRedaction, { foreignKey: 'meetingId', as: 'redactions' });
+ContentRedaction.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(ParticipantConsent, { foreignKey: 'meetingId', as: 'consents' });
+ParticipantConsent.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(MeetingRuleset, { foreignKey: 'meetingId', as: 'rulesets' });
+MeetingRuleset.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(ModerationAction, { foreignKey: 'meetingId', as: 'moderationActions' });
+ModerationAction.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(DisputeFlag, { foreignKey: 'meetingId', as: 'disputes' });
+DisputeFlag.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(ComplianceExport, { foreignKey: 'meetingId', as: 'exports' });
+ComplianceExport.belongsTo(Meeting, { foreignKey: 'meetingId' });
+
+// Phase 11: Knowledge, Decisions, and Intelligence relationships
+Meeting.hasMany(DecisionLog, { foreignKey: 'meetingId', as: 'decisionLogs' });
+DecisionLog.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(FollowUpTask, { foreignKey: 'meetingId', as: 'followUpTasks' });
+FollowUpTask.belongsTo(Meeting, { foreignKey: 'meetingId' });
+DecisionLog.hasMany(FollowUpTask, { foreignKey: 'decisionLogId', as: 'tasks' });
+FollowUpTask.belongsTo(DecisionLog, { foreignKey: 'decisionLogId' });
+Meeting.hasMany(OutcomeTracker, { foreignKey: 'meetingId', as: 'outcomes' });
+OutcomeTracker.belongsTo(Meeting, { foreignKey: 'meetingId' });
+DecisionLog.hasMany(OutcomeTracker, { foreignKey: 'decisionLogId', as: 'trackers' });
+OutcomeTracker.belongsTo(DecisionLog, { foreignKey: 'decisionLogId' });
+Meeting.hasMany(MeetingTopic, { foreignKey: 'meetingId', as: 'topics' });
+MeetingTopic.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(TranscriptHighlight, { foreignKey: 'meetingId', as: 'highlights' });
+TranscriptHighlight.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(AISummary, { foreignKey: 'meetingId', as: 'aiSummaries' });
+AISummary.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(AIActionItem, { foreignKey: 'meetingId', as: 'aiActionItems' });
+AIActionItem.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(MeetingBrief, { foreignKey: 'meetingId', as: 'briefs' });
+MeetingBrief.belongsTo(Meeting, { foreignKey: 'meetingId' });
+
+// Phase 12: Experience, Accessibility, and Performance relationships
+Meeting.hasMany(LiveCaption, { foreignKey: 'meetingId', as: 'captions' });
+LiveCaption.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(MeetingRoute, { foreignKey: 'meetingId', as: 'routes' });
+MeetingRoute.belongsTo(Meeting, { foreignKey: 'meetingId' });
+MeetingRoute.belongsTo(MeetingEdgeNode, { foreignKey: 'edgeNodeId', as: 'edgeNode' });
+Meeting.hasOne(LargeMeetingConfig, { foreignKey: 'meetingId', as: 'largeMeetingConfig' });
+LargeMeetingConfig.belongsTo(Meeting, { foreignKey: 'meetingId' });
 
 // Phase 2: Document and Wiki history relationships
 Document.hasMany(DocumentVersion, { foreignKey: 'documentId', as: 'versions' });
@@ -3194,6 +4224,2324 @@ app.get('/meetings/:id/quiz/leaderboard', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(error.status || 500).json({ error: error.message || 'Failed to get leaderboard' });
+  }
+});
+
+// ==================== PHASE 10: GOVERNANCE, SAFETY, AND CIVIC TOOLS ====================
+
+// ==================== 10.1 TRUST AND SAFETY ====================
+
+// Role Permissions - Create or Update
+app.post('/meetings/:id/role-permissions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const meeting = await requireMeetingAccess(req.params.id, userId);
+    
+    // Only host or moderator can set permissions
+    const participant = await MeetingParticipant.findOne({
+      where: { meetingId: req.params.id, userId }
+    });
+    
+    if (!participant || !['host', 'moderator'].includes(participant.role)) {
+      return res.status(403).json({ error: 'Only hosts and moderators can manage permissions' });
+    }
+
+    const { role, permissions, restrictions } = req.body;
+
+    const [rolePermission, created] = await MeetingRolePermission.findOrCreate({
+      where: { meetingId: req.params.id, role },
+      defaults: { permissions, restrictions }
+    });
+
+    if (!created) {
+      await rolePermission.update({ permissions, restrictions });
+    }
+
+    // Log in audit trail
+    await AuditTrailEntry.create({
+      meetingId: req.params.id,
+      sequenceNumber: await AuditTrailEntry.count({ where: { meetingId: req.params.id } }) + 1,
+      action: 'update_role_permissions',
+      userId,
+      entityType: 'role_permission',
+      entityId: rolePermission.id,
+      details: { role, permissions, restrictions },
+      currentHash: crypto.createHash('sha256')
+        .update(JSON.stringify({ role, permissions, restrictions, timestamp: new Date() }))
+        .digest('hex')
+    });
+
+    res.status(created ? 201 : 200).json(rolePermission);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to manage role permissions' });
+  }
+});
+
+// Get Role Permissions
+app.get('/meetings/:id/role-permissions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const permissions = await MeetingRolePermission.findAll({
+      where: { meetingId: req.params.id }
+    });
+
+    res.json(permissions);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get role permissions' });
+  }
+});
+
+// Check Permission - Utility endpoint
+app.post('/meetings/:id/check-permission', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { permission } = req.body;
+    const participant = await MeetingParticipant.findOne({
+      where: { meetingId: req.params.id, userId }
+    });
+
+    if (!participant) {
+      return res.json({ allowed: false, reason: 'Not a participant' });
+    }
+
+    const rolePermission = await MeetingRolePermission.findOne({
+      where: { meetingId: req.params.id, role: participant.role }
+    });
+
+    const allowed = rolePermission && rolePermission.permissions.includes(permission);
+    res.json({ allowed, role: participant.role });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to check permission' });
+  }
+});
+
+// Tamper-Evident Audit Trail - Get Full Chain
+app.get('/meetings/:id/audit-trail', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const trail = await AuditTrailEntry.findAll({
+      where: { meetingId: req.params.id },
+      order: [['sequenceNumber', 'ASC']]
+    });
+
+    // Verify integrity
+    let isValid = true;
+    for (let i = 1; i < trail.length; i++) {
+      if (trail[i].previousHash !== trail[i - 1].currentHash) {
+        isValid = false;
+        break;
+      }
+    }
+
+    res.json({ trail, isValid, count: trail.length });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get audit trail' });
+  }
+});
+
+// Verify Audit Trail Integrity
+app.get('/meetings/:id/audit-trail/verify', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const trail = await AuditTrailEntry.findAll({
+      where: { meetingId: req.params.id },
+      order: [['sequenceNumber', 'ASC']]
+    });
+
+    const verification = {
+      totalEntries: trail.length,
+      isValid: true,
+      brokenChains: []
+    };
+
+    for (let i = 1; i < trail.length; i++) {
+      if (trail[i].previousHash !== trail[i - 1].currentHash) {
+        verification.isValid = false;
+        verification.brokenChains.push({
+          sequenceNumber: trail[i].sequenceNumber,
+          expected: trail[i - 1].currentHash,
+          actual: trail[i].previousHash
+        });
+      }
+    }
+
+    res.json(verification);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to verify audit trail' });
+  }
+});
+
+// Content Redaction - Create
+app.post('/meetings/:id/redactions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const meeting = await requireMeetingAccess(req.params.id, userId);
+
+    // Check if user has permission to redact
+    const participant = await MeetingParticipant.findOne({
+      where: { meetingId: req.params.id, userId }
+    });
+
+    if (!participant || !['host', 'moderator'].includes(participant.role)) {
+      return res.status(403).json({ error: 'Only hosts and moderators can redact content' });
+    }
+
+    const { contentType, contentId, reason, redactionType, originalContent, redactedContent, timeRanges } = req.body;
+
+    const redaction = await ContentRedaction.create({
+      meetingId: req.params.id,
+      contentType,
+      contentId,
+      redactedBy: userId,
+      reason,
+      redactionType,
+      originalContent,
+      redactedContent,
+      timeRanges
+    });
+
+    // Log in tamper-evident trail
+    const sequenceNumber = await AuditTrailEntry.count({ where: { meetingId: req.params.id } }) + 1;
+    const previousEntry = await AuditTrailEntry.findOne({
+      where: { meetingId: req.params.id },
+      order: [['sequenceNumber', 'DESC']]
+    });
+
+    await AuditTrailEntry.create({
+      meetingId: req.params.id,
+      sequenceNumber,
+      previousHash: previousEntry?.currentHash || null,
+      action: 'content_redacted',
+      userId,
+      entityType: 'redaction',
+      entityId: redaction.id,
+      details: { contentType, contentId, reason, redactionType },
+      currentHash: crypto.createHash('sha256')
+        .update(JSON.stringify({ sequenceNumber, contentType, contentId, userId, timestamp: new Date() }))
+        .digest('hex')
+    });
+
+    res.status(201).json(redaction);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create redaction' });
+  }
+});
+
+// Get Redactions
+app.get('/meetings/:id/redactions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { contentType, contentId } = req.query;
+    const where = { meetingId: req.params.id };
+    if (contentType) where.contentType = contentType;
+    if (contentId) where.contentId = contentId;
+
+    const redactions = await ContentRedaction.findAll({
+      where,
+      order: [['redactedAt', 'DESC']]
+    });
+
+    res.json(redactions);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get redactions' });
+  }
+});
+
+// Participant Consent - Grant/Update
+app.post('/meetings/:id/consent', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { consentType, granted, expiresAt } = req.body;
+
+    const [consent, created] = await ParticipantConsent.findOrCreate({
+      where: {
+        meetingId: req.params.id,
+        participantId: userId,
+        consentType
+      },
+      defaults: {
+        granted,
+        expiresAt,
+        ipAddress: req.ip,
+        userAgent: req.header('user-agent')
+      }
+    });
+
+    if (!created) {
+      await consent.update({
+        granted,
+        grantedAt: new Date(),
+        expiresAt,
+        ipAddress: req.ip,
+        userAgent: req.header('user-agent')
+      });
+    }
+
+    // Log in audit trail
+    const sequenceNumber = await AuditTrailEntry.count({ where: { meetingId: req.params.id } }) + 1;
+    const previousEntry = await AuditTrailEntry.findOne({
+      where: { meetingId: req.params.id },
+      order: [['sequenceNumber', 'DESC']]
+    });
+
+    await AuditTrailEntry.create({
+      meetingId: req.params.id,
+      sequenceNumber,
+      previousHash: previousEntry?.currentHash || null,
+      action: granted ? 'consent_granted' : 'consent_revoked',
+      userId,
+      entityType: 'consent',
+      entityId: consent.id,
+      details: { consentType, granted },
+      currentHash: crypto.createHash('sha256')
+        .update(JSON.stringify({ sequenceNumber, consentType, granted, userId, timestamp: new Date() }))
+        .digest('hex')
+    });
+
+    res.status(created ? 201 : 200).json(consent);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to manage consent' });
+  }
+});
+
+// Get Consents
+app.get('/meetings/:id/consent', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    // Participants can only see their own consents unless they're host/moderator
+    const participant = await MeetingParticipant.findOne({
+      where: { meetingId: req.params.id, userId }
+    });
+
+    const where = { meetingId: req.params.id };
+    if (participant && !['host', 'moderator'].includes(participant.role)) {
+      where.participantId = userId;
+    }
+
+    const consents = await ParticipantConsent.findAll({
+      where,
+      order: [['grantedAt', 'DESC']]
+    });
+
+    res.json(consents);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get consents' });
+  }
+});
+
+// ==================== 10.2 MODERATION AND RULE SYSTEMS ====================
+
+// Meeting Ruleset - Create
+app.post('/meetings/:id/rulesets', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const meeting = await requireMeetingAccess(req.params.id, userId);
+
+    // Only host can create rulesets
+    if (meeting.hostId !== userId) {
+      return res.status(403).json({ error: 'Only the host can create rulesets' });
+    }
+
+    const { name, description, rules, isActive } = req.body;
+
+    const ruleset = await MeetingRuleset.create({
+      meetingId: req.params.id,
+      name,
+      description,
+      rules,
+      isActive,
+      createdBy: userId
+    });
+
+    res.status(201).json(ruleset);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create ruleset' });
+  }
+});
+
+// Get Rulesets
+app.get('/meetings/:id/rulesets', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const rulesets = await MeetingRuleset.findAll({
+      where: { meetingId: req.params.id },
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(rulesets);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get rulesets' });
+  }
+});
+
+// Update Ruleset
+app.put('/meetings/:id/rulesets/:rulesetId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const meeting = await requireMeetingAccess(req.params.id, userId);
+
+    if (meeting.hostId !== userId) {
+      return res.status(403).json({ error: 'Only the host can update rulesets' });
+    }
+
+    const ruleset = await MeetingRuleset.findByPk(req.params.rulesetId);
+    if (!ruleset || ruleset.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Ruleset not found' });
+    }
+
+    const { name, description, rules, isActive } = req.body;
+    await ruleset.update({ name, description, rules, isActive });
+
+    res.json(ruleset);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update ruleset' });
+  }
+});
+
+// Moderation Action - Issue
+app.post('/meetings/:id/moderation/actions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    // Check if user is moderator or host
+    const moderator = await MeetingParticipant.findOne({
+      where: { meetingId: req.params.id, userId }
+    });
+
+    if (!moderator || !['host', 'moderator'].includes(moderator.role)) {
+      return res.status(403).json({ error: 'Only hosts and moderators can issue moderation actions' });
+    }
+
+    const { targetUserId, actionType, reason, duration, newRole } = req.body;
+
+    // Get target's current role
+    const target = await MeetingParticipant.findOne({
+      where: { meetingId: req.params.id, userId: targetUserId }
+    });
+
+    if (!target) {
+      return res.status(404).json({ error: 'Target participant not found' });
+    }
+
+    const action = await ModerationAction.create({
+      meetingId: req.params.id,
+      moderatorId: userId,
+      targetUserId,
+      actionType,
+      reason,
+      duration,
+      previousRole: target.role,
+      newRole,
+      expiresAt: duration ? new Date(Date.now() + duration * 1000) : null
+    });
+
+    // Apply the action
+    if (actionType === 'role_change' && newRole) {
+      await target.update({ role: newRole });
+    }
+
+    // Log in audit trail
+    const sequenceNumber = await AuditTrailEntry.count({ where: { meetingId: req.params.id } }) + 1;
+    const previousEntry = await AuditTrailEntry.findOne({
+      where: { meetingId: req.params.id },
+      order: [['sequenceNumber', 'DESC']]
+    });
+
+    await AuditTrailEntry.create({
+      meetingId: req.params.id,
+      sequenceNumber,
+      previousHash: previousEntry?.currentHash || null,
+      action: 'moderation_action',
+      userId,
+      entityType: 'moderation_action',
+      entityId: action.id,
+      details: { actionType, targetUserId, reason },
+      currentHash: crypto.createHash('sha256')
+        .update(JSON.stringify({ sequenceNumber, actionType, targetUserId, userId, timestamp: new Date() }))
+        .digest('hex')
+    });
+
+    // Emit real-time event via Socket.IO if connected
+    io.to(req.params.id).emit('moderation-action', action);
+
+    res.status(201).json(action);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to issue moderation action' });
+  }
+});
+
+// Get Moderation Actions
+app.get('/meetings/:id/moderation/actions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const actions = await ModerationAction.findAll({
+      where: { meetingId: req.params.id },
+      order: [['issuedAt', 'DESC']]
+    });
+
+    res.json(actions);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get moderation actions' });
+  }
+});
+
+// Dispute Flag - Create
+app.post('/meetings/:id/disputes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { targetType, targetId, reason, description } = req.body;
+
+    const dispute = await DisputeFlag.create({
+      meetingId: req.params.id,
+      reportedBy: userId,
+      targetType,
+      targetId,
+      reason,
+      description
+    });
+
+    // Notify moderators
+    io.to(req.params.id).emit('dispute-flagged', dispute);
+
+    res.status(201).json(dispute);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create dispute flag' });
+  }
+});
+
+// Get Disputes
+app.get('/meetings/:id/disputes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { status } = req.query;
+    const where = { meetingId: req.params.id };
+    if (status) where.status = status;
+
+    const disputes = await DisputeFlag.findAll({
+      where,
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(disputes);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get disputes' });
+  }
+});
+
+// Resolve Dispute
+app.put('/meetings/:id/disputes/:disputeId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    // Check if user is moderator or host
+    const moderator = await MeetingParticipant.findOne({
+      where: { meetingId: req.params.id, userId }
+    });
+
+    if (!moderator || !['host', 'moderator'].includes(moderator.role)) {
+      return res.status(403).json({ error: 'Only hosts and moderators can resolve disputes' });
+    }
+
+    const dispute = await DisputeFlag.findByPk(req.params.disputeId);
+    if (!dispute || dispute.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Dispute not found' });
+    }
+
+    const { status, resolution } = req.body;
+
+    await dispute.update({
+      status,
+      resolution,
+      reviewedBy: userId,
+      resolvedAt: new Date()
+    });
+
+    res.json(dispute);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to resolve dispute' });
+  }
+});
+
+// ==================== 10.3 CIVIC AND LEGAL TEMPLATES ====================
+
+// Meeting Template - Create
+app.post('/meeting-templates', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { name, category, description, mode, roleDefinitions, rulesetTemplate, agendaTemplate, documentTemplates, isPublic, organizationId } = req.body;
+
+    const template = await MeetingTemplate.create({
+      name,
+      category,
+      description,
+      mode,
+      roleDefinitions,
+      rulesetTemplate,
+      agendaTemplate,
+      documentTemplates,
+      isPublic,
+      createdBy: userId,
+      organizationId
+    });
+
+    res.status(201).json(template);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create meeting template' });
+  }
+});
+
+// Get Meeting Templates
+app.get('/meeting-templates', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { category, mode } = req.query;
+    const where = {
+      [Op.or]: [
+        { isPublic: true },
+        { createdBy: userId }
+      ]
+    };
+
+    if (category) where.category = category;
+    if (mode) where.mode = mode;
+
+    const templates = await MeetingTemplate.findAll({
+      where,
+      order: [['usageCount', 'DESC'], ['createdAt', 'DESC']]
+    });
+
+    res.json(templates);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get meeting templates' });
+  }
+});
+
+// Get Single Template
+app.get('/meeting-templates/:id', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const template = await MeetingTemplate.findByPk(req.params.id);
+    if (!template) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    // Check access
+    if (!template.isPublic && template.createdBy !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Increment usage count
+    await template.increment('usageCount');
+
+    res.json(template);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get template' });
+  }
+});
+
+// Create Meeting from Template
+app.post('/meetings/from-template/:templateId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const template = await MeetingTemplate.findByPk(req.params.templateId);
+    if (!template) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    if (!template.isPublic && template.createdBy !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const { title, scheduledAt, durationMinutes } = req.body;
+
+    // Create meeting
+    const meeting = await Meeting.create({
+      title,
+      description: template.description,
+      mode: template.mode,
+      scheduledAt,
+      durationMinutes,
+      hostId: userId,
+      accessCode: generateAccessCode(),
+      settings: { templateId: template.id }
+    });
+
+    // Create host participant
+    await MeetingParticipant.create({
+      meetingId: meeting.id,
+      userId,
+      role: 'host'
+    });
+
+    // Apply role permissions from template
+    for (const [role, perms] of Object.entries(template.roleDefinitions)) {
+      await MeetingRolePermission.create({
+        meetingId: meeting.id,
+        role,
+        permissions: perms.permissions || [],
+        restrictions: perms.restrictions || {}
+      });
+    }
+
+    // Apply ruleset if exists
+    if (template.rulesetTemplate) {
+      await MeetingRuleset.create({
+        meetingId: meeting.id,
+        name: `${template.name} Rules`,
+        rules: template.rulesetTemplate,
+        isActive: true,
+        createdBy: userId
+      });
+    }
+
+    // Create agenda items if exists
+    if (template.agendaTemplate && Array.isArray(template.agendaTemplate)) {
+      for (let i = 0; i < template.agendaTemplate.length; i++) {
+        const item = template.agendaTemplate[i];
+        await MeetingAgendaItem.create({
+          meetingId: meeting.id,
+          title: item.title,
+          description: item.description,
+          orderIndex: i
+        });
+      }
+    }
+
+    await template.increment('usageCount');
+
+    res.status(201).json(meeting);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create meeting from template' });
+  }
+});
+
+// Ruling Template - Create
+app.post('/ruling-templates', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { name, templateType, category, structure, legalStandards, isStandard } = req.body;
+
+    const template = await RulingTemplate.create({
+      name,
+      templateType,
+      category,
+      structure,
+      legalStandards,
+      isStandard,
+      createdBy: userId
+    });
+
+    res.status(201).json(template);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create ruling template' });
+  }
+});
+
+// Get Ruling Templates
+app.get('/ruling-templates', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { templateType, category } = req.query;
+    const where = {};
+    if (templateType) where.templateType = templateType;
+    if (category) where.category = category;
+
+    const templates = await RulingTemplate.findAll({
+      where,
+      order: [['isStandard', 'DESC'], ['createdAt', 'DESC']]
+    });
+
+    res.json(templates);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get ruling templates' });
+  }
+});
+
+// Compliance Export - Request
+app.post('/meetings/:id/compliance-export', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { exportType, format, includeRedactions, includeAuditTrail } = req.body;
+
+    const exportRecord = await ComplianceExport.create({
+      meetingId: req.params.id,
+      exportType: exportType || 'full',
+      format: format || 'bundle',
+      requestedBy: userId,
+      includeRedactions: includeRedactions !== false,
+      includeAuditTrail: includeAuditTrail !== false,
+      status: 'pending'
+    });
+
+    // In a real implementation, this would trigger an async job
+    // For now, simulate processing
+    setTimeout(async () => {
+      try {
+        await exportRecord.update({
+          status: 'completed',
+          fileUrl: `/exports/${exportRecord.id}.${format === 'pdf' ? 'pdf' : 'zip'}`,
+          fileSize: Math.floor(Math.random() * 10000000),
+          completedAt: new Date()
+        });
+      } catch (error) {
+        console.error('Failed to complete export:', error);
+      }
+    }, 100);
+
+    res.status(201).json(exportRecord);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to request compliance export' });
+  }
+});
+
+// Get Compliance Exports
+app.get('/meetings/:id/compliance-exports', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const exports = await ComplianceExport.findAll({
+      where: { meetingId: req.params.id },
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(exports);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get compliance exports' });
+  }
+});
+
+// Get Single Export Status
+app.get('/compliance-exports/:id', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const exportRecord = await ComplianceExport.findByPk(req.params.id);
+    if (!exportRecord) {
+      return res.status(404).json({ error: 'Export not found' });
+    }
+
+    // Check access
+    await requireMeetingAccess(exportRecord.meetingId, userId);
+
+    res.json(exportRecord);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get export' });
+  }
+});
+
+// ==================== PHASE 11: KNOWLEDGE, DECISIONS, AND INTELLIGENCE ====================
+
+// ==================== 11.1 DECISION INTELLIGENCE ====================
+
+// Decision Log - Create
+app.post('/meetings/:id/decision-log', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { title, description, rationale, decision, alternatives, evidenceLinks, impactAssessment, tags } = req.body;
+
+    const decisionLog = await DecisionLog.create({
+      meetingId: req.params.id,
+      title,
+      description,
+      rationale,
+      decidedBy: userId,
+      decision,
+      alternatives,
+      evidenceLinks,
+      impactAssessment,
+      tags
+    });
+
+    res.status(201).json(decisionLog);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create decision log' });
+  }
+});
+
+// Get Decision Logs
+app.get('/meetings/:id/decision-log', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { status } = req.query;
+    const where = { meetingId: req.params.id };
+    if (status) where.status = status;
+
+    const decisionLogs = await DecisionLog.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      include: [
+        { model: FollowUpTask, as: 'tasks' },
+        { model: OutcomeTracker, as: 'trackers' }
+      ]
+    });
+
+    res.json(decisionLogs);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get decision logs' });
+  }
+});
+
+// Update Decision Log Status
+app.put('/meetings/:id/decision-log/:logId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const decisionLog = await DecisionLog.findByPk(req.params.logId);
+    if (!decisionLog || decisionLog.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Decision log not found' });
+    }
+
+    const { status, implementationDate, reviewDate } = req.body;
+    await decisionLog.update({ status, implementationDate, reviewDate });
+
+    res.json(decisionLog);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update decision log' });
+  }
+});
+
+// Follow-Up Task - Create
+app.post('/meetings/:id/follow-up-tasks', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { title, description, assignedTo, dueDate, priority, decisionLogId, automationRules, dependencies } = req.body;
+
+    const task = await FollowUpTask.create({
+      meetingId: req.params.id,
+      decisionLogId,
+      title,
+      description,
+      assignedTo,
+      dueDate,
+      priority,
+      automationRules,
+      dependencies
+    });
+
+    res.status(201).json(task);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create follow-up task' });
+  }
+});
+
+// Get Follow-Up Tasks
+app.get('/meetings/:id/follow-up-tasks', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { status, assignedTo } = req.query;
+    const where = { meetingId: req.params.id };
+    if (status) where.status = status;
+    if (assignedTo) where.assignedTo = assignedTo;
+
+    const tasks = await FollowUpTask.findAll({
+      where,
+      order: [['dueDate', 'ASC']]
+    });
+
+    res.json(tasks);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get follow-up tasks' });
+  }
+});
+
+// Update Follow-Up Task
+app.put('/meetings/:id/follow-up-tasks/:taskId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const task = await FollowUpTask.findByPk(req.params.taskId);
+    if (!task || task.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    const { status, blockedReason, completedAt } = req.body;
+    await task.update({ status, blockedReason, completedAt: completedAt || (status === 'completed' ? new Date() : null) });
+
+    res.json(task);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update task' });
+  }
+});
+
+// Outcome Tracker - Create
+app.post('/meetings/:id/outcomes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { decisionLogId, followUpTaskId, metric, targetValue, actualValue, unit, measurementDate, notes, accountability } = req.body;
+
+    const outcome = await OutcomeTracker.create({
+      meetingId: req.params.id,
+      decisionLogId,
+      followUpTaskId,
+      metric,
+      targetValue,
+      actualValue,
+      unit,
+      measurementDate,
+      notes,
+      accountability
+    });
+
+    // Auto-calculate status
+    if (actualValue && targetValue) {
+      const percentage = (actualValue / targetValue) * 100;
+      let status = 'on_track';
+      if (percentage >= 100) status = 'achieved';
+      else if (percentage >= 80) status = 'on_track';
+      else if (percentage >= 60) status = 'at_risk';
+      else status = 'delayed';
+      await outcome.update({ status });
+    }
+
+    res.status(201).json(outcome);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create outcome tracker' });
+  }
+});
+
+// Get Outcomes
+app.get('/meetings/:id/outcomes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const outcomes = await OutcomeTracker.findAll({
+      where: { meetingId: req.params.id },
+      order: [['measurementDate', 'DESC']]
+    });
+
+    res.json(outcomes);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get outcomes' });
+  }
+});
+
+// ==================== 11.2 KNOWLEDGE GRAPH AND MEMORY ====================
+
+// Knowledge Entity - Create
+app.post('/knowledge/entities', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { entityType, name, description, metadata, tags } = req.body;
+
+    const entity = await KnowledgeEntity.create({
+      entityType,
+      name,
+      description,
+      metadata,
+      tags
+    });
+
+    res.status(201).json(entity);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create knowledge entity' });
+  }
+});
+
+// Get Knowledge Entities
+app.get('/knowledge/entities', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { entityType, search } = req.query;
+    const where = {};
+    if (entityType) where.entityType = entityType;
+    if (search) where.name = { [Op.iLike]: `%${search}%` };
+
+    const entities = await KnowledgeEntity.findAll({
+      where,
+      order: [['importance', 'DESC'], ['mentionCount', 'DESC']]
+    });
+
+    res.json(entities);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get knowledge entities' });
+  }
+});
+
+// Knowledge Relation - Create
+app.post('/knowledge/relations', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { sourceEntityId, targetEntityId, relationType, meetingId, strength, context } = req.body;
+
+    const relation = await KnowledgeRelation.create({
+      sourceEntityId,
+      targetEntityId,
+      relationType,
+      meetingId,
+      strength,
+      context
+    });
+
+    res.status(201).json(relation);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create knowledge relation' });
+  }
+});
+
+// Get Knowledge Graph
+app.get('/knowledge/graph', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { entityId, depth = 2 } = req.query;
+
+    if (!entityId) {
+      return res.status(400).json({ error: 'entityId is required' });
+    }
+
+    // Get entity
+    const entity = await KnowledgeEntity.findByPk(entityId);
+    if (!entity) {
+      return res.status(404).json({ error: 'Entity not found' });
+    }
+
+    // Get related entities up to specified depth
+    const relations = await KnowledgeRelation.findAll({
+      where: {
+        [Op.or]: [
+          { sourceEntityId: entityId },
+          { targetEntityId: entityId }
+        ]
+      }
+    });
+
+    const relatedEntityIds = new Set();
+    relations.forEach(rel => {
+      relatedEntityIds.add(rel.sourceEntityId);
+      relatedEntityIds.add(rel.targetEntityId);
+    });
+
+    const relatedEntities = await KnowledgeEntity.findAll({
+      where: { id: Array.from(relatedEntityIds) }
+    });
+
+    res.json({
+      entity,
+      relations,
+      relatedEntities
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get knowledge graph' });
+  }
+});
+
+// Meeting Topics - Create/Update
+app.post('/meetings/:id/topics', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { topic, description, sentiment, discussionTime, participants, keywords, relatedTopics } = req.body;
+
+    const meetingTopic = await MeetingTopic.create({
+      meetingId: req.params.id,
+      topic,
+      description,
+      sentiment,
+      discussionTime,
+      participants,
+      keywords,
+      relatedTopics
+    });
+
+    res.status(201).json(meetingTopic);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create meeting topic' });
+  }
+});
+
+// Get Meeting Topics
+app.get('/meetings/:id/topics', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const topics = await MeetingTopic.findAll({
+      where: { meetingId: req.params.id },
+      order: [['discussionTime', 'DESC']]
+    });
+
+    res.json(topics);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get topics' });
+  }
+});
+
+// Cross-Meeting Topic Analysis
+app.get('/topics/analysis', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { keyword, startDate, endDate } = req.query;
+
+    const where = {};
+    if (keyword) {
+      where.keywords = { [Op.contains]: [keyword] };
+    }
+
+    const topics = await MeetingTopic.findAll({
+      where,
+      include: [{ model: Meeting, as: 'meeting', where: {} }],
+      order: [['createdAt', 'DESC']],
+      limit: 100
+    });
+
+    // Cluster by similarity
+    const topicClusters = {};
+    topics.forEach(topic => {
+      const key = topic.topic.toLowerCase();
+      if (!topicClusters[key]) {
+        topicClusters[key] = [];
+      }
+      topicClusters[key].push(topic);
+    });
+
+    res.json({
+      clusters: topicClusters,
+      totalTopics: topics.length,
+      trends: Object.keys(topicClusters).map(key => ({
+        topic: key,
+        frequency: topicClusters[key].length,
+        avgSentiment: topicClusters[key].reduce((sum, t) => sum + (t.sentiment || 0), 0) / topicClusters[key].length
+      }))
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to analyze topics' });
+  }
+});
+
+// Transcript Highlights - Create
+app.post('/meetings/:id/highlights', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { speakerId, timestamp, duration, content, highlightType, importance, citations } = req.body;
+
+    const highlight = await TranscriptHighlight.create({
+      meetingId: req.params.id,
+      speakerId,
+      timestamp,
+      duration,
+      content,
+      highlightType,
+      importance,
+      citations
+    });
+
+    res.status(201).json(highlight);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create highlight' });
+  }
+});
+
+// Search Transcript Highlights
+app.get('/meetings/:id/highlights', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { search, highlightType } = req.query;
+    const where = { meetingId: req.params.id };
+    if (highlightType) where.highlightType = highlightType;
+    if (search) where.content = { [Op.iLike]: `%${search}%` };
+
+    const highlights = await TranscriptHighlight.findAll({
+      where,
+      order: [['timestamp', 'ASC']]
+    });
+
+    res.json(highlights);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to search highlights' });
+  }
+});
+
+// ==================== 11.3 AI ASSISTANCE ====================
+
+// AI Summary - Generate
+app.post('/meetings/:id/ai-summary', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { agendaItemId, summaryType } = req.body;
+
+    // In a real implementation, this would call an AI service
+    // For now, we'll create a placeholder summary
+    const meeting = await Meeting.findByPk(req.params.id);
+    
+    const summary = await AISummary.create({
+      meetingId: req.params.id,
+      agendaItemId,
+      summaryType: summaryType || 'full_meeting',
+      summary: `AI-generated summary for ${meeting.title}. This is a placeholder that would be replaced with actual AI-generated content.`,
+      keyPoints: ['Key point 1', 'Key point 2', 'Key point 3'],
+      sentiment: { overall: 0.7 },
+      neutralityScore: 0.85,
+      confidence: 0.8
+    });
+
+    res.status(201).json(summary);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to generate AI summary' });
+  }
+});
+
+// Get AI Summaries
+app.get('/meetings/:id/ai-summary', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { summaryType } = req.query;
+    const where = { meetingId: req.params.id };
+    if (summaryType) where.summaryType = summaryType;
+
+    const summaries = await AISummary.findAll({
+      where,
+      order: [['generatedAt', 'DESC']]
+    });
+
+    res.json(summaries);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get AI summaries' });
+  }
+});
+
+// Update AI Summary Review Status
+app.put('/meetings/:id/ai-summary/:summaryId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const summary = await AISummary.findByPk(req.params.summaryId);
+    if (!summary || summary.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Summary not found' });
+    }
+
+    const { reviewStatus, summary: editedSummary } = req.body;
+    await summary.update({ 
+      reviewStatus,
+      summary: editedSummary || summary.summary
+    });
+
+    res.json(summary);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update summary' });
+  }
+});
+
+// AI Action Item Extraction
+app.post('/meetings/:id/ai-extract-actions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { extractedFrom } = req.body;
+
+    // In a real implementation, this would use AI to extract action items
+    // For now, we'll create placeholder extracted items
+    const actionItem = await AIActionItem.create({
+      meetingId: req.params.id,
+      extractedFrom: extractedFrom || 'Meeting transcript',
+      title: 'AI-extracted action item',
+      description: 'This is a placeholder for an AI-extracted action item',
+      confidence: 0.85
+    });
+
+    res.status(201).json(actionItem);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to extract action items' });
+  }
+});
+
+// Get AI Action Items
+app.get('/meetings/:id/ai-action-items', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { verificationStatus } = req.query;
+    const where = { meetingId: req.params.id };
+    if (verificationStatus) where.verificationStatus = verificationStatus;
+
+    const actionItems = await AIActionItem.findAll({
+      where,
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(actionItems);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get AI action items' });
+  }
+});
+
+// Verify AI Action Item
+app.put('/meetings/:id/ai-action-items/:itemId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const actionItem = await AIActionItem.findByPk(req.params.itemId);
+    if (!actionItem || actionItem.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Action item not found' });
+    }
+
+    const { verificationStatus, title, description } = req.body;
+    await actionItem.update({
+      verificationStatus,
+      title: title || actionItem.title,
+      description: description || actionItem.description,
+      verifiedBy: userId
+    });
+
+    // If verified, optionally convert to actual task
+    if (verificationStatus === 'verified' && req.body.convertToTask) {
+      const task = await MeetingActionItem.create({
+        meetingId: req.params.id,
+        title: actionItem.title,
+        description: actionItem.description,
+        assigneeId: actionItem.suggestedAssignee,
+        dueDate: actionItem.suggestedDueDate,
+        status: 'open'
+      });
+
+      await actionItem.update({
+        convertedToTask: true,
+        taskId: task.id
+      });
+    }
+
+    res.json(actionItem);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to verify action item' });
+  }
+});
+
+// Meeting Brief - Generate
+app.post('/meetings/:id/brief', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    // In a real implementation, this would generate a contextual brief using AI
+    // For now, we'll create a placeholder
+    const meeting = await Meeting.findByPk(req.params.id);
+    
+    // Get related decisions
+    const recentDecisions = await DecisionLog.findAll({
+      where: { meetingId: { [Op.ne]: req.params.id } },
+      order: [['createdAt', 'DESC']],
+      limit: 5
+    });
+
+    const brief = await MeetingBrief.create({
+      meetingId: req.params.id,
+      generatedFor: userId,
+      contextSummary: `Brief for ${meeting.title}. This is a placeholder for AI-generated contextual information.`,
+      relevantDecisions: recentDecisions.map(d => d.id),
+      relatedMeetings: [],
+      backgroundTopics: {},
+      suggestedPreparation: [
+        'Review previous decisions',
+        'Prepare agenda topics',
+        'Gather relevant documents'
+      ],
+      participantProfiles: {}
+    });
+
+    res.status(201).json(brief);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to generate meeting brief' });
+  }
+});
+
+// Get Meeting Brief
+app.get('/meetings/:id/brief', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const brief = await MeetingBrief.findOne({
+      where: {
+        meetingId: req.params.id,
+        generatedFor: userId
+      },
+      order: [['generatedAt', 'DESC']]
+    });
+
+    if (!brief) {
+      return res.status(404).json({ error: 'No brief found for this meeting' });
+    }
+
+    res.json(brief);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get meeting brief' });
+  }
+});
+
+// ==================== PHASE 12: EXPERIENCE, ACCESSIBILITY, AND PERFORMANCE ====================
+
+// ==================== 12.1 ADVANCED UX ====================
+
+// User Experience Profile - Get or Create
+app.get('/user/experience-profile', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    let profile = await UserExperienceProfile.findOne({ where: { userId } });
+    
+    if (!profile) {
+      profile = await UserExperienceProfile.create({ userId });
+    }
+
+    res.json(profile);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get experience profile' });
+  }
+});
+
+// Update Experience Profile
+app.put('/user/experience-profile', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { experienceLevel, preferredComplexity, interfacePreferences, roleSpecificSettings, meetingTypePreferences } = req.body;
+
+    let profile = await UserExperienceProfile.findOne({ where: { userId } });
+    
+    if (!profile) {
+      profile = await UserExperienceProfile.create({
+        userId,
+        experienceLevel,
+        preferredComplexity,
+        interfacePreferences,
+        roleSpecificSettings,
+        meetingTypePreferences
+      });
+    } else {
+      await profile.update({
+        experienceLevel,
+        preferredComplexity,
+        interfacePreferences,
+        roleSpecificSettings,
+        meetingTypePreferences
+      });
+    }
+
+    res.json(profile);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update experience profile' });
+  }
+});
+
+// Onboarding Steps - Create/Update
+app.post('/user/onboarding-step', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { stepType, context, completed, skipped } = req.body;
+
+    const [step, created] = await OnboardingStep.findOrCreate({
+      where: { userId, stepType, context },
+      defaults: {
+        completed: completed || false,
+        skipped: skipped || false,
+        completedAt: completed ? new Date() : null
+      }
+    });
+
+    if (!created) {
+      await step.update({
+        completed,
+        skipped,
+        completedAt: completed ? new Date() : step.completedAt
+      });
+    }
+
+    // Update profile onboarding progress
+    const profile = await UserExperienceProfile.findOne({ where: { userId } });
+    if (profile && completed) {
+      const allSteps = await OnboardingStep.findAll({ where: { userId } });
+      const completedSteps = allSteps.filter(s => s.completed).length;
+      const totalSteps = allSteps.length;
+      
+      await profile.update({
+        completedOnboarding: completedSteps === totalSteps,
+        onboardingProgress: { completedSteps, totalSteps }
+      });
+    }
+
+    res.json(step);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update onboarding step' });
+  }
+});
+
+// Get Onboarding Steps
+app.get('/user/onboarding-steps', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const steps = await OnboardingStep.findAll({
+      where: { userId },
+      order: [['createdAt', 'ASC']]
+    });
+
+    res.json(steps);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get onboarding steps' });
+  }
+});
+
+// ==================== 12.2 ACCESSIBILITY EXCELLENCE ====================
+
+// Live Captions - Create
+app.post('/meetings/:id/captions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { speakerId, speakerName, content, duration, confidence, language, isFinal } = req.body;
+
+    const caption = await LiveCaption.create({
+      meetingId: req.params.id,
+      speakerId,
+      speakerName,
+      content,
+      duration,
+      confidence,
+      language,
+      isFinal
+    });
+
+    // Emit caption via Socket.IO for real-time display
+    io.to(req.params.id).emit('live-caption', caption);
+
+    res.status(201).json(caption);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create caption' });
+  }
+});
+
+// Get Live Captions
+app.get('/meetings/:id/captions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { startTime, endTime, speakerId } = req.query;
+    const where = { meetingId: req.params.id };
+    
+    if (startTime) {
+      where.timestamp = { [Op.gte]: new Date(startTime) };
+    }
+    if (endTime) {
+      where.timestamp = { ...where.timestamp, [Op.lte]: new Date(endTime) };
+    }
+    if (speakerId) {
+      where.speakerId = speakerId;
+    }
+
+    const captions = await LiveCaption.findAll({
+      where,
+      order: [['timestamp', 'ASC']]
+    });
+
+    res.json(captions);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get captions' });
+  }
+});
+
+// Accessibility Settings - Get or Create
+app.get('/user/accessibility-settings', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    let settings = await AccessibilitySettings.findOne({ where: { userId } });
+    
+    if (!settings) {
+      settings = await AccessibilitySettings.create({ userId });
+    }
+
+    res.json(settings);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get accessibility settings' });
+  }
+});
+
+// Update Accessibility Settings
+app.put('/user/accessibility-settings', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const updateData = req.body;
+
+    let settings = await AccessibilitySettings.findOne({ where: { userId } });
+    
+    if (!settings) {
+      settings = await AccessibilitySettings.create({ userId, ...updateData });
+    } else {
+      await settings.update(updateData);
+    }
+
+    res.json(settings);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update accessibility settings' });
+  }
+});
+
+// Theme Configurations - List
+app.get('/themes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const themes = await ThemeConfiguration.findAll({
+      where: {
+        [Op.or]: [
+          { isSystem: true },
+          { isPublic: true },
+          { createdBy: userId }
+        ]
+      },
+      order: [['isSystem', 'DESC'], ['name', 'ASC']]
+    });
+
+    res.json(themes);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get themes' });
+  }
+});
+
+// Create Custom Theme
+app.post('/themes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { name, themeType, colors, typography, spacing, isPublic } = req.body;
+
+    const theme = await ThemeConfiguration.create({
+      name,
+      themeType: themeType || 'custom',
+      colors,
+      typography,
+      spacing,
+      createdBy: userId,
+      isPublic: isPublic || false
+    });
+
+    res.status(201).json(theme);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create theme' });
+  }
+});
+
+// ==================== 12.3 PERFORMANCE AND SCALABILITY ====================
+
+// Edge Nodes - List
+app.get('/edge-nodes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { region, status } = req.query;
+    const where = {};
+    if (region) where.region = region;
+    if (status) where.status = status;
+
+    const nodes = await MeetingEdgeNode.findAll({
+      where,
+      order: [['region', 'ASC'], ['latencyMs', 'ASC']]
+    });
+
+    res.json(nodes);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get edge nodes' });
+  }
+});
+
+// Meeting Route - Get Optimal Route
+app.post('/meetings/:id/route', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { participantLocations, routingStrategy } = req.body;
+
+    // Find optimal edge node (simplified logic)
+    const activeNodes = await MeetingEdgeNode.findAll({
+      where: { status: 'active' },
+      order: [['currentLoad', 'ASC'], ['latencyMs', 'ASC']]
+    });
+
+    if (activeNodes.length === 0) {
+      return res.status(503).json({ error: 'No edge nodes available' });
+    }
+
+    // Select first available node (in real implementation, this would use geo-location logic)
+    const selectedNode = activeNodes[0];
+
+    // Create route assignment
+    const route = await MeetingRoute.create({
+      meetingId: req.params.id,
+      edgeNodeId: selectedNode.id,
+      participantLocations,
+      routingStrategy: routingStrategy || 'nearest'
+    });
+
+    // Update node load
+    await selectedNode.increment('currentLoad');
+
+    const routeWithNode = await MeetingRoute.findByPk(route.id, {
+      include: [{ model: MeetingEdgeNode, as: 'edgeNode' }]
+    });
+
+    res.status(201).json(routeWithNode);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create route' });
+  }
+});
+
+// Get Meeting Route
+app.get('/meetings/:id/route', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const route = await MeetingRoute.findOne({
+      where: { meetingId: req.params.id },
+      include: [{ model: MeetingEdgeNode, as: 'edgeNode' }],
+      order: [['assignedAt', 'DESC']]
+    });
+
+    if (!route) {
+      return res.status(404).json({ error: 'No route assigned' });
+    }
+
+    res.json(route);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get route' });
+  }
+});
+
+// Media Quality Profile - Get or Create
+app.get('/user/media-quality', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { meetingId } = req.query;
+    const where = { userId };
+    if (meetingId) where.meetingId = meetingId;
+
+    let profile = await MediaQualityProfile.findOne({ where });
+    
+    if (!profile) {
+      profile = await MediaQualityProfile.create({ userId, meetingId });
+    }
+
+    res.json(profile);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get media quality profile' });
+  }
+});
+
+// Update Media Quality Profile
+app.put('/user/media-quality', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { meetingId, bandwidth, videoQuality, audioQuality, adaptiveMode, currentBandwidthKbps, packetLoss, jitter } = req.body;
+
+    const where = { userId };
+    if (meetingId) where.meetingId = meetingId;
+
+    let profile = await MediaQualityProfile.findOne({ where });
+    
+    if (!profile) {
+      profile = await MediaQualityProfile.create({
+        userId,
+        meetingId,
+        bandwidth,
+        videoQuality,
+        audioQuality,
+        adaptiveMode,
+        currentBandwidthKbps,
+        packetLoss,
+        jitter
+      });
+    } else {
+      await profile.update({
+        bandwidth,
+        videoQuality,
+        audioQuality,
+        adaptiveMode,
+        currentBandwidthKbps,
+        packetLoss,
+        jitter
+      });
+    }
+
+    res.json(profile);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update media quality profile' });
+  }
+});
+
+// Large Meeting Configuration - Create or Update
+app.post('/meetings/:id/large-meeting-config', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const meeting = await requireMeetingAccess(req.params.id, userId);
+
+    // Only host can configure large meeting
+    if (meeting.hostId !== userId) {
+      return res.status(403).json({ error: 'Only the host can configure large meeting settings' });
+    }
+
+    const { mode, maxStageParticipants, stageParticipants, viewMode, enableQA, moderationSettings } = req.body;
+
+    let config = await LargeMeetingConfig.findOne({ where: { meetingId: req.params.id } });
+
+    if (!config) {
+      config = await LargeMeetingConfig.create({
+        meetingId: req.params.id,
+        mode,
+        maxStageParticipants,
+        stageParticipants,
+        viewMode,
+        enableQA,
+        moderationSettings
+      });
+    } else {
+      await config.update({
+        mode,
+        maxStageParticipants,
+        stageParticipants,
+        viewMode,
+        enableQA,
+        moderationSettings
+      });
+    }
+
+    res.json(config);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to configure large meeting' });
+  }
+});
+
+// Get Large Meeting Configuration
+app.get('/meetings/:id/large-meeting-config', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const config = await LargeMeetingConfig.findOne({
+      where: { meetingId: req.params.id }
+    });
+
+    if (!config) {
+      return res.status(404).json({ error: 'No large meeting configuration found' });
+    }
+
+    res.json(config);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get large meeting config' });
+  }
+});
+
+// Update Audience Size (for analytics)
+app.put('/meetings/:id/large-meeting-config/audience-size', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+
+    const { audienceSize } = req.body;
+
+    const config = await LargeMeetingConfig.findOne({
+      where: { meetingId: req.params.id }
+    });
+
+    if (!config) {
+      return res.status(404).json({ error: 'No large meeting configuration found' });
+    }
+
+    await config.update({ audienceSize });
+
+    res.json(config);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update audience size' });
   }
 });
 
