@@ -1,6 +1,30 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const resolveRuntimeApiBase = () => {
+  if (typeof window === 'undefined') {
+    return 'http://localhost:8000';
+  }
+
+  const origin = window.location.origin;
+
+  if (origin.includes('.app.github.dev') && origin.includes('-3000')) {
+    return origin.replace('-3000.app.github.dev', '-8000.app.github.dev');
+  }
+
+  if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+    try {
+      const url = new URL(origin);
+      url.port = '8000';
+      return url.toString().replace(/\/$/, '');
+    } catch (error) {
+      return 'http://localhost:8000';
+    }
+  }
+
+  return origin;
+};
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || resolveRuntimeApiBase();
 const NORMALIZED_API_BASE_URL = API_BASE_URL.replace(/\/+$/, '');
 const API_BASE_PATH = NORMALIZED_API_BASE_URL.endsWith('/api')
   ? NORMALIZED_API_BASE_URL

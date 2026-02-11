@@ -140,6 +140,32 @@ const Profile = sequelize.define('Profile', {
 User.hasOne(Profile, { foreignKey: 'userId' });
 Profile.belongsTo(User, { foreignKey: 'userId' });
 
+const authMiddleware = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await User.findByPk(decoded.id, {
+      attributes: { exclude: ['password'] }
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
 // NEW: LinkedIn-inspired Skills Model
 const Skill = sequelize.define('Skill', {
   id: {
@@ -470,9 +496,6 @@ NotificationPreference.belongsTo(User, { foreignKey: 'userId' });
 User.hasMany(AuditLog, { as: 'AdminActions', foreignKey: 'adminId' });
 AuditLog.belongsTo(User, { as: 'Admin', foreignKey: 'adminId' });
 User.hasMany(ContentFlag, { as: 'Reports', foreignKey: 'reporterId' });
-
-// Initialize database
-sequelize.sync();
 
 // Validation schemas
 const registerSchema = Joi.object({
@@ -2126,10 +2149,10 @@ app.post('/notifications/email/batch', async (req, res) => {
 
 // ==================== OAUTH PROVIDERS (Google & GitHub) ====================
 // OAuth configuration endpoints
-const oauth2 = require('simple-oauth2');
+const { AuthorizationCode } = require('simple-oauth2');
 
 // Google OAuth setup
-const googleOAuth = oauth2.create({
+const googleOAuth = new AuthorizationCode({
   client: {
     id: process.env.GOOGLE_CLIENT_ID || 'your-client-id',
     secret: process.env.GOOGLE_CLIENT_SECRET || 'your-client-secret'
@@ -2142,7 +2165,7 @@ const googleOAuth = oauth2.create({
 });
 
 // GitHub OAuth setup
-const githubOAuth = oauth2.create({
+const githubOAuth = new AuthorizationCode({
   client: {
     id: process.env.GITHUB_CLIENT_ID || 'your-client-id',
     secret: process.env.GITHUB_CLIENT_SECRET || 'your-client-secret'
@@ -2155,7 +2178,7 @@ const githubOAuth = oauth2.create({
 });
 
 // Facebook OAuth setup
-const facebookOAuth = oauth2.create({
+const facebookOAuth = new AuthorizationCode({
   client: {
     id: process.env.FACEBOOK_APP_ID || 'your-app-id',
     secret: process.env.FACEBOOK_APP_SECRET || 'your-app-secret'
@@ -2169,7 +2192,7 @@ const facebookOAuth = oauth2.create({
 });
 
 // Twitter/X OAuth setup
-const twitterOAuth = oauth2.create({
+const twitterOAuth = new AuthorizationCode({
   client: {
     id: process.env.TWITTER_CLIENT_ID || 'your-client-id',
     secret: process.env.TWITTER_CLIENT_SECRET || 'your-client-secret'
@@ -2182,7 +2205,7 @@ const twitterOAuth = oauth2.create({
 });
 
 // LinkedIn OAuth setup
-const linkedinOAuth = oauth2.create({
+const linkedinOAuth = new AuthorizationCode({
   client: {
     id: process.env.LINKEDIN_CLIENT_ID || 'your-client-id',
     secret: process.env.LINKEDIN_CLIENT_SECRET || 'your-client-secret'
