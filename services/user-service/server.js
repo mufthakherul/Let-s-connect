@@ -2344,21 +2344,36 @@ app.get('/export/my-data/csv', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Simple CSV generation
+    // Helper function to escape CSV values
+    const escapeCsv = (value) => {
+      if (value === null || value === undefined) return '';
+      const str = String(value);
+      // Escape quotes and wrap in quotes if contains comma, quote, or newline
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      // Prevent CSV formula injection
+      if (str.startsWith('=') || str.startsWith('+') || str.startsWith('-') || str.startsWith('@')) {
+        return `'${str}`;
+      }
+      return str;
+    };
+
+    // Simple CSV generation with proper escaping
     const skills = await UserSkill.findAll({ where: { userId } });
     
     let csv = 'Data Type,Field,Value\n';
-    csv += `User,ID,${user.id}\n`;
-    csv += `User,Username,${user.username}\n`;
-    csv += `User,Email,${user.email}\n`;
-    csv += `User,First Name,${user.firstName || ''}\n`;
-    csv += `User,Last Name,${user.lastName || ''}\n`;
-    csv += `User,Role,${user.role}\n`;
-    csv += `User,Created At,${user.createdAt}\n`;
+    csv += `User,ID,${escapeCsv(user.id)}\n`;
+    csv += `User,Username,${escapeCsv(user.username)}\n`;
+    csv += `User,Email,${escapeCsv(user.email)}\n`;
+    csv += `User,First Name,${escapeCsv(user.firstName || '')}\n`;
+    csv += `User,Last Name,${escapeCsv(user.lastName || '')}\n`;
+    csv += `User,Role,${escapeCsv(user.role)}\n`;
+    csv += `User,Created At,${escapeCsv(user.createdAt)}\n`;
     
     skills.forEach((skill, index) => {
-      csv += `Skill ${index + 1},Name,${skill.skillName}\n`;
-      csv += `Skill ${index + 1},Level,${skill.proficiency}\n`;
+      csv += `Skill ${index + 1},Name,${escapeCsv(skill.skillName)}\n`;
+      csv += `Skill ${index + 1},Level,${escapeCsv(skill.proficiency)}\n`;
     });
 
     res.setHeader('Content-Type', 'text/csv');

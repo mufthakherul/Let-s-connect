@@ -5191,8 +5191,11 @@ app.post('/archive', async (req, res) => {
       case 'comment':
         Model = Comment;
         break;
+      case 'wiki':
+        // Wiki archiving not yet implemented
+        return res.status(400).json({ error: 'Wiki archiving is not supported yet' });
       default:
-        return res.status(400).json({ error: 'Invalid content type' });
+        return res.status(400).json({ error: 'Invalid content type. Supported: post, blog, video, comment' });
     }
 
     content = await Model.findByPk(contentId);
@@ -5216,7 +5219,7 @@ app.post('/archive', async (req, res) => {
       metadata: {
         originalCreatedAt: content.createdAt,
         originalUpdatedAt: content.updatedAt,
-        archiveSize: JSON.stringify(content).length
+        archiveSize: JSON.stringify(content.toJSON()).length
       }
     });
 
@@ -5553,15 +5556,25 @@ app.get('/saved-searches/:searchId/execute', async (req, res) => {
         Model = Video;
         break;
       default:
-        // Search all content types
-        Model = Post; // Default to posts for 'all'
+        // Fallback: search posts for 'all' or unknown content types
+        Model = Post;
     }
 
     // Build where clause from filters
     const whereClause = {};
     
     if (filters.keywords) {
-      whereClause.content = { [Op.iLike]: `%${filters.keywords}%` };
+      // Apply keyword filtering to appropriate field per model
+      if (savedSearch.contentType === 'video') {
+        // Videos use title/description instead of content
+        whereClause[Op.or] = [
+          { title: { [Op.iLike]: `%${filters.keywords}%` } },
+          { description: { [Op.iLike]: `%${filters.keywords}%` } }
+        ];
+      } else {
+        // Default text field for posts/blogs
+        whereClause.content = { [Op.iLike]: `%${filters.keywords}%` };
+      }
     }
     
     if (filters.userId) {

@@ -127,31 +127,30 @@ const schema = buildSchema(`
   }
 
   type Mutation {
-    # Post mutations
+    # Post mutations (only createPost is implemented)
     createPost(content: String!, type: String, mediaUrls: [String]): Post
-    updatePost(id: ID!, content: String): Post
-    deletePost(id: ID!): Boolean
     
-    # Blog mutations
-    createBlog(title: String!, content: String!, excerpt: String, coverImage: String): Blog
-    updateBlog(id: ID!, title: String, content: String): Blog
-    deleteBlog(id: ID!): Boolean
+    # Blog mutations (to be implemented in future)
+    # createBlog(title: String!, content: String!, excerpt: String, coverImage: String): Blog
+    # Blog mutations (to be implemented in future)
+    # createBlog(title: String!, content: String!, excerpt: String, coverImage: String): Blog
+    # updateBlog(id: ID!, title: String, content: String): Blog
+    # deleteBlog(id: ID!): Boolean
     
     # Notification mutations
     markNotificationRead(id: ID!): Notification
     markAllNotificationsRead: Boolean
     
-    # Call mutations
+    # Call mutations (initiateCall implemented, endCall to be added)
     initiateCall(recipientId: ID!, type: String!): Call
-    endCall(id: ID!, duration: Int): Call
   }
 
-  type Subscription {
-    # Real-time subscriptions
-    notificationReceived(userId: ID!): Notification
-    callIncoming(userId: ID!): Call
-    postCreated: Post
-  }
+  # Subscriptions not yet implemented - requires WebSocket setup
+  # type Subscription {
+  #   notificationReceived(userId: ID!): Notification
+  #   callIncoming(userId: ID!): Call
+  #   postCreated: Post
+  # }
 `);
 
 // Service URLs

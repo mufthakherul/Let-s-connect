@@ -99,6 +99,27 @@ const aiRequestLimiter = rateLimit({
 // Apply global rate limiter
 app.use(globalLimiter);
 
+// Authentication middleware for private routes
+const authMiddleware = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    // Forward authenticated user ID to downstream services
+    req.headers['x-user-id'] = decoded.id;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
 // Phase 6: GraphQL API Integration
 const { graphqlHTTP } = require('express-graphql');
 const { schema, root } = require('./graphql-schema');
@@ -219,27 +240,6 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-// Authentication middleware for private routes
-const authMiddleware = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-
-  const token = authHeader.split(' ')[1];
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    // Forward authenticated user ID to downstream services
-    req.headers['x-user-id'] = decoded.id;
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-};
-
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
@@ -249,6 +249,16 @@ app.get('/health', (req, res) => {
 app.get('/api/rate-limit-status', authMiddleware, async (req, res) => {
   try {
     const userId = req.user?.id || req.ip;
+    
+    // Define max limits for each tier
+    const maxLimits = {
+      global: 100,
+      user: 500,
+      strict: 10,
+      upload: 50,
+      ai: 100
+    };
+    
     const keys = [
       `rl:global:${req.ip}`,
       `rl:user:${userId}`,
@@ -264,8 +274,13 @@ app.get('/api/rate-limit-status', authMiddleware, async (req, res) => {
       const count = await redisClient.get(key);
       
       const limitType = key.split(':')[1];
+      const used = count ? parseInt(count) : 0;
+      const max = maxLimits[limitType] || 100;
+      
       limits[limitType] = {
-        remaining: count ? parseInt(count) : 0,
+        used: used,
+        remaining: Math.max(0, max - used),
+        limit: max,
         resetIn: ttl > 0 ? ttl : 0,
         key: key
       };
@@ -443,17 +458,17 @@ const applyUserLimiter = (req, res, next) => {
   next();
 };
 
+// Authentication endpoints with strict rate limiting (must be before /api/user proxy)
+app.use('/api/user/login', strictLimiter);
+app.use('/api/user/register', strictLimiter);
+app.use('/api/user/password-reset', strictLimiter);
+
 // User Service routes
 app.use('/api/user', createAuthProxy(services.user), applyUserLimiter, proxy(services.user, {
   proxyReqPathResolver: function (req) {
     return req.originalUrl.replace('/api/user', '');
   }
 }));
-
-// Authentication endpoints with strict rate limiting
-app.use('/api/user/login', strictLimiter);
-app.use('/api/user/register', strictLimiter);
-app.use('/api/user/password-reset', strictLimiter);
 
 // Content Service routes
 app.use('/api/content', createAuthProxy(services.content), applyUserLimiter, proxy(services.content, {
