@@ -9,9 +9,9 @@ This roadmap continues beyond the completed Phase 8 enterprise release. The goal
 - Phase 1 (v1.1) through Phase 8 (v4.5) - Archived
 - Phase 9 (v5.0): Meeting Modes and Live Sessions - ✅ Complete
 - Phase 10 (v5.5): Governance, Safety, and Civic Tools - ✅ Complete
+- Phase 11 (v6.0): Knowledge, Decisions, and Intelligence - ✅ Complete
 
 ### 🚧 Next Phases
-- Phase 11 (v6.0): Knowledge, Decisions, and Intelligence
 - Phase 12 (v6.5): Experience, Accessibility, and Performance
 
 ### Platform Principles
@@ -120,20 +120,20 @@ This roadmap continues beyond the completed Phase 8 enterprise release. The goal
 **Objective:** Convert meetings into searchable, actionable knowledge.
 
 ### 11.1 Decision Intelligence
-- [ ] Decision log with rationale and evidence links
-- [ ] Follow-up task automation with owners and deadlines
-- [ ] Outcome tracking and post-meeting accountability
+- [x] Decision log with rationale and evidence links - Backend + Frontend fully wired
+- [x] Follow-up task automation with owners and deadlines - Backend + Frontend fully wired
+- [x] Outcome tracking and post-meeting accountability - Backend + Frontend fully wired
 
 ### 11.2 Knowledge Graph and Memory
-- [ ] Meeting knowledge graph (people, topics, outcomes)
-- [ ] Cross-meeting topic clustering and trend analysis
-- [ ] Searchable transcript highlights and citation links
+- [x] Meeting knowledge graph (people, topics, outcomes) - Backend + Frontend fully wired
+- [x] Cross-meeting topic clustering and trend analysis - Backend + Frontend fully wired
+- [x] Searchable transcript highlights and citation links - Backend + Frontend fully wired
 
 ### 11.3 AI Assistance (Professional Grade)
-- [ ] Live summaries per agenda section
-- [ ] Neutrality check for debate summaries
-- [ ] Action item extraction with verification step
-- [ ] Contextual brief builder before meetings
+- [x] Live summaries per agenda section - Backend + Frontend fully wired with AI placeholders
+- [x] Neutrality check for debate summaries - Backend + Frontend fully wired
+- [x] Action item extraction with verification step - Backend + Frontend fully wired
+- [x] Contextual brief builder before meetings - Backend + Frontend fully wired
 
 ---
 
