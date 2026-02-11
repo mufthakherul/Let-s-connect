@@ -4,7 +4,7 @@ import {
   AppBar, Toolbar, Typography, Button, Container, Box, IconButton,
   CssBaseline, ThemeProvider, createTheme, Drawer, List,
   ListItem, ListItemIcon, ListItemText, useMediaQuery, Divider, Avatar,
-  CircularProgress
+  CircularProgress, Collapse, Menu, MenuItem, Tooltip, ListItemAvatar, Badge
 } from '@mui/material';
 import {
   Brightness4, Brightness7, Menu as MenuIcon, Home as HomeIcon,
@@ -15,7 +15,8 @@ import {
   Dashboard as DashboardIcon, Search as SearchIcon, Folder as FolderIcon,
   Phone as PhoneIcon, Storage as DatabaseIcon, CompareArrows as DiffIcon,
   Event as EventIcon,
-  Settings as SettingsIcon, MoreHoriz as MoreHorizIcon
+  Settings as SettingsIcon, MoreHoriz as MoreHorizIcon, Apps as AppsIcon, PeopleAlt as PeopleIcon, SwapHoriz as SwapHorizIcon, Close as CloseIcon,
+  AccessibilityNew, ExpandLess, ExpandMore,
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -40,7 +41,6 @@ const Videos = lazy(() => import('./components/Videos'));
 const Shop = lazy(() => import('./components/Shop'));
 const Docs = lazy(() => import('./components/Docs'));
 const Chat = lazy(() => import('./components/Chat'));
-
 const Profile = lazy(() => import('./components/Profile'));
 const Groups = lazy(() => import('./components/Groups'));
 const Bookmarks = lazy(() => import('./components/Bookmarks'));
@@ -48,6 +48,8 @@ const Cart = lazy(() => import('./components/Cart'));
 const Blog = lazy(() => import('./components/Blog'));
 const Pages = lazy(() => import('./components/Pages'));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
+const ThemeSettings = lazy(() => import('./components/ThemeSettings'));
+const AccessibilitySettings = lazy(() => import('./components/AccessibilitySettings'));
 const SecuritySettings = lazy(() => import('./components/SecuritySettings'));
 const MediaGallery = lazy(() => import('./components/MediaGallery'));
 const Analytics = lazy(() => import('./components/Analytics'));
@@ -60,7 +62,6 @@ const WikiDiffViewer = lazy(() => import('./components/WikiDiffViewer'));
 const WebRTCCallWidget = lazy(() => import('./components/WebRTCCallWidget'));
 const DatabaseViews = lazy(() => import('./components/DatabaseViews'));
 const DiscordAdmin = lazy(() => import('./components/DiscordAdmin'));
-const ThemeSettings = lazy(() => import('./components/ThemeSettings'));
 const Meetings = lazy(() => import('./components/Meetings'));
 const MeetingRoom = lazy(() => import('./components/MeetingRoom'));
 const MeetingLobby = lazy(() => import('./components/MeetingLobby'));
@@ -96,7 +97,13 @@ const PageLoader = () => (
 
 function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { mode, toggleTheme, getAccentColor, initSystemThemeListener } = useThemeStore();
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
+  // Registered navbar specific state
+  const [showRegisteredSearch, setShowRegisteredSearch] = useState(false);
+  const [registeredAppsAnchor, setRegisteredAppsAnchor] = useState(null);
+  const [profileMenuAnchor, setProfileMenuAnchor] = useState(null);
+  const { mode, toggleTheme, getAccentColor, initSystemThemeListener, accessibility } = useThemeStore();
   const { user, logout } = useAuthStore();
   const isMobile = useMediaQuery('(max-width:900px)');
   const [internalUser, setInternalUser] = useState(user);
@@ -114,30 +121,86 @@ function App() {
   const theme = useMemo(
     () => {
       const accentColor = getAccentColor();
+      const { highContrast, largeText, textScale, colorBlindSupport, magnification, reducedMotion, fontFamily } = accessibility;
+
+      // Font family mapping
+      const fontFamilyMap = {
+        default: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+        dyslexic: '"OpenDyslexic", "Inter", "Roboto", sans-serif',
+        'high-legibility': '"Atkinson Hyperlegible", "Inter", "Roboto", sans-serif',
+      };
+
+      // Color blind support filters
+      const getColorBlindFilters = (type) => {
+        switch (type) {
+          case 'deuteranopia':
+            return 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'deuteranopia\'%3E%3CfeColorMatrix type=\'matrix\' values=\'0.625 0.375 0 0 0 0.7 0.3 0 0 0 0 0.3 0.7 0 0 0 0 0 1 0\'/%3E%3C/filter%3E%3C/svg%3E#deuteranopia")';
+          case 'protanopia':
+            return 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'protanopia\'%3E%3CfeColorMatrix type=\'matrix\' values=\'0.567 0.433 0 0 0 0.558 0.442 0 0 0 0 0.242 0.758 0 0 0 0 0 1 0\'/%3E%3C/filter%3E%3C/svg%3E#protanopia")';
+          case 'tritanopia':
+            return 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'tritanopia\'%3E%3CfeColorMatrix type=\'matrix\' values=\'0.95 0.05 0 0 0 0 0.433 0.567 0 0 0 0.475 0.525 0 0 0 0 0 1 0\'/%3E%3C/filter%3E%3C/svg%3E#tritanopia")';
+          default:
+            return 'none';
+        }
+      };
+
       return createTheme({
         palette: {
           mode,
           primary: {
-            main: accentColor.primary,
-            light: mode === 'dark' ? '#bbdefb' : '#42a5f5',
-            dark: mode === 'dark' ? '#648dae' : '#1565c0',
+            main: highContrast ? (mode === 'dark' ? '#ffffff' : '#000000') : accentColor.primary,
+            light: mode === 'dark' ? '#ffffff' : '#42a5f5',
+            dark: mode === 'dark' ? '#cccccc' : '#1565c0',
+            contrastText: highContrast ? (mode === 'dark' ? '#000000' : '#ffffff') : undefined,
           },
           secondary: {
-            main: accentColor.secondary,
+            main: highContrast ? (mode === 'dark' ? '#ffff00' : '#ff0000') : accentColor.secondary,
+            contrastText: highContrast ? '#000000' : undefined,
           },
           background: {
-            default: mode === 'dark' ? '#121212' : '#fafafa',
-            paper: mode === 'dark' ? '#1e1e1e' : '#ffffff',
+            default: highContrast
+              ? (mode === 'dark' ? '#000000' : '#ffffff')
+              : (mode === 'dark' ? '#121212' : '#fafafa'),
+            paper: highContrast
+              ? (mode === 'dark' ? '#000000' : '#ffffff')
+              : (mode === 'dark' ? '#1e1e1e' : '#ffffff'),
+          },
+          text: {
+            primary: highContrast
+              ? (mode === 'dark' ? '#ffffff' : '#000000')
+              : undefined,
+            secondary: highContrast
+              ? (mode === 'dark' ? '#cccccc' : '#333333')
+              : undefined,
           },
         },
         typography: {
-          fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+          fontFamily: fontFamilyMap[fontFamily] || fontFamilyMap.default,
+          fontSize: largeText ? 16 * textScale : 14 * textScale,
+          h1: { fontSize: largeText ? `${2.5 * textScale}rem` : `${2 * textScale}rem` },
+          h2: { fontSize: largeText ? `${2 * textScale}rem` : `${1.75 * textScale}rem` },
+          h3: { fontSize: largeText ? `${1.75 * textScale}rem` : `${1.5 * textScale}rem` },
+          h4: { fontSize: largeText ? `${1.5 * textScale}rem` : `${1.25 * textScale}rem` },
+          h5: { fontSize: largeText ? `${1.25 * textScale}rem` : `${1.125 * textScale}rem` },
+          h6: { fontSize: largeText ? `${1.125 * textScale}rem` : `${1 * textScale}rem` },
+          body1: { fontSize: largeText ? `${1.125 * textScale}rem` : `${1 * textScale}rem` },
+          body2: { fontSize: largeText ? `${1 * textScale}rem` : `${0.875 * textScale}rem` },
+          button: { fontSize: largeText ? `${1 * textScale}rem` : `${0.875 * textScale}rem` },
+          caption: { fontSize: largeText ? `${0.875 * textScale}rem` : `${0.75 * textScale}rem` },
         },
         shape: {
           borderRadius: 12,
         },
         transitions: {
-          duration: {
+          duration: reducedMotion ? {
+            shortest: 0,
+            shorter: 0,
+            short: 0,
+            standard: 0,
+            complex: 0,
+            enteringScreen: 0,
+            leavingScreen: 0,
+          } : {
             shortest: 150,
             shorter: 200,
             short: 250,
@@ -148,42 +211,72 @@ function App() {
           },
         },
         components: {
+          MuiCssBaseline: {
+            styleOverrides: {
+              body: {
+                filter: colorBlindSupport ? getColorBlindFilters(colorBlindSupport) : 'none',
+                zoom: magnification !== 1.0 ? magnification : undefined,
+                transform: magnification !== 1.0 ? `scale(${magnification})` : undefined,
+                transformOrigin: magnification !== 1.0 ? 'top left' : undefined,
+              },
+            },
+          },
           MuiButton: {
             styleOverrides: {
               root: {
                 textTransform: 'none',
                 fontWeight: 600,
+                minHeight: largeText ? 48 : 36,
+                padding: largeText ? '12px 24px' : '6px 16px',
               },
             },
           },
           MuiCard: {
             styleOverrides: {
               root: {
-                boxShadow: mode === 'dark'
-                  ? '0 2px 8px rgba(0,0,0,0.4)'
-                  : '0 2px 8px rgba(0,0,0,0.1)',
-                transition: 'box-shadow 0.3s ease-in-out, background-color 0.3s ease-in-out',
+                boxShadow: highContrast
+                  ? '0 0 0 2px ' + (mode === 'dark' ? '#ffffff' : '#000000')
+                  : (mode === 'dark'
+                    ? '0 2px 8px rgba(0,0,0,0.4)'
+                    : '0 2px 8px rgba(0,0,0,0.1)'),
+                transition: reducedMotion ? 'none' : 'box-shadow 0.3s ease-in-out, background-color 0.3s ease-in-out',
               },
             },
           },
           MuiPaper: {
             styleOverrides: {
               root: {
-                transition: 'background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
+                transition: reducedMotion ? 'none' : 'background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
               },
             },
           },
           MuiAppBar: {
             styleOverrides: {
               root: {
-                transition: 'background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
+                transition: reducedMotion ? 'none' : 'background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
+              },
+            },
+          },
+          MuiTextField: {
+            styleOverrides: {
+              root: {
+                '& .MuiInputBase-input': {
+                  fontSize: largeText ? `${1.125 * textScale}rem` : `${1 * textScale}rem`,
+                },
+              },
+            },
+          },
+          MuiTypography: {
+            styleOverrides: {
+              root: {
+                lineHeight: largeText ? 1.6 : 1.4,
               },
             },
           },
         },
       });
     },
-    [mode, getAccentColor]
+    [mode, getAccentColor, accessibility]
   );
 
   const handleLogout = () => {
@@ -214,12 +307,20 @@ function App() {
     { label: 'Databases', path: '/databases/views', icon: <DatabaseIcon />, public: false },
     { label: 'Profile', path: '/profile', icon: <Person />, public: false },
     { label: 'Email Settings', path: '/notifications/email', icon: <Article />, public: false },
-    { label: 'Theme Settings', path: '/settings/theme', icon: <SettingsIcon />, public: true },
+    {
+      label: 'Settings',
+      icon: <SettingsIcon />,
+      public: true,
+      submenu: [
+        { label: 'Theme Settings', path: '/settings/theme', icon: <SettingsIcon /> },
+        { label: 'Accessibility', path: '/settings/accessibility', icon: <AccessibilityNew /> },
+      ]
+    },
     { label: 'Admin', path: '/admin', icon: <DashboardIcon />, public: false, adminOnly: true },
   ];
 
   const drawer = (
-    <Box sx={{ width: 250 }} role="presentation" onClick={() => setDrawerOpen(false)}>
+    <Box sx={{ width: 250 }} role="presentation">
       <Box sx={{ p: 2, textAlign: 'center' }}>
         <Typography variant="h6" color="primary">
           Let's Connect
@@ -230,8 +331,47 @@ function App() {
         {navigationItems.map((item) => {
           if (!item.public && !internalUser) return null;
           if (item.adminOnly && (!internalUser || (internalUser.role !== 'admin' && internalUser.role !== 'moderator'))) return null;
+
+          if (item.submenu) {
+            return (
+              <React.Fragment key={item.label}>
+                <ListItem
+                  button
+                  onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
+                  sx={{
+                    '&:hover': { backgroundColor: 'action.hover' },
+                    backgroundColor: settingsMenuOpen ? 'action.selected' : 'transparent'
+                  }}
+                >
+                  <ListItemIcon>{item.icon}</ListItemIcon>
+                  <ListItemText primary={item.label} />
+                  {settingsMenuOpen ? <ExpandLess /> : <ExpandMore />}
+                </ListItem>
+                <Collapse in={settingsMenuOpen} timeout="auto" unmountOnExit>
+                  <List component="div" disablePadding>
+                    {item.submenu.map((subItem) => (
+                      <ListItem
+                        button
+                        component={Link}
+                        to={subItem.path}
+                        key={subItem.path}
+                        sx={{ pl: 4 }}
+                        onClick={() => setDrawerOpen(false)}
+                      >
+                        <ListItemIcon sx={{ minWidth: 40 }}>
+                          {subItem.icon}
+                        </ListItemIcon>
+                        <ListItemText primary={subItem.label} />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Collapse>
+              </React.Fragment>
+            );
+          }
+
           return (
-            <ListItem button component={Link} to={item.path} key={item.path}>
+            <ListItem button component={Link} to={item.path} key={item.path} onClick={() => setDrawerOpen(false)}>
               <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText primary={item.label} />
             </ListItem>
@@ -241,17 +381,17 @@ function App() {
       <Divider />
       <List>
         {internalUser ? (
-          <ListItem button onClick={handleLogout}>
+          <ListItem button onClick={() => { handleLogout(); setDrawerOpen(false); }}>
             <ListItemIcon><ExitToApp /></ListItemIcon>
             <ListItemText primary="Logout" />
           </ListItem>
         ) : (
           <>
-            <ListItem button component={Link} to="/login">
+            <ListItem button component={Link} to="/login" onClick={() => setDrawerOpen(false)}>
               <ListItemIcon><LoginIcon /></ListItemIcon>
               <ListItemText primary="Login" />
             </ListItem>
-            <ListItem button component={Link} to="/register">
+            <ListItem button component={Link} to="/register" onClick={() => setDrawerOpen(false)}>
               <ListItemIcon><PersonAdd /></ListItemIcon>
               <ListItemText primary="Register" />
             </ListItem>
@@ -282,7 +422,7 @@ function App() {
               /* Facebook-style Navbar for REGISTERED users */
               <AppBar position="sticky" elevation={1} sx={{ backgroundColor: mode === 'dark' ? '#18191a' : '#fff', borderBottom: `1px solid ${mode === 'dark' ? '#3a3b3c' : '#e5e5e5'}` }}>
                 <Toolbar sx={{ py: 0.5, px: 2 }}>
-                  {/* Left Section: Logo + Search */}
+                  {/* Left Section: Name + Search Icon */}
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     {isMobile && (
                       <IconButton
@@ -295,7 +435,7 @@ function App() {
                       </IconButton>
                     )}
 
-                    {/* Logo */}
+                    {/* Name */}
                     <Typography
                       variant="h6"
                       component={Link}
@@ -304,43 +444,64 @@ function App() {
                         textDecoration: 'none',
                         color: mode === 'dark' ? '#e4e6eb' : '#000',
                         fontWeight: 800,
-                        fontSize: '1.4rem',
+                        fontSize: '1.2rem',
                         minWidth: 'fit-content'
                       }}
                     >
-                      f
+                      Let's Connect
                     </Typography>
 
-                    {/* Search Bar */}
-                    {!isMobile && (
-                      <Box sx={{
+                    {/* Search Icon - toggles inline search */}
+                    <Tooltip title="Search">
+                      <IconButton
+                        aria-label="Toggle search"
+                        aria-expanded={showRegisteredSearch}
+                        aria-controls={showRegisteredSearch ? 'registered-search' : undefined}
+                        onClick={() => setShowRegisteredSearch((s) => !s)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setShowRegisteredSearch((s) => !s); e.preventDefault(); } }}
+                        sx={{ ml: 1, color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:focus-visible': { outline: '2px solid rgba(10,102,194,0.25)', outlineOffset: '2px' } }}
+                      >
+                        <SearchIcon />
+                      </IconButton>
+                    </Tooltip>
+
+                    {!isMobile && showRegisteredSearch && (
+                      <Box id="registered-search" sx={{
                         display: 'flex',
                         alignItems: 'center',
                         backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5',
                         borderRadius: '20px',
                         px: 1.5,
                         py: 0.5,
-                        minWidth: '200px'
+                        minWidth: '260px',
+                        ml: 1
                       }}>
                         <SearchIcon sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', mr: 1, fontSize: '1.2rem' }} />
                         <input
                           type="text"
-                          placeholder="Search..."
+                          placeholder="Search people, posts, docs..."
+                          aria-label="Search"
                           style={{
                             border: 'none',
                             outline: 'none',
                             backgroundColor: 'transparent',
                             color: mode === 'dark' ? '#e4e6eb' : '#000',
-                            fontSize: '0.9rem',
+                            fontSize: '0.95rem',
                             width: '100%',
                             fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI'
                           }}
+                          autoFocus
                         />
+                        <Tooltip title="Close search">
+                          <IconButton onClick={() => setShowRegisteredSearch(false)} sx={{ ml: 1 }} aria-label="Close search">
+                            <CloseIcon />
+                          </IconButton>
+                        </Tooltip>
                       </Box>
                     )}
                   </Box>
 
-                  {/* Center Navigation: Icon-based for registered users */}
+                  {/* Center Navigation: four primary icons */}
                   {!isMobile && (
                     <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', gap: 0 }}>
                       <IconButton component={Link} to="/" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Home">
@@ -348,44 +509,71 @@ function App() {
                         <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/' ? 'block' : 'none' }} />
                       </IconButton>
 
-                      <IconButton component={Link} to="/feed" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Feed">
-                        <FeedIcon sx={{ fontSize: '1.5rem' }} />
-                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/feed' ? 'block' : 'none' }} />
+                      <IconButton component={Link} to="/friends" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1 }} title="Friends">
+                        <PeopleIcon sx={{ fontSize: '1.5rem' }} />
                       </IconButton>
 
-                      <IconButton component={Link} to="/videos" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Videos">
+                      <IconButton component={Link} to="/videos" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1 }} title="Videos">
                         <VideoLibrary sx={{ fontSize: '1.5rem' }} />
-                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/videos' ? 'block' : 'none' }} />
                       </IconButton>
 
-                      <IconButton component={Link} to="/groups" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Groups">
+                      <IconButton component={Link} to="/groups" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1 }} title="Groups">
                         <GroupIcon sx={{ fontSize: '1.5rem' }} />
-                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/groups' ? 'block' : 'none' }} />
                       </IconButton>
 
-                      <IconButton component={Link} to="/meetings" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Meetings">
-                        <EventIcon sx={{ fontSize: '1.5rem' }} />
-                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/meetings' ? 'block' : 'none' }} />
-                      </IconButton>
+                      {/* Apps (9-dot) button */}
+                      <Tooltip title="Apps">
+                        <IconButton
+                          aria-label="Open apps menu"
+                          aria-controls={registeredAppsAnchor ? 'registered-apps-menu' : undefined}
+                          aria-haspopup="true"
+                          aria-expanded={Boolean(registeredAppsAnchor)}
+                          onClick={(e) => setRegisteredAppsAnchor(e.currentTarget)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setRegisteredAppsAnchor(e.currentTarget); e.preventDefault(); } }}
+                          sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', ml: 1, '&:focus-visible': { outline: '2px solid rgba(10,102,194,0.25)', outlineOffset: '2px' } }}
+                        >
+                          <AppsIcon sx={{ fontSize: '1.4rem' }} />
+                        </IconButton>
+                      </Tooltip>
 
-                      <IconButton component={Link} to="/shop" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Shop">
-                        <ShoppingCart sx={{ fontSize: '1.5rem' }} />
-                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/shop' ? 'block' : 'none' }} />
-                      </IconButton>
-
-                      <IconButton component={Link} to="/projects" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Projects">
-                        <WorkIcon sx={{ fontSize: '1.5rem' }} />
-                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/projects' ? 'block' : 'none' }} />
-                      </IconButton>
-
-                      <IconButton component={Link} to="/docs" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Docs">
-                        <Article sx={{ fontSize: '1.5rem' }} />
-                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/docs' ? 'block' : 'none' }} />
-                      </IconButton>
-
-                      <IconButton sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1 }} title="More">
-                        <MoreHorizIcon sx={{ fontSize: '1.5rem' }} />
-                      </IconButton>
+                      <Menu id="registered-apps-menu" anchorEl={registeredAppsAnchor} open={Boolean(registeredAppsAnchor)} onClose={() => setRegisteredAppsAnchor(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} transformOrigin={{ vertical: 'top', horizontal: 'center' }}>
+                        <MenuItem component={Link} to="/docs" onClick={() => setRegisteredAppsAnchor(null)}>
+                          <ListItemIcon>
+                            <Description fontSize="small" />
+                          </ListItemIcon>
+                          <ListItemText>Docs</ListItemText>
+                        </MenuItem>
+                        <MenuItem component={Link} to="/projects" onClick={() => setRegisteredAppsAnchor(null)}>
+                          <ListItemIcon>
+                            <WorkIcon fontSize="small" />
+                          </ListItemIcon>
+                          <ListItemText>Projects</ListItemText>
+                        </MenuItem>
+                        <MenuItem component={Link} to="/pages" onClick={() => setRegisteredAppsAnchor(null)}>
+                          <ListItemIcon>
+                            <PagesIcon fontSize="small" />
+                          </ListItemIcon>
+                          <ListItemText>Pages</ListItemText>
+                        </MenuItem>
+                        <MenuItem component={Link} to="/shop" onClick={() => setRegisteredAppsAnchor(null)}>
+                          <ListItemIcon>
+                            <ShoppingCart fontSize="small" />
+                          </ListItemIcon>
+                          <ListItemText>Shop</ListItemText>
+                        </MenuItem>
+                        <MenuItem component={Link} to="/meetings" onClick={() => setRegisteredAppsAnchor(null)}>
+                          <ListItemIcon>
+                            <EventIcon fontSize="small" />
+                          </ListItemIcon>
+                          <ListItemText>Meetings</ListItemText>
+                        </MenuItem>
+                        <MenuItem component={Link} to="/blog" onClick={() => setRegisteredAppsAnchor(null)}>
+                          <ListItemIcon>
+                            <Article fontSize="small" />
+                          </ListItemIcon>
+                          <ListItemText>Blog</ListItemText>
+                        </MenuItem>
+                      </Menu>
                     </Box>
                   )}
 
@@ -403,15 +591,48 @@ function App() {
                           <ChatIcon sx={{ fontSize: '1.3rem' }} />
                         </IconButton>
 
-                        <IconButton component={Link} to="/profile" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5' }, borderRadius: 1, p: 0.5, ml: 1 }} title="Profile">
+                        <IconButton onClick={(e) => setProfileMenuAnchor(e.currentTarget)} sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5' }, borderRadius: 1, p: 0.5, ml: 1 }} title="Profile">
                           <Avatar sx={{ width: 32, height: 32, backgroundColor: '#0a66c2', fontSize: '0.875rem', fontWeight: 600 }}>
                             {internalUser.firstName?.[0]?.toUpperCase()}
                           </Avatar>
                         </IconButton>
 
-                        <IconButton onClick={handleLogout} sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5' }, borderRadius: 1, p: 1 }} title="Logout">
-                          <ExitToApp sx={{ fontSize: '1.3rem' }} />
-                        </IconButton>
+                        <Menu
+                          anchorEl={profileMenuAnchor}
+                          open={Boolean(profileMenuAnchor)}
+                          onClose={() => setProfileMenuAnchor(null)}
+                          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                        >
+                          <Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 220 }}>
+                            <ListItemAvatar>
+                              <Avatar sx={{ width: 44, height: 44, backgroundColor: '#0a66c2' }}>{internalUser.firstName?.[0]?.toUpperCase()}</Avatar>
+                            </ListItemAvatar>
+                            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                              <Typography variant="subtitle1">{internalUser.firstName} {internalUser.lastName}</Typography>
+                              <Typography variant="caption" color="text.secondary">{internalUser.email}</Typography>
+                            </Box>
+                          </Box>
+                          <Divider />
+                          <MenuItem component={Link} to="/profile" onClick={() => setProfileMenuAnchor(null)}>
+                            <ListItemIcon>
+                              <Person fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText>View / Switch Profile</ListItemText>
+                          </MenuItem>
+                          <MenuItem component={Link} to="/settings/theme" onClick={() => setProfileMenuAnchor(null)}>
+                            <ListItemIcon>
+                              <SettingsIcon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText>Settings</ListItemText>
+                          </MenuItem>
+                          <MenuItem onClick={() => { setProfileMenuAnchor(null); handleLogout(); }}>
+                            <ListItemIcon>
+                              <ExitToApp fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText>Logout</ListItemText>
+                          </MenuItem>
+                        </Menu>
                       </>
                     )}
                   </Box>
@@ -426,43 +647,134 @@ function App() {
                       <MenuIcon />
                     </IconButton>
                   )}
-
-                  <Typography
-                    variant="h6"
-                    component={Link}
-                    to="/"
-                    sx={{
-                      flexGrow: isMobile ? 1 : 0,
-                      mr: isMobile ? 0 : 4,
-                      textDecoration: 'none',
-                      color: 'inherit',
-                      fontWeight: 700,
-                    }}
-                  >
-                    Let's Connect
-                  </Typography>
-
-                  {!isMobile && (
-                    <Box sx={{ flexGrow: 1, display: 'flex', gap: 1 }}>
-                      <Button color="inherit" component={Link} to="/videos" startIcon={<VideoLibrary />}>Videos</Button>
-                      <Button color="inherit" component={Link} to="/shop" startIcon={<ShoppingCart />}>Shop</Button>
-                      <Button color="inherit" component={Link} to="/blog" startIcon={<Article />}>Blog</Button>
-                      <Button color="inherit" component={Link} to="/docs" startIcon={<Description />}>Docs</Button>
-                      <Button color="inherit" component={Link} to="/meetings" startIcon={<EventIcon />}>Meetings</Button>
-                    </Box>
-                  )}
-
+                  {/* Left Section: Name + Docs + Videos */}
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <IconButton color="inherit" onClick={toggleTheme}>
-                      {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
-                    </IconButton>
+                    <Typography
+                      variant="h6"
+                      component={Link}
+                      to="/"
+                      sx={{
+                        textDecoration: 'none',
+                        color: 'inherit',
+                        fontWeight: 700,
+                        mr: 2
+                      }}
+                    >
+                      Let's Connect
+                    </Typography>
 
                     {!isMobile && (
                       <>
-                        <Button color="inherit" component={Link} to="/login">Login</Button>
-                        <Button variant="contained" color="secondary" component={Link} to="/register" sx={{ ml: 1 }}>Sign Up</Button>
+                        <Button color="inherit" component={Link} to="/docs" startIcon={<Description />} sx={{ minWidth: 'auto', px: 2 }}>
+                          Docs
+                        </Button>
+                        <Button color="inherit" component={Link} to="/videos" startIcon={<VideoLibrary />} sx={{ minWidth: 'auto', px: 2 }}>
+                          Videos
+                        </Button>
                       </>
                     )}
+                  </Box>
+
+                  {/* Spacer */}
+                  <Box sx={{ flexGrow: 1 }} />
+
+                  {/* Right Section: Settings + Login + More Menu */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {!isMobile && (
+                      <>
+                        <Button color="inherit" component={Link} to="/settings/theme" startIcon={<SettingsIcon />}>
+                          Settings
+                        </Button>
+
+                        <Button color="inherit" component={Link} to="/login">
+                          Login
+                        </Button>
+
+                        <IconButton
+                          color="inherit"
+                          onClick={(e) => setMoreMenuAnchor(e.currentTarget)}
+                          sx={{ ml: 1 }}
+                        >
+                          <Box sx={{ position: 'relative', width: 24, height: 24 }}>
+                            {/* 3 squares */}
+                            <Box sx={{
+                              position: 'absolute',
+                              top: 2,
+                              left: 2,
+                              width: 6,
+                              height: 6,
+                              backgroundColor: 'currentColor',
+                              borderRadius: 0.5
+                            }} />
+                            <Box sx={{
+                              position: 'absolute',
+                              top: 2,
+                              right: 2,
+                              width: 6,
+                              height: 6,
+                              backgroundColor: 'currentColor',
+                              borderRadius: 0.5
+                            }} />
+                            <Box sx={{
+                              position: 'absolute',
+                              bottom: 2,
+                              left: 2,
+                              width: 6,
+                              height: 6,
+                              backgroundColor: 'currentColor',
+                              borderRadius: 0.5
+                            }} />
+                            {/* 1 circle */}
+                            <Box sx={{
+                              position: 'absolute',
+                              bottom: 2,
+                              right: 2,
+                              width: 6,
+                              height: 6,
+                              backgroundColor: 'currentColor',
+                              borderRadius: '50%'
+                            }} />
+                          </Box>
+                        </IconButton>
+
+                        <Menu
+                          anchorEl={moreMenuAnchor}
+                          open={Boolean(moreMenuAnchor)}
+                          onClose={() => setMoreMenuAnchor(null)}
+                          anchorOrigin={{
+                            vertical: 'bottom',
+                            horizontal: 'right',
+                          }}
+                          transformOrigin={{
+                            vertical: 'top',
+                            horizontal: 'right',
+                          }}
+                        >
+                          <MenuItem component={Link} to="/shop" onClick={() => setMoreMenuAnchor(null)}>
+                            <ListItemIcon>
+                              <ShoppingCart fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText>Shop</ListItemText>
+                          </MenuItem>
+                          <MenuItem component={Link} to="/meetings" onClick={() => setMoreMenuAnchor(null)}>
+                            <ListItemIcon>
+                              <EventIcon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText>Meetings</ListItemText>
+                          </MenuItem>
+                          <MenuItem component={Link} to="/blog" onClick={() => setMoreMenuAnchor(null)}>
+                            <ListItemIcon>
+                              <Article fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText>Blog</ListItemText>
+                          </MenuItem>
+                        </Menu>
+                      </>
+                    )}
+
+                    <IconButton color="inherit" onClick={toggleTheme}>
+                      {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+                    </IconButton>
                   </Box>
                 </Toolbar>
               </AppBar>
@@ -583,6 +895,8 @@ function App() {
                   />
                   {/* Phase 5 Features - Theme Settings */}
                   <Route path="/settings/theme" element={<ThemeSettings />} />
+                  {/* Phase 5 Features - Accessibility Settings */}
+                  <Route path="/settings/accessibility" element={<AccessibilitySettings />} />
                 </Routes>
               </Suspense>
             </Container>
@@ -591,7 +905,7 @@ function App() {
           </Router>
         </ErrorBoundary>
       </ThemeProvider>
-    </QueryClientProvider>
+    </QueryClientProvider >
   );
 }
 
