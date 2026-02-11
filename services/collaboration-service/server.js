@@ -470,6 +470,583 @@ const MeetingDecision = sequelize.define('MeetingDecision', {
   }
 });
 
+// Phase 9: External Meeting Integration
+const ExternalMeetingLink = sequelize.define('ExternalMeetingLink', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  platform: {
+    type: DataTypes.ENUM('google_meet', 'zoom', 'teams'),
+    allowNull: false
+  },
+  externalId: DataTypes.STRING,
+  joinUrl: DataTypes.STRING,
+  metadata: DataTypes.JSONB,
+  syncedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// Phase 9: Meeting Recording Policy
+const MeetingRecording = sequelize.define('MeetingRecording', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  recordingUrl: DataTypes.STRING,
+  recordingType: {
+    type: DataTypes.ENUM('video', 'audio', 'transcript'),
+    defaultValue: 'video'
+  },
+  startedAt: DataTypes.DATE,
+  endedAt: DataTypes.DATE,
+  duration: DataTypes.INTEGER,
+  recordedBy: DataTypes.UUID,
+  consent: DataTypes.JSONB, // Track who consented to recording
+  policy: DataTypes.JSONB // Organization/meeting-specific recording policy
+});
+
+// Phase 9: Calendar Integration
+const CalendarEvent = sequelize.define('CalendarEvent', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  provider: {
+    type: DataTypes.ENUM('google', 'outlook'),
+    allowNull: false
+  },
+  externalEventId: DataTypes.STRING,
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  syncedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// Phase 9: Debate Mode - Evidence and Arguments
+const DebateEvidence = sequelize.define('DebateEvidence', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  participantId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  side: {
+    type: DataTypes.ENUM('pro', 'con'),
+    allowNull: false
+  },
+  title: DataTypes.STRING,
+  content: DataTypes.TEXT,
+  sourceUrl: DataTypes.STRING,
+  sourceType: {
+    type: DataTypes.ENUM('article', 'study', 'expert', 'data', 'other'),
+    defaultValue: 'other'
+  },
+  credibilityScore: DataTypes.FLOAT,
+  submittedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+const DebateArgument = sequelize.define('DebateArgument', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  participantId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  side: {
+    type: DataTypes.ENUM('pro', 'con'),
+    allowNull: false
+  },
+  roundNumber: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1
+  },
+  argumentType: {
+    type: DataTypes.ENUM('opening', 'rebuttal', 'closing'),
+    defaultValue: 'opening'
+  },
+  content: DataTypes.TEXT,
+  evidenceIds: DataTypes.ARRAY(DataTypes.UUID),
+  timestamp: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+const DebateVote = sequelize.define('DebateVote', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  voterId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  winningSide: {
+    type: DataTypes.ENUM('pro', 'con', 'tie'),
+    allowNull: false
+  },
+  reasoning: DataTypes.TEXT,
+  votedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// Phase 9: Round Table Mode
+const RoundTableTurn = sequelize.define('RoundTableTurn', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  participantId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  roundNumber: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1
+  },
+  orderIndex: DataTypes.INTEGER,
+  topicId: DataTypes.UUID,
+  startedAt: DataTypes.DATE,
+  endedAt: DataTypes.DATE,
+  allocatedSeconds: {
+    type: DataTypes.INTEGER,
+    defaultValue: 120
+  },
+  usedSeconds: DataTypes.INTEGER,
+  content: DataTypes.TEXT
+});
+
+const RoundTableTopic = sequelize.define('RoundTableTopic', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  orderIndex: DataTypes.INTEGER,
+  status: {
+    type: DataTypes.ENUM('pending', 'active', 'completed'),
+    defaultValue: 'pending'
+  },
+  consensusLevel: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0
+  }
+});
+
+// Phase 9: Virtual Court Mode
+const CourtEvidence = sequelize.define('CourtEvidence', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  submittedBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  exhibitNumber: DataTypes.STRING,
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  fileUrl: DataTypes.STRING,
+  fileType: DataTypes.STRING,
+  chainOfCustody: DataTypes.JSONB, // Immutable log of who handled evidence
+  admissibilityStatus: {
+    type: DataTypes.ENUM('pending', 'admitted', 'excluded'),
+    defaultValue: 'pending'
+  },
+  submittedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+const CourtMotion = sequelize.define('CourtMotion', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  filedBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  motionType: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  ruling: {
+    type: DataTypes.ENUM('granted', 'denied', 'deferred', 'pending'),
+    defaultValue: 'pending'
+  },
+  rulingReason: DataTypes.TEXT,
+  ruledBy: DataTypes.UUID,
+  filedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  },
+  ruledAt: DataTypes.DATE
+});
+
+const CourtVerdict = sequelize.define('CourtVerdict', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  judgeId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  decision: DataTypes.TEXT,
+  reasoning: DataTypes.TEXT,
+  evidenceConsidered: DataTypes.ARRAY(DataTypes.UUID),
+  renderedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// Phase 9: Workshop Mode
+const WorkshopIdea = sequelize.define('WorkshopIdea', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  authorId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  category: DataTypes.STRING,
+  votes: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  priorityScore: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0
+  },
+  status: {
+    type: DataTypes.ENUM('proposed', 'discussing', 'accepted', 'rejected'),
+    defaultValue: 'proposed'
+  },
+  createdAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// Phase 9: Town Hall Mode
+const TownHallQuestion = sequelize.define('TownHallQuestion', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  askerId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  question: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  upvotes: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  answered: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  answer: DataTypes.TEXT,
+  answeredBy: DataTypes.UUID,
+  answeredAt: DataTypes.DATE,
+  submittedAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+const TownHallPoll = sequelize.define('TownHallPoll', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  createdBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  question: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  options: DataTypes.JSONB, // Array of {id, text, votes}
+  isActive: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  totalVotes: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  createdAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// Phase 9: Virtual Conference Mode
+const ConferenceSession = sequelize.define('ConferenceSession', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  track: DataTypes.STRING,
+  speakerIds: DataTypes.ARRAY(DataTypes.UUID),
+  startTime: DataTypes.DATE,
+  endTime: DataTypes.DATE,
+  roomId: DataTypes.STRING,
+  capacity: DataTypes.INTEGER,
+  attendeeCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  resources: DataTypes.JSONB // Links, slides, recordings
+});
+
+// Phase 9: Quiz Mode
+const QuizQuestion = sequelize.define('QuizQuestion', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  question: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  options: DataTypes.JSONB, // Array of {id, text, isCorrect}
+  correctAnswer: DataTypes.STRING,
+  points: {
+    type: DataTypes.INTEGER,
+    defaultValue: 10
+  },
+  timeLimit: DataTypes.INTEGER, // seconds
+  orderIndex: DataTypes.INTEGER,
+  category: DataTypes.STRING
+});
+
+const QuizResponse = sequelize.define('QuizResponse', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  questionId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  participantId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  teamId: DataTypes.UUID,
+  answer: DataTypes.STRING,
+  isCorrect: DataTypes.BOOLEAN,
+  pointsEarned: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  timeToAnswer: DataTypes.INTEGER, // milliseconds
+  answeredAt: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// Phase 9: Real-time state tracking
+const MeetingState = sequelize.define('MeetingState', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    unique: true
+  },
+  currentRound: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  currentSpeaker: DataTypes.UUID,
+  timerStartedAt: DataTypes.DATE,
+  timerDuration: DataTypes.INTEGER, // seconds
+  timerRemaining: DataTypes.INTEGER,
+  isPaused: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  stateData: DataTypes.JSONB, // Mode-specific state
+  lastUpdated: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// Phase 9: Audit trail for role actions
+const MeetingAuditLog = sequelize.define('MeetingAuditLog', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  meetingId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  action: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  category: {
+    type: DataTypes.ENUM(
+      'meeting_control',
+      'participant_action',
+      'evidence_submission',
+      'ruling',
+      'vote',
+      'timer',
+      'role_change',
+      'other'
+    ),
+    defaultValue: 'other'
+  },
+  details: DataTypes.JSONB,
+  timestamp: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
 // Relationships
 Issue.hasMany(IssueComment, { foreignKey: 'issueId' });
 IssueComment.belongsTo(Issue, { foreignKey: 'issueId' });
@@ -593,6 +1170,60 @@ CollaborativeSession.hasMany(CollaborativeOperation, { foreignKey: 'sessionId', 
 CollaborativeOperation.belongsTo(CollaborativeSession, { foreignKey: 'sessionId' });
 CollaborativeSession.hasMany(UserPresence, { foreignKey: 'sessionId', as: 'presences' });
 UserPresence.belongsTo(CollaborativeSession, { foreignKey: 'sessionId' });
+
+// Phase 9: Additional meeting mode relationships
+Meeting.hasMany(ExternalMeetingLink, { foreignKey: 'meetingId', as: 'externalLinks' });
+ExternalMeetingLink.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(MeetingRecording, { foreignKey: 'meetingId', as: 'recordings' });
+MeetingRecording.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(CalendarEvent, { foreignKey: 'meetingId', as: 'calendarEvents' });
+CalendarEvent.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasOne(MeetingState, { foreignKey: 'meetingId', as: 'state' });
+MeetingState.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(MeetingAuditLog, { foreignKey: 'meetingId', as: 'auditLogs' });
+MeetingAuditLog.belongsTo(Meeting, { foreignKey: 'meetingId' });
+
+// Debate mode relationships
+Meeting.hasMany(DebateEvidence, { foreignKey: 'meetingId', as: 'debateEvidence' });
+DebateEvidence.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(DebateArgument, { foreignKey: 'meetingId', as: 'debateArguments' });
+DebateArgument.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(DebateVote, { foreignKey: 'meetingId', as: 'debateVotes' });
+DebateVote.belongsTo(Meeting, { foreignKey: 'meetingId' });
+
+// Round Table mode relationships
+Meeting.hasMany(RoundTableTopic, { foreignKey: 'meetingId', as: 'roundTableTopics' });
+RoundTableTopic.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(RoundTableTurn, { foreignKey: 'meetingId', as: 'roundTableTurns' });
+RoundTableTurn.belongsTo(Meeting, { foreignKey: 'meetingId' });
+
+// Court mode relationships
+Meeting.hasMany(CourtEvidence, { foreignKey: 'meetingId', as: 'courtEvidence' });
+CourtEvidence.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(CourtMotion, { foreignKey: 'meetingId', as: 'courtMotions' });
+CourtMotion.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(CourtVerdict, { foreignKey: 'meetingId', as: 'courtVerdicts' });
+CourtVerdict.belongsTo(Meeting, { foreignKey: 'meetingId' });
+
+// Workshop mode relationships
+Meeting.hasMany(WorkshopIdea, { foreignKey: 'meetingId', as: 'workshopIdeas' });
+WorkshopIdea.belongsTo(Meeting, { foreignKey: 'meetingId' });
+
+// Town Hall mode relationships
+Meeting.hasMany(TownHallQuestion, { foreignKey: 'meetingId', as: 'townHallQuestions' });
+TownHallQuestion.belongsTo(Meeting, { foreignKey: 'meetingId' });
+Meeting.hasMany(TownHallPoll, { foreignKey: 'meetingId', as: 'townHallPolls' });
+TownHallPoll.belongsTo(Meeting, { foreignKey: 'meetingId' });
+
+// Conference mode relationships
+Meeting.hasMany(ConferenceSession, { foreignKey: 'meetingId', as: 'conferenceSessions' });
+ConferenceSession.belongsTo(Meeting, { foreignKey: 'meetingId' });
+
+// Quiz mode relationships
+Meeting.hasMany(QuizQuestion, { foreignKey: 'meetingId', as: 'quizQuestions' });
+QuizQuestion.belongsTo(Meeting, { foreignKey: 'meetingId' });
+QuizQuestion.hasMany(QuizResponse, { foreignKey: 'questionId', as: 'responses' });
+QuizResponse.belongsTo(QuizQuestion, { foreignKey: 'questionId' });
 
 sequelize.sync();
 
@@ -1314,6 +1945,1255 @@ app.delete('/meetings/:id/decisions/:decisionId', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(error.status || 500).json({ error: error.message || 'Failed to delete decision' });
+  }
+});
+
+// ==================== PHASE 9: MEETING MODES - BACKEND ENDPOINTS ====================
+
+// External Meeting Integration
+app.post('/meetings/:id/external-link', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { platform, externalId, joinUrl, metadata } = req.body;
+
+    const link = await ExternalMeetingLink.create({
+      meetingId: req.params.id,
+      platform,
+      externalId,
+      joinUrl,
+      metadata
+    });
+
+    res.status(201).json(link);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create external link' });
+  }
+});
+
+app.get('/meetings/:id/external-links', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const links = await ExternalMeetingLink.findAll({
+      where: { meetingId: req.params.id },
+      order: [['syncedAt', 'DESC']]
+    });
+
+    res.json(links);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get external links' });
+  }
+});
+
+// Recording Management
+app.post('/meetings/:id/recordings', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { recordingUrl, recordingType, startedAt, endedAt, duration, consent, policy } = req.body;
+
+    const recording = await MeetingRecording.create({
+      meetingId: req.params.id,
+      recordingUrl,
+      recordingType,
+      startedAt,
+      endedAt,
+      duration,
+      recordedBy: userId,
+      consent,
+      policy
+    });
+
+    res.status(201).json(recording);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create recording' });
+  }
+});
+
+app.get('/meetings/:id/recordings', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const recordings = await MeetingRecording.findAll({
+      where: { meetingId: req.params.id },
+      order: [['startedAt', 'DESC']]
+    });
+
+    res.json(recordings);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get recordings' });
+  }
+});
+
+// Calendar Integration
+app.post('/meetings/:id/calendar-sync', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { provider, externalEventId } = req.body;
+
+    const calendarEvent = await CalendarEvent.create({
+      meetingId: req.params.id,
+      provider,
+      externalEventId,
+      userId
+    });
+
+    res.status(201).json(calendarEvent);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to sync calendar' });
+  }
+});
+
+// Meeting State Management
+app.get('/meetings/:id/state', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    let state = await MeetingState.findOne({
+      where: { meetingId: req.params.id }
+    });
+
+    if (!state) {
+      state = await MeetingState.create({
+        meetingId: req.params.id
+      });
+    }
+
+    res.json(state);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get meeting state' });
+  }
+});
+
+app.put('/meetings/:id/state', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { currentRound, currentSpeaker, timerStartedAt, timerDuration, timerRemaining, isPaused, stateData } = req.body;
+
+    let state = await MeetingState.findOne({
+      where: { meetingId: req.params.id }
+    });
+
+    if (!state) {
+      state = await MeetingState.create({
+        meetingId: req.params.id,
+        currentRound,
+        currentSpeaker,
+        timerStartedAt,
+        timerDuration,
+        timerRemaining,
+        isPaused,
+        stateData
+      });
+    } else {
+      await state.update({
+        currentRound,
+        currentSpeaker,
+        timerStartedAt,
+        timerDuration,
+        timerRemaining,
+        isPaused,
+        stateData,
+        lastUpdated: new Date()
+      });
+    }
+
+    // Log the state change
+    await MeetingAuditLog.create({
+      meetingId: req.params.id,
+      userId,
+      action: 'state_update',
+      category: 'meeting_control',
+      details: { newState: stateData }
+    });
+
+    res.json(state);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update meeting state' });
+  }
+});
+
+// Audit Logs
+app.get('/meetings/:id/audit-logs', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const logs = await MeetingAuditLog.findAll({
+      where: { meetingId: req.params.id },
+      order: [['timestamp', 'DESC']],
+      limit: 100
+    });
+
+    res.json(logs);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get audit logs' });
+  }
+});
+
+// ==================== DEBATE MODE ====================
+
+app.post('/meetings/:id/debate/evidence', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { side, title, content, sourceUrl, sourceType, credibilityScore } = req.body;
+
+    const evidence = await DebateEvidence.create({
+      meetingId: req.params.id,
+      participantId: userId,
+      side,
+      title,
+      content,
+      sourceUrl,
+      sourceType,
+      credibilityScore
+    });
+
+    await MeetingAuditLog.create({
+      meetingId: req.params.id,
+      userId,
+      action: 'submit_evidence',
+      category: 'evidence_submission',
+      details: { evidenceId: evidence.id, side, title }
+    });
+
+    res.status(201).json(evidence);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to submit evidence' });
+  }
+});
+
+app.get('/meetings/:id/debate/evidence', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { side } = req.query;
+    const where = { meetingId: req.params.id };
+    if (side) where.side = side;
+
+    const evidence = await DebateEvidence.findAll({
+      where,
+      order: [['submittedAt', 'ASC']]
+    });
+
+    res.json(evidence);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get evidence' });
+  }
+});
+
+app.post('/meetings/:id/debate/arguments', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { side, roundNumber, argumentType, content, evidenceIds } = req.body;
+
+    const argument = await DebateArgument.create({
+      meetingId: req.params.id,
+      participantId: userId,
+      side,
+      roundNumber,
+      argumentType,
+      content,
+      evidenceIds
+    });
+
+    await MeetingAuditLog.create({
+      meetingId: req.params.id,
+      userId,
+      action: 'submit_argument',
+      category: 'participant_action',
+      details: { argumentId: argument.id, side, roundNumber, argumentType }
+    });
+
+    res.status(201).json(argument);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to submit argument' });
+  }
+});
+
+app.get('/meetings/:id/debate/arguments', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const arguments = await DebateArgument.findAll({
+      where: { meetingId: req.params.id },
+      order: [['roundNumber', 'ASC'], ['timestamp', 'ASC']]
+    });
+
+    res.json(arguments);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get arguments' });
+  }
+});
+
+app.post('/meetings/:id/debate/vote', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { winningSide, reasoning } = req.body;
+
+    const vote = await DebateVote.create({
+      meetingId: req.params.id,
+      voterId: userId,
+      winningSide,
+      reasoning
+    });
+
+    await MeetingAuditLog.create({
+      meetingId: req.params.id,
+      userId,
+      action: 'cast_vote',
+      category: 'vote',
+      details: { voteId: vote.id, winningSide }
+    });
+
+    res.status(201).json(vote);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to submit vote' });
+  }
+});
+
+app.get('/meetings/:id/debate/votes', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const votes = await DebateVote.findAll({
+      where: { meetingId: req.params.id },
+      order: [['votedAt', 'ASC']]
+    });
+
+    // Calculate results
+    const results = {
+      pro: votes.filter(v => v.winningSide === 'pro').length,
+      con: votes.filter(v => v.winningSide === 'con').length,
+      tie: votes.filter(v => v.winningSide === 'tie').length,
+      total: votes.length
+    };
+
+    res.json({ votes, results });
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get votes' });
+  }
+});
+
+// ==================== ROUND TABLE MODE ====================
+
+app.post('/meetings/:id/roundtable/topics', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { title, description, orderIndex } = req.body;
+
+    const topic = await RoundTableTopic.create({
+      meetingId: req.params.id,
+      title,
+      description,
+      orderIndex
+    });
+
+    res.status(201).json(topic);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create topic' });
+  }
+});
+
+app.get('/meetings/:id/roundtable/topics', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const topics = await RoundTableTopic.findAll({
+      where: { meetingId: req.params.id },
+      order: [['orderIndex', 'ASC']]
+    });
+
+    res.json(topics);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get topics' });
+  }
+});
+
+app.put('/meetings/:id/roundtable/topics/:topicId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { status, consensusLevel } = req.body;
+    const topic = await RoundTableTopic.findByPk(req.params.topicId);
+
+    if (!topic || topic.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
+
+    await topic.update({ status, consensusLevel });
+    res.json(topic);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update topic' });
+  }
+});
+
+app.post('/meetings/:id/roundtable/turns', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { participantId, roundNumber, orderIndex, topicId, allocatedSeconds, content } = req.body;
+
+    const turn = await RoundTableTurn.create({
+      meetingId: req.params.id,
+      participantId,
+      roundNumber,
+      orderIndex,
+      topicId,
+      allocatedSeconds,
+      startedAt: new Date(),
+      content
+    });
+
+    await MeetingAuditLog.create({
+      meetingId: req.params.id,
+      userId,
+      action: 'start_turn',
+      category: 'participant_action',
+      details: { turnId: turn.id, participantId, roundNumber }
+    });
+
+    res.status(201).json(turn);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create turn' });
+  }
+});
+
+app.put('/meetings/:id/roundtable/turns/:turnId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { endedAt, usedSeconds, content } = req.body;
+    const turn = await RoundTableTurn.findByPk(req.params.turnId);
+
+    if (!turn || turn.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Turn not found' });
+    }
+
+    await turn.update({ endedAt, usedSeconds, content });
+    res.json(turn);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update turn' });
+  }
+});
+
+app.get('/meetings/:id/roundtable/turns', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const turns = await RoundTableTurn.findAll({
+      where: { meetingId: req.params.id },
+      order: [['roundNumber', 'ASC'], ['orderIndex', 'ASC']]
+    });
+
+    res.json(turns);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get turns' });
+  }
+});
+
+// ==================== VIRTUAL COURT MODE ====================
+
+app.post('/meetings/:id/court/evidence', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { exhibitNumber, title, description, fileUrl, fileType, chainOfCustody } = req.body;
+
+    const evidence = await CourtEvidence.create({
+      meetingId: req.params.id,
+      submittedBy: userId,
+      exhibitNumber,
+      title,
+      description,
+      fileUrl,
+      fileType,
+      chainOfCustody: chainOfCustody || [{ userId, action: 'submitted', timestamp: new Date() }]
+    });
+
+    await MeetingAuditLog.create({
+      meetingId: req.params.id,
+      userId,
+      action: 'submit_court_evidence',
+      category: 'evidence_submission',
+      details: { evidenceId: evidence.id, exhibitNumber, title }
+    });
+
+    res.status(201).json(evidence);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to submit evidence' });
+  }
+});
+
+app.get('/meetings/:id/court/evidence', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const evidence = await CourtEvidence.findAll({
+      where: { meetingId: req.params.id },
+      order: [['submittedAt', 'ASC']]
+    });
+
+    res.json(evidence);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get evidence' });
+  }
+});
+
+app.put('/meetings/:id/court/evidence/:evidenceId/admissibility', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { admissibilityStatus } = req.body;
+    const evidence = await CourtEvidence.findByPk(req.params.evidenceId);
+
+    if (!evidence || evidence.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Evidence not found' });
+    }
+
+    await evidence.update({ admissibilityStatus });
+
+    await MeetingAuditLog.create({
+      meetingId: req.params.id,
+      userId,
+      action: 'rule_on_evidence',
+      category: 'ruling',
+      details: { evidenceId: evidence.id, admissibilityStatus }
+    });
+
+    res.json(evidence);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update evidence' });
+  }
+});
+
+app.post('/meetings/:id/court/motions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { motionType, title, description } = req.body;
+
+    const motion = await CourtMotion.create({
+      meetingId: req.params.id,
+      filedBy: userId,
+      motionType,
+      title,
+      description
+    });
+
+    await MeetingAuditLog.create({
+      meetingId: req.params.id,
+      userId,
+      action: 'file_motion',
+      category: 'participant_action',
+      details: { motionId: motion.id, motionType, title }
+    });
+
+    res.status(201).json(motion);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to file motion' });
+  }
+});
+
+app.get('/meetings/:id/court/motions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const motions = await CourtMotion.findAll({
+      where: { meetingId: req.params.id },
+      order: [['filedAt', 'ASC']]
+    });
+
+    res.json(motions);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get motions' });
+  }
+});
+
+app.put('/meetings/:id/court/motions/:motionId/ruling', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { ruling, rulingReason } = req.body;
+    const motion = await CourtMotion.findByPk(req.params.motionId);
+
+    if (!motion || motion.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Motion not found' });
+    }
+
+    await motion.update({
+      ruling,
+      rulingReason,
+      ruledBy: userId,
+      ruledAt: new Date()
+    });
+
+    await MeetingAuditLog.create({
+      meetingId: req.params.id,
+      userId,
+      action: 'rule_on_motion',
+      category: 'ruling',
+      details: { motionId: motion.id, ruling, rulingReason }
+    });
+
+    res.json(motion);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to rule on motion' });
+  }
+});
+
+app.post('/meetings/:id/court/verdict', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { decision, reasoning, evidenceConsidered } = req.body;
+
+    const verdict = await CourtVerdict.create({
+      meetingId: req.params.id,
+      judgeId: userId,
+      decision,
+      reasoning,
+      evidenceConsidered
+    });
+
+    await MeetingAuditLog.create({
+      meetingId: req.params.id,
+      userId,
+      action: 'render_verdict',
+      category: 'ruling',
+      details: { verdictId: verdict.id, decision }
+    });
+
+    res.status(201).json(verdict);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to render verdict' });
+  }
+});
+
+app.get('/meetings/:id/court/verdict', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const verdict = await CourtVerdict.findOne({
+      where: { meetingId: req.params.id },
+      order: [['renderedAt', 'DESC']]
+    });
+
+    res.json(verdict);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get verdict' });
+  }
+});
+
+// ==================== WORKSHOP MODE ====================
+
+app.post('/meetings/:id/workshop/ideas', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { title, description, category } = req.body;
+
+    const idea = await WorkshopIdea.create({
+      meetingId: req.params.id,
+      authorId: userId,
+      title,
+      description,
+      category
+    });
+
+    res.status(201).json(idea);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create idea' });
+  }
+});
+
+app.get('/meetings/:id/workshop/ideas', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const ideas = await WorkshopIdea.findAll({
+      where: { meetingId: req.params.id },
+      order: [['priorityScore', 'DESC'], ['votes', 'DESC']]
+    });
+
+    res.json(ideas);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get ideas' });
+  }
+});
+
+app.post('/meetings/:id/workshop/ideas/:ideaId/vote', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const idea = await WorkshopIdea.findByPk(req.params.ideaId);
+
+    if (!idea || idea.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Idea not found' });
+    }
+
+    await idea.update({ votes: idea.votes + 1 });
+    res.json(idea);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to vote on idea' });
+  }
+});
+
+app.put('/meetings/:id/workshop/ideas/:ideaId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { status, priorityScore } = req.body;
+    const idea = await WorkshopIdea.findByPk(req.params.ideaId);
+
+    if (!idea || idea.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Idea not found' });
+    }
+
+    await idea.update({ status, priorityScore });
+    res.json(idea);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update idea' });
+  }
+});
+
+// ==================== TOWN HALL MODE ====================
+
+app.post('/meetings/:id/townhall/questions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { question } = req.body;
+
+    const q = await TownHallQuestion.create({
+      meetingId: req.params.id,
+      askerId: userId,
+      question
+    });
+
+    res.status(201).json(q);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to submit question' });
+  }
+});
+
+app.get('/meetings/:id/townhall/questions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const questions = await TownHallQuestion.findAll({
+      where: { meetingId: req.params.id },
+      order: [['upvotes', 'DESC'], ['submittedAt', 'ASC']]
+    });
+
+    res.json(questions);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get questions' });
+  }
+});
+
+app.post('/meetings/:id/townhall/questions/:questionId/upvote', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const question = await TownHallQuestion.findByPk(req.params.questionId);
+
+    if (!question || question.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+
+    await question.update({ upvotes: question.upvotes + 1 });
+    res.json(question);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to upvote question' });
+  }
+});
+
+app.put('/meetings/:id/townhall/questions/:questionId/answer', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { answer } = req.body;
+    const question = await TownHallQuestion.findByPk(req.params.questionId);
+
+    if (!question || question.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+
+    await question.update({
+      answered: true,
+      answer,
+      answeredBy: userId,
+      answeredAt: new Date()
+    });
+
+    res.json(question);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to answer question' });
+  }
+});
+
+app.post('/meetings/:id/townhall/polls', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { question, options } = req.body;
+
+    const poll = await TownHallPoll.create({
+      meetingId: req.params.id,
+      createdBy: userId,
+      question,
+      options: options.map((opt, idx) => ({ id: idx, text: opt, votes: 0 }))
+    });
+
+    res.status(201).json(poll);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create poll' });
+  }
+});
+
+app.get('/meetings/:id/townhall/polls', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const polls = await TownHallPoll.findAll({
+      where: { meetingId: req.params.id },
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(polls);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get polls' });
+  }
+});
+
+app.post('/meetings/:id/townhall/polls/:pollId/vote', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { optionId } = req.body;
+    const poll = await TownHallPoll.findByPk(req.params.pollId);
+
+    if (!poll || poll.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Poll not found' });
+    }
+
+    const options = poll.options;
+    const option = options.find(o => o.id === optionId);
+    if (!option) {
+      return res.status(404).json({ error: 'Option not found' });
+    }
+
+    option.votes += 1;
+    await poll.update({
+      options,
+      totalVotes: poll.totalVotes + 1
+    });
+
+    res.json(poll);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to vote on poll' });
+  }
+});
+
+// ==================== VIRTUAL CONFERENCE MODE ====================
+
+app.post('/meetings/:id/conference/sessions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { title, description, track, speakerIds, startTime, endTime, roomId, capacity, resources } = req.body;
+
+    const session = await ConferenceSession.create({
+      meetingId: req.params.id,
+      title,
+      description,
+      track,
+      speakerIds,
+      startTime,
+      endTime,
+      roomId,
+      capacity,
+      resources
+    });
+
+    res.status(201).json(session);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create session' });
+  }
+});
+
+app.get('/meetings/:id/conference/sessions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { track } = req.query;
+    const where = { meetingId: req.params.id };
+    if (track) where.track = track;
+
+    const sessions = await ConferenceSession.findAll({
+      where,
+      order: [['startTime', 'ASC']]
+    });
+
+    res.json(sessions);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get sessions' });
+  }
+});
+
+app.put('/meetings/:id/conference/sessions/:sessionId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { attendeeCount, resources } = req.body;
+    const session = await ConferenceSession.findByPk(req.params.sessionId);
+
+    if (!session || session.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    await session.update({ attendeeCount, resources });
+    res.json(session);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update session' });
+  }
+});
+
+// ==================== QUIZ MODE ====================
+
+app.post('/meetings/:id/quiz/questions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { question, options, correctAnswer, points, timeLimit, orderIndex, category } = req.body;
+
+    const quizQuestion = await QuizQuestion.create({
+      meetingId: req.params.id,
+      question,
+      options,
+      correctAnswer,
+      points,
+      timeLimit,
+      orderIndex,
+      category
+    });
+
+    res.status(201).json(quizQuestion);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create quiz question' });
+  }
+});
+
+app.get('/meetings/:id/quiz/questions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const questions = await QuizQuestion.findAll({
+      where: { meetingId: req.params.id },
+      order: [['orderIndex', 'ASC']]
+    });
+
+    res.json(questions);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get quiz questions' });
+  }
+});
+
+app.post('/meetings/:id/quiz/responses', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const { questionId, answer, teamId, timeToAnswer } = req.body;
+
+    const question = await QuizQuestion.findByPk(questionId);
+    if (!question || question.meetingId !== req.params.id) {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+
+    const isCorrect = answer === question.correctAnswer;
+    const pointsEarned = isCorrect ? question.points : 0;
+
+    const response = await QuizResponse.create({
+      questionId,
+      participantId: userId,
+      teamId,
+      answer,
+      isCorrect,
+      pointsEarned,
+      timeToAnswer
+    });
+
+    res.status(201).json(response);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to submit response' });
+  }
+});
+
+app.get('/meetings/:id/quiz/leaderboard', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await requireMeetingAccess(req.params.id, userId);
+    const questions = await QuizQuestion.findAll({
+      where: { meetingId: req.params.id },
+      include: [{
+        model: QuizResponse,
+        as: 'responses'
+      }]
+    });
+
+    // Calculate participant scores
+    const scores = {};
+    questions.forEach(q => {
+      q.responses.forEach(r => {
+        if (!scores[r.participantId]) {
+          scores[r.participantId] = { participantId: r.participantId, totalPoints: 0, correctAnswers: 0 };
+        }
+        scores[r.participantId].totalPoints += r.pointsEarned;
+        if (r.isCorrect) scores[r.participantId].correctAnswers += 1;
+      });
+    });
+
+    const leaderboard = Object.values(scores).sort((a, b) => b.totalPoints - a.totalPoints);
+    res.json(leaderboard);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to get leaderboard' });
   }
 });
 
