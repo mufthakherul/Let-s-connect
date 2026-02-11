@@ -1,10 +1,25 @@
 const express = require('express');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const crypto = require('crypto');
+const http = require('http');
+const { Server } = require('socket.io');
+const ot = require('ot');
+const Redis = require('ioredis');
 require('dotenv').config();
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true
+  }
+});
+
 const PORT = process.env.PORT || 8004;
+
+// Redis for caching and real-time state
+const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 
 app.use(express.json());
 
@@ -265,6 +280,103 @@ Document.hasMany(DocumentVersion, { foreignKey: 'documentId', as: 'versions' });
 DocumentVersion.belongsTo(Document, { foreignKey: 'documentId' });
 Wiki.hasMany(WikiHistory, { foreignKey: 'wikiId', as: 'history' });
 WikiHistory.belongsTo(Wiki, { foreignKey: 'wikiId' });
+
+// Phase 6: Collaborative Editing Models (Deferred from Phase 6 to Phase 7)
+const CollaborativeSession = sequelize.define('CollaborativeSession', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  documentId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  documentType: {
+    type: DataTypes.ENUM('document', 'wiki', 'spreadsheet'),
+    defaultValue: 'document'
+  },
+  activeUsers: {
+    type: DataTypes.ARRAY(DataTypes.UUID),
+    defaultValue: []
+  },
+  lastActivity: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  },
+  operationCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+});
+
+const CollaborativeOperation = sequelize.define('CollaborativeOperation', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  sessionId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  operationType: {
+    type: DataTypes.ENUM('insert', 'delete', 'retain', 'format'),
+    allowNull: false
+  },
+  position: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  content: DataTypes.TEXT,
+  length: DataTypes.INTEGER,
+  attributes: DataTypes.JSONB, // For formatting operations
+  baseRevision: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  appliedRevision: DataTypes.INTEGER
+});
+
+const UserPresence = sequelize.define('UserPresence', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  sessionId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  cursorPosition: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  selectionStart: DataTypes.INTEGER,
+  selectionEnd: DataTypes.INTEGER,
+  color: {
+    type: DataTypes.STRING,
+    defaultValue: '#000000'
+  },
+  lastSeen: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+});
+
+// Collaborative editing relationships
+CollaborativeSession.hasMany(CollaborativeOperation, { foreignKey: 'sessionId', as: 'operations' });
+CollaborativeOperation.belongsTo(CollaborativeSession, { foreignKey: 'sessionId' });
+CollaborativeSession.hasMany(UserPresence, { foreignKey: 'sessionId', as: 'presences' });
+UserPresence.belongsTo(CollaborativeSession, { foreignKey: 'sessionId' });
 
 sequelize.sync();
 
@@ -1983,6 +2095,429 @@ app.get('/webrtc/ice-servers', (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+// ============================================================================
+// Phase 6: Collaborative Editing API Endpoints (Deferred from Phase 6 to Phase 7)
+// ============================================================================
+
+// Create or join a collaborative session
+app.post('/collaborative/sessions', async (req, res) => {
+  try {
+    const { documentId, documentType, userId } = req.body;
+
+    if (!documentId || !userId) {
+      return res.status(400).json({ error: 'documentId and userId are required' });
+    }
+
+    // Check if session already exists
+    let session = await CollaborativeSession.findOne({ where: { documentId } });
+
+    if (session) {
+      // Add user to active users if not already present
+      if (!session.activeUsers.includes(userId)) {
+        session.activeUsers = [...session.activeUsers, userId];
+        session.lastActivity = new Date();
+        await session.save();
+      }
+    } else {
+      // Create new session
+      session = await CollaborativeSession.create({
+        documentId,
+        documentType: documentType || 'document',
+        activeUsers: [userId]
+      });
+    }
+
+    res.status(201).json(session);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create/join session' });
+  }
+});
+
+// Get collaborative session
+app.get('/collaborative/sessions/:documentId', async (req, res) => {
+  try {
+    const session = await CollaborativeSession.findOne({
+      where: { documentId: req.params.documentId },
+      include: [
+        { model: UserPresence, as: 'presences' },
+        { 
+          model: CollaborativeOperation, 
+          as: 'operations',
+          limit: 100,
+          order: [['createdAt', 'DESC']]
+        }
+      ]
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    res.json(session);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch session' });
+  }
+});
+
+// Leave collaborative session
+app.delete('/collaborative/sessions/:documentId/users/:userId', async (req, res) => {
+  try {
+    const { documentId, userId } = req.params;
+
+    const session = await CollaborativeSession.findOne({ where: { documentId } });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    session.activeUsers = session.activeUsers.filter(id => id !== userId);
+    await session.save();
+
+    // Remove user presence
+    await UserPresence.destroy({
+      where: { sessionId: session.id, userId }
+    });
+
+    // If no active users, optionally delete the session
+    if (session.activeUsers.length === 0) {
+      await session.destroy();
+    }
+
+    res.json({ message: 'Left session successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to leave session' });
+  }
+});
+
+// Get operations for a session
+app.get('/collaborative/sessions/:documentId/operations', async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const { fromRevision, limit = 100 } = req.query;
+
+    const session = await CollaborativeSession.findOne({ where: { documentId } });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const whereClause = { sessionId: session.id };
+    if (fromRevision) {
+      whereClause.baseRevision = { [Op.gte]: parseInt(fromRevision) };
+    }
+
+    const operations = await CollaborativeOperation.findAll({
+      where: whereClause,
+      order: [['createdAt', 'ASC']],
+      limit: parseInt(limit)
+    });
+
+    res.json({ operations, currentRevision: session.operationCount });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch operations' });
+  }
+});
+
+// Get active users in a session
+app.get('/collaborative/sessions/:documentId/users', async (req, res) => {
+  try {
+    const { documentId } = req.params;
+
+    const session = await CollaborativeSession.findOne({
+      where: { documentId },
+      include: [{ model: UserPresence, as: 'presences' }]
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found', activeUsers: [] });
+    }
+
+    res.json({
+      activeUsers: session.activeUsers,
+      presences: session.presences
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch active users' });
+  }
+});
+
+// Update user cursor position
+app.put('/collaborative/sessions/:documentId/cursor', async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const { userId, cursorPosition, selectionStart, selectionEnd, color } = req.body;
+
+    const session = await CollaborativeSession.findOne({ where: { documentId } });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    let presence = await UserPresence.findOne({
+      where: { sessionId: session.id, userId }
+    });
+
+    if (presence) {
+      presence.cursorPosition = cursorPosition;
+      presence.selectionStart = selectionStart;
+      presence.selectionEnd = selectionEnd;
+      presence.lastSeen = new Date();
+      if (color) presence.color = color;
+      await presence.save();
+    } else {
+      presence = await UserPresence.create({
+        sessionId: session.id,
+        userId,
+        cursorPosition,
+        selectionStart,
+        selectionEnd,
+        color: color || `#${Math.floor(Math.random()*16777215).toString(16)}`
+      });
+    }
+
+    res.json(presence);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update cursor' });
+  }
+});
+
+// ============================================================================
+// WebSocket Handlers for Real-time Collaboration
+// ============================================================================
+
+// Store active connections by document ID
+const documentSockets = new Map();
+
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+
+  // Join a collaborative document session
+  socket.on('join-document', async (data) => {
+    try {
+      const { documentId, userId, userName } = data;
+
+      if (!documentId || !userId) {
+        socket.emit('error', { message: 'documentId and userId are required' });
+        return;
+      }
+
+      // Join the room for this document
+      socket.join(documentId);
+
+      // Store socket connection
+      if (!documentSockets.has(documentId)) {
+        documentSockets.set(documentId, new Set());
+      }
+      documentSockets.get(documentId).add(socket.id);
+
+      // Update session in database
+      let session = await CollaborativeSession.findOne({ where: { documentId } });
+      if (!session) {
+        session = await CollaborativeSession.create({
+          documentId,
+          activeUsers: [userId]
+        });
+      } else if (!session.activeUsers.includes(userId)) {
+        session.activeUsers = [...session.activeUsers, userId];
+        await session.save();
+      }
+
+      // Create user presence
+      const color = `#${Math.floor(Math.random()*16777215).toString(16)}`;
+      await UserPresence.create({
+        sessionId: session.id,
+        userId,
+        color,
+        cursorPosition: 0
+      });
+
+      // Notify other users
+      socket.to(documentId).emit('user-joined', {
+        userId,
+        userName,
+        color,
+        timestamp: new Date()
+      });
+
+      // Send current session state to the new user
+      const presences = await UserPresence.findAll({
+        where: { sessionId: session.id }
+      });
+
+      socket.emit('session-joined', {
+        sessionId: session.id,
+        activeUsers: session.activeUsers,
+        presences,
+        currentRevision: session.operationCount
+      });
+
+      console.log(`User ${userId} joined document ${documentId}`);
+    } catch (error) {
+      console.error('Error joining document:', error);
+      socket.emit('error', { message: 'Failed to join document' });
+    }
+  });
+
+  // Handle operational transformation operations
+  socket.on('operation', async (data) => {
+    try {
+      const { documentId, userId, operation, baseRevision } = data;
+
+      const session = await CollaborativeSession.findOne({ where: { documentId } });
+      if (!session) {
+        socket.emit('error', { message: 'Session not found' });
+        return;
+      }
+
+      // Simple conflict resolution: apply operation and increment revision
+      const appliedRevision = session.operationCount + 1;
+
+      // Store the operation
+      await CollaborativeOperation.create({
+        sessionId: session.id,
+        userId,
+        operationType: operation.type,
+        position: operation.position,
+        content: operation.content,
+        length: operation.length,
+        attributes: operation.attributes,
+        baseRevision,
+        appliedRevision
+      });
+
+      // Update session
+      session.operationCount = appliedRevision;
+      session.lastActivity = new Date();
+      await session.save();
+
+      // Broadcast operation to all other users in the room
+      socket.to(documentId).emit('operation', {
+        userId,
+        operation,
+        revision: appliedRevision,
+        timestamp: new Date()
+      });
+
+      // Acknowledge to sender
+      socket.emit('operation-ack', {
+        revision: appliedRevision,
+        baseRevision
+      });
+    } catch (error) {
+      console.error('Error processing operation:', error);
+      socket.emit('error', { message: 'Failed to process operation' });
+    }
+  });
+
+  // Handle cursor position updates
+  socket.on('cursor-update', async (data) => {
+    try {
+      const { documentId, userId, cursorPosition, selectionStart, selectionEnd } = data;
+
+      const session = await CollaborativeSession.findOne({ where: { documentId } });
+      if (!session) {
+        return;
+      }
+
+      // Update presence
+      await UserPresence.update(
+        {
+          cursorPosition,
+          selectionStart,
+          selectionEnd,
+          lastSeen: new Date()
+        },
+        {
+          where: { sessionId: session.id, userId }
+        }
+      );
+
+      // Broadcast cursor update to other users
+      socket.to(documentId).emit('cursor-update', {
+        userId,
+        cursorPosition,
+        selectionStart,
+        selectionEnd,
+        timestamp: new Date()
+      });
+    } catch (error) {
+      console.error('Error updating cursor:', error);
+    }
+  });
+
+  // Handle user leaving document
+  socket.on('leave-document', async (data) => {
+    try {
+      const { documentId, userId } = data;
+
+      // Leave the room
+      socket.leave(documentId);
+
+      // Remove from socket map
+      if (documentSockets.has(documentId)) {
+        documentSockets.get(documentId).delete(socket.id);
+        if (documentSockets.get(documentId).size === 0) {
+          documentSockets.delete(documentId);
+        }
+      }
+
+      // Update session
+      const session = await CollaborativeSession.findOne({ where: { documentId } });
+      if (session) {
+        session.activeUsers = session.activeUsers.filter(id => id !== userId);
+        await session.save();
+
+        // Remove presence
+        await UserPresence.destroy({
+          where: { sessionId: session.id, userId }
+        });
+
+        // Notify other users
+        socket.to(documentId).emit('user-left', {
+          userId,
+          timestamp: new Date()
+        });
+
+        // Clean up empty sessions
+        if (session.activeUsers.length === 0) {
+          await session.destroy();
+        }
+      }
+
+      console.log(`User ${userId} left document ${documentId}`);
+    } catch (error) {
+      console.error('Error leaving document:', error);
+    }
+  });
+
+  // Handle disconnect
+  socket.on('disconnect', async () => {
+    console.log('Client disconnected:', socket.id);
+
+    // Clean up all document connections for this socket
+    for (const [documentId, sockets] of documentSockets.entries()) {
+      if (sockets.has(socket.id)) {
+        sockets.delete(socket.id);
+        if (sockets.size === 0) {
+          documentSockets.delete(documentId);
+        }
+
+        // Notify others in the room
+        socket.to(documentId).emit('user-disconnected', {
+          socketId: socket.id,
+          timestamp: new Date()
+        });
+      }
+    }
+  });
+});
+
+server.listen(PORT, () => {
   console.log(`Collaboration service running on port ${PORT}`);
 });
