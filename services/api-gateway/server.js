@@ -475,7 +475,8 @@ const services = {
   collaboration: 'http://collaboration-service:8004',
   media: 'http://media-service:8005',
   shop: 'http://shop-service:8006',
-  ai: 'http://ai-service:8007'
+  ai: 'http://ai-service:8007',
+  streaming: 'http://streaming-service:8009'
 };
 
 // Public routes (no authentication required)
@@ -574,6 +575,13 @@ app.use('/api/shop', createAuthProxy(services.shop), applyUserLimiter, proxy(ser
 app.use('/api/ai', createAuthProxy(services.ai), aiRequestLimiter, proxy(services.ai, {
   proxyReqPathResolver: function (req) {
     return req.originalUrl.replace('/api/ai', '');
+  }
+}));
+
+// Streaming Service routes (IPFM/IPTV)
+app.use('/api/streaming', createAuthProxy(services.streaming), applyUserLimiter, proxy(services.streaming, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl.replace('/api/streaming', '');
   }
 }));
 

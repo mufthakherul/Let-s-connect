@@ -16,7 +16,7 @@ import {
   Phone as PhoneIcon, Storage as DatabaseIcon, CompareArrows as DiffIcon,
   Event as EventIcon,
   Settings as SettingsIcon, MoreHoriz as MoreHorizIcon, Apps as AppsIcon, PeopleAlt as PeopleIcon, SwapHoriz as SwapHorizIcon, Close as CloseIcon,
-  AccessibilityNew, ExpandLess, ExpandMore,
+  AccessibilityNew, ExpandLess, ExpandMore, Radio as RadioIcon, Tv as TvIcon,
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -65,6 +65,8 @@ const DiscordAdmin = lazy(() => import('./components/DiscordAdmin'));
 const Meetings = lazy(() => import('./components/Meetings'));
 const MeetingRoom = lazy(() => import('./components/MeetingRoom'));
 const MeetingLobby = lazy(() => import('./components/MeetingLobby'));
+const Radio = lazy(() => import('./components/Radio'));
+const TV = lazy(() => import('./components/TV'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -573,6 +575,18 @@ function App() {
                           </ListItemIcon>
                           <ListItemText>Blog</ListItemText>
                         </MenuItem>
+                        <MenuItem component={Link} to="/radio" onClick={() => setRegisteredAppsAnchor(null)}>
+                          <ListItemIcon>
+                            <RadioIcon fontSize="small" />
+                          </ListItemIcon>
+                          <ListItemText>Live Radio</ListItemText>
+                        </MenuItem>
+                        <MenuItem component={Link} to="/tv" onClick={() => setRegisteredAppsAnchor(null)}>
+                          <ListItemIcon>
+                            <TvIcon fontSize="small" />
+                          </ListItemIcon>
+                          <ListItemText>Live TV</ListItemText>
+                        </MenuItem>
                       </Menu>
                     </Box>
                   )}
@@ -897,6 +911,15 @@ function App() {
                   <Route path="/settings/theme" element={<ThemeSettings />} />
                   {/* Phase 5 Features - Accessibility Settings */}
                   <Route path="/settings/accessibility" element={<AccessibilitySettings />} />
+                  {/* Streaming Features - Radio & TV */}
+                  <Route
+                    path="/radio"
+                    element={internalUser ? <Radio /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/tv"
+                    element={internalUser ? <TV /> : <Navigate to="/login" />}
+                  />
                 </Routes>
               </Suspense>
             </Container>
