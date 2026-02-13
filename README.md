@@ -98,6 +98,8 @@ A comprehensive enterprise-grade social collaboration platform combining feature
 - 💡 **Skills** - LinkedIn-style skills and endorsements
 - 📊 **Projects** - GitHub-style project management
 - 🔔 **Notifications** - In-app notification center (NEW)
+- 📻 **Live Radio (IPFM)** - Stream radio stations from around the world (NEW)
+- 📺 **Live TV (IPTV)** - Watch live TV channels globally (NEW)
 
 ## 🏗️ Architecture
 
@@ -111,6 +113,7 @@ Built with **modular microservices** for scalability and maintainability:
 - **Media Service** - File storage with MinIO (S3-compatible)
 - **Shop Service** - E-commerce and order management
 - **AI Service** - Gemini integration for smart features
+- **Streaming Service** - Live radio (IPFM) and TV (IPTV) streaming
 
 ## 🛠️ Technology Stack
 
@@ -194,6 +197,7 @@ docker-compose up --build
 - **[Full Documentation Index](./docs/README.md)** - Complete documentation index
 - **[Architecture Guide](./docs/ARCHITECTURE.md)** - System design and microservices
 - **[API Reference](./docs/API.md)** - Complete REST API documentation
+- **[Streaming Features](./docs/STREAMING_FEATURES.md)** - Live Radio & TV documentation
 
 ### Configuration & Setup
 - **[OAuth & Email Setup](./docs/OAUTH_MAILGUN_SETUP.md)** - Configure OAuth and Mailgun

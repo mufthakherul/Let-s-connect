@@ -179,6 +179,43 @@ This platform brings together features from:
 - ✅ Response caching
 - ✅ Context-aware responses
 
+### 📻 Live Radio (IPFM) ✨ NEW
+- ✅ Browse radio stations worldwide
+- ✅ Search stations by name/description
+- ✅ Filter by genre (Rock, Pop, Jazz, News, etc.)
+- ✅ Filter by country and language
+- ✅ Live audio streaming
+- ✅ Volume control and mute
+- ✅ Station metadata display (bitrate, listeners, etc.)
+- ✅ Add custom radio stations
+- ✅ Favorite radio stations
+- ✅ Listening history
+- ✅ Popular stations ranking
+- ✅ Real-time listener counting
+- ✅ M3U playlist import/export
+- ✅ Create custom playlists
+- ✅ Station logo display
+
+### 📺 Live TV (IPTV) ✨ NEW
+- ✅ Browse TV channels worldwide
+- ✅ Search channels by name/description
+- ✅ Filter by category (News, Sports, Entertainment, etc.)
+- ✅ Filter by country and language
+- ✅ Live video streaming (HLS/M3U8 support)
+- ✅ HTML5 video player with controls
+- ✅ Fullscreen mode
+- ✅ Channel metadata display (resolution, viewers, etc.)
+- ✅ Add custom TV channels
+- ✅ Favorite TV channels
+- ✅ Viewing history
+- ✅ Popular channels ranking
+- ✅ Real-time viewer counting
+- ✅ M3U playlist import/export
+- ✅ Create custom playlists
+- ✅ EPG (Electronic Program Guide) support
+- ✅ Multi-resolution support (SD/HD/FHD/4K)
+- ✅ Channel logo display
+
 ## Technical Features
 
 ### 🔒 Security
@@ -379,6 +416,42 @@ This platform brings together features from:
 - ✅ `GET /servers/:serverId/webhooks` - Get server webhooks
 - ✅ `POST /servers/:serverId/webhooks` - Create webhook
 - ✅ `DELETE /webhooks/:webhookId` - Delete webhook
+
+#### Radio Station API (Streaming Service) ✨ NEW
+- ✅ `GET /radio/stations` - Get all radio stations (with filters)
+- ✅ `GET /radio/stations/:id` - Get single radio station
+- ✅ `POST /radio/stations` - Add new radio station
+- ✅ `PUT /radio/stations/:id` - Update radio station
+- ✅ `DELETE /radio/stations/:id` - Delete radio station
+- ✅ `POST /radio/stations/:id/listen` - Start listening (increment counter)
+- ✅ `POST /radio/stations/:id/stop` - Stop listening (decrement counter)
+- ✅ `GET /radio/popular` - Get popular radio stations
+- ✅ `GET /radio/genres` - Get available genres
+
+#### TV Channel API (Streaming Service) ✨ NEW
+- ✅ `GET /tv/channels` - Get all TV channels (with filters)
+- ✅ `GET /tv/channels/:id` - Get single TV channel
+- ✅ `POST /tv/channels` - Add new TV channel
+- ✅ `PUT /tv/channels/:id` - Update TV channel
+- ✅ `DELETE /tv/channels/:id` - Delete TV channel
+- ✅ `POST /tv/channels/:id/watch` - Start watching (increment counter)
+- ✅ `POST /tv/channels/:id/stop` - Stop watching (decrement counter)
+- ✅ `GET /tv/popular` - Get popular TV channels
+- ✅ `GET /tv/categories` - Get available categories
+
+#### Streaming Favorites API (Streaming Service) ✨ NEW
+- ✅ `GET /favorites` - Get user favorites
+- ✅ `POST /favorites` - Add to favorites
+- ✅ `DELETE /favorites/:id` - Remove from favorites
+
+#### Streaming Playlists API (Streaming Service) ✨ NEW
+- ✅ `GET /playlists` - Get user playlists
+- ✅ `POST /playlists` - Create playlist
+- ✅ `POST /playlists/import` - Import M3U playlist
+- ✅ `GET /playlists/:id/export` - Export playlist as M3U
+
+#### Streaming History API (Streaming Service) ✨ NEW
+- ✅ `GET /history` - Get playback history
 
 ## Documentation
 

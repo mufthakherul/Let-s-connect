@@ -24,6 +24,8 @@ services:
         condition: service_started
       ai-service:
         condition: service_started
+      streaming-service:
+        condition: service_started
       redis:
         condition: service_healthy
     networks:
@@ -152,6 +154,22 @@ services:
     networks:
       - lets-connect-network
 
+  # Streaming Service (IPFM/IPTV)
+  streaming-service:
+    build: ./services/streaming-service
+    ports:
+      - "8009:8009"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/streaming
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - lets-connect-network
+
   # Frontend Application
   frontend:
     build:
@@ -172,7 +190,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_MULTIPLE_DATABASES=users,content,messages,collaboration,media,shop,webhooks
+      - POSTGRES_MULTIPLE_DATABASES=users,content,messages,collaboration,media,shop,webhooks,streaming
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./scripts/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
