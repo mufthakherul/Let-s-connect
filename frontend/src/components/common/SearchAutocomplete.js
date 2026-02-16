@@ -83,7 +83,7 @@ const SearchAutocomplete = ({ variant = 'outlined', size = 'small', fullWidth = 
         const response = await api.get('/content-service/search/suggestions', {
           params: { query, limit: 8 },
         });
-        
+
         const suggestions = response.data.suggestions || [];
         setOptions(suggestions.map((s) => ({
           label: s.text || s,
@@ -124,7 +124,7 @@ const SearchAutocomplete = ({ variant = 'outlined', size = 'small', fullWidth = 
 
   const handleInputChange = (event, value) => {
     setInputValue(value);
-    
+
     if (value.trim().length >= 2) {
       fetchSuggestions(value);
     } else {
@@ -201,7 +201,7 @@ const SearchAutocomplete = ({ variant = 'outlined', size = 'small', fullWidth = 
             {option?.type === 'history' && <HistoryIcon fontSize="small" color="action" />}
             {option?.type === 'trending' && <TrendingIcon fontSize="small" color="primary" />}
             {option?.type === 'suggestion' && <SearchIcon fontSize="small" color="action" />}
-            
+
             <Box sx={{ flexGrow: 1 }}>
               <Typography variant="body2">{option?.label}</Typography>
               {option?.type === 'history' && (
