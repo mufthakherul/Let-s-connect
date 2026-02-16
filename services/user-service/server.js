@@ -575,6 +575,20 @@ app.get('/metrics', (req, res) => {
   res.type('text/plain').send(metrics);
 });
 
+// Username availability check (public)
+app.get('/check-username', async (req, res) => {
+  try {
+    const username = (req.query.username || '').trim();
+    if (!username) return res.status(400).json({ error: 'username query param is required' });
+
+    const existing = await User.findOne({ where: { username } });
+    return res.json({ available: !existing });
+  } catch (error) {
+    console.error('check-username error:', error);
+    res.status(500).json({ error: 'Failed to check username' });
+  }
+});
+
 // Register
 app.post('/register', async (req, res) => {
   try {
