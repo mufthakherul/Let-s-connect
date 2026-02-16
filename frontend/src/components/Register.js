@@ -62,7 +62,7 @@ function Register({ setUser }) {
     const t = setTimeout(async () => {
       try {
         // Mark this request to skip automatic interceptor auth-redirects (public check)
-        const res = await api.get(`/user/check-username?username=${encodeURIComponent(name)}`, { skipAuthRedirect: true, headers: { 'X-Skip-Auth-Redirect': '1' } });
+        const res = await api.get(`/user/check-username?username=${encodeURIComponent(name)}`, { skipAuthRedirect: true });
         if (res?.data && typeof res.data.available === 'boolean') {
           setUsernameStatus(res.data.available ? 'available' : 'taken');
         } else {
@@ -225,7 +225,7 @@ function Register({ setUser }) {
                   const name = formData.username.trim();
                   if (!name) return;
                   setUsernameStatus('checking');
-                  api.get(`/user/check-username?username=${encodeURIComponent(name)}`, { skipAuthRedirect: true, headers: { 'X-Skip-Auth-Redirect': '1' } })
+                  api.get(`/user/check-username?username=${encodeURIComponent(name)}`, { skipAuthRedirect: true })
                     .then((res) => {
                       if (res?.data && typeof res.data.available === 'boolean') setUsernameStatus(res.data.available ? 'available' : 'taken');
                       else setUsernameStatus('available');

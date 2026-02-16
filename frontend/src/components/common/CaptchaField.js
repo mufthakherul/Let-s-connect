@@ -105,7 +105,8 @@ export default function CaptchaField({ onSolve, onClear, variant = 'auto', label
       }
       const script = document.createElement('script');
       script.id = id;
-      script.src = 'https://js.hcaptcha.com/1/api.js';
+      // Use explicit render mode and rely on onload to avoid premature render warnings
+      script.src = 'https://js.hcaptcha.com/1/api.js?render=explicit';
       script.async = true;
       script.defer = true;
       script.onload = () => renderWidget();
