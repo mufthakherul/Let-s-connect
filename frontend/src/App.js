@@ -71,6 +71,37 @@ const MeetingRoom = lazy(() => import('./components/MeetingRoom'));
 const MeetingLobby = lazy(() => import('./components/MeetingLobby'));
 const Radio = lazy(() => import('./components/Radio'));
 const TV = lazy(() => import('./components/TV'));
+const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./components/TermsOfService'));
+const CookiePolicy = lazy(() => import('./components/CookiePolicy'));
+const HelpCenter = lazy(() => import('./components/helpcenter/HelpCenter'));
+const UserManuals = lazy(() => import('./components/helpcenter/UserManuals'));
+const FAQ = lazy(() => import('./components/helpcenter/FAQ'));
+const Feedback = lazy(() => import('./components/helpcenter/Feedback'));
+const SupportTicket = lazy(() => import('./components/helpcenter/SupportTicket'));
+const GettingStartedGuide = lazy(() => import('./components/helpcenter/guides/GettingStartedGuide'));
+const SocialFeaturesGuide = lazy(() => import('./components/helpcenter/guides/SocialFeaturesGuide'));
+const MessagingGuide = lazy(() => import('./components/helpcenter/guides/MessagingGuide'));
+const VideosGuide = lazy(() => import('./components/helpcenter/guides/VideosGuide'));
+const LiveTvGuide = lazy(() => import('./components/helpcenter/guides/LiveTvGuide'));
+const LiveRadioGuide = lazy(() => import('./components/helpcenter/guides/LiveRadioGuide'));
+const MeetingsGuide = lazy(() => import('./components/helpcenter/guides/MeetingsGuide'));
+const ShopGuide = lazy(() => import('./components/helpcenter/guides/ShopGuide'));
+const BlogGuide = lazy(() => import('./components/helpcenter/guides/BlogGuide'));
+const DocsGuide = lazy(() => import('./components/helpcenter/guides/DocsGuide'));
+const GroupsGuide = lazy(() => import('./components/helpcenter/guides/GroupsGuide'));
+const PagesGuide = lazy(() => import('./components/helpcenter/guides/PagesGuide'));
+const ProjectsGuide = lazy(() => import('./components/helpcenter/guides/ProjectsGuide'));
+const CartGuide = lazy(() => import('./components/helpcenter/guides/CartGuide'));
+const BookmarksGuide = lazy(() => import('./components/helpcenter/guides/BookmarksGuide'));
+const CallsGuide = lazy(() => import('./components/helpcenter/guides/CallsGuide'));
+const FoldersGuide = lazy(() => import('./components/helpcenter/guides/FoldersGuide'));
+const WikiDiffGuide = lazy(() => import('./components/helpcenter/guides/WikiDiffGuide'));
+const DatabaseViewsGuide = lazy(() => import('./components/helpcenter/guides/DatabaseViewsGuide'));
+const ProfileGuide = lazy(() => import('./components/helpcenter/guides/ProfileGuide'));
+const EmailSettingsGuide = lazy(() => import('./components/helpcenter/guides/EmailSettingsGuide'));
+const SearchGuide = lazy(() => import('./components/helpcenter/guides/SearchGuide'));
+const AdvancedSearchGuide = lazy(() => import('./components/helpcenter/guides/AdvancedSearchGuide'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -392,11 +423,15 @@ function AppContent() {
   const navigationItems = [
     { label: 'Home', path: '/', icon: <HomeIcon />, public: true },
     { label: 'Search', path: '/search', icon: <SearchIcon />, public: true },
+    { label: 'Help Center', path: '/helpcenter', icon: <ChatIcon />, public: true },
     { label: 'Advanced Search', path: '/search/advanced', icon: <SearchIcon />, public: false },
     { label: 'Videos', path: '/videos', icon: <VideoLibrary />, public: true },
     { label: 'Shop', path: '/shop', icon: <ShoppingCart />, public: true },
     { label: 'Blog', path: '/blog', icon: <Article />, public: true },
     { label: 'Docs', path: '/docs', icon: <Description />, public: true },
+    { label: 'Privacy', path: '/privacy', icon: <Security />, public: true },
+    { label: 'Terms', path: '/terms', icon: <Article />, public: true },
+    { label: 'Cookies', path: '/cookies', icon: <Verified />, public: true },
     { label: 'Meetings', path: '/meetings', icon: <EventIcon />, public: true },
     { label: 'Feed', path: '/feed', icon: <FeedIcon />, public: false },
     { label: 'Groups', path: '/groups', icon: <GroupIcon />, public: false },
@@ -1171,6 +1206,42 @@ function AppContent() {
                   <Route path="/settings/theme" element={<ThemeSettings />} />
                   {/* Phase 5 Features - Accessibility Settings */}
                   <Route path="/settings/accessibility" element={<AccessibilitySettings />} />
+
+                  {/* Legal & policies */}
+                  <Route path="/privacy" element={<PrivacyPolicy />} />
+                  <Route path="/terms" element={<TermsOfService />} />
+                  <Route path="/cookies" element={<CookiePolicy />} />
+
+                  {/* Help Center */}
+                  <Route path="/helpcenter" element={<HelpCenter />} />
+                  <Route path="/helpcenter/manuals" element={<UserManuals />} />
+                  <Route path="/helpcenter/manuals/getting-started" element={<GettingStartedGuide />} />
+                  <Route path="/helpcenter/manuals/profile" element={<ProfileGuide />} />
+                  <Route path="/helpcenter/manuals/search" element={<SearchGuide />} />
+                  <Route path="/helpcenter/manuals/advanced-search" element={<AdvancedSearchGuide />} />
+                  <Route path="/helpcenter/manuals/social" element={<SocialFeaturesGuide />} />
+                  <Route path="/helpcenter/manuals/groups" element={<GroupsGuide />} />
+                  <Route path="/helpcenter/manuals/pages" element={<PagesGuide />} />
+                  <Route path="/helpcenter/manuals/bookmarks" element={<BookmarksGuide />} />
+                  <Route path="/helpcenter/manuals/messaging" element={<MessagingGuide />} />
+                  <Route path="/helpcenter/manuals/calls" element={<CallsGuide />} />
+                  <Route path="/helpcenter/manuals/videos" element={<VideosGuide />} />
+                  <Route path="/helpcenter/manuals/live-tv" element={<LiveTvGuide />} />
+                  <Route path="/helpcenter/manuals/live-radio" element={<LiveRadioGuide />} />
+                  <Route path="/helpcenter/manuals/meetings" element={<MeetingsGuide />} />
+                  <Route path="/helpcenter/manuals/docs" element={<DocsGuide />} />
+                  <Route path="/helpcenter/manuals/projects" element={<ProjectsGuide />} />
+                  <Route path="/helpcenter/manuals/shop" element={<ShopGuide />} />
+                  <Route path="/helpcenter/manuals/cart" element={<CartGuide />} />
+                  <Route path="/helpcenter/manuals/blog" element={<BlogGuide />} />
+                  <Route path="/helpcenter/manuals/folders" element={<FoldersGuide />} />
+                  <Route path="/helpcenter/manuals/wiki-diff" element={<WikiDiffGuide />} />
+                  <Route path="/helpcenter/manuals/databases" element={<DatabaseViewsGuide />} />
+                  <Route path="/helpcenter/manuals/email-settings" element={<EmailSettingsGuide />} />
+                  <Route path="/helpcenter/faq" element={<FAQ />} />
+                  <Route path="/helpcenter/feedback" element={<Feedback />} />
+                  <Route path="/helpcenter/tickets" element={<SupportTicket />} />
+
                   {/* Streaming Features - Radio & TV */}
                   <Route
                     path="/radio"
