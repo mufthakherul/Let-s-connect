@@ -1,18 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
     Typography, Box, Button, Grid, Card, CardContent, Container, useTheme,
-    Paper, Chip, Stack
+    Paper, Chip, Stack, Collapse, useMediaQuery
 } from '@mui/material';
 import {
     Speed, Security, CloudDone, Groups, Chat, VideoLibrary,
-    ShoppingCart, Description, SmartToy, Verified
+    ShoppingCart, Description, SmartToy, Verified, Event, Tv, Radio
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 
 function UnregisterLanding() {
     const theme = useTheme();
     const MotionCard = motion(Card);
+    const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+    const [expandedIndex, setExpandedIndex] = useState(null);
+
+    // Brand gradient: purple in dark mode, indigo/cyan in light mode
+    const brandGradient = theme.palette.mode === 'dark'
+        ? 'linear-gradient(45deg, #b388ff, #7c3aed)'
+        : 'linear-gradient(45deg, #4f46e5, #06b6d4)';
 
     const features = [
         {
@@ -46,18 +53,36 @@ function UnregisterLanding() {
             icon: <ShoppingCart sx={{ fontSize: 40, color: 'warning.main' }} />
         },
         {
-            title: 'AI Assistant',
-            description: 'Get help from Gemini-powered intelligent assistant',
+            title: 'Smart Assistant',
+            description: 'Context-aware assistant that helps you get more done, faster',
             link: '/chat',
             icon: <SmartToy sx={{ fontSize: 40, color: 'secondary.main' }} />
+        },
+        {
+            title: 'Meetings',
+            description: 'Schedule and join secure video meetings and webinars with screen sharing',
+            link: '/meetings',
+            icon: <Event sx={{ fontSize: 40, color: 'primary.main' }} />
+        },
+        {
+            title: 'Live TV (IPTV)',
+            description: 'Watch live channels and curated streams in a modern player',
+            link: '/tv',
+            icon: <Tv sx={{ fontSize: 40, color: 'error.main' }} />
+        },
+        {
+            title: 'Live Radio (IP)',
+            description: 'Stream internet radio stations and low-latency audio channels (RTC)',
+            link: '/radio',
+            icon: <Radio sx={{ fontSize: 40, color: 'success.main' }} />
         }
     ];
 
     const highlights = [
-        { icon: <Speed />, text: 'High Performance' },
-        { icon: <Security />, text: 'Secure & Private' },
-        { icon: <CloudDone />, text: 'Self-Hosted' },
-        { icon: <Verified />, text: 'Production Ready' },
+        { icon: <Speed />, text: 'Fast & Responsive' },
+        { icon: <Security />, text: 'Privacy-first' },
+        { icon: <CloudDone />, text: 'Reliable & Scalable' },
+        { icon: <Verified />, text: 'Enterprise-ready' },
     ];
 
     // Motion variants
@@ -77,9 +102,9 @@ function UnregisterLanding() {
         hover: { y: -8, scale: 1.02, boxShadow: '0 10px 30px rgba(2,6,23,0.12)' }
     };
 
-    const floatIcon = {
-        animate: { y: [0, -6, 0], transition: { duration: 4, repeat: Infinity, ease: 'easeInOut' } }
-    };
+    const floatIcon = prefersReducedMotion
+        ? { animate: {} }
+        : { animate: { y: [0, -6, 0], transition: { duration: 4, repeat: Infinity, ease: 'easeInOut' } } };
 
     return (
         <Container
@@ -89,7 +114,47 @@ function UnregisterLanding() {
             initial="hidden"
             animate="visible"
             exit={{ opacity: 0, y: -10 }}
+            sx={{ position: 'relative', overflow: 'visible' }}
         >
+            {/* Decorative background shapes (subtle, non-distracting) */}
+            {!prefersReducedMotion && (
+                <>
+                    <Box
+                        component={motion.div}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 0.12, scale: 1.25, x: -40, y: -20 }}
+                        transition={{ duration: 1.8, ease: 'easeOut' }}
+                        sx={{
+                            position: 'absolute',
+                            width: 220,
+                            height: 220,
+                            borderRadius: '50%',
+                            background: `radial-gradient(circle at 30% 30%, ${theme.palette.primary.main}33, transparent 40%)`,
+                            top: -40,
+                            right: -60,
+                            pointerEvents: 'none',
+                            zIndex: 0
+                        }}
+                    />
+                    <Box
+                        component={motion.div}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 0.08, scale: 1.1, x: 30, y: 10 }}
+                        transition={{ duration: 2.2, ease: 'easeOut' }}
+                        sx={{
+                            position: 'absolute',
+                            width: 160,
+                            height: 160,
+                            borderRadius: '50%',
+                            background: `radial-gradient(circle at 70% 70%, ${theme.palette.secondary.main}33, transparent 40%)`,
+                            bottom: -40,
+                            left: -40,
+                            pointerEvents: 'none',
+                            zIndex: 0
+                        }}
+                    />
+                </>
+            )}
             {/* Hero Section */}
             <Box component={motion.div} variants={fadeInUp} sx={{ textAlign: 'center', mb: 8, mt: 4 }}>
                 <Typography
@@ -99,7 +164,7 @@ function UnregisterLanding() {
                     gutterBottom
                     fontWeight="bold"
                     sx={{
-                        background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                        background: brandGradient,
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
                     }}
@@ -112,14 +177,12 @@ function UnregisterLanding() {
                 </Typography>
 
                 <Typography component={motion.p} variants={fadeInUp} variant="body1" color="text.secondary" paragraph sx={{ maxWidth: 800, mx: 'auto', mb: 4 }}>
-                    A comprehensive platform bringing together social networking, real-time messaging,
-                    video sharing, team collaboration, and e-commerce in a unified,
-                    secure, self-hosted solution designed for modern communities.
+                    A comprehensive platform bringing together social networking, real-time collaboration, video sharing and e-commerce — simple, secure, and designed for modern communities.
                 </Typography>
 
                 <Stack component={motion.div} variants={fadeInUp} direction="row" spacing={2} justifyContent="center" sx={{ mb: 4 }}>
                     {highlights.map((item, i) => (
-                        <Box key={i} component={motion.div} whileHover={{ scale: 1.03 }} sx={{ display: 'inline-block' }}>
+                        <Box key={i} component={motion.div} whileHover={!prefersReducedMotion ? { scale: 1.03 } : {}} sx={{ display: 'inline-block' }}>
                             <Chip
                                 icon={item.icon}
                                 label={item.text}
@@ -132,17 +195,39 @@ function UnregisterLanding() {
                 </Stack>
 
                 <Box sx={{ mt: 4, display: 'inline-flex', gap: 12 }} component={motion.div} variants={fadeInUp}>
-                    <motion.div whileHover={{ scale: 1.04, y: -4 }} whileTap={{ scale: 0.98 }}>
-                        <Button
-                            variant="contained"
-                            size="large"
-                            component={Link}
-                            to="/register"
-                            sx={{ mr: 2, px: 4, py: 1.5, boxShadow: 4 }}
-                        >
-                            Get Started Free
-                        </Button>
-                    </motion.div>
+                    <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+                        {!prefersReducedMotion && (
+                            <Box
+                                component={motion.div}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: [0, 0.12, 0] }}
+                                transition={{ repeat: Infinity, duration: 2.8 }}
+                                sx={{
+                                    position: 'absolute',
+                                    top: -8,
+                                    left: -12,
+                                    right: -12,
+                                    bottom: -8,
+                                    borderRadius: 3,
+                                    background: `radial-gradient(80% 40% at 10% 20%, ${theme.palette.primary.main}22, transparent 40%)`,
+                                    zIndex: 0,
+                                    pointerEvents: 'none'
+                                }}
+                            />
+                        )}
+
+                        <motion.div whileHover={!prefersReducedMotion ? { scale: 1.04, y: -4 } : {}} whileTap={{ scale: 0.98 }}>
+                            <Button
+                                variant="contained"
+                                size="large"
+                                component={Link}
+                                to="/register"
+                                sx={{ mr: 2, px: 4, py: 1.5, boxShadow: 4, position: 'relative', zIndex: 1 }}
+                            >
+                                Get Started Free
+                            </Button>
+                        </motion.div>
+                    </Box>
 
                     <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                         <Button
@@ -160,9 +245,15 @@ function UnregisterLanding() {
 
             {/* Features Grid */}
             <Box sx={{ mb: 8 }}>
-                <Typography component={motion.h2} variants={fadeInUp} variant="h4" fontWeight="bold" sx={{ mb: 4, textAlign: 'center' }}>
-                    Powerful Features
-                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: 'center', justifyContent: 'space-between', mb: 3 }} component={motion.div} variants={fadeInUp}>
+                    <Typography component={motion.h2} variant="h4" fontWeight="bold" sx={{ mb: { xs: 1, md: 0 } }}>
+                        Features
+                    </Typography>
+
+                    <Typography variant="caption" color="text.secondary" sx={{ textAlign: { xs: 'center', md: 'right' }, fontStyle: 'italic' }}>
+                        Tap or click a card to reveal more details
+                    </Typography>
+                </Box>
 
                 <Grid container spacing={3}>
                     {features.map((feature, index) => (
@@ -170,15 +261,20 @@ function UnregisterLanding() {
                             <MotionCard
                                 variants={cardVariant}
                                 initial="hidden"
-                                whileHover="hover"
+                                onClick={() => setExpandedIndex(expandedIndex === index ? null : index)}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedIndex(expandedIndex === index ? null : index); } }}
+                                role="button"
+                                tabIndex={0}
+                                aria-expanded={expandedIndex === index}
                                 sx={{
                                     height: '100%',
                                     cursor: 'pointer',
                                     transition: 'transform 0.2s, box-shadow 0.2s',
+                                    outline: expandedIndex === index ? `2px solid ${theme.palette.primary.light}` : 'none'
                                 }}
                             >
                                 <CardContent sx={{ textAlign: 'center', py: 4 }}>
-                                    <Box component={motion.div} variants={floatIcon} animate="animate" sx={{ mb: 2 }}>
+                                    <Box component={motion.div} variants={floatIcon} animate="animate" whileTap={!prefersReducedMotion ? { scale: 0.98 } : {}} sx={{ mb: 2 }}>
                                         {feature.icon}
                                     </Box>
 
@@ -217,44 +313,53 @@ function UnregisterLanding() {
                     What's Included
                 </Typography>
                 <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
+                    <Grid item xs={12} md={4}>
                         <Typography variant="h6" gutterBottom color="primary">
                             📱 Social & Communication
                         </Typography>
                         <ul style={{ lineHeight: 2 }}>
-                            <li>Dynamic feed with reactions, comments, and groups</li>
-                            <li>Hashtag system with trending topics and bookmarks</li>
-                            <li>Organized servers with role-based permissions</li>
-                            <li>Real-time messaging with multimedia support</li>
-                            <li>Community forums with upvoting and moderation</li>
+                            <li>Engaging social feed with posts, reactions, and groups</li>
+                            <li>Real-time conversations and community forums</li>
+                            <li>Robust moderation and access controls</li>
                         </ul>
                     </Grid>
-                    <Grid item xs={12} md={6}>
+
+                    <Grid item xs={12} md={4}>
                         <Typography variant="h6" gutterBottom color="primary">
                             💼 Professional & Productivity
                         </Typography>
                         <ul style={{ lineHeight: 2 }}>
-                            <li>Professional profiles with skills and endorsements</li>
-                            <li>Project management with issues and milestones</li>
-                            <li>Collaborative documents and knowledge wikis</li>
-                            <li>Video platform with channels and subscriptions</li>
-                            <li>Full-featured e-commerce with shopping cart</li>
+                            <li>Professional profiles and portfolio tools</li>
+                            <li>Project and content collaboration</li>
+                            <li>Integrated marketplace and creator tools</li>
+                        </ul>
+                    </Grid>
+
+                    <Grid item xs={12} md={4}>
+                        <Typography variant="h6" gutterBottom color="primary">
+                            📡 Streaming & Live Events
+                        </Typography>
+                        <ul style={{ lineHeight: 2 }}>
+                            <li>High-quality meetings, webinars and events</li>
+                            <li>Live TV channels and on-demand streams (IPTV)</li>
+                            <li>Internet radio & low-latency audio (RTC)</li>
+                            <li>Channel/station browser and curated playlists</li>
                         </ul>
                     </Grid>
                 </Grid>
             </Paper>
 
-            {/* Tech Stack */}
+            {/* Security & Trust */}
             <Box sx={{ mb: 8, textAlign: 'center' }} component={motion.div} variants={fadeInUp}>
                 <Typography variant="h4" fontWeight="bold" gutterBottom sx={{ mb: 3 }}>
-                    Built with Modern Technology
+                    Security & Trust
                 </Typography>
                 <Typography variant="body1" color="text.secondary" paragraph>
-                    React 18.3 • Material-UI v5 • Node.js • PostgreSQL • Redis • Docker • Socket.IO
+                    Built with privacy and reliability in mind — continuous security reviews and enterprise-grade controls keep your data protected.
                 </Typography>
                 <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap" sx={{ mt: 3 }}>
-                    {['Microservices', 'Real-time', 'Dark Mode', 'Responsive', 'Secure', 'Scalable', 'Open Source'].map((label, i) => (
-                        <Box key={i} component={motion.div} whileHover={{ scale: 1.05 }} sx={{ display: 'inline-block' }}>
+                    {['Privacy-first', 'Encryption in transit', 'Role-based access', 'Regular audits', 'High availability'].map((label, i) => (
+                        <Box key={i} component={motion.div} whileHover={!prefersReducedMotion ? { scale: 1.05 } : {}} sx={{ display: 'inline-block' }}>
                             <Chip label={label} variant="outlined" sx={{ m: 0.5 }} />
                         </Box>
                     ))}
