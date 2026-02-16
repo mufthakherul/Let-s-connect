@@ -1,0 +1,178 @@
+[
+    {
+        "name": "BBC Radio 1",
+        "description": "UK's official pop music and entertainment station",
+        "streamUrl": "http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_high/ak/bbc_radio_one.m3u8",
+        "websiteUrl": "https://www.bbc.co.uk/radio1",
+        "genre": "Pop",
+        "country": "United Kingdom",
+        "language": "English",
+        "logoUrl": "https://sounds.files.bbci.co.uk/branding/2.1.36/desktop/bbc_radio_one_480x480.png",
+        "bitrate": 320
+    },
+    {
+        "name": "BBC Radio 2",
+        "description": "UK's biggest radio station with pop and rock music",
+        "streamUrl": "http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_high/ak/bbc_radio_two.m3u8",
+        "websiteUrl": "https://www.bbc.co.uk/radio2",
+        "genre": "Pop/Rock",
+        "country": "United Kingdom",
+        "language": "English",
+        "logoUrl": "https://sounds.files.bbci.co.uk/branding/2.1.36/desktop/bbc_radio_two_480x480.png",
+        "bitrate": 320
+    },
+    {
+        "name": "BBC Radio 3",
+        "description": "Classical music and arts",
+        "streamUrl": "http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_high/ak/bbc_radio_three.m3u8",
+        "websiteUrl": "https://www.bbc.co.uk/radio3",
+        "genre": "Classical",
+        "country": "United Kingdom",
+        "language": "English",
+        "logoUrl": "https://sounds.files.bbci.co.uk/branding/2.1.36/desktop/bbc_radio_three_480x480.png",
+        "bitrate": 320
+    },
+    {
+        "name": "BBC Radio 4",
+        "description": "News, current affairs and drama",
+        "streamUrl": "http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_high/ak/bbc_radio_fourfm.m3u8",
+        "websiteUrl": "https://www.bbc.co.uk/radio4",
+        "genre": "News/Talk",
+        "country": "United Kingdom",
+        "language": "English",
+        "logoUrl": "https://sounds.files.bbci.co.uk/branding/2.1.36/desktop/bbc_radio_four_480x480.png",
+        "bitrate": 320
+    },
+    {
+        "name": "NPR - National Public Radio",
+        "description": "American public radio news and culture",
+        "streamUrl": "https://npr-ice.streamguys1.com/live.mp3",
+        "websiteUrl": "https://www.npr.org",
+        "genre": "News/Talk",
+        "country": "United States",
+        "language": "English",
+        "logoUrl": "https://media.npr.org/images/npr_logo.png",
+        "bitrate": 128
+    },
+    {
+        "name": "WQXR - New York Classical Radio",
+        "description": "Classical music from New York",
+        "streamUrl": "https://stream.wqxr.org/wqxr",
+        "websiteUrl": "https://www.wqxr.org",
+        "genre": "Classical",
+        "country": "United States",
+        "language": "English",
+        "logoUrl": "https://www.wqxr.org/images/wqxr-logo.png",
+        "bitrate": 128
+    },
+    {
+        "name": "France Musique",
+        "description": "French classical music station",
+        "streamUrl": "https://francemusiqu.ice.infomaniak.ch/francemusiqu-high.mp3",
+        "websiteUrl": "https://www.francemusique.fr",
+        "genre": "Classical",
+        "country": "France",
+        "language": "French",
+        "logoUrl": "https://www.radiofrance.fr/s3/static-mrw/cache/640xauto/media_source/9b/9b2fe71f-0aa6-4919-8c51-3bafb1d2f6c2.jpg",
+        "bitrate": 192
+    },
+    {
+        "name": "RTE Radio One",
+        "description": "Irish national radio broadcaster",
+        "streamUrl": "https://stream.rte.ie/live/radio1",
+        "websiteUrl": "https://www.rte.ie/radio1",
+        "genre": "News/Talk",
+        "country": "Ireland",
+        "language": "English",
+        "logoUrl": "https://www.rte.ie/images/rte-logo.png",
+        "bitrate": 128
+    },
+    {
+        "name": "ABC Radio National",
+        "description": "Australian public radio - current affairs, culture and sport",
+        "streamUrl": "https://live-radio.abc.net.au/i/radio/rn/rn.aac",
+        "websiteUrl": "https://www.abc.net.au/radio/national",
+        "genre": "News/Talk",
+        "country": "Australia",
+        "language": "English",
+        "logoUrl": "https://www.abc.net.au/radios/image/radiosrc/8a4eca79-4c9f-434a-85ed-84ffc5c9b88c.png",
+        "bitrate": 128
+    },
+    {
+        "name": "SBS Radio",
+        "description": "Australian multicultural radio in many languages",
+        "streamUrl": "https://sbs-live-radio.akamaihd.net/hls/live/2016068/sbsradio/master.m3u8",
+        "websiteUrl": "https://www.sbs.com.au/radio",
+        "genre": "World",
+        "country": "Australia",
+        "language": "Multiple",
+        "logoUrl": "https://www.sbs.com.au/images/sbs-logo.png",
+        "bitrate": 128
+    },
+    {
+        "name": "Radio Canada One",
+        "description": "Canadian public radio",
+        "streamUrl": "https://cbcmp3.akamaized.net/hls/live/2704299/cbra_live/master.m3u8",
+        "websiteUrl": "https://www.cbc.ca/radio",
+        "genre": "News/Talk",
+        "country": "Canada",
+        "language": "English",
+        "logoUrl": "https://www.cbc.ca/radio/images/cbc-logo.png",
+        "bitrate": 128
+    },
+    {
+        "name": "Sunny 91.1 FM",
+        "description": "Adult contemporary radio",
+        "streamUrl": "https://sunnystream.cdnstream.com/live/sunnystream/playlist.m3u8",
+        "websiteUrl": "https://sunny.fm",
+        "genre": "Pop/Adult Contemporary",
+        "country": "International",
+        "language": "English",
+        "logoUrl": "https://sunny.fm/images/logo.png",
+        "bitrate": 192
+    },
+    {
+        "name": "EgoFM",
+        "description": "German alternative and indie music station",
+        "streamUrl": "https://egostream.de/broadcast",
+        "websiteUrl": "https://www.egostream.de",
+        "genre": "Alternative/Indie",
+        "country": "Germany",
+        "language": "German",
+        "logoUrl": "https://egostream.de/images/logo.png",
+        "bitrate": 192
+    },
+    {
+        "name": "RFI Musique",
+        "description": "French international world music",
+        "streamUrl": "https://live02.rfi.fr/rfimusicworld_aac_96.m3u8",
+        "websiteUrl": "https://www.rfimusique.com",
+        "genre": "World Music",
+        "country": "France",
+        "language": "French",
+        "logoUrl": "https://www.rfimusique.com/images/logo.png",
+        "bitrate": 96
+    },
+    {
+        "name": "NTS Radio",
+        "description": "US-based online radio with live DJs and interviews",
+        "streamUrl": "https://stream-us1.nts.live",
+        "websiteUrl": "https://www.nts.live",
+        "genre": "Electronic/Indie",
+        "country": "United States",
+        "language": "English",
+        "logoUrl": "https://www.nts.live/images/nts-logo.png",
+        "bitrate": 128
+    },
+    {
+        "name": "KISS FM",
+        "description": "Pop and dance music station",
+        "streamUrl": "https://kissfmstream.com/stream",
+        "websiteUrl": "https://kissfm.com",
+        "genre": "Pop/Dance",
+        "country": "International",
+        "language": "English",
+        "logoUrl": "https://kissfm.com/images/logo.png",
+        "bitrate": 192
+    }
+]
