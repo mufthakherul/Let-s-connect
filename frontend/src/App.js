@@ -123,6 +123,11 @@ function AppContent() {
   const [registeredAppsAnchor, setRegisteredAppsAnchor] = useState(null);
   const [profileMenuAnchor, setProfileMenuAnchor] = useState(null);
   const { mode, toggleTheme, getAccentColor, initSystemThemeListener, accessibility } = useThemeStore();
+
+  // Brand gradient: purple for dark mode, indigo/cyan for light mode
+  const brandGradient = mode === 'dark'
+    ? 'linear-gradient(45deg, #b388ff, #7c3aed)'
+    : 'linear-gradient(45deg, #4f46e5, #06b6d4)';
   const { user, logout } = useAuthStore();
   const isMobile = useMediaQuery('(max-width:900px)');
   const [internalUser, setInternalUser] = useState(user);
@@ -422,7 +427,15 @@ function AppContent() {
   const drawer = (
     <Box sx={{ width: 250 }} role="presentation">
       <Box sx={{ p: 2, textAlign: 'center' }}>
-        <Typography variant="h6" color="primary">
+        <Typography
+          variant="h6"
+          sx={{
+            background: brandGradient,
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            fontWeight: 800
+          }}
+        >
           Let's Connect
         </Typography>
       </Box>
@@ -541,7 +554,9 @@ function AppContent() {
                   to="/"
                   sx={{
                     textDecoration: 'none',
-                    color: mode === 'dark' ? '#e4e6eb' : '#000',
+                    background: brandGradient,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
                     fontWeight: 800,
                     fontSize: '1.2rem',
                     minWidth: 'fit-content'
@@ -866,7 +881,9 @@ function AppContent() {
                   to="/"
                   sx={{
                     textDecoration: 'none',
-                    color: 'inherit',
+                    background: brandGradient,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
                     fontWeight: 700,
                     mr: 2
                   }}
