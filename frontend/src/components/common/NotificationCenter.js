@@ -265,8 +265,8 @@ const NotificationCenter = () => {
                     }}
                   >
                     <ListItemAvatar>
-                      <Avatar sx={{ bgcolor: !notification.isRead ? 'primary.main' : 'grey.400' }}>
-                        {getNotificationIcon(notification.type)}
+                      <Avatar sx={{ bgcolor: notification?.isRead ? 'grey.400' : 'primary.main' }}>
+                        {getNotificationIcon(notification?.type)}
                       </Avatar>
                     </ListItemAvatar>
                     <ListItemText

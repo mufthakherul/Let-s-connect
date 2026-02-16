@@ -720,7 +720,7 @@ function AppContent() {
                       title="Profile"
                     >
                       <Avatar sx={{ width: 32, height: 32, backgroundColor: '#0a66c2', fontSize: '0.875rem', fontWeight: 600 }}>
-                        {internalUser.firstName?.[0]?.toUpperCase()}
+                        {internalUser?.firstName?.[0]?.toUpperCase() || ''}
                       </Avatar>
                     </IconButton>
 
@@ -733,11 +733,11 @@ function AppContent() {
                     >
                       <MenuItem disabled>
                         <ListItemAvatar>
-                          <Avatar sx={{ width: 44, height: 44, backgroundColor: '#0a66c2' }}>{internalUser.firstName?.[0]?.toUpperCase()}</Avatar>
+                          <Avatar sx={{ width: 44, height: 44, backgroundColor: '#0a66c2' }}>{internalUser?.firstName?.[0]?.toUpperCase() || ''}</Avatar>
                         </ListItemAvatar>
                         <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                          <Typography variant="subtitle1">{internalUser.firstName} {internalUser.lastName}</Typography>
-                          <Typography variant="caption" color="text.secondary">{internalUser.email}</Typography>
+                          <Typography variant="subtitle1">{(internalUser?.firstName || '') + (internalUser?.lastName ? ` ${internalUser.lastName}` : '')}</Typography>
+                          <Typography variant="caption" color="text.secondary">{internalUser?.email || ''}</Typography>
                         </Box>
                       </MenuItem>
                       <Divider />
