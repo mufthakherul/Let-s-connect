@@ -357,6 +357,14 @@ function UnregisterLanding() {
                 <Typography variant="body1" color="text.secondary" paragraph>
                     Built with privacy and reliability in mind — continuous security reviews and enterprise-grade controls keep your data protected.
                 </Typography>
+
+                <Box sx={{ mt: 1, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
+                    <Button size="small" component={Link} to="/privacy">Privacy Policy</Button>
+                    <Button size="small" component={Link} to="/terms">Terms of Service</Button>
+                    <Button size="small" component={Link} to="/cookies">Cookie Policy</Button>
+                    <Button size="small" component={Link} to="/helpcenter" variant="outlined">Help Center</Button>
+                </Box>
+
                 <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap" sx={{ mt: 3 }}>
                     {['Privacy-first', 'Encryption in transit', 'Role-based access', 'Regular audits', 'High availability'].map((label, i) => (
                         <Box key={i} component={motion.div} whileHover={!prefersReducedMotion ? { scale: 1.05 } : {}} sx={{ display: 'inline-block' }}>
