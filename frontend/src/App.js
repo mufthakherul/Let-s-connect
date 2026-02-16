@@ -4,7 +4,8 @@ import {
   AppBar, Toolbar, Typography, Button, Container, Box, IconButton,
   CssBaseline, ThemeProvider, createTheme, Drawer, List,
   ListItem, ListItemIcon, ListItemText, useMediaQuery, Divider, Avatar,
-  CircularProgress, Collapse, Menu, MenuItem, Tooltip, ListItemAvatar, Badge
+  CircularProgress, Collapse, Menu, MenuItem, Tooltip, ListItemAvatar, Badge,
+  Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import { grey } from '@mui/material/colors';
 import {
@@ -116,6 +117,7 @@ function AppContent() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   // Registered navbar specific state
   const [showRegisteredSearch, setShowRegisteredSearch] = useState(false);
   const [registeredAppsAnchor, setRegisteredAppsAnchor] = useState(null);
@@ -909,35 +911,11 @@ function AppContent() {
               {/* Spacer */}
               <Box sx={{ flexGrow: 1 }} />
 
-              {/* Right Section: Settings + Login + More Menu */}
+              {/* Right Section: Menu -> Settings (modal) -> Login (rightmost) */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 {!isMobile && (
                   <>
-                    <Button
-                      color="inherit"
-                      component={Link}
-                      to="/settings/theme"
-                      startIcon={<SettingsIcon />}
-                      sx={{
-                        '&:hover': { transform: 'scale(1.05)' },
-                        transition: 'all 0.2s ease-in-out'
-                      }}
-                    >
-                      Settings
-                    </Button>
-
-                    <Button
-                      color="inherit"
-                      component={Link}
-                      to="/login"
-                      sx={{
-                        '&:hover': { transform: 'scale(1.05)' },
-                        transition: 'all 0.2s ease-in-out'
-                      }}
-                    >
-                      Login
-                    </Button>
-
+                    {/* Menu icon moved into the first position */}
                     <IconButton
                       color="inherit"
                       onClick={(e) => setMoreMenuAnchor(e.currentTarget)}
@@ -945,46 +923,35 @@ function AppContent() {
                     >
                       <Box sx={{ position: 'relative', width: 24, height: 24 }}>
                         {/* 3 squares */}
-                        <Box sx={{
-                          position: 'absolute',
-                          top: 2,
-                          left: 2,
-                          width: 6,
-                          height: 6,
-                          backgroundColor: 'currentColor',
-                          borderRadius: 0.5
-                        }} />
-                        <Box sx={{
-                          position: 'absolute',
-                          top: 2,
-                          right: 2,
-                          width: 6,
-                          height: 6,
-                          backgroundColor: 'currentColor',
-                          borderRadius: 0.5
-                        }} />
-                        <Box sx={{
-                          position: 'absolute',
-                          bottom: 2,
-                          left: 2,
-                          width: 6,
-                          height: 6,
-                          backgroundColor: 'currentColor',
-                          borderRadius: 0.5
-                        }} />
-                        {/* 1 circle */}
-                        <Box sx={{
-                          position: 'absolute',
-                          bottom: 2,
-                          right: 2,
-                          width: 6,
-                          height: 6,
-                          backgroundColor: 'currentColor',
-                          borderRadius: '50%'
-                        }} />
+                        <Box sx={{ position: 'absolute', top: 2, left: 2, width: 6, height: 6, backgroundColor: 'currentColor', borderRadius: 0.5 }} />
+                        <Box sx={{ position: 'absolute', top: 2, right: 2, width: 6, height: 6, backgroundColor: 'currentColor', borderRadius: 0.5 }} />
+                        <Box sx={{ position: 'absolute', bottom: 2, left: 2, width: 6, height: 6, backgroundColor: 'currentColor', borderRadius: 0.5 }} />
+                        <Box sx={{ position: 'absolute', bottom: 2, right: 2, width: 6, height: 6, backgroundColor: 'currentColor', borderRadius: '50%' }} />
                       </Box>
                     </IconButton>
 
+                    {/* Settings icon-only opens modal */}
+                    <Tooltip title="Settings">
+                      <IconButton color="inherit" onClick={() => setSettingsDialogOpen(true)} aria-label="Settings" sx={{ ml: 1 }}>
+                        <SettingsIcon />
+                      </IconButton>
+                    </Tooltip>
+
+                    {/* Login moved to the right corner (last in the row) */}
+                    <Button
+                      color="inherit"
+                      component={Link}
+                      to="/login"
+                      sx={{
+                        '&:hover': { transform: 'scale(1.05)' },
+                        transition: 'all 0.2s ease-in-out',
+                        ml: 1
+                      }}
+                    >
+                      Login
+                    </Button>
+
+                    {/* The Menu (dropdown) remains anchored to the menu icon above */}
                     <Menu
                       anchorEl={moreMenuAnchor}
                       open={Boolean(moreMenuAnchor)}
@@ -1020,9 +987,12 @@ function AppContent() {
                   </>
                 )}
 
-                <IconButton color="inherit" onClick={toggleTheme}>
-                  {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
-                </IconButton>
+                {/* Theme toggle visible only for registered users */}
+                {internalUser && (
+                  <IconButton color="inherit" onClick={toggleTheme}>
+                    {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+                  </IconButton>
+                )}
               </Box>
             </Toolbar>
           </AppBar>
