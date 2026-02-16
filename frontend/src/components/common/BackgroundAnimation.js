@@ -108,7 +108,11 @@ const GradientWaves = () => {
     );
 };
 
-const BackgroundAnimation = ({ isLoggedIn }) => {
+const BackgroundAnimation = ({ isLoggedIn, reducedMotion }) => {
+    // Disable animations when reduced motion is enabled for accessibility
+    if (reducedMotion) {
+        return null;
+    }
     return isLoggedIn ? <FloatingParticles /> : <GradientWaves />;
 };
 

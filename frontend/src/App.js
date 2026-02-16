@@ -6,6 +6,7 @@ import {
   ListItem, ListItemIcon, ListItemText, useMediaQuery, Divider, Avatar,
   CircularProgress, Collapse, Menu, MenuItem, Tooltip, ListItemAvatar, Badge
 } from '@mui/material';
+import { grey } from '@mui/material/colors';
 import {
   Brightness4, Brightness7, Menu as MenuIcon, Home as HomeIcon,
   VideoLibrary, ShoppingCart, Description, Chat as ChatIcon,
@@ -183,48 +184,91 @@ function AppContent() {
         }
       };
 
-      return createTheme({
-        palette: {
-          mode,
-          primary: {
-            main: primaryColor,
-            light: mode === 'dark' ? '#ffffff' : '#42a5f5',
-            dark: mode === 'dark' ? '#cccccc' : '#1565c0',
-            contrastText: highContrast ? (mode === 'dark' ? '#000000' : '#ffffff') : undefined,
-          },
-          secondary: {
-            main: secondaryColor,
-            contrastText: highContrast ? '#000000' : undefined,
-          },
-          success: {
-            main: '#2e7d32',
-          },
-          info: {
-            main: '#0288d1',
-          },
-          warning: {
-            main: '#ed6c02',
-          },
-          error: {
-            main: '#d32f2f',
-          },
-          background: {
-            default: highContrast
-              ? (mode === 'dark' ? '#000000' : '#ffffff')
-              : (mode === 'dark' ? '#121212' : '#fafafa'),
-            paper: highContrast
-              ? (mode === 'dark' ? '#000000' : '#ffffff')
-              : (mode === 'dark' ? '#1e1e1e' : '#ffffff'),
-          },
-          text: {
-            primary: highContrast
-              ? (mode === 'dark' ? '#ffffff' : '#000000')
-              : undefined,
-            secondary: highContrast
-              ? (mode === 'dark' ? '#cccccc' : '#333333')
-              : undefined,
-          },
+      const ensurePaletteEntry = (entry, fallbackMain) => {
+        if (!entry || typeof entry !== 'object') {
+          return { main: fallbackMain };
+        }
+        if (typeof entry.main !== 'string' || !entry.main.trim()) {
+          return { ...entry, main: fallbackMain };
+        }
+        return entry;
+      };
+
+      const defaultMain = mode === 'dark' ? '#9e9e9e' : '#757575';
+
+      const defaultTextPrimary = mode === 'dark' ? '#ffffff' : 'rgba(0, 0, 0, 0.87)';
+      const defaultTextSecondary = mode === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)';
+
+      const palette = {
+        mode,
+        primary: {
+          main: primaryColor,
+          light: mode === 'dark' ? '#ffffff' : '#42a5f5',
+          dark: mode === 'dark' ? '#cccccc' : '#1565c0',
+          contrastText: highContrast ? (mode === 'dark' ? '#000000' : '#ffffff') : undefined,
         },
+        secondary: {
+          main: secondaryColor,
+          contrastText: highContrast ? '#000000' : undefined,
+        },
+        success: {
+          main: '#2e7d32',
+        },
+        info: {
+          main: '#0288d1',
+        },
+        warning: {
+          main: '#ed6c02',
+        },
+        error: {
+          main: '#d32f2f',
+        },
+        default: {
+          main: defaultMain,
+        },
+        inherit: {
+          main: highContrast
+            ? (mode === 'dark' ? '#ffffff' : '#000000')
+            : (mode === 'dark' ? '#ffffff' : '#000000'),
+        },
+        grey,
+        action: {
+          active: mode === 'dark' ? '#ffffff' : 'rgba(0, 0, 0, 0.54)',
+          hover: mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+          selected: mode === 'dark' ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.08)',
+          disabled: mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.26)',
+          disabledBackground: mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
+          focus: mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
+        },
+        background: {
+          default: highContrast
+            ? (mode === 'dark' ? '#000000' : '#ffffff')
+            : (mode === 'dark' ? '#121212' : '#fafafa'),
+          paper: highContrast
+            ? (mode === 'dark' ? '#000000' : '#ffffff')
+            : (mode === 'dark' ? '#1e1e1e' : '#ffffff'),
+        },
+        text: {
+          primary: highContrast
+            ? (mode === 'dark' ? '#ffffff' : '#000000')
+            : defaultTextPrimary,
+          secondary: highContrast
+            ? (mode === 'dark' ? '#cccccc' : '#333333')
+            : defaultTextSecondary,
+        },
+      };
+
+      palette.primary = ensurePaletteEntry(palette.primary, '#1976d2');
+      palette.secondary = ensurePaletteEntry(palette.secondary, '#dc004e');
+      palette.success = ensurePaletteEntry(palette.success, '#2e7d32');
+      palette.info = ensurePaletteEntry(palette.info, '#0288d1');
+      palette.warning = ensurePaletteEntry(palette.warning, '#ed6c02');
+      palette.error = ensurePaletteEntry(palette.error, '#d32f2f');
+      palette.default = ensurePaletteEntry(palette.default, defaultMain);
+      palette.inherit = ensurePaletteEntry(palette.inherit, palette.text?.primary || '#000000');
+
+      return createTheme({
+        palette,
         typography: {
           fontFamily: fontFamilyMap[fontFamily] || fontFamilyMap.default,
           fontSize: largeText ? 16 * textScale : 14 * textScale,
@@ -273,6 +317,9 @@ function AppContent() {
             },
           },
           MuiButton: {
+            defaultProps: {
+              color: 'primary',
+            },
             styleOverrides: {
               root: {
                 textTransform: 'none',
@@ -455,7 +502,7 @@ function AppContent() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <BackgroundAnimation isLoggedIn={!!internalUser} />
+      <BackgroundAnimation isLoggedIn={!!internalUser} reducedMotion={accessibility.reducedMotion} />
       <Toaster
         position="top-right"
         toastOptions={{

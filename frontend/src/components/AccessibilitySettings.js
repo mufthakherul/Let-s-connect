@@ -148,15 +148,15 @@ const AccessibilitySettings = () => {
             </Card>
 
             {/* Color Blind Support */}
-            <Card sx={{ mb: 3 }}>
+            <Card sx={{ mb: 3, borderLeft: '4px solid', borderLeftColor: 'info.main' }}>
                 <CardContent>
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                         <Palette sx={{ mr: 1 }} />
-                        <Typography variant="h6">Color Blind Support</Typography>
+                        <Typography variant="h6">Color Blind Accessibility</Typography>
                     </Box>
 
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                        Adjusts colors to improve visibility for different types of color blindness.
+                        Applies color filters to improve visibility for different types of color blindness. This is separate from theme accent colors.
                     </Typography>
 
                     <FormControl fullWidth sx={{ mb: 2 }}>
