@@ -576,10 +576,19 @@ app.get('/metrics', (req, res) => {
 });
 
 // Username availability check (public)
+// Supports optional captcha verification when callers include captchaType & captchaResponse
 app.get('/check-username', async (req, res) => {
   try {
     const username = (req.query.username || '').trim();
     if (!username) return res.status(400).json({ error: 'username query param is required' });
+
+    // Optional captcha verification (used when gateway or frontend requires CAPTCHA gating)
+    const captchaType = req.query.captchaType;
+    const captchaResponse = req.query.captchaResponse;
+    if (captchaType === 'hcaptcha' && captchaResponse) {
+      const ok = await verifyHcaptchaResponse(captchaResponse);
+      if (!ok) return res.status(400).json({ error: 'Captcha verification failed' });
+    }
 
     const existing = await User.findOne({ where: { username } });
     return res.json({ available: !existing });
