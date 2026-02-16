@@ -488,6 +488,7 @@ const publicRoutes = [
   '/api/collaboration/meetings/public',
   '/api/user/register',
   '/api/user/login',
+  '/api/user/check-username',
   '/api/auth/oauth/google/authorize',
   '/api/auth/oauth/google/callback',
   '/api/auth/oauth/github/authorize',
