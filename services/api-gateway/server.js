@@ -522,6 +522,8 @@ const applyUserLimiter = (req, res, next) => {
 app.use('/api/user/login', strictLimiter);
 app.use('/api/user/register', strictLimiter);
 app.use('/api/user/password-reset', strictLimiter);
+app.use('/api/user/forgot', strictLimiter);
+app.use('/api/user/reset-password', strictLimiter);
 
 // User Service routes
 app.use('/api/user', createAuthProxy(services.user), applyUserLimiter, proxy(services.user, {

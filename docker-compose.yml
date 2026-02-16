@@ -45,6 +45,9 @@ services:
       - MAILGUN_DOMAIN=${MAILGUN_DOMAIN:-sandbox.mailgun.org}
       - MAILGUN_BASE_URL=${MAILGUN_BASE_URL:-https://api.mailgun.net}
       - EMAIL_FROM=${EMAIL_FROM:-noreply@sandbox.mailgun.org}
+      # hCaptcha secret (server-side verification)
+      - HCAPTCHA_SECRET=${HCAPTCHA_SECRET}
+      
       # Google OAuth Configuration
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
@@ -182,6 +185,9 @@ services:
       - NODE_ENV=${NODE_ENV:-production}
       - GENERATE_SOURCEMAP=${GENERATE_SOURCEMAP:-false}
       - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+      # hCaptcha site key exposed to frontend (browser)
+      - REACT_APP_HCAPTCHA_SITEKEY=${REACT_APP_HCAPTCHA_SITEKEY}
+      
     ports:
       - "3000:3000"
     depends_on:

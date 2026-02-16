@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const Joi = require('joi');
 const emailService = require('./email-service');
+const crypto = require('crypto');
+const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
@@ -380,6 +382,35 @@ const NotificationPreference = sequelize.define('NotificationPreference', {
   }
 });
 
+// Password reset tokens (Phase 9)
+const PasswordResetToken = sequelize.define('PasswordResetToken', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  token: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  expiresAt: {
+    type: DataTypes.DATE,
+    allowNull: false
+  },
+  used: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+});
+
+PasswordResetToken.belongsTo(User, { foreignKey: 'userId' });
+User.hasMany(PasswordResetToken, { foreignKey: 'userId' });
+
 // PHASE 3: Admin Dashboard - Audit Log Model
 const AuditLog = sequelize.define('AuditLog', {
   id: {
@@ -638,6 +669,91 @@ app.post('/login', async (req, res) => {
     res.status(500).json({ error: 'Login failed' });
   }
 });
+
+// ---------- Password reset endpoints (forgot/reset) ----------
+
+async function verifyHcaptchaResponse(responseToken) {
+  const secret = process.env.HCAPTCHA_SECRET;
+  if (!secret) return false;
+  try {
+    const r = await axios.post('https://hcaptcha.com/siteverify', `secret=${encodeURIComponent(secret)}&response=${encodeURIComponent(responseToken)}`, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    });
+    return r.data && r.data.success === true;
+  } catch (err) {
+    console.warn('hCaptcha verification failed:', err?.message || err);
+    return false;
+  }
+}
+
+// Request password reset (send email with token)
+app.post('/forgot', async (req, res) => {
+  try {
+    const { email, captchaType, captchaResponse } = req.body || {};
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    // Basic server-side captcha verification for hCaptcha when configured
+    if (captchaType === 'hcaptcha' && captchaResponse) {
+      const ok = await verifyHcaptchaResponse(captchaResponse);
+      if (!ok) return res.status(400).json({ error: 'Captcha verification failed' });
+    }
+
+    // Find user — do not reveal existence in response
+    const user = await User.findOne({ where: { email } });
+    if (user) {
+      const resetToken = crypto.randomBytes(24).toString('hex');
+      const expiresAt = new Date(Date.now() + (60 * 60 * 1000)); // 1 hour
+      await PasswordResetToken.create({ token: resetToken, userId: user.id, expiresAt, used: false });
+
+      // Send email (best-effort)
+      try {
+        await emailService.sendEmail(user.email, 'passwordReset', { user: user.get ? user.get({ plain: true }) : user, data: resetToken });
+      } catch (e) {
+        console.warn('Failed to send reset email:', e.message || e);
+      }
+    }
+
+    // Always return success (prevent account enumeration)
+    res.json({ message: 'If an account exists for that email, reset instructions have been sent.' });
+  } catch (error) {
+    console.error('Password reset request error:', error);
+    res.status(500).json({ error: 'Failed to process password reset request' });
+  }
+});
+
+// Reset password using token
+async function handleResetPassword(req, res) {
+  try {
+    const { token, password } = req.body || {};
+    if (!token || !password) return res.status(400).json({ error: 'Token and new password are required' });
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+    const record = await PasswordResetToken.findOne({ where: { token } });
+    if (!record || record.used || new Date(record.expiresAt) < new Date()) {
+      return res.status(400).json({ error: 'Invalid or expired token' });
+    }
+
+    const user = await User.findByPk(record.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    user.password = await bcrypt.hash(password, 10);
+    await user.save();
+
+    record.used = true;
+    await record.save();
+
+    // Invalidate existing sessions for the user (if security service is available)
+    try { if (typeof securityService?.revokeUserSessions === 'function') await securityService.revokeUserSessions(user.id); } catch (e) { /* ignore */ }
+
+    res.json({ message: 'Password has been reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+}
+
+app.post('/reset-password', handleResetPassword);
+app.post('/password-reset', handleResetPassword);
 
 // Get user profile
 app.get('/profile/:userId', cacheUserProfile, async (req, res) => {

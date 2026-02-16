@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { Visibility, VisibilityOff, PersonAdd, CheckCircle } from '@mui/icons-material';
 import api from '../utils/api';
+import CaptchaField from './common/CaptchaField';
 
 function passwordStrength(password) {
   let score = 0;
@@ -34,7 +35,7 @@ function Register({ setUser }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [agree, setAgree] = useState(false);
-  const [captchaChecked, setCaptchaChecked] = useState(false); // reCAPTCHA placeholder
+  const [captcha, setCaptcha] = useState(null); // { type, response }
   const [usernameStatus, setUsernameStatus] = useState('idle'); // idle | checking | available | taken | error
   const [successMessage, setSuccessMessage] = useState('');
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
@@ -92,7 +93,7 @@ function Register({ setUser }) {
 
   const validateClient = () => {
     if (!agree) return 'You must accept the Terms of Service to continue.';
-    if (!captchaChecked) return 'Please confirm you are not a robot.'; // placeholder for reCAPTCHA
+    if (!captcha || !captcha.response) return 'Please complete the verification challenge.';
     if (usernameStatus === 'taken') return 'The chosen username is already taken.';
     if (formData.password !== formData.confirmPassword) return 'Passwords do not match.';
     if (formData.password.length < 8) return 'Password must be at least 8 characters.';
@@ -117,7 +118,9 @@ function Register({ setUser }) {
         email: formData.email,
         password: formData.password,
         firstName: formData.firstName,
-        lastName: formData.lastName
+        lastName: formData.lastName,
+        captchaType: captcha?.type,
+        captchaResponse: captcha?.response
       };
       const response = await api.post('/user/register', send);
       localStorage.setItem('token', response.data.token);
@@ -268,13 +271,14 @@ function Register({ setUser }) {
               />
             </Box>
 
-            <FormControlLabel
-              control={<Checkbox checked={captchaChecked} onChange={(e) => setCaptchaChecked(e.target.checked)} />}
-              label={(
-                <Typography variant="body2">I'm not a robot — <em>reCAPTCHA placeholder</em></Typography>
-              )}
-              sx={{ mt: 1 }}
-            />
+            <Box sx={{ mt: 1 }}>
+              <CaptchaField
+                label="Human verification"
+                variant="auto"
+                onSolve={(result) => setCaptcha(result)}
+                onClear={() => setCaptcha(null)}
+              />
+            </Box>
 
             <FormControlLabel
               control={<Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)} />}
