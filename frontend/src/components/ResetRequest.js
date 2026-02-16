@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Box, TextField, Button, Typography, Alert, Checkbox, FormControlLabel } from '@mui/material';
+import { Box, TextField, Button, Typography, Alert } from '@mui/material';
+import CaptchaField from './common/CaptchaField';
 import { MailOutline } from '@mui/icons-material';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
@@ -13,7 +14,7 @@ export default function ResetRequest() {
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState('idle'); // idle | sending | sent | error
-    const [captchaChecked, setCaptchaChecked] = useState(false);
+    const [captcha, setCaptcha] = useState(null); // { type, response }
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
@@ -25,12 +26,12 @@ export default function ResetRequest() {
     const handleSubmit = async (e) => {
         e && e.preventDefault();
         setError('');
-        if (!captchaChecked) return setError('Please confirm you are not a robot.');
+        if (!captcha || !captcha.response) return setError('Please complete the verification challenge.');
         setLoading(true);
         setStatus('sending');
         try {
-            // API: POST /user/forgot { email }
-            await api.post('/user/forgot', { email });
+            // API: POST /user/forgot { email, captchaType, captchaResponse }
+            await api.post('/user/forgot', { email, captchaType: captcha.type, captchaResponse: captcha.response });
             setStatus('sent');
         } catch (err) {
             // 404 or unimplemented endpoint: still show success UX (do not reveal account existence)
@@ -71,10 +72,14 @@ export default function ResetRequest() {
                             autoComplete="email"
                         />
 
-                        <FormControlLabel
-                            control={<Checkbox checked={captchaChecked} onChange={(e) => setCaptchaChecked(e.target.checked)} />}
-                            label={<Typography variant="body2">I'm not a robot — reCAPTCHA placeholder</Typography>}
-                        />
+                        <Box sx={{ mt: 1 }}>
+                            <CaptchaField
+                                label="Human verification"
+                                variant="auto"
+                                onSolve={(result) => setCaptcha(result)}
+                                onClear={() => setCaptcha(null)}
+                            />
+                        </Box>
 
                         <Button type="submit" variant="contained" fullWidth disabled={loading || !email} sx={{ mt: 2 }}>
                             {loading ? 'Sending…' : 'Send reset link'}
