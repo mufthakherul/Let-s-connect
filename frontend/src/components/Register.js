@@ -199,7 +199,7 @@ function Register({ setUser }) {
                     : usernameStatus === 'taken'
                       ? 'Username already taken'
                       : usernameStatus === 'error'
-                        ? 'Could not validate username (server unavailable)'
+                        ? 'Could not validate username (server unavailable) — you may still register; server will validate on submit.'
                         : 'Choose a public handle (letters, numbers, dashes).'
               }
               FormHelperTextProps={{
@@ -215,6 +215,28 @@ function Register({ setUser }) {
                 ) : undefined
               }}
             />
+
+            {usernameStatus === 'error' && (
+              <Alert severity="warning" sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ flex: 1 }}>
+                  Username availability check failed (server unreachable). You can still submit — the server will validate the username on registration.
+                </Box>
+                <Button size="small" onClick={() => {
+                  const name = formData.username.trim();
+                  if (!name) return;
+                  setUsernameStatus('checking');
+                  api.get(`/user/check-username?username=${encodeURIComponent(name)}`, { skipAuthRedirect: true, headers: { 'X-Skip-Auth-Redirect': '1' } })
+                    .then((res) => {
+                      if (res?.data && typeof res.data.available === 'boolean') setUsernameStatus(res.data.available ? 'available' : 'taken');
+                      else setUsernameStatus('available');
+                    })
+                    .catch((err) => {
+                      if (err?.response?.status === 404) setUsernameStatus('available');
+                      else setUsernameStatus('error');
+                    });
+                }}>Retry</Button>
+              </Alert>
+            )}
 
             <TextField
               fullWidth
