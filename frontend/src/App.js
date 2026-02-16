@@ -60,6 +60,8 @@ const Analytics = lazy(() => import('./components/Analytics'));
 const Search = lazy(() => import('./components/Search'));
 const EmailPreferences = lazy(() => import('./components/EmailPreferences'));
 const OAuthLogin = lazy(() => import('./components/OAuthLogin'));
+const ResetRequest = lazy(() => import('./components/ResetRequest'));
+const ResetPassword = lazy(() => import('./components/ResetPassword'));
 const ElasticsearchSearch = lazy(() => import('./components/ElasticsearchSearch'));
 const FolderBrowser = lazy(() => import('./components/FolderBrowser'));
 const WikiDiffViewer = lazy(() => import('./components/WikiDiffViewer'));
@@ -1110,6 +1112,8 @@ function AppContent() {
                   <Route path="/search" element={<Search />} />
                   <Route path="/login" element={<Login setUser={setInternalUser} />} />
                   <Route path="/register" element={<Register setUser={setInternalUser} />} />
+                  <Route path="/reset-password" element={<ResetRequest />} />
+                  <Route path="/reset-password/:token" element={<ResetPassword />} />
                   <Route path="/videos" element={<Videos user={internalUser} />} />
                   <Route path="/shop" element={<Shop />} />
                   <Route path="/blog" element={<Blog />} />
