@@ -1,4 +1,4 @@
-FROM node:18-alpine AS build
+FROM node:18-alpine
 
 WORKDIR /app
 
@@ -6,8 +6,10 @@ WORKDIR /app
 ARG REACT_APP_API_URL
 ENV REACT_APP_API_URL=${REACT_APP_API_URL}
 ENV NODE_OPTIONS=--max_old_space_size=1536
-ENV GENERATE_SOURCEMAP=false
 ENV DISABLE_ESLINT_PLUGIN=true
+
+# Development mode: Enable source maps; Production: Disable
+ENV GENERATE_SOURCEMAP=${GENERATE_SOURCEMAP:-false}
 
 COPY package*.json ./
 
@@ -15,14 +17,17 @@ RUN npm install
 
 COPY . .
 
-RUN npm run build
+# Install Nginx for production mode
+RUN apk add --no-cache nginx
 
-FROM nginx:alpine
-
-COPY --from=build /app/build /usr/share/nginx/html
-
+# Copy Nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy entrypoint script
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 3000
 
-CMD ["nginx", "-g", "daemon off;"]
+# Entrypoint determines whether to run dev server or production build + Nginx
+ENTRYPOINT ["/docker-entrypoint.sh"]
