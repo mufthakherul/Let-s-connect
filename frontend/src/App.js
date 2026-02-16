@@ -998,6 +998,37 @@ function AppContent() {
           </AppBar>
         )}
 
+        <Dialog
+          open={settingsDialogOpen}
+          onClose={() => setSettingsDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Settings</DialogTitle>
+          <DialogContent>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, py: 1 }}>
+              <Button
+                fullWidth
+                startIcon={mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+                onClick={() => { toggleTheme(); setSettingsDialogOpen(false); }}
+              >
+                Toggle theme
+              </Button>
+
+              <Button fullWidth component={Link} to="/settings/theme" onClick={() => setSettingsDialogOpen(false)}>
+                Theme settings
+              </Button>
+
+              <Button fullWidth component={Link} to="/settings/accessibility" onClick={() => setSettingsDialogOpen(false)}>
+                Accessibility settings
+              </Button>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setSettingsDialogOpen(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+
         <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
           {drawer}
         </Drawer>
