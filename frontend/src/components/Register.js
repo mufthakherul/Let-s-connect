@@ -123,8 +123,14 @@ function Register({ setUser }) {
         captchaResponse: captcha?.response
       };
       const response = await api.post('/user/register', send);
+      // Persist token + user then set a short grace period to avoid
+      // accidental automatic redirect caused by background 401s.
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
+
+      // suppress automatic redirect-to-login for 8 seconds (race-condition safety)
+      try { window.__suppressAuthRedirectUntil = Date.now() + 8000; } catch (e) { /* ignore */ }
+
       setUser(response.data.user);
       // Keep user logged in but prompt for email verification
       setPendingVerificationEmail(send.email);

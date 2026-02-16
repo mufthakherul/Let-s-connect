@@ -47,6 +47,10 @@ function Login({ setUser }) {
       const response = await api.post('/user/login', { email, password });
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
+
+      // brief grace period to avoid immediate 401->redirect races in other components
+      try { window.__suppressAuthRedirectUntil = Date.now() + 8000; } catch (e) { /* ignore */ }
+
       if (remember) localStorage.setItem('rememberEmail', email);
       else localStorage.removeItem('rememberEmail');
       setUser(response.data.user);

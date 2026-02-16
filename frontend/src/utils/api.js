@@ -69,7 +69,32 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    const reqId = `${error.config?.method || 'UNKNOWN'} ${error.config?.url || ''}`;
+
+    // In development, log failing requests for easier debugging
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.debug(`[API] response error (${status}) for ${reqId}`, error?.response?.data || error.message);
+    }
+
+    // Allow a short grace period after login/register where a transient 401
+    // (race-condition between auth state propagation and background requests)
+    // should not immediately kick the user back to the login screen.
+    try {
+      const suppressUntil = Number(window.__suppressAuthRedirectUntil || 0);
+      if (status === 401 && Date.now() < suppressUntil) {
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.debug('[API] suppressed automatic redirect-to-login (grace period active)');
+        }
+        return Promise.reject(error);
+      }
+    } catch (ex) {
+      // ignore errors reading the suppression flag
+    }
+
+    if (status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
