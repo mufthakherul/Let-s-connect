@@ -534,7 +534,10 @@ const registerSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().min(6).required(),
   firstName: Joi.string(),
-  lastName: Joi.string()
+  lastName: Joi.string(),
+  // Optional captcha fields (frontend uses local-math/local-image or hcaptcha)
+  captchaType: Joi.string().valid('hcaptcha', 'local-math', 'local-image').optional(),
+  captchaResponse: Joi.string().optional()
 });
 
 const loginSchema = Joi.object({
@@ -606,7 +609,13 @@ app.post('/register', async (req, res) => {
       return res.status(400).json({ error: error.details[0].message });
     }
 
-    const { username, email, password, firstName, lastName } = req.body;
+    const { username, email, password, firstName, lastName, captchaType, captchaResponse } = req.body;
+
+    // Optional server-side captcha verification for hCaptcha (local math/image are verified client-side)
+    if (captchaType === 'hcaptcha' && captchaResponse) {
+      const ok = await verifyHcaptchaResponse(captchaResponse);
+      if (!ok) return res.status(400).json({ error: 'Captcha verification failed' });
+    }
 
     // Check for existing email
     const existingEmail = await User.findOne({ where: { email } });

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Box } from '@mui/material';
 
@@ -61,6 +61,7 @@ const GradientWaves = () => {
                 overflow: 'hidden'
             }}
         >
+            {/* Muted, slow-moving gradients so content remains readable */}
             <motion.div
                 style={{
                     position: 'absolute',
@@ -68,19 +69,19 @@ const GradientWaves = () => {
                     left: 0,
                     width: '100%',
                     height: '100%',
-                    background: 'linear-gradient(45deg, #667eea 0%, #764ba2 100%)',
-                    opacity: 0.1,
+                    background: 'linear-gradient(135deg, #1565c0 0%, #283593 100%)',
+                    opacity: 0.06,
                 }}
                 animate={{
                     background: [
-                        'linear-gradient(45deg, #667eea 0%, #764ba2 100%)',
-                        'linear-gradient(45deg, #f093fb 0%, #f5576c 100%)',
-                        'linear-gradient(45deg, #4facfe 0%, #00f2fe 100%)',
-                        'linear-gradient(45deg, #667eea 0%, #764ba2 100%)',
+                        'linear-gradient(135deg, #1565c0 0%, #283593 100%)',
+                        'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
+                        'linear-gradient(135deg, #546e7a 0%, #263238 100%)',
+                        'linear-gradient(135deg, #1565c0 0%, #283593 100%)',
                     ],
                 }}
                 transition={{
-                    duration: 15,
+                    duration: 30,
                     repeat: Infinity,
                     ease: 'easeInOut',
                 }}
@@ -92,18 +93,87 @@ const GradientWaves = () => {
                     left: 0,
                     width: '100%',
                     height: '50%',
-                    background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%)',
+                    background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 70%)',
                 }}
                 animate={{
-                    scale: [1, 1.2, 1],
-                    opacity: [0.1, 0.3, 0.1],
+                    scale: [1, 1.08, 1],
+                    opacity: [0.06, 0.16, 0.06],
                 }}
                 transition={{
-                    duration: 8,
+                    duration: 14,
                     repeat: Infinity,
                     ease: 'easeInOut',
                 }}
             />
+        </Box>
+    );
+};
+
+// CursorTrail: light, accessible cursor-follow effect (respects reduced motion)
+const CursorTrail = ({ reducedMotion }) => {
+    if (reducedMotion) return null;
+    const dots = 4;
+    const posRef = useRef({ x: -9999, y: -9999 });
+    const [, setTick] = useState(0);
+
+    useEffect(() => {
+        const onMove = (e) => {
+            posRef.current = { x: e.clientX, y: e.clientY };
+        };
+        window.addEventListener('mousemove', onMove);
+        let rafId = 0;
+        const loop = () => {
+            setTick(t => (t + 1) % 1000000);
+            rafId = requestAnimationFrame(loop);
+        };
+        rafId = requestAnimationFrame(loop);
+        return () => {
+            window.removeEventListener('mousemove', onMove);
+            cancelAnimationFrame(rafId);
+        };
+    }, []);
+
+    const particles = Array.from({ length: dots }).map((_, i) => ({ i }));
+
+    return (
+        <Box
+            sx={{
+                position: 'fixed',
+                inset: 0,
+                pointerEvents: 'none',
+                zIndex: -9998,
+                overflow: 'visible'
+            }}
+        >
+            {particles.map((p, idx) => (
+                <motion.div
+                    key={idx}
+                    animate={{
+                        x: posRef.current.x,
+                        y: posRef.current.y,
+                        opacity: posRef.current.x < 0 ? 0 : 1,
+                        scale: 1 - idx * 0.12
+                    }}
+                    transition={{
+                        type: 'spring',
+                        stiffness: Math.max(120 - idx * 20, 40),
+                        damping: 18 + idx * 6
+                    }}
+                    style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        width: 10 - idx * 2,
+                        height: 10 - idx * 2,
+                        borderRadius: '50%',
+                        background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), rgba(255,255,255,0.18))',
+                        transform: 'translate(-50%,-50%)',
+                        mixBlendMode: 'screen',
+                        opacity: 0.6 - idx * 0.12,
+                        pointerEvents: 'none'
+                    }}
+                />
+            ))}
         </Box>
     );
 };
@@ -118,7 +188,12 @@ const BackgroundAnimation = ({ variant = 'auto', isLoggedIn, reducedMotion }) =>
             return <FloatingParticles sx={{ zIndex: -9999 }} />;
         case 'landing':
         case 'gradient':
-            return <GradientWaves sx={{ zIndex: -9999 }} />;
+            return (
+                <>
+                    <GradientWaves sx={{ zIndex: -9999 }} />
+                    <CursorTrail reducedMotion={reducedMotion} />
+                </>
+            );
         case 'subtle':
             // subtle is a very light gradient (smaller visual footprint)
             return (
@@ -138,7 +213,12 @@ const BackgroundAnimation = ({ variant = 'auto', isLoggedIn, reducedMotion }) =>
             );
         case 'auto':
         default:
-            return isLoggedIn ? <FloatingParticles sx={{ zIndex: -10 }} /> : <GradientWaves sx={{ zIndex: -10 }} />;
+            return isLoggedIn ? <FloatingParticles sx={{ zIndex: -10 }} /> : (
+                <>
+                    <GradientWaves sx={{ zIndex: -10 }} />
+                    <CursorTrail reducedMotion={reducedMotion} />
+                </>
+            );
     }
 };
 
