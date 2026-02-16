@@ -146,6 +146,42 @@ const aiRequestLimiter = rateLimit({
   message: { error: 'AI request limit reached. Please try again later.' }
 });
 
+// Username availability checks - protect against enumeration
+// Soft limiter: after a small number of checks require CAPTCHA to proceed
+const usernameSoftLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // after 5 checks/hour require captcha
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: new RedisStore({ sendCommand: sendRedisCommand, prefix: 'rl:username-soft:' }),
+  keyGenerator: (req) => req.ip,
+  handler: (req, res) => {
+    console.warn(`[rate-limit] username soft-threshold reached for ip=${req.ip} url=${req.originalUrl}`);
+    res.set('X-Captcha-Required', '1');
+    res.set('Retry-After', String(Math.ceil(60 * 60))); // 1 hour
+    return res.status(429).json({ error: 'captcha_required', message: 'CAPTCHA required for further username checks' });
+  }
+});
+
+// Hard limiter: absolute cap to prevent brute-force/enumeration
+const usernameLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // stricter: 10 checks per hour per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: new RedisStore({
+    sendCommand: sendRedisCommand,
+    prefix: 'rl:username:'
+  }),
+  keyGenerator: (req) => req.ip,
+  handler: (req, res) => {
+    // log throttled attempts for monitoring / alerting (no sensitive payload logged)
+    console.warn(`[rate-limit] username check throttled for ip=${req.ip} url=${req.originalUrl}`);
+    res.set('Retry-After', String(Math.ceil(60 * 60))); // 1 hour
+    return res.status(429).json({ error: 'Too many username checks. Please try again later.' });
+  }
+});
+
 // Apply global rate limiter
 app.use(globalLimiter);
 
@@ -525,6 +561,13 @@ app.use('/api/user/register', strictLimiter);
 app.use('/api/user/password-reset', strictLimiter);
 app.use('/api/user/forgot', strictLimiter);
 app.use('/api/user/reset-password', strictLimiter);
+
+// Expose username availability with soft + hard limiter to require CAPTCHA after abuse
+app.use('/api/user/check-username', usernameSoftLimiter, usernameLimiter, proxy(services.user, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl.replace('/api/user', '');
+  }
+}));
 
 // User Service routes
 app.use('/api/user', createAuthProxy(services.user), applyUserLimiter, proxy(services.user, {

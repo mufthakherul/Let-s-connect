@@ -14,7 +14,7 @@ const FloatingParticles = () => {
                 width: '100%',
                 height: '100%',
                 pointerEvents: 'none',
-                zIndex: -1,
+                zIndex: -9999,
                 overflow: 'hidden'
             }}
         >
@@ -57,7 +57,7 @@ const GradientWaves = () => {
                 width: '100%',
                 height: '100%',
                 pointerEvents: 'none',
-                zIndex: -1,
+                zIndex: -9999,
                 overflow: 'hidden'
             }}
         >
@@ -115,10 +115,10 @@ const BackgroundAnimation = ({ variant = 'auto', isLoggedIn, reducedMotion }) =>
     // Allow explicit variant selection. 'auto' falls back to isLoggedIn behavior.
     switch (variant) {
         case 'loggedIn':
-            return <FloatingParticles sx={{ zIndex: -10 }} />;
+            return <FloatingParticles sx={{ zIndex: -9999 }} />;
         case 'landing':
         case 'gradient':
-            return <GradientWaves sx={{ zIndex: -10 }} />;
+            return <GradientWaves sx={{ zIndex: -9999 }} />;
         case 'subtle':
             // subtle is a very light gradient (smaller visual footprint)
             return (
@@ -130,7 +130,7 @@ const BackgroundAnimation = ({ variant = 'auto', isLoggedIn, reducedMotion }) =>
                         width: '100%',
                         height: '100%',
                         pointerEvents: 'none',
-                        zIndex: -10,
+                        zIndex: -9999,
                         overflow: 'hidden',
                         background: 'linear-gradient(180deg, rgba(0,0,0,0.04), transparent)'
                     }}

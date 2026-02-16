@@ -37,7 +37,7 @@ function Register({ setUser }) {
   const [loading, setLoading] = useState(false);
   const [agree, setAgree] = useState(false);
   const [captcha, setCaptcha] = useState(null); // { type, response }
-  const [usernameStatus, setUsernameStatus] = useState('idle'); // idle | checking | available | taken | error
+  const [usernameStatus, setUsernameStatus] = useState('idle'); // idle | checking | available | taken | error | throttled | captcha_required
   const [successMessage, setSuccessMessage] = useState('');
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
   const navigate = useNavigate();
@@ -62,7 +62,9 @@ function Register({ setUser }) {
     const t = setTimeout(async () => {
       try {
         // Mark this request to skip automatic interceptor auth-redirects (public check)
-        const res = await api.get(`/user/check-username?username=${encodeURIComponent(name)}`, { skipAuthRedirect: true });
+        // include captcha when present (useful if gateway requires it after abuse)
+        const captchaQuery = captcha?.response ? `&captchaType=${encodeURIComponent(captcha.type)}&captchaResponse=${encodeURIComponent(captcha.response)}` : '';
+        const res = await api.get(`/user/check-username?username=${encodeURIComponent(name)}${captchaQuery}`, { skipAuthRedirect: true });
         if (res?.data && typeof res.data.available === 'boolean') {
           setUsernameStatus(res.data.available ? 'available' : 'taken');
         } else {
@@ -73,6 +75,8 @@ function Register({ setUser }) {
         // If backend doesn't implement the endpoint (404) or other error, don't block signup
         // Treat 401/403 as a transient/unavailable check (do NOT redirect user)
         if (err?.response?.status === 404) setUsernameStatus('available');
+        else if (err?.response?.status === 429 && err?.response?.data?.error === 'captcha_required') setUsernameStatus('captcha_required');
+        else if (err?.response?.status === 429) setUsernameStatus('throttled');
         else setUsernameStatus('error');
       }
     }, 500);
@@ -198,9 +202,13 @@ function Register({ setUser }) {
                     ? 'Username available'
                     : usernameStatus === 'taken'
                       ? 'Username already taken'
-                      : usernameStatus === 'error'
-                        ? 'Could not validate username (server unavailable) — you may still register; server will validate on submit.'
-                        : 'Choose a public handle (letters, numbers, dashes).'
+                      : usernameStatus === 'throttled'
+                        ? 'Too many checks — please try again later.'
+                        : usernameStatus === 'captcha_required'
+                          ? 'Too many checks — complete the captcha below and retry.'
+                          : usernameStatus === 'error'
+                            ? 'Could not validate username (server unavailable) — you may still register; server will validate on submit.'
+                          : 'Choose a public handle (letters, numbers, dashes).'
               }
               FormHelperTextProps={{
                 sx: {
@@ -225,16 +233,32 @@ function Register({ setUser }) {
                   const name = formData.username.trim();
                   if (!name) return;
                   setUsernameStatus('checking');
-                  api.get(`/user/check-username?username=${encodeURIComponent(name)}`, { skipAuthRedirect: true })
+                  const captchaQuery = captcha?.response ? `&captchaType=${encodeURIComponent(captcha.type)}&captchaResponse=${encodeURIComponent(captcha.response)}` : '';
+                  api.get(`/user/check-username?username=${encodeURIComponent(name)}${captchaQuery}`, { skipAuthRedirect: true })
                     .then((res) => {
                       if (res?.data && typeof res.data.available === 'boolean') setUsernameStatus(res.data.available ? 'available' : 'taken');
                       else setUsernameStatus('available');
                     })
                     .catch((err) => {
                       if (err?.response?.status === 404) setUsernameStatus('available');
+                      else if (err?.response?.status === 429 && err?.response?.data?.error === 'captcha_required') setUsernameStatus('captcha_required');
+                      else if (err?.response?.status === 429) setUsernameStatus('throttled');
+                      else if (err?.response?.status === 400 && err?.response?.data?.error === 'Captcha verification failed') setUsernameStatus('captcha_required');
                       else setUsernameStatus('error');
                     });
                 }}>Retry</Button>
+              </Alert>
+            )}
+
+            {usernameStatus === 'throttled' && (
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                Too many username lookup attempts from your IP — please wait a while or try again later. You can still register; the server will enforce uniqueness on submit.
+              </Alert>
+            )}
+
+            {usernameStatus === 'captcha_required' && (
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                We've detected multiple username checks — please complete the CAPTCHA below and click <strong>Retry</strong> to continue checking availability.
               </Alert>
             )}
 
@@ -330,7 +354,7 @@ function Register({ setUser }) {
               variant="contained"
               fullWidth
               sx={{ mt: 2, py: 1.25 }}
-              disabled={loading || usernameStatus === 'taken' || usernameStatus === 'checking'}
+              disabled={loading || usernameStatus === 'taken' || usernameStatus === 'checking' || usernameStatus === 'throttled'}
             >
               {loading ? 'Creating account…' : 'Create account'}
             </Button>

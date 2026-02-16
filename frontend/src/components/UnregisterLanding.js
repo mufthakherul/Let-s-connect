@@ -38,6 +38,17 @@ function UnregisterLanding() {
         ? 'linear-gradient(45deg, #b388ff, #7c3aed)'
         : 'linear-gradient(45deg, #4f46e5, #06b6d4)';
 
+    // Feature-detect whether the browser supports text background-clip
+    const [supportsTextClip, setSupportsTextClip] = React.useState(true);
+    React.useEffect(() => {
+        try {
+            const supports = (window.CSS && (CSS.supports('background-clip', 'text') || CSS.supports('-webkit-background-clip', 'text')));
+            setSupportsTextClip(Boolean(supports));
+        } catch (e) {
+            setSupportsTextClip(false);
+        }
+    }, []);
+
     const features = [
         {
             title: 'Social Feed',
@@ -198,14 +209,17 @@ function UnregisterLanding() {
                         variant="h2"
                         gutterBottom
                         fontWeight="bold"
-                        sx={{
-                            background: brandGradient,
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                            // Keep a readable fallback for browsers that don't support -webkit-text-fill-color
-                            backgroundClip: 'text',
-                            color: 'text.primary'
-                        }}
+                        sx={theme => ({
+                            // Apply gradient text only when supported; otherwise keep visible fallback color
+                            background: supportsTextClip ? brandGradient : 'none',
+                            WebkitBackgroundClip: supportsTextClip ? 'text' : 'unset',
+                            WebkitTextFillColor: supportsTextClip ? 'transparent' : theme.palette.text.primary,
+                            backgroundClip: supportsTextClip ? 'text' : 'unset',
+                            // Explicit fallback color to ensure visibility
+                            color: supportsTextClip ? 'transparent' : theme.palette.text.primary,
+                            // keep a solid-color fallback for high-contrast / older browsers
+                            textShadow: supportsTextClip ? 'none' : undefined
+                        })}
                     >
                         Welcome to Let's Connect
                     </Typography>
