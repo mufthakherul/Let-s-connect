@@ -136,8 +136,15 @@ function AppContent() {
 
   const theme = useMemo(
     () => {
-      const accentColor = getAccentColor();
+      const accentColor = getAccentColor() || {
+        primary: '#1976d2',
+        secondary: '#dc004e',
+      };
       const { highContrast, largeText, textScale, colorBlindSupport, magnification, reducedMotion, fontFamily } = accessibility;
+
+      // Ensure accent colors are valid
+      const primaryColor = (highContrast ? (mode === 'dark' ? '#ffffff' : '#000000') : accentColor.primary) || '#1976d2';
+      const secondaryColor = (highContrast ? (mode === 'dark' ? '#ffff00' : '#ff0000') : accentColor.secondary) || '#dc004e';
 
       // Font family mapping
       const fontFamilyMap = {
@@ -164,13 +171,13 @@ function AppContent() {
         palette: {
           mode,
           primary: {
-            main: highContrast ? (mode === 'dark' ? '#ffffff' : '#000000') : accentColor.primary,
+            main: primaryColor,
             light: mode === 'dark' ? '#ffffff' : '#42a5f5',
             dark: mode === 'dark' ? '#cccccc' : '#1565c0',
             contrastText: highContrast ? (mode === 'dark' ? '#000000' : '#ffffff') : undefined,
           },
           secondary: {
-            main: highContrast ? (mode === 'dark' ? '#ffff00' : '#ff0000') : accentColor.secondary,
+            main: secondaryColor,
             contrastText: highContrast ? '#000000' : undefined,
           },
           background: {
