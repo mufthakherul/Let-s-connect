@@ -34,6 +34,15 @@ const API_BASE_PATH = NORMALIZED_API_BASE_URL.endsWith('/api')
   ? NORMALIZED_API_BASE_URL
   : `${NORMALIZED_API_BASE_URL}/api`;
 
+// Debug: show resolved API base (development only)
+if (process.env.NODE_ENV === 'development') {
+  try {
+    console.info('[API] resolved base:', API_BASE_URL, 'apiPath:', API_BASE_PATH);
+  } catch (e) {
+    /* no-op in non-browser environments */
+  }
+}
+
 const api = axios.create({
   baseURL: API_BASE_PATH,
   timeout: 15000,

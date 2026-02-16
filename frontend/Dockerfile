@@ -25,6 +25,8 @@ COPY . .
 RUN apk add --no-cache nginx
 
 # Copy Nginx config
+# On Alpine's nginx package the conf files with `server {}` blocks must go
+# into /etc/nginx/http.d/ (conf.d/ is included at the global/root context).
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy entrypoint script and make it executable

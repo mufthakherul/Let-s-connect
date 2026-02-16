@@ -166,7 +166,7 @@ function AppContent() {
   // Brand gradient: purple for dark mode, indigo/cyan for light mode
   const brandGradient = mode === 'dark'
     ? 'linear-gradient(45deg, #b388ff, #7c3aed)'
-    : 'linear-gradient(45deg, #4f46e5, #06b6d4)';
+    : 'linear-gradient(45deg, #f21970, #e209f6)';
   const { user, logout } = useAuthStore();
   const isMobile = useMediaQuery('(max-width:900px)');
   const [internalUser, setInternalUser] = useState(user);
