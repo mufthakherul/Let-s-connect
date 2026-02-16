@@ -8,6 +8,7 @@ import {
 import { Visibility, VisibilityOff, PersonAdd, CheckCircle } from '@mui/icons-material';
 import api from '../utils/api';
 import CaptchaField from './common/CaptchaField';
+import { useAuthStore } from '../store/authStore';
 
 function passwordStrength(password) {
   let score = 0;
@@ -40,6 +41,9 @@ function Register({ setUser }) {
   const [successMessage, setSuccessMessage] = useState('');
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
   const navigate = useNavigate();
+  // Update global auth store so all components see the authenticated user immediately
+  const setGlobalUser = useAuthStore((s) => s.setUser);
+  const setGlobalToken = useAuthStore((s) => s.setToken);
 
   useEffect(() => {
     setError('');
@@ -127,6 +131,9 @@ function Register({ setUser }) {
       // accidental automatic redirect caused by background 401s.
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
+
+      // Update global auth store (keeps useAuthStore in sync with localStorage)
+      try { setGlobalToken(response.data.token); setGlobalUser(response.data.user); } catch (e) { /* ignore */ }
 
       // suppress automatic redirect-to-login for 8 seconds (race-condition safety)
       try { window.__suppressAuthRedirectUntil = Date.now() + 8000; } catch (e) { /* ignore */ }
