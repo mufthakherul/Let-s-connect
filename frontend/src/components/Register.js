@@ -61,7 +61,8 @@ function Register({ setUser }) {
     setUsernameStatus('checking');
     const t = setTimeout(async () => {
       try {
-        const res = await api.get(`/user/check-username?username=${encodeURIComponent(name)}`);
+        // Mark this request to skip automatic interceptor auth-redirects (public check)
+        const res = await api.get(`/user/check-username?username=${encodeURIComponent(name)}`, { skipAuthRedirect: true, headers: { 'X-Skip-Auth-Redirect': '1' } });
         if (res?.data && typeof res.data.available === 'boolean') {
           setUsernameStatus(res.data.available ? 'available' : 'taken');
         } else {
@@ -70,6 +71,7 @@ function Register({ setUser }) {
         }
       } catch (err) {
         // If backend doesn't implement the endpoint (404) or other error, don't block signup
+        // Treat 401/403 as a transient/unavailable check (do NOT redirect user)
         if (err?.response?.status === 404) setUsernameStatus('available');
         else setUsernameStatus('error');
       }

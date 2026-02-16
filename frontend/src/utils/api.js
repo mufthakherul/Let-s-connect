@@ -78,6 +78,21 @@ api.interceptors.response.use(
       console.debug(`[API] response error (${status}) for ${reqId}`, error?.response?.data || error.message);
     }
 
+    // If the request explicitly opted-out of automatic auth-redirects, skip redirect behavior
+    try {
+      const cfg = error.config || {};
+      const skipFlag = cfg.skipAuthRedirect || (cfg.headers && cfg.headers['X-Skip-Auth-Redirect']);
+      if (skipFlag) {
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.debug('[API] skipping automatic auth-redirect for request (skipAuthRedirect flag)');
+        }
+        return Promise.reject(error);
+      }
+    } catch (ex) {
+      // swallow
+    }
+
     // Allow a short grace period after login/register where a transient 401
     // (race-condition between auth state propagation and background requests)
     // should not immediately kick the user back to the login screen.
