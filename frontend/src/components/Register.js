@@ -29,15 +29,28 @@ function Register({ setUser }) {
       setUser(response.data.user);
       navigate('/feed');
     } catch (err) {
-      setError(err.response?.data?.error || 'Registration failed');
+      // Detect network / CORS errors (no response) and provide actionable message
+      if (!err.response) {
+        console.error('Registration network error:', err);
+        setError(`Network error while contacting the backend — this is often caused by CORS or a blocked API port in the development environment.\n          - If you are using Codespaces: open the Ports view and make port 8000 public.\n - Or set REACT_APP_API_URL to the API gateway host.`);
+      } else {
+        setError(err.response?.data?.error || 'Registration failed');
+      }
     }
   };
+
+  const isCodespace = typeof window !== 'undefined' && window.location.origin.includes('.app.github.dev');
 
   return (
     <Box sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
       <Typography variant="h4" gutterBottom>
         Register
       </Typography>
+      {isCodespace && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Running inside Codespaces? If registration fails with a CORS error make sure <strong>port 8000</strong> is exposed/public in the Ports view or set <code>REACT_APP_API_URL</code> to your API gateway host.
+        </Alert>
+      )}
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       <form onSubmit={handleSubmit}>
         <TextField
