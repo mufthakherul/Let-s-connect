@@ -16,13 +16,15 @@
 # Development files
 .git/
 .github/
-.vscode/
-.devcontainer/
+# Allow editor and devcontainer files for remote development (do not ignore)
+# .vscode/
+# .devcontainer/
 
-# Docker files (not needed for Render Node.js deployment)
-docker-compose.yml
-Dockerfile
-**/Dockerfile
+# Docker files — keep Dockerfiles and compose for local/remote development
+# Previously ignored for Render deployments; commented out to allow development
+# docker-compose.yml
+# Dockerfile
+# **/Dockerfile
 
 # Testing
 tests/
@@ -53,7 +55,8 @@ temp/
 *.rar
 
 # Scripts (unless needed)
-scripts/
+# Allow project scripts to be tracked for development
+# scripts/
 
 # Node.js
 node_modules/
