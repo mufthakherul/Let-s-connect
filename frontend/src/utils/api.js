@@ -81,7 +81,7 @@ api.interceptors.response.use(
     // If the request explicitly opted-out of automatic auth-redirects, skip redirect behavior
     try {
       const cfg = error.config || {};
-      const skipFlag = cfg.skipAuthRedirect || (cfg.headers && cfg.headers['X-Skip-Auth-Redirect']);
+      const skipFlag = cfg.skipAuthRedirect; // opt-out flag only (no custom header)
       if (skipFlag) {
         if (process.env.NODE_ENV === 'development') {
           // eslint-disable-next-line no-console
