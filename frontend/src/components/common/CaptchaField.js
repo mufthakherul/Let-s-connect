@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Box, Button, TextField, Typography, IconButton } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
@@ -16,7 +16,7 @@ function makeSVGText(text) {
   const width = Math.max(120, text.length * 28);
   const height = 48;
   const jittered = text.split('').map((c, i) => `\n<text x="${12 + i * 22}" y="${28 + (i % 2 ? -4 : 4)}" font-size="24" font-family="monospace" fill=\"#333\">${c}</text>`).join('');
-  const noise = Array.from({ length: 6 }).map((_, i) => `<circle cx='${Math.random() * width}' cy='${Math.random() * height}' r='${Math.random() * 2 + 0.5}' fill='#${Math.floor(Math.random()*16777215).toString(16)}' opacity='0.15'/>`).join('\n');
+  const noise = Array.from({ length: 6 }).map((_, i) => `<circle cx='${Math.random() * width}' cy='${Math.random() * height}' r='${Math.random() * 2 + 0.5}' fill='#${Math.floor(Math.random() * 16777215).toString(16)}' opacity='0.15'/>`).join('\n');
   return `data:image/svg+xml;utf8,` + encodeURIComponent(`<?xml version='1.0' encoding='UTF-8'?><svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}'><rect width='100%' height='100%' fill='#f6f7fb'/><g transform='translate(0,0)'>${noise}${jittered}</g></svg>`);
 }
 
@@ -39,10 +39,30 @@ export default function CaptchaField({ onSolve, onClear, variant = 'auto', label
   const hcaptchaContainerRef = useRef(null);
   const widgetIdRef = useRef(null);
 
+  const generate = useCallback(() => {
+    setSolved(false);
+    setValue('');
+    if (mode === 'math') {
+      const a = randomInt(1, 20);
+      const b = randomInt(1, 20);
+      const op = Math.random() > 0.5 ? '+' : '-';
+      const question = `${a} ${op} ${b}`;
+      const answer = op === '+' ? a + b : a - b;
+      setChallenge({ type: 'math', question, answer });
+    } else if (mode === 'image') {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const text = Array.from({ length: 4 }).map(() => chars.charAt(randomInt(0, chars.length - 1))).join('');
+      const svg = makeSVGText(text);
+      setChallenge({ type: 'image', svg, text });
+    } else {
+      // hcaptcha placeholder
+      setChallenge({ type: 'hcaptcha', siteKey, info: 'Set REACT_APP_HCAPTCHA_SITEKEY to enable hCaptcha' });
+    }
+  }, [mode, siteKey]);
+
   useEffect(() => {
     generate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+  }, [generate]);
 
   // Render hCaptcha widget when siteKey is present and mode === 'hcaptcha'
   useEffect(() => {
@@ -104,27 +124,6 @@ export default function CaptchaField({ onSolve, onClear, variant = 'auto', label
     };
   }, [mode, siteKey, onSolve, onClear]);
 
-  const generate = () => {
-    setSolved(false);
-    setValue('');
-    if (mode === 'math') {
-      const a = randomInt(1, 20);
-      const b = randomInt(1, 20);
-      const op = Math.random() > 0.5 ? '+' : '-';
-      const question = `${a} ${op} ${b}`;
-      const answer = op === '+' ? a + b : a - b;
-      setChallenge({ type: 'math', question, answer });
-    } else if (mode === 'image') {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      const text = Array.from({ length: 4 }).map(() => chars.charAt(randomInt(0, chars.length - 1))).join('');
-      const svg = makeSVGText(text);
-      setChallenge({ type: 'image', svg, text });
-    } else {
-      // hcaptcha placeholder
-      setChallenge({ type: 'hcaptcha', siteKey, info: 'Set REACT_APP_HCAPTCHA_SITEKEY to enable hCaptcha' });
-    }
-  };
-
   const verify = () => {
     if (!challenge) return;
     if (challenge.type === 'math') {
@@ -165,12 +164,12 @@ export default function CaptchaField({ onSolve, onClear, variant = 'auto', label
         </Box>
       </Box>
 
-          {mode === 'hcaptcha' && (
+      {mode === 'hcaptcha' && (
         siteKey ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <div ref={hcaptchaContainerRef} />
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button size="small" onClick={() => { if (window.hcaptcha && widgetIdRef.current !== null) { try { window.hcaptcha.reset(widgetIdRef.current); } catch(e){} } }}>Reset</Button>
+              <Button size="small" onClick={() => { if (window.hcaptcha && widgetIdRef.current !== null) { try { window.hcaptcha.reset(widgetIdRef.current); } catch (e) { } } }}>Reset</Button>
             </Box>
           </Box>
         ) : (
