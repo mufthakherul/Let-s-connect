@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import {
     Speed, Security, CloudDone, Groups, Chat, VideoLibrary,
-    ShoppingCart, Description, SmartToy, Verified, Event, Tv, Radio
+    ShoppingCart, Description, SmartToy, VerifiedUser, Event, Tv, Radio
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 
@@ -82,7 +82,7 @@ function UnregisterLanding() {
         { icon: <Speed />, text: 'Fast & Responsive' },
         { icon: <Security />, text: 'Privacy-first' },
         { icon: <CloudDone />, text: 'Reliable & Scalable' },
-        { icon: <Verified />, text: 'Enterprise-ready' },
+        { icon: <VerifiedUser sx={{ color: 'secondary.main' }} />, text: 'Enterprise-ready' },
     ];
 
     // Motion variants

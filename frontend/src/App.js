@@ -18,7 +18,7 @@ import {
   Phone as PhoneIcon, Storage as DatabaseIcon, CompareArrows as DiffIcon,
   Event as EventIcon,
   Settings as SettingsIcon, MoreHoriz as MoreHorizIcon, Apps as AppsIcon, PeopleAlt as PeopleIcon, SwapHoriz as SwapHorizIcon, Close as CloseIcon,
-  AccessibilityNew, ExpandLess, ExpandMore, Radio as RadioIcon, Tv as TvIcon,
+  AccessibilityNew, ExpandLess, ExpandMore, Radio as RadioIcon, Tv as TvIcon, Security, VerifiedUser,
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -27,6 +27,12 @@ import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/authStore';
 import NotificationCenter from './components/common/NotificationCenter';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import Error404 from './components/errors/Error404';
+import Error500 from './components/errors/Error500';
+import Error503 from './components/errors/Error503';
+import Error429 from './components/errors/Error429';
+import Error401 from './components/errors/Error401';
+import Error403 from './components/errors/Error403';
 import Breadcrumbs from './components/common/Breadcrumbs';
 import QuickAccessMenu from './components/common/QuickAccessMenu';
 import Onboarding from './components/common/Onboarding';
@@ -433,7 +439,7 @@ function AppContent() {
     { label: 'Docs', path: '/docs', icon: <Description />, public: true },
     { label: 'Privacy', path: '/privacy', icon: <Security />, public: true },
     { label: 'Terms', path: '/terms', icon: <Article />, public: true },
-    { label: 'Cookies', path: '/cookies', icon: <Verified />, public: true },
+    { label: 'Cookies', path: '/cookies', icon: <VerifiedUser sx={{ fontSize: 20 }} />, public: true },
     { label: 'Meetings', path: '/meetings', icon: <EventIcon />, public: true },
     { label: 'Feed', path: '/feed', icon: <FeedIcon />, public: false },
     { label: 'Groups', path: '/groups', icon: <GroupIcon />, public: false },
@@ -565,7 +571,7 @@ function AppContent() {
           },
         }}
       />
-      <ErrorBoundary level="page">
+      <ErrorBoundary level="page" fallback={(err) => <Error500 details={err?.message} />}>
         {/* Conditional Navbar: Different for registered vs unregistered users */}
         {internalUser ? (
           /* Facebook-style Navbar for REGISTERED users */
@@ -1255,6 +1261,13 @@ function AppContent() {
                     path="/tv"
                     element={internalUser ? <TV /> : <Navigate to="/login" />}
                   />
+
+                  {/* Error pages for testing & catch-all 404 */}
+                  <Route path="/error/401" element={<Error401 />} />
+                  <Route path="/error/403" element={<Error403 />} />
+                  <Route path="/error/429" element={<Error429 />} />
+                  <Route path="/error/503" element={<Error503 />} />
+                  <Route path="*" element={<Error404 />} />
                 </Routes>
               </Suspense>
             </motion.div>
