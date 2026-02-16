@@ -1,6 +1,6 @@
 /* eslint-disable no-restricted-globals */
 
-const CACHE_VERSION = 'v4.0.0';
+const CACHE_VERSION = 'v4.0.1';
 const CACHE_NAME = `lets-connect-${CACHE_VERSION}`;
 
 // Assets to cache on install
@@ -89,7 +89,7 @@ async function cacheFirstStrategy(request) {
     }
 
     const networkResponse = await fetch(request);
-    
+
     // Cache successful responses
     if (networkResponse.ok) {
       const cache = await caches.open(CACHE_NAME);
@@ -99,7 +99,7 @@ async function cacheFirstStrategy(request) {
     return networkResponse;
   } catch (error) {
     console.error('[Service Worker] Fetch failed:', error);
-    
+
     // Return offline page for navigation requests
     if (request.mode === 'navigate') {
       const offlineResponse = await caches.match('/offline.html');
@@ -125,17 +125,17 @@ async function networkFirstStrategy(request) {
     if (networkResponse.ok && shouldCacheAPIRequest(request)) {
       const cache = await caches.open(CACHE_NAME);
       const responseToCache = networkResponse.clone();
-      
+
       // Add timestamp to response headers for cache invalidation
       const headers = new Headers(responseToCache.headers);
       headers.set('sw-cache-timestamp', Date.now().toString());
-      
+
       const cachedResponse = new Response(responseToCache.body, {
         status: responseToCache.status,
         statusText: responseToCache.statusText,
         headers: headers
       });
-      
+
       cache.put(request, cachedResponse);
     }
 
@@ -145,7 +145,7 @@ async function networkFirstStrategy(request) {
 
     // Try to serve from cache
     const cachedResponse = await caches.match(request);
-    
+
     if (cachedResponse) {
       // Check if cached response is still valid
       const cacheTimestamp = cachedResponse.headers.get('sw-cache-timestamp');
@@ -159,9 +159,9 @@ async function networkFirstStrategy(request) {
     }
 
     // Return error response
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       error: 'Network unavailable',
-      offline: true 
+      offline: true
     }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' }
@@ -178,7 +178,7 @@ function shouldCacheAPIRequest(request) {
 // Background sync for offline actions
 self.addEventListener('sync', (event) => {
   console.log('[Service Worker] Background sync:', event.tag);
-  
+
   if (event.tag === 'sync-posts') {
     event.waitUntil(syncPosts());
   } else if (event.tag === 'sync-messages') {
@@ -201,7 +201,7 @@ async function syncMessages() {
 // Push notifications
 self.addEventListener('push', (event) => {
   console.log('[Service Worker] Push notification received');
-  
+
   const data = event.data ? event.data.json() : {};
   const title = data.title || 'Let\'s Connect';
   const options = {
@@ -239,7 +239,7 @@ self.addEventListener('notificationclick', (event) => {
             return client.focus();
           }
         }
-        
+
         // Open new window
         const url = event.notification.data?.url || '/';
         return clients.openWindow(url);
@@ -250,7 +250,7 @@ self.addEventListener('notificationclick', (event) => {
 // Message handler for client communication
 self.addEventListener('message', (event) => {
   console.log('[Service Worker] Message received:', event.data);
-  
+
   if (event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   } else if (event.data.type === 'CACHE_URLS') {

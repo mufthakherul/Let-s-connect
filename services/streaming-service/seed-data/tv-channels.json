@@ -1,0 +1,202 @@
+[
+    {
+        "name": "BBC One",
+        "description": "UK primary mainstream channel",
+        "streamUrl": "https://vs-cmaf-push-uk.live.cf.md.bbcverticals.com/pool_904/live/vs_live_uk_hd.m3u8",
+        "category": "General",
+        "country": "United Kingdom",
+        "language": "English",
+        "logoUrl": "https://www.bbc.co.uk/bbcone/images/logo-bbc-one.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "BBC Two",
+        "description": "UK quality factual and entertainment channel",
+        "streamUrl": "https://vs-cmaf-push-uk.live.cf.md.bbcverticals.com/pool_905/live/vs_live_uk_hd.m3u8",
+        "category": "General",
+        "country": "United Kingdom",
+        "language": "English",
+        "logoUrl": "https://www.bbc.co.uk/bbctwo/images/logo-bbc-two.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "BBC News",
+        "description": "24/7 news and current affairs",
+        "streamUrl": "https://vs-cmaf-push-uk.live.cf.md.bbcverticals.com/pool_906/live/vs_live_uk_hd.m3u8",
+        "category": "News",
+        "country": "United Kingdom",
+        "language": "English",
+        "logoUrl": "https://www.bbc.co.uk/news/images/logo-bbc-news.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "ITV",
+        "description": "UK's main commercial television channel",
+        "streamUrl": "https://itv-stream.example.com/live.m3u8",
+        "category": "General",
+        "country": "United Kingdom",
+        "language": "English",
+        "logoUrl": "https://www.itv.com/images/itv-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "EuroNews",
+        "description": "European news channel available worldwide",
+        "streamUrl": "https://euronews.stream.examplecdn.com/hls/live/euronews.m3u8",
+        "category": "News",
+        "country": "Europe",
+        "language": "English",
+        "logoUrl": "https://euronews.com/images/euronews-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "France 2",
+        "description": "French national public television",
+        "streamUrl": "https://france2.stream.francetv.fr/hls/live/france2.m3u8",
+        "category": "General",
+        "country": "France",
+        "language": "French",
+        "logoUrl": "https://www.france.tv/france-2/images/france-2-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "France 3",
+        "description": "French regional public television",
+        "streamUrl": "https://france3.stream.francetv.fr/hls/live/france3.m3u8",
+        "category": "General",
+        "country": "France",
+        "language": "French",
+        "logoUrl": "https://www.france.tv/france-3/images/france-3-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "RTE One",
+        "description": "Irish national television",
+        "streamUrl": "https://rte1.stream.rte.ie/hls/live/rte1.m3u8",
+        "category": "General",
+        "country": "Ireland",
+        "language": "English",
+        "logoUrl": "https://www.rte.ie/images/rte-one-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "RTE Two",
+        "description": "Irish television with diverse programming",
+        "streamUrl": "https://rte2.stream.rte.ie/hls/live/rte2.m3u8",
+        "category": "General",
+        "country": "Ireland",
+        "language": "English",
+        "logoUrl": "https://www.rte.ie/images/rte-two-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "ABC News",
+        "description": "Australian Broadcasting Corporation news",
+        "streamUrl": "https://abcnews-stream.abc.net.au/hls/live/abcnews.m3u8",
+        "category": "News",
+        "country": "Australia",
+        "language": "English",
+        "logoUrl": "https://www.abc.net.au/images/abc-news-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "SBS Australia",
+        "description": "Australian multicultural public broadcaster",
+        "streamUrl": "https://sbs-stream.sbs.com.au/hls/live/sbs.m3u8",
+        "category": "General",
+        "country": "Australia",
+        "language": "English",
+        "logoUrl": "https://www.sbs.com.au/images/sbs-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "CBC News",
+        "description": "Canadian Broadcasting Corporation news",
+        "streamUrl": "https://cbcnews-stream.cbc.ca/hls/live/cbcnews.m3u8",
+        "category": "News",
+        "country": "Canada",
+        "language": "English",
+        "logoUrl": "https://www.cbc.ca/images/cbc-news-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "RTBF Auvio",
+        "description": "Belgian French-language broadcaster",
+        "streamUrl": "https://rtbf-stream.rtbf.be/hls/live/auvio.m3u8",
+        "category": "General",
+        "country": "Belgium",
+        "language": "French",
+        "logoUrl": "https://www.rtbf.be/images/logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "NRK",
+        "description": "Norwegian Broadcasting Corporation",
+        "streamUrl": "https://nrk-stream.nrk.no/hls/live/nrk1.m3u8",
+        "category": "General",
+        "country": "Norway",
+        "language": "Norwegian",
+        "logoUrl": "https://www.nrk.no/images/nrk-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "SVT",
+        "description": "Swedish Television Broadcasting",
+        "streamUrl": "https://svt-stream.svt.se/hls/live/svt1.m3u8",
+        "category": "General",
+        "country": "Sweden",
+        "language": "Swedish",
+        "logoUrl": "https://www.svt.se/images/svt-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "Smithsonian Channel",
+        "description": "History and science documentary channel",
+        "streamUrl": "https://smithsonian-stream.live.cf.md.smithsoniannetworks.com/live.m3u8",
+        "category": "Documentary",
+        "country": "United States",
+        "language": "English",
+        "logoUrl": "https://www.smithsonianchannel.com/images/logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "TED Talks",
+        "description": "Educational content and talks",
+        "streamUrl": "https://ted-stream.example.com/hls/live/ted.m3u8",
+        "category": "Educational",
+        "country": "International",
+        "language": "English",
+        "logoUrl": "https://www.ted.com/images/ted-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "Al Jazeera English",
+        "description": "International news network",
+        "streamUrl": "https://aljazeera-stream.aljazeera.net/hls/live/aljazeera.m3u8",
+        "category": "News",
+        "country": "Qatar",
+        "language": "English",
+        "logoUrl": "https://www.aljazeera.com/images/aljazeera-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "DW News",
+        "description": "Deutsche Welle international news",
+        "streamUrl": "https://dwenews-stream.dw.com/hls/live/dwnews.m3u8",
+        "category": "News",
+        "country": "Germany",
+        "language": "English",
+        "logoUrl": "https://www.dw.com/images/dw-logo.png",
+        "resolution": "HD"
+    },
+    {
+        "name": "CGTN",
+        "description": "China Global Television Network",
+        "streamUrl": "https://cgtn-stream.cgtn.cc/hls/live/cgtn.m3u8",
+        "category": "News",
+        "country": "China",
+        "language": "English",
+        "logoUrl": "https://www.cgtn.com/images/cgtn-logo.png",
+        "resolution": "HD"
+    }
+]
