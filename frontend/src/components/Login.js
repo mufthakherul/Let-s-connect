@@ -9,6 +9,7 @@ import { Visibility, VisibilityOff, LockOutlined, Login as LoginIcon } from '@mu
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import api from '../utils/api';
+import { useAuthStore } from '../store/authStore';
 
 function passwordStrength(password) {
   let score = 0;
@@ -32,6 +33,9 @@ function Login({ setUser }) {
   const [loading, setLoading] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
   const navigate = useNavigate();
+  // keep global auth store in sync so other components don't see a mismatch
+  const setGlobalUser = useAuthStore((s) => s.setUser);
+  const setGlobalToken = useAuthStore((s) => s.setToken);
 
   useEffect(() => {
     if (remember && email) localStorage.setItem('rememberEmail', email);
@@ -47,6 +51,9 @@ function Login({ setUser }) {
       const response = await api.post('/user/login', { email, password });
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
+
+      // Update global auth store immediately
+      try { setGlobalToken(response.data.token); setGlobalUser(response.data.user); } catch (e) { /* ignore */ }
 
       // brief grace period to avoid immediate 401->redirect races in other components
       try { window.__suppressAuthRedirectUntil = Date.now() + 8000; } catch (e) { /* ignore */ }
