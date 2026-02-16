@@ -108,12 +108,38 @@ const GradientWaves = () => {
     );
 };
 
-const BackgroundAnimation = ({ isLoggedIn, reducedMotion }) => {
+const BackgroundAnimation = ({ variant = 'auto', isLoggedIn, reducedMotion }) => {
     // Disable animations when reduced motion is enabled for accessibility
-    if (reducedMotion) {
-        return null;
+    if (reducedMotion || variant === 'none') return null;
+
+    // Allow explicit variant selection. 'auto' falls back to isLoggedIn behavior.
+    switch (variant) {
+        case 'loggedIn':
+            return <FloatingParticles sx={{ zIndex: -10 }} />;
+        case 'landing':
+        case 'gradient':
+            return <GradientWaves sx={{ zIndex: -10 }} />;
+        case 'subtle':
+            // subtle is a very light gradient (smaller visual footprint)
+            return (
+                <Box
+                    sx={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        pointerEvents: 'none',
+                        zIndex: -10,
+                        overflow: 'hidden',
+                        background: 'linear-gradient(180deg, rgba(0,0,0,0.04), transparent)'
+                    }}
+                />
+            );
+        case 'auto':
+        default:
+            return isLoggedIn ? <FloatingParticles sx={{ zIndex: -10 }} /> : <GradientWaves sx={{ zIndex: -10 }} />;
     }
-    return isLoggedIn ? <FloatingParticles /> : <GradientWaves />;
 };
 
 export default BackgroundAnimation;

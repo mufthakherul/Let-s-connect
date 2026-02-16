@@ -560,7 +560,22 @@ function AppContent() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <BackgroundAnimation isLoggedIn={!!internalUser} reducedMotion={accessibility.reducedMotion} />
+      {/* Page-aware background animation: choose variant based on route + auth */}
+      {
+        (() => {
+          const path = location.pathname || '/';
+          let variant = 'auto';
+
+          if (accessibility.reducedMotion) variant = 'none';
+          else if (internalUser) variant = 'loggedIn';
+          else if (path === '/' || path === '/unregister') variant = 'landing';
+          else if (path.startsWith('/docs') || path.startsWith('/helpcenter') || path.startsWith('/videos')) variant = 'subtle';
+          else if (path.startsWith('/login') || path.startsWith('/register')) variant = 'none';
+          else variant = 'auto';
+
+          return <BackgroundAnimation variant={variant} isLoggedIn={!!internalUser} reducedMotion={accessibility.reducedMotion} />;
+        })()
+      }
       <Toaster
         position="top-right"
         toastOptions={{

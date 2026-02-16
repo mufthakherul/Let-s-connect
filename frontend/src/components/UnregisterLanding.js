@@ -149,7 +149,7 @@ function UnregisterLanding() {
                 initial="hidden"
                 animate="visible"
                 exit={{ opacity: 0, y: -10 }}
-                sx={{ position: 'relative', overflow: 'visible' }}
+                sx={{ position: 'relative', overflow: 'visible', zIndex: 1 }}
             >
                 {/* Decorative background shapes (subtle, non-distracting) */}
                 {!prefersReducedMotion && (
