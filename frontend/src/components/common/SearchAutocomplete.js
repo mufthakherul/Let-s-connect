@@ -198,13 +198,13 @@ const SearchAutocomplete = ({ variant = 'outlined', size = 'small', fullWidth = 
       renderOption={(props, option) => (
         <Box component="li" {...props}>
           <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1 }}>
-            {option.type === 'history' && <HistoryIcon fontSize="small" color="action" />}
-            {option.type === 'trending' && <TrendingIcon fontSize="small" color="primary" />}
-            {option.type === 'suggestion' && <SearchIcon fontSize="small" color="action" />}
+            {option?.type === 'history' && <HistoryIcon fontSize="small" color="action" />}
+            {option?.type === 'trending' && <TrendingIcon fontSize="small" color="primary" />}
+            {option?.type === 'suggestion' && <SearchIcon fontSize="small" color="action" />}
             
             <Box sx={{ flexGrow: 1 }}>
-              <Typography variant="body2">{option.label}</Typography>
-              {option.type === 'history' && (
+              <Typography variant="body2">{option?.label}</Typography>
+              {option?.type === 'history' && (
                 <Typography variant="caption" color="text.secondary">
                   Recent search
                 </Typography>
