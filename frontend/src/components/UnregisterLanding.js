@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import {
     Typography, Box, Button, Grid, Card, CardContent, Container, useTheme,
     Paper, Chip, Stack
@@ -11,6 +12,7 @@ import { Link } from 'react-router-dom';
 
 function UnregisterLanding() {
     const theme = useTheme();
+    const MotionCard = motion(Card);
 
     const features = [
         {
@@ -58,11 +60,41 @@ function UnregisterLanding() {
         { icon: <Verified />, text: 'Production Ready' },
     ];
 
+    // Motion variants
+    const container = {
+        hidden: { opacity: 0, y: 12 },
+        visible: { opacity: 1, y: 0, transition: { staggerChildren: 0.12, when: 'beforeChildren' } }
+    };
+
+    const fadeInUp = {
+        hidden: { opacity: 0, y: 10 },
+        visible: { opacity: 1, y: 0, transition: { duration: 0.48, ease: 'easeOut' } }
+    };
+
+    const cardVariant = {
+        hidden: { opacity: 0, y: 8, scale: 0.98 },
+        visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.45, ease: 'easeOut' } },
+        hover: { y: -8, scale: 1.02, boxShadow: '0 10px 30px rgba(2,6,23,0.12)' }
+    };
+
+    const floatIcon = {
+        animate: { y: [0, -6, 0], transition: { duration: 4, repeat: Infinity, ease: 'easeInOut' } }
+    };
+
     return (
-        <Container maxWidth="lg">
+        <Container
+            maxWidth="lg"
+            component={motion.div}
+            variants={container}
+            initial="hidden"
+            animate="visible"
+            exit={{ opacity: 0, y: -10 }}
+        >
             {/* Hero Section */}
-            <Box sx={{ textAlign: 'center', mb: 8, mt: 4 }}>
+            <Box component={motion.div} variants={fadeInUp} sx={{ textAlign: 'center', mb: 8, mt: 4 }}>
                 <Typography
+                    component={motion.h1}
+                    variants={fadeInUp}
                     variant="h2"
                     gutterBottom
                     fontWeight="bold"
@@ -74,94 +106,113 @@ function UnregisterLanding() {
                 >
                     Welcome to Let's Connect
                 </Typography>
-                <Typography variant="h5" color="text.secondary" paragraph sx={{ mb: 3 }}>
+
+                <Typography component={motion.p} variants={fadeInUp} variant="h5" color="text.secondary" paragraph sx={{ mb: 3 }}>
                     The All-in-One Social Collaboration Platform
                 </Typography>
-                <Typography variant="body1" color="text.secondary" paragraph sx={{ maxWidth: 800, mx: 'auto', mb: 4 }}>
+
+                <Typography component={motion.p} variants={fadeInUp} variant="body1" color="text.secondary" paragraph sx={{ maxWidth: 800, mx: 'auto', mb: 4 }}>
                     A comprehensive platform bringing together social networking, real-time messaging,
                     video sharing, team collaboration, and e-commerce in a unified,
                     secure, self-hosted solution designed for modern communities.
                 </Typography>
 
-                <Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 4 }}>
+                <Stack component={motion.div} variants={fadeInUp} direction="row" spacing={2} justifyContent="center" sx={{ mb: 4 }}>
                     {highlights.map((item, i) => (
-                        <Chip
-                            key={i}
-                            icon={item.icon}
-                            label={item.text}
-                            color="primary"
-                            variant="outlined"
-                        />
+                        <Box key={i} component={motion.div} whileHover={{ scale: 1.03 }} sx={{ display: 'inline-block' }}>
+                            <Chip
+                                icon={item.icon}
+                                label={item.text}
+                                color="primary"
+                                variant="outlined"
+                                sx={{ py: 1.1, px: 1.5, fontWeight: 600 }}
+                            />
+                        </Box>
                     ))}
                 </Stack>
 
-                <Box sx={{ mt: 4 }}>
-                    <Button
-                        variant="contained"
-                        size="large"
-                        component={Link}
-                        to="/register"
-                        sx={{ mr: 2, px: 4, py: 1.5 }}
-                    >
-                        Get Started Free
-                    </Button>
-                    <Button
-                        variant="outlined"
-                        size="large"
-                        component={Link}
-                        to="/videos"
-                        sx={{ px: 4, py: 1.5 }}
-                    >
-                        Explore Content
-                    </Button>
+                <Box sx={{ mt: 4, display: 'inline-flex', gap: 12 }} component={motion.div} variants={fadeInUp}>
+                    <motion.div whileHover={{ scale: 1.04, y: -4 }} whileTap={{ scale: 0.98 }}>
+                        <Button
+                            variant="contained"
+                            size="large"
+                            component={Link}
+                            to="/register"
+                            sx={{ mr: 2, px: 4, py: 1.5, boxShadow: 4 }}
+                        >
+                            Get Started Free
+                        </Button>
+                    </motion.div>
+
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                        <Button
+                            variant="outlined"
+                            size="large"
+                            component={Link}
+                            to="/videos"
+                            sx={{ px: 4, py: 1.5 }}
+                        >
+                            Explore Content
+                        </Button>
+                    </motion.div>
                 </Box>
             </Box>
 
             {/* Features Grid */}
             <Box sx={{ mb: 8 }}>
-                <Typography variant="h4" fontWeight="bold" sx={{ mb: 4, textAlign: 'center' }}>
+                <Typography component={motion.h2} variants={fadeInUp} variant="h4" fontWeight="bold" sx={{ mb: 4, textAlign: 'center' }}>
                     Powerful Features
                 </Typography>
+
                 <Grid container spacing={3}>
                     {features.map((feature, index) => (
-                        <Grid item xs={12} sm={6} md={4} key={index}>
-                            <Card
+                        <Grid key={index} item xs={12} sm={6} md={4} component={motion.div} variants={cardVariant}>
+                            <MotionCard
+                                variants={cardVariant}
+                                initial="hidden"
+                                whileHover="hover"
                                 sx={{
                                     height: '100%',
+                                    cursor: 'pointer',
                                     transition: 'transform 0.2s, box-shadow 0.2s',
-                                    '&:hover': {
-                                        transform: 'translateY(-4px)',
-                                        boxShadow: 6,
-                                    }
                                 }}
                             >
                                 <CardContent sx={{ textAlign: 'center', py: 4 }}>
-                                    <Box sx={{ mb: 2 }}>
+                                    <Box component={motion.div} variants={floatIcon} animate="animate" sx={{ mb: 2 }}>
                                         {feature.icon}
                                     </Box>
+
                                     <Typography variant="h6" gutterBottom fontWeight="600">
                                         {feature.title}
                                     </Typography>
+
                                     <Typography variant="body2" color="text.secondary" paragraph>
                                         {feature.description}
                                     </Typography>
+
                                     <Button
                                         size="small"
                                         component={Link}
                                         to={feature.link}
                                         variant="text"
+                                        sx={{
+                                            '&:hover': { transform: 'translateX(6px)' },
+                                            transition: 'all 0.25s ease'
+                                        }}
                                     >
-                                        Learn More →
+                                        <Box component={motion.span} whileHover={{ x: 6 }} sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                            Learn More →
+                                        </Box>
                                     </Button>
                                 </CardContent>
-                            </Card>
+                            </MotionCard>
                         </Grid>
                     ))}
                 </Grid>
             </Box>
 
             {/* Platform Features */}
-            <Paper elevation={0} sx={{ p: 4, mb: 8, bgcolor: 'background.default', borderRadius: 3 }}>
+            <Paper elevation={0} sx={{ p: 4, mb: 8, bgcolor: 'background.default', borderRadius: 3 }} component={motion.div} variants={fadeInUp}>
                 <Typography variant="h4" fontWeight="bold" gutterBottom sx={{ mb: 3 }}>
                     What's Included
                 </Typography>
@@ -194,7 +245,7 @@ function UnregisterLanding() {
             </Paper>
 
             {/* Tech Stack */}
-            <Box sx={{ mb: 8, textAlign: 'center' }}>
+            <Box sx={{ mb: 8, textAlign: 'center' }} component={motion.div} variants={fadeInUp}>
                 <Typography variant="h4" fontWeight="bold" gutterBottom sx={{ mb: 3 }}>
                     Built with Modern Technology
                 </Typography>
@@ -202,13 +253,11 @@ function UnregisterLanding() {
                     React 18.3 • Material-UI v5 • Node.js • PostgreSQL • Redis • Docker • Socket.IO
                 </Typography>
                 <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap" sx={{ mt: 3 }}>
-                    <Chip label="Microservices" variant="outlined" />
-                    <Chip label="Real-time" variant="outlined" />
-                    <Chip label="Dark Mode" variant="outlined" />
-                    <Chip label="Responsive" variant="outlined" />
-                    <Chip label="Secure" variant="outlined" />
-                    <Chip label="Scalable" variant="outlined" />
-                    <Chip label="Open Source" variant="outlined" />
+                    {['Microservices', 'Real-time', 'Dark Mode', 'Responsive', 'Secure', 'Scalable', 'Open Source'].map((label, i) => (
+                        <Box key={i} component={motion.div} whileHover={{ scale: 1.05 }} sx={{ display: 'inline-block' }}>
+                            <Chip label={label} variant="outlined" sx={{ m: 0.5 }} />
+                        </Box>
+                    ))}
                 </Stack>
             </Box>
 
@@ -222,6 +271,8 @@ function UnregisterLanding() {
                     background: `linear-gradient(135deg, ${theme.palette.primary.main}15, ${theme.palette.secondary.main}15)`,
                     borderRadius: 3
                 }}
+                component={motion.div}
+                variants={fadeInUp}
             >
                 <Typography variant="h4" fontWeight="bold" gutterBottom>
                     Ready to Get Started?
@@ -229,15 +280,18 @@ function UnregisterLanding() {
                 <Typography variant="body1" color="text.secondary" paragraph sx={{ mb: 3 }}>
                     Join our growing community and experience the future of connected collaboration
                 </Typography>
-                <Button
-                    variant="contained"
-                    size="large"
-                    component={Link}
-                    to="/register"
-                    sx={{ px: 5, py: 1.5 }}
-                >
-                    Create Free Account
-                </Button>
+
+                <motion.div whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+                    <Button
+                        variant="contained"
+                        size="large"
+                        component={Link}
+                        to="/register"
+                        sx={{ px: 5, py: 1.5, boxShadow: 6 }}
+                    >
+                        Create Free Account
+                    </Button>
+                </motion.div>
             </Paper>
         </Container>
     );
