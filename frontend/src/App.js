@@ -205,11 +205,11 @@ function AppContent() {
           main: primaryColor,
           light: mode === 'dark' ? '#ffffff' : '#42a5f5',
           dark: mode === 'dark' ? '#cccccc' : '#1565c0',
-          contrastText: highContrast ? (mode === 'dark' ? '#000000' : '#ffffff') : undefined,
+          ...(highContrast ? { contrastText: mode === 'dark' ? '#000000' : '#ffffff' } : {}),
         },
         secondary: {
           main: secondaryColor,
-          contrastText: highContrast ? '#000000' : undefined,
+          ...(highContrast ? { contrastText: '#000000' } : {}),
         },
         success: {
           main: '#2e7d32',
