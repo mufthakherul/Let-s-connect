@@ -128,14 +128,28 @@ const Profile = sequelize.define('Profile', {
     type: DataTypes.UUID,
     references: { model: 'Users', key: 'id' }
   },
+  headline: DataTypes.STRING,
+  pronouns: DataTypes.STRING,
   phoneNumber: DataTypes.STRING,
+  contactEmail: DataTypes.STRING,
+  contactPhone: DataTypes.STRING,
   dateOfBirth: DataTypes.DATE,
   location: DataTypes.STRING,
+  city: DataTypes.STRING,
+  country: DataTypes.STRING,
+  timezone: DataTypes.STRING,
   website: DataTypes.STRING,
+  portfolioUrl: DataTypes.STRING,
   company: DataTypes.STRING,
   jobTitle: DataTypes.STRING,
+  industry: DataTypes.STRING,
+  experienceLevel: DataTypes.STRING,
+  yearsExperience: DataTypes.INTEGER,
   skills: DataTypes.ARRAY(DataTypes.STRING),
   interests: DataTypes.ARRAY(DataTypes.STRING),
+  languages: DataTypes.ARRAY(DataTypes.STRING),
+  certifications: DataTypes.ARRAY(DataTypes.STRING),
+  education: DataTypes.JSONB,
   socialLinks: DataTypes.JSONB
 });
 
