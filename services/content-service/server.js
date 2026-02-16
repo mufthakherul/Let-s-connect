@@ -113,6 +113,30 @@ const Post = sequelize.define('Post', {
   flairId: DataTypes.UUID // Reddit-inspired: posts can have flairs
 });
 
+// Follow model for feed filtering (who a user follows)
+const UserFollow = sequelize.define('UserFollow', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  followerId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  followedId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['followerId', 'followedId']
+    }
+  ]
+});
+
 const Comment = sequelize.define('Comment', {
   id: {
     type: DataTypes.UUID,
@@ -1266,21 +1290,116 @@ app.post('/posts', async (req, res) => {
   }
 });
 
+// Follow a user (requires auth via gateway)
+app.post('/follows', async (req, res) => {
+  try {
+    const followerId = req.header('x-user-id');
+    const { followedId } = req.body || {};
+
+    if (!followerId || !followedId) {
+      return res.status(400).json({ error: 'followerId and followedId are required' });
+    }
+
+    if (followerId === followedId) {
+      return res.status(400).json({ error: 'Cannot follow yourself' });
+    }
+
+    const [follow, created] = await UserFollow.findOrCreate({
+      where: { followerId, followedId }
+    });
+
+    res.status(created ? 201 : 200).json(follow);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to follow user' });
+  }
+});
+
+// Unfollow a user (requires auth via gateway)
+app.delete('/follows/:followedId', async (req, res) => {
+  try {
+    const followerId = req.header('x-user-id');
+    const { followedId } = req.params;
+
+    if (!followerId || !followedId) {
+      return res.status(400).json({ error: 'followerId and followedId are required' });
+    }
+
+    const removed = await UserFollow.destroy({ where: { followerId, followedId } });
+    res.json({ removed: removed > 0 });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to unfollow user' });
+  }
+});
+
+// Get following list for a user
+app.get('/follows/:userId', async (req, res) => {
+  try {
+    const follows = await UserFollow.findAll({
+      where: { followerId: req.params.userId },
+      attributes: ['followedId']
+    });
+
+    res.json({ following: follows.map((f) => f.followedId) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch following list' });
+  }
+});
+
 // Get user feed
 app.get('/feed/:userId', cachePostFeed, async (req, res) => {
   try {
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, filter = 'for_you' } = req.query;
     const offset = (page - 1) * limit;
 
-    const posts = await Post.findAll({
-      where: {
+    let where = { isPublished: true };
+    let order = [['createdAt', 'DESC']];
+
+    if (filter === 'following') {
+      const followRows = await UserFollow.findAll({
+        where: { followerId: req.params.userId },
+        attributes: ['followedId']
+      });
+      const followingIds = followRows.map((row) => row.followedId);
+
+      where = {
+        isPublished: true,
+        [Op.or]: [
+          { userId: req.params.userId },
+          { userId: { [Op.in]: followingIds }, visibility: 'public' }
+        ]
+      };
+      order = [['createdAt', 'DESC']];
+    } else if (filter === 'trending') {
+      where = { visibility: 'public', isPublished: true };
+      order = [
+        [sequelize.literal('(likes + comments * 2 + shares * 3) / (EXTRACT(HOUR FROM (NOW() - "Post"."createdAt")) + 1)'), 'DESC']
+      ];
+    } else if (filter === 'recent') {
+      where = {
+        isPublished: true,
         [Op.or]: [
           { userId: req.params.userId },
           { visibility: 'public' }
-        ],
-        isPublished: true
-      },
-      order: [['createdAt', 'DESC']],
+        ]
+      };
+      order = [['createdAt', 'DESC']];
+    } else {
+      // for_you (default)
+      where = {
+        isPublished: true,
+        [Op.or]: [
+          { userId: req.params.userId },
+          { visibility: 'public' }
+        ]
+      };
+    }
+
+    const posts = await Post.findAll({
+      where,
+      order,
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
