@@ -142,9 +142,25 @@ function AppContent() {
       };
       const { highContrast, largeText, textScale, colorBlindSupport, magnification, reducedMotion, fontFamily } = accessibility;
 
-      // Ensure accent colors are valid
-      const primaryColor = (highContrast ? (mode === 'dark' ? '#ffffff' : '#000000') : accentColor.primary) || '#1976d2';
-      const secondaryColor = (highContrast ? (mode === 'dark' ? '#ffff00' : '#ff0000') : accentColor.secondary) || '#dc004e';
+      const normalizeColor = (value, fallback) => {
+        if (typeof value === 'string' && value.trim()) {
+          return value.trim();
+        }
+        if (value && typeof value === 'object' && typeof value.main === 'string' && value.main.trim()) {
+          return value.main.trim();
+        }
+        return fallback;
+      };
+
+      // Ensure accent colors are valid strings
+      const primaryColor = normalizeColor(
+        highContrast ? (mode === 'dark' ? '#ffffff' : '#000000') : accentColor.primary,
+        '#1976d2'
+      );
+      const secondaryColor = normalizeColor(
+        highContrast ? (mode === 'dark' ? '#ffff00' : '#ff0000') : accentColor.secondary,
+        '#dc004e'
+      );
 
       // Font family mapping
       const fontFamilyMap = {
@@ -179,6 +195,18 @@ function AppContent() {
           secondary: {
             main: secondaryColor,
             contrastText: highContrast ? '#000000' : undefined,
+          },
+          success: {
+            main: '#2e7d32',
+          },
+          info: {
+            main: '#0288d1',
+          },
+          warning: {
+            main: '#ed6c02',
+          },
+          error: {
+            main: '#d32f2f',
           },
           background: {
             default: highContrast
