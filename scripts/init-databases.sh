@@ -9,4 +9,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     CREATE DATABASE collaboration;
     CREATE DATABASE media;
     CREATE DATABASE shop;
+    CREATE DATABASE webhooks;
+    CREATE DATABASE streaming;
 EOSQL
