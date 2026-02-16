@@ -10,12 +10,38 @@ root.render(
   </React.StrictMode>
 );
 
-// Register service worker for PWA support only in production and not in Codespaces preview
-if (process.env.NODE_ENV === 'production' && !window.location.origin.includes('.app.github.dev')) {
+// Determine if we should register service worker
+const isCodespaces = window.location.origin.includes('.app.github.dev');
+const isDevelopment = process.env.NODE_ENV !== 'production';
+const shouldRegisterSW = !isCodespaces && !isDevelopment;
+
+console.info('[PWA] Config:', {
+  origin: window.location.origin,
+  isCodespaces,
+  isDevelopment,
+  shouldRegisterSW,
+  nodeEnv: process.env.NODE_ENV
+});
+
+// Register service worker only in production on non-Codespaces environments
+if (shouldRegisterSW) {
+  console.info('[PWA] Registering service worker...');
   registerServiceWorker();
 } else {
-  // Skip service worker during development and Codespaces preview to avoid proxy/CORS issues
-  console.info('[PWA] service worker registration skipped (dev or Codespaces)');
+  console.info('[PWA] Service worker registration skipped', {
+    reason: isCodespaces ? 'Codespaces environment detected' : 'Development mode',
+  });
+  // Explicitly unregister any existing service workers to prevent CORS issues
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      registrations.forEach((reg) => {
+        console.info('[PWA] Unregistering existing service worker');
+        reg.unregister();
+      });
+    }).catch(() => {
+      // Silently fail if service workers aren't available
+    });
+  }
 }
 
 // Global error hook to surface uncaught errors (helps in production debugging)
