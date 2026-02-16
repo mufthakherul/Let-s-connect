@@ -809,21 +809,6 @@ function AppContent() {
 
               {/* Right Section */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
-                <IconButton
-                  onClick={toggleTheme}
-                  sx={{
-                    color: mode === 'dark' ? '#a8aaad' : '#65676b',
-                    '&:hover': {
-                      backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5',
-                      transform: 'scale(1.1)'
-                    },
-                    borderRadius: 1,
-                    p: 1,
-                    transition: 'all 0.2s ease-in-out'
-                  }}
-                >
-                  {mode === 'dark' ? <Brightness7 sx={{ fontSize: '1.3rem' }} /> : <Brightness4 sx={{ fontSize: '1.3rem' }} />}
-                </IconButton>
                 <NotificationCenter />
 
                 {!isMobile && (
@@ -1047,12 +1032,7 @@ function AppContent() {
                   </>
                 )}
 
-                {/* Theme toggle visible only for registered users */}
-                {internalUser && (
-                  <IconButton color="inherit" onClick={toggleTheme}>
-                    {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
-                  </IconButton>
-                )}
+                {/* Theme toggle removed from navbar — use Theme Settings (Settings → Theme) or Quick Access */}
               </Box>
             </Toolbar>
           </AppBar>
