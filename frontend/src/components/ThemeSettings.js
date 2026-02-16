@@ -20,31 +20,30 @@ import {
 } from '@mui/icons-material';
 import { useThemeStore } from '../store/themeStore';
 
+// Reduced to 5 essential colors - cleaner UI with better UX
 const PRESET_COLORS = {
   light: [
     { name: 'Blue', primary: '#1976d2', secondary: '#dc004e' },
     { name: 'Green', primary: '#388e3c', secondary: '#f57c00' },
     { name: 'Purple', primary: '#7b1fa2', secondary: '#e91e63' },
-    { name: 'Teal', primary: '#00796b', secondary: '#ff5722' },
-    { name: 'Indigo', primary: '#303f9f', secondary: '#ff6f00' },
     { name: 'Orange', primary: '#e64a19', secondary: '#1976d2' },
+    { name: 'Teal', primary: '#00796b', secondary: '#ff5722' },
   ],
   dark: [
     { name: 'Blue', primary: '#90caf9', secondary: '#f48fb1' },
     { name: 'Green', primary: '#81c784', secondary: '#ffb74d' },
     { name: 'Purple', primary: '#ce93d8', secondary: '#f48fb1' },
-    { name: 'Teal', primary: '#4db6ac', secondary: '#ff8a65' },
-    { name: 'Indigo', primary: '#9fa8da', secondary: '#ffb74d' },
     { name: 'Orange', primary: '#ff8a65', secondary: '#90caf9' },
+    { name: 'Teal', primary: '#4db6ac', secondary: '#ff8a65' },
   ],
 };
 
 const ThemeSettings = () => {
   const theme = useTheme();
-  const { 
-    mode, 
-    setMode, 
-    useSystemTheme, 
+  const {
+    mode,
+    setMode,
+    useSystemTheme,
     setUseSystemTheme,
     accentColor,
     setAccentColor,
@@ -81,7 +80,7 @@ const ThemeSettings = () => {
             <Palette sx={{ mr: 1 }} />
             <Typography variant="h6">Theme Mode</Typography>
           </Box>
-          
+
           <FormControlLabel
             control={
               <Switch
@@ -140,7 +139,7 @@ const ThemeSettings = () => {
             <Palette sx={{ mr: 1 }} />
             <Typography variant="h6">Accent Colors</Typography>
           </Box>
-          
+
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             Choose a color scheme for buttons, links, and highlights
           </Typography>
