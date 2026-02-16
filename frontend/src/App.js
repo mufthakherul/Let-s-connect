@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import {
   AppBar, Toolbar, Typography, Button, Container, Box, IconButton,
   CssBaseline, ThemeProvider, createTheme, Drawer, List,
@@ -20,6 +20,7 @@ import {
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/authStore';
 import NotificationCenter from './components/common/NotificationCenter';
@@ -27,6 +28,7 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import Breadcrumbs from './components/common/Breadcrumbs';
 import QuickAccessMenu from './components/common/QuickAccessMenu';
 import Onboarding from './components/common/Onboarding';
+import BackgroundAnimation from './components/common/BackgroundAnimation';
 
 // Eager load critical components (needed for initial render)
 import Home from './components/Home';
@@ -90,14 +92,26 @@ const PageLoader = () => (
       gap: 2
     }}
   >
-    <CircularProgress size={40} />
-    <Typography variant="body2" color="text.secondary">
-      Loading...
-    </Typography>
+    <motion.div
+      animate={{ rotate: 360 }}
+      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+    >
+      <CircularProgress size={40} />
+    </motion.div>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+    >
+      <Typography variant="body2" color="text.secondary">
+        Loading...
+      </Typography>
+    </motion.div>
   </Box>
 );
 
-function App() {
+function AppContent() {
+  const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
@@ -404,402 +418,548 @@ function App() {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: theme.palette.background.paper,
-              color: theme.palette.text.primary,
-            },
-          }}
-        />
-        <ErrorBoundary level="page">
-          <Router>
-            {/* Conditional Navbar: Different for registered vs unregistered users */}
-            {internalUser ? (
-              /* Facebook-style Navbar for REGISTERED users */
-              <AppBar position="sticky" elevation={1} sx={{ backgroundColor: mode === 'dark' ? '#18191a' : '#fff', borderBottom: `1px solid ${mode === 'dark' ? '#3a3b3c' : '#e5e5e5'}` }}>
-                <Toolbar sx={{ py: 0.5, px: 2 }}>
-                  {/* Left Section: Name + Search Icon */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    {isMobile && (
-                      <IconButton
-                        edge="start"
-                        color="inherit"
-                        onClick={() => setDrawerOpen(true)}
-                        sx={{ mr: 1 }}
-                      >
-                        <MenuIcon sx={{ color: mode === 'dark' ? '#e4e6eb' : '#000' }} />
-                      </IconButton>
-                    )}
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <BackgroundAnimation isLoggedIn={!!internalUser} />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: theme.palette.background.paper,
+            color: theme.palette.text.primary,
+          },
+        }}
+      />
+      <ErrorBoundary level="page">
+        {/* Conditional Navbar: Different for registered vs unregistered users */}
+        {internalUser ? (
+          /* Facebook-style Navbar for REGISTERED users */
+          <AppBar position="sticky" elevation={1} sx={{ backgroundColor: mode === 'dark' ? '#18191a' : '#fff', borderBottom: `1px solid ${mode === 'dark' ? '#3a3b3c' : '#e5e5e5'}` }}>
+            <Toolbar sx={{ py: 0.5, px: 2 }}>
+              {/* Left Section: Name + Search Icon */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                {isMobile && (
+                  <IconButton
+                    edge="start"
+                    color="inherit"
+                    onClick={() => setDrawerOpen(true)}
+                    sx={{ mr: 1 }}
+                  >
+                    <MenuIcon sx={{ color: mode === 'dark' ? '#e4e6eb' : '#000' }} />
+                  </IconButton>
+                )}
 
-                    {/* Name */}
-                    <Typography
-                      variant="h6"
-                      component={Link}
-                      to="/"
-                      sx={{
-                        textDecoration: 'none',
+                {/* Name */}
+                <Typography
+                  variant="h6"
+                  component={Link}
+                  to="/"
+                  sx={{
+                    textDecoration: 'none',
+                    color: mode === 'dark' ? '#e4e6eb' : '#000',
+                    fontWeight: 800,
+                    fontSize: '1.2rem',
+                    minWidth: 'fit-content'
+                  }}
+                >
+                  Let's Connect
+                </Typography>
+
+                {/* Search Icon - toggles inline search */}
+                <Tooltip title="Search">
+                  <IconButton
+                    aria-label="Toggle search"
+                    aria-expanded={showRegisteredSearch}
+                    aria-controls={showRegisteredSearch ? 'registered-search' : undefined}
+                    onClick={() => setShowRegisteredSearch((s) => !s)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setShowRegisteredSearch((s) => !s); e.preventDefault(); } }}
+                    sx={{ ml: 1, color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:focus-visible': { outline: '2px solid rgba(10,102,194,0.25)', outlineOffset: '2px' } }}
+                  >
+                    <SearchIcon />
+                  </IconButton>
+                </Tooltip>
+
+                {!isMobile && showRegisteredSearch && (
+                  <Box id="registered-search" sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5',
+                    borderRadius: '20px',
+                    px: 1.5,
+                    py: 0.5,
+                    minWidth: '260px',
+                    ml: 1
+                  }}>
+                    <SearchIcon sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', mr: 1, fontSize: '1.2rem' }} />
+                    <input
+                      type="text"
+                      placeholder="Search people, posts, docs..."
+                      aria-label="Search"
+                      style={{
+                        border: 'none',
+                        outline: 'none',
+                        backgroundColor: 'transparent',
                         color: mode === 'dark' ? '#e4e6eb' : '#000',
-                        fontWeight: 800,
-                        fontSize: '1.2rem',
-                        minWidth: 'fit-content'
+                        fontSize: '0.95rem',
+                        width: '100%',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI'
                       }}
-                    >
-                      Let's Connect
-                    </Typography>
-
-                    {/* Search Icon - toggles inline search */}
-                    <Tooltip title="Search">
-                      <IconButton
-                        aria-label="Toggle search"
-                        aria-expanded={showRegisteredSearch}
-                        aria-controls={showRegisteredSearch ? 'registered-search' : undefined}
-                        onClick={() => setShowRegisteredSearch((s) => !s)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setShowRegisteredSearch((s) => !s); e.preventDefault(); } }}
-                        sx={{ ml: 1, color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:focus-visible': { outline: '2px solid rgba(10,102,194,0.25)', outlineOffset: '2px' } }}
-                      >
-                        <SearchIcon />
+                      autoFocus
+                    />
+                    <Tooltip title="Close search">
+                      <IconButton onClick={() => setShowRegisteredSearch(false)} sx={{ ml: 1 }} aria-label="Close search">
+                        <CloseIcon />
                       </IconButton>
                     </Tooltip>
-
-                    {!isMobile && showRegisteredSearch && (
-                      <Box id="registered-search" sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5',
-                        borderRadius: '20px',
-                        px: 1.5,
-                        py: 0.5,
-                        minWidth: '260px',
-                        ml: 1
-                      }}>
-                        <SearchIcon sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', mr: 1, fontSize: '1.2rem' }} />
-                        <input
-                          type="text"
-                          placeholder="Search people, posts, docs..."
-                          aria-label="Search"
-                          style={{
-                            border: 'none',
-                            outline: 'none',
-                            backgroundColor: 'transparent',
-                            color: mode === 'dark' ? '#e4e6eb' : '#000',
-                            fontSize: '0.95rem',
-                            width: '100%',
-                            fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI'
-                          }}
-                          autoFocus
-                        />
-                        <Tooltip title="Close search">
-                          <IconButton onClick={() => setShowRegisteredSearch(false)} sx={{ ml: 1 }} aria-label="Close search">
-                            <CloseIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    )}
                   </Box>
+                )}
+              </Box>
 
-                  {/* Center Navigation: four primary icons */}
-                  {!isMobile && (
-                    <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', gap: 0 }}>
-                      <IconButton component={Link} to="/" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1, position: 'relative' }} title="Home">
-                        <HomeIcon sx={{ fontSize: '1.5rem' }} />
-                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/' ? 'block' : 'none' }} />
-                      </IconButton>
+              {/* Center Navigation: four primary icons */}
+              {!isMobile && (
+                <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', gap: 0 }}>
+                  <IconButton
+                    component={Link}
+                    to="/"
+                    sx={{
+                      color: mode === 'dark' ? '#a8aaad' : '#65676b',
+                      '&:hover': {
+                        color: '#0a66c2',
+                        transform: 'scale(1.1)'
+                      },
+                      borderRadius: 1,
+                      px: 2,
+                      py: 1,
+                      position: 'relative',
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                    title="Home"
+                  >
+                    <HomeIcon sx={{ fontSize: '1.5rem' }} />
+                    <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/' ? 'block' : 'none' }} />
+                  </IconButton>
 
-                      <IconButton component={Link} to="/friends" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1 }} title="Friends">
-                        <PeopleIcon sx={{ fontSize: '1.5rem' }} />
-                      </IconButton>
+                  <IconButton
+                    component={Link}
+                    to="/friends"
+                    sx={{
+                      color: mode === 'dark' ? '#a8aaad' : '#65676b',
+                      '&:hover': {
+                        color: '#0a66c2',
+                        transform: 'scale(1.1)'
+                      },
+                      borderRadius: 1,
+                      px: 2,
+                      py: 1,
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                    title="Friends"
+                  >
+                    <PeopleIcon sx={{ fontSize: '1.5rem' }} />
+                  </IconButton>
 
-                      <IconButton component={Link} to="/videos" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1 }} title="Videos">
-                        <VideoLibrary sx={{ fontSize: '1.5rem' }} />
-                      </IconButton>
+                  <IconButton
+                    component={Link}
+                    to="/videos"
+                    sx={{
+                      color: mode === 'dark' ? '#a8aaad' : '#65676b',
+                      '&:hover': {
+                        color: '#0a66c2',
+                        transform: 'scale(1.1)'
+                      },
+                      borderRadius: 1,
+                      px: 2,
+                      py: 1,
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                    title="Videos"
+                  >
+                    <VideoLibrary sx={{ fontSize: '1.5rem' }} />
+                  </IconButton>
 
-                      <IconButton component={Link} to="/groups" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { color: '#0a66c2' }, borderRadius: 1, px: 2, py: 1 }} title="Groups">
-                        <GroupIcon sx={{ fontSize: '1.5rem' }} />
-                      </IconButton>
+                  <IconButton
+                    component={Link}
+                    to="/groups"
+                    sx={{
+                      color: mode === 'dark' ? '#a8aaad' : '#65676b',
+                      '&:hover': {
+                        color: '#0a66c2',
+                        transform: 'scale(1.1)'
+                      },
+                      borderRadius: 1,
+                      px: 2,
+                      py: 1,
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                    title="Groups"
+                  >
+                    <GroupIcon sx={{ fontSize: '1.5rem' }} />
+                  </IconButton>
 
-                      {/* Apps (9-dot) button */}
-                      <Tooltip title="Apps">
-                        <IconButton
-                          aria-label="Open apps menu"
-                          aria-controls={registeredAppsAnchor ? 'registered-apps-menu' : undefined}
-                          aria-haspopup="true"
-                          aria-expanded={Boolean(registeredAppsAnchor)}
-                          onClick={(e) => setRegisteredAppsAnchor(e.currentTarget)}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setRegisteredAppsAnchor(e.currentTarget); e.preventDefault(); } }}
-                          sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', ml: 1, '&:focus-visible': { outline: '2px solid rgba(10,102,194,0.25)', outlineOffset: '2px' } }}
-                        >
-                          <AppsIcon sx={{ fontSize: '1.4rem' }} />
-                        </IconButton>
-                      </Tooltip>
-
-                      <Menu id="registered-apps-menu" anchorEl={registeredAppsAnchor} open={Boolean(registeredAppsAnchor)} onClose={() => setRegisteredAppsAnchor(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} transformOrigin={{ vertical: 'top', horizontal: 'center' }}>
-                        <MenuItem component={Link} to="/docs" onClick={() => setRegisteredAppsAnchor(null)}>
-                          <ListItemIcon>
-                            <Description fontSize="small" />
-                          </ListItemIcon>
-                          <ListItemText>Docs</ListItemText>
-                        </MenuItem>
-                        <MenuItem component={Link} to="/projects" onClick={() => setRegisteredAppsAnchor(null)}>
-                          <ListItemIcon>
-                            <WorkIcon fontSize="small" />
-                          </ListItemIcon>
-                          <ListItemText>Projects</ListItemText>
-                        </MenuItem>
-                        <MenuItem component={Link} to="/pages" onClick={() => setRegisteredAppsAnchor(null)}>
-                          <ListItemIcon>
-                            <PagesIcon fontSize="small" />
-                          </ListItemIcon>
-                          <ListItemText>Pages</ListItemText>
-                        </MenuItem>
-                        <MenuItem component={Link} to="/shop" onClick={() => setRegisteredAppsAnchor(null)}>
-                          <ListItemIcon>
-                            <ShoppingCart fontSize="small" />
-                          </ListItemIcon>
-                          <ListItemText>Shop</ListItemText>
-                        </MenuItem>
-                        <MenuItem component={Link} to="/meetings" onClick={() => setRegisteredAppsAnchor(null)}>
-                          <ListItemIcon>
-                            <EventIcon fontSize="small" />
-                          </ListItemIcon>
-                          <ListItemText>Meetings</ListItemText>
-                        </MenuItem>
-                        <MenuItem component={Link} to="/blog" onClick={() => setRegisteredAppsAnchor(null)}>
-                          <ListItemIcon>
-                            <Article fontSize="small" />
-                          </ListItemIcon>
-                          <ListItemText>Blog</ListItemText>
-                        </MenuItem>
-                        <MenuItem component={Link} to="/radio" onClick={() => setRegisteredAppsAnchor(null)}>
-                          <ListItemIcon>
-                            <RadioIcon fontSize="small" />
-                          </ListItemIcon>
-                          <ListItemText>Live Radio</ListItemText>
-                        </MenuItem>
-                        <MenuItem component={Link} to="/tv" onClick={() => setRegisteredAppsAnchor(null)}>
-                          <ListItemIcon>
-                            <TvIcon fontSize="small" />
-                          </ListItemIcon>
-                          <ListItemText>Live TV</ListItemText>
-                        </MenuItem>
-                      </Menu>
-                    </Box>
-                  )}
-
-                  {/* Right Section */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
-                    <IconButton onClick={toggleTheme} sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5' }, borderRadius: 1, p: 1 }}>
-                      {mode === 'dark' ? <Brightness7 sx={{ fontSize: '1.3rem' }} /> : <Brightness4 sx={{ fontSize: '1.3rem' }} />}
+                  {/* Apps (9-dot) button */}
+                  <Tooltip title="Apps">
+                    <IconButton
+                      aria-label="Open apps menu"
+                      aria-controls={registeredAppsAnchor ? 'registered-apps-menu' : undefined}
+                      aria-haspopup="true"
+                      aria-expanded={Boolean(registeredAppsAnchor)}
+                      onClick={(e) => setRegisteredAppsAnchor(e.currentTarget)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setRegisteredAppsAnchor(e.currentTarget); e.preventDefault(); } }}
+                      sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', ml: 1, '&:focus-visible': { outline: '2px solid rgba(10,102,194,0.25)', outlineOffset: '2px' } }}
+                    >
+                      <AppsIcon sx={{ fontSize: '1.4rem' }} />
                     </IconButton>
+                  </Tooltip>
 
-                    <NotificationCenter />
+                  <Menu id="registered-apps-menu" anchorEl={registeredAppsAnchor} open={Boolean(registeredAppsAnchor)} onClose={() => setRegisteredAppsAnchor(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} transformOrigin={{ vertical: 'top', horizontal: 'center' }}>
+                    <MenuItem component={Link} to="/docs" onClick={() => setRegisteredAppsAnchor(null)}>
+                      <ListItemIcon>
+                        <Description fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText>Docs</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/projects" onClick={() => setRegisteredAppsAnchor(null)}>
+                      <ListItemIcon>
+                        <WorkIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText>Projects</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/pages" onClick={() => setRegisteredAppsAnchor(null)}>
+                      <ListItemIcon>
+                        <PagesIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText>Pages</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/shop" onClick={() => setRegisteredAppsAnchor(null)}>
+                      <ListItemIcon>
+                        <ShoppingCart fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText>Shop</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/meetings" onClick={() => setRegisteredAppsAnchor(null)}>
+                      <ListItemIcon>
+                        <EventIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText>Meetings</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/blog" onClick={() => setRegisteredAppsAnchor(null)}>
+                      <ListItemIcon>
+                        <Article fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText>Blog</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/radio" onClick={() => setRegisteredAppsAnchor(null)}>
+                      <ListItemIcon>
+                        <RadioIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText>Live Radio</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/tv" onClick={() => setRegisteredAppsAnchor(null)}>
+                      <ListItemIcon>
+                        <TvIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText>Live TV</ListItemText>
+                    </MenuItem>
+                  </Menu>
+                </Box>
+              )}
 
-                    {!isMobile && (
-                      <>
-                        <IconButton component={Link} to="/chat" sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5' }, borderRadius: 1, p: 1 }} title="Chat">
-                          <ChatIcon sx={{ fontSize: '1.3rem' }} />
-                        </IconButton>
+              {/* Right Section */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
+                <IconButton
+                  onClick={toggleTheme}
+                  sx={{
+                    color: mode === 'dark' ? '#a8aaad' : '#65676b',
+                    '&:hover': {
+                      backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5',
+                      transform: 'scale(1.1)'
+                    },
+                    borderRadius: 1,
+                    p: 1,
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                >
+                  {mode === 'dark' ? <Brightness7 sx={{ fontSize: '1.3rem' }} /> : <Brightness4 sx={{ fontSize: '1.3rem' }} />}
+                </IconButton>
+                <NotificationCenter />
 
-                        <IconButton onClick={(e) => setProfileMenuAnchor(e.currentTarget)} sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', '&:hover': { backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5' }, borderRadius: 1, p: 0.5, ml: 1 }} title="Profile">
-                          <Avatar sx={{ width: 32, height: 32, backgroundColor: '#0a66c2', fontSize: '0.875rem', fontWeight: 600 }}>
-                            {internalUser.firstName?.[0]?.toUpperCase()}
-                          </Avatar>
-                        </IconButton>
-
-                        <Menu
-                          anchorEl={profileMenuAnchor}
-                          open={Boolean(profileMenuAnchor)}
-                          onClose={() => setProfileMenuAnchor(null)}
-                          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                        >
-                          <Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 220 }}>
-                            <ListItemAvatar>
-                              <Avatar sx={{ width: 44, height: 44, backgroundColor: '#0a66c2' }}>{internalUser.firstName?.[0]?.toUpperCase()}</Avatar>
-                            </ListItemAvatar>
-                            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                              <Typography variant="subtitle1">{internalUser.firstName} {internalUser.lastName}</Typography>
-                              <Typography variant="caption" color="text.secondary">{internalUser.email}</Typography>
-                            </Box>
-                          </Box>
-                          <Divider />
-                          <MenuItem component={Link} to="/profile" onClick={() => setProfileMenuAnchor(null)}>
-                            <ListItemIcon>
-                              <Person fontSize="small" />
-                            </ListItemIcon>
-                            <ListItemText>View / Switch Profile</ListItemText>
-                          </MenuItem>
-                          <MenuItem component={Link} to="/settings/theme" onClick={() => setProfileMenuAnchor(null)}>
-                            <ListItemIcon>
-                              <SettingsIcon fontSize="small" />
-                            </ListItemIcon>
-                            <ListItemText>Settings</ListItemText>
-                          </MenuItem>
-                          <MenuItem onClick={() => { setProfileMenuAnchor(null); handleLogout(); }}>
-                            <ListItemIcon>
-                              <ExitToApp fontSize="small" />
-                            </ListItemIcon>
-                            <ListItemText>Logout</ListItemText>
-                          </MenuItem>
-                        </Menu>
-                      </>
-                    )}
-                  </Box>
-                </Toolbar>
-              </AppBar>
-            ) : (
-              /* Classic Navbar for UNREGISTERED users */
-              <AppBar position="sticky" elevation={1}>
-                <Toolbar>
-                  {isMobile && (
-                    <IconButton edge="start" color="inherit" onClick={() => setDrawerOpen(true)} sx={{ mr: 2 }}>
-                      <MenuIcon />
-                    </IconButton>
-                  )}
-                  {/* Left Section: Name + Docs + Videos */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography
-                      variant="h6"
+                {!isMobile && (
+                  <>
+                    <IconButton
                       component={Link}
-                      to="/"
+                      to="/chat"
                       sx={{
-                        textDecoration: 'none',
-                        color: 'inherit',
-                        fontWeight: 700,
-                        mr: 2
+                        color: mode === 'dark' ? '#a8aaad' : '#65676b',
+                        '&:hover': {
+                          backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5',
+                          transform: 'scale(1.1)'
+                        },
+                        borderRadius: 1,
+                        p: 1,
+                        transition: 'all 0.2s ease-in-out'
+                      }}
+                      title="Chat"
+                    >
+                      <ChatIcon sx={{ fontSize: '1.3rem' }} />
+                    </IconButton>
+
+                    <IconButton
+                      onClick={(e) => setProfileMenuAnchor(e.currentTarget)}
+                      sx={{
+                        color: mode === 'dark' ? '#a8aaad' : '#65676b',
+                        '&:hover': {
+                          backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5',
+                          transform: 'scale(1.1)'
+                        },
+                        borderRadius: 1,
+                        p: 0.5,
+                        ml: 1,
+                        transition: 'all 0.2s ease-in-out'
+                      }}
+                      title="Profile"
+                    >
+                      <Avatar sx={{ width: 32, height: 32, backgroundColor: '#0a66c2', fontSize: '0.875rem', fontWeight: 600 }}>
+                        {internalUser.firstName?.[0]?.toUpperCase()}
+                      </Avatar>
+                    </IconButton>
+
+                    <Menu
+                      anchorEl={profileMenuAnchor}
+                      open={Boolean(profileMenuAnchor)}
+                      onClose={() => setProfileMenuAnchor(null)}
+                      anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                      transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                    >
+                      <MenuItem disabled>
+                        <ListItemAvatar>
+                          <Avatar sx={{ width: 44, height: 44, backgroundColor: '#0a66c2' }}>{internalUser.firstName?.[0]?.toUpperCase()}</Avatar>
+                        </ListItemAvatar>
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                          <Typography variant="subtitle1">{internalUser.firstName} {internalUser.lastName}</Typography>
+                          <Typography variant="caption" color="text.secondary">{internalUser.email}</Typography>
+                        </Box>
+                      </MenuItem>
+                      <Divider />
+                      <MenuItem component={Link} to="/profile" onClick={() => setProfileMenuAnchor(null)}>
+                        <ListItemIcon>
+                          <Person fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText>View / Switch Profile</ListItemText>
+                      </MenuItem>
+                      <MenuItem component={Link} to="/settings/theme" onClick={() => setProfileMenuAnchor(null)}>
+                        <ListItemIcon>
+                          <SettingsIcon fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText>Settings</ListItemText>
+                      </MenuItem>
+                      <MenuItem onClick={() => { setProfileMenuAnchor(null); handleLogout(); }}>
+                        <ListItemIcon>
+                          <ExitToApp fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText>Logout</ListItemText>
+                      </MenuItem>
+                    </Menu>
+                  </>
+                )}
+              </Box>
+            </Toolbar>
+          </AppBar>
+        ) : (
+          /* Classic Navbar for UNREGISTERED users */
+          <AppBar position="sticky" elevation={1}>
+            <Toolbar>
+              {isMobile && (
+                <IconButton edge="start" color="inherit" onClick={() => setDrawerOpen(true)} sx={{ mr: 2 }}>
+                  <MenuIcon />
+                </IconButton>
+              )}
+              {/* Left Section: Name + Docs + Videos */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography
+                  variant="h6"
+                  component={Link}
+                  to="/"
+                  sx={{
+                    textDecoration: 'none',
+                    color: 'inherit',
+                    fontWeight: 700,
+                    mr: 2
+                  }}
+                >
+                  Let's Connect
+                </Typography>
+
+                {!isMobile && (
+                  <>
+                    <Button
+                      color="inherit"
+                      component={Link}
+                      to="/docs"
+                      startIcon={<Description />}
+                      sx={{
+                        minWidth: 'auto',
+                        px: 2,
+                        '&:hover': { transform: 'scale(1.05)' },
+                        transition: 'all 0.2s ease-in-out'
                       }}
                     >
-                      Let's Connect
-                    </Typography>
+                      Docs
+                    </Button>
+                    <Button
+                      color="inherit"
+                      component={Link}
+                      to="/videos"
+                      startIcon={<VideoLibrary />}
+                      sx={{
+                        minWidth: 'auto',
+                        px: 2,
+                        '&:hover': { transform: 'scale(1.05)' },
+                        transition: 'all 0.2s ease-in-out'
+                      }}
+                    >
+                      Videos
+                    </Button>
+                  </>
+                )}
+              </Box>
 
-                    {!isMobile && (
-                      <>
-                        <Button color="inherit" component={Link} to="/docs" startIcon={<Description />} sx={{ minWidth: 'auto', px: 2 }}>
-                          Docs
-                        </Button>
-                        <Button color="inherit" component={Link} to="/videos" startIcon={<VideoLibrary />} sx={{ minWidth: 'auto', px: 2 }}>
-                          Videos
-                        </Button>
-                      </>
-                    )}
-                  </Box>
+              {/* Spacer */}
+              <Box sx={{ flexGrow: 1 }} />
 
-                  {/* Spacer */}
-                  <Box sx={{ flexGrow: 1 }} />
+              {/* Right Section: Settings + Login + More Menu */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {!isMobile && (
+                  <>
+                    <Button
+                      color="inherit"
+                      component={Link}
+                      to="/settings/theme"
+                      startIcon={<SettingsIcon />}
+                      sx={{
+                        '&:hover': { transform: 'scale(1.05)' },
+                        transition: 'all 0.2s ease-in-out'
+                      }}
+                    >
+                      Settings
+                    </Button>
 
-                  {/* Right Section: Settings + Login + More Menu */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {!isMobile && (
-                      <>
-                        <Button color="inherit" component={Link} to="/settings/theme" startIcon={<SettingsIcon />}>
-                          Settings
-                        </Button>
+                    <Button
+                      color="inherit"
+                      component={Link}
+                      to="/login"
+                      sx={{
+                        '&:hover': { transform: 'scale(1.05)' },
+                        transition: 'all 0.2s ease-in-out'
+                      }}
+                    >
+                      Login
+                    </Button>
 
-                        <Button color="inherit" component={Link} to="/login">
-                          Login
-                        </Button>
-
-                        <IconButton
-                          color="inherit"
-                          onClick={(e) => setMoreMenuAnchor(e.currentTarget)}
-                          sx={{ ml: 1 }}
-                        >
-                          <Box sx={{ position: 'relative', width: 24, height: 24 }}>
-                            {/* 3 squares */}
-                            <Box sx={{
-                              position: 'absolute',
-                              top: 2,
-                              left: 2,
-                              width: 6,
-                              height: 6,
-                              backgroundColor: 'currentColor',
-                              borderRadius: 0.5
-                            }} />
-                            <Box sx={{
-                              position: 'absolute',
-                              top: 2,
-                              right: 2,
-                              width: 6,
-                              height: 6,
-                              backgroundColor: 'currentColor',
-                              borderRadius: 0.5
-                            }} />
-                            <Box sx={{
-                              position: 'absolute',
-                              bottom: 2,
-                              left: 2,
-                              width: 6,
-                              height: 6,
-                              backgroundColor: 'currentColor',
-                              borderRadius: 0.5
-                            }} />
-                            {/* 1 circle */}
-                            <Box sx={{
-                              position: 'absolute',
-                              bottom: 2,
-                              right: 2,
-                              width: 6,
-                              height: 6,
-                              backgroundColor: 'currentColor',
-                              borderRadius: '50%'
-                            }} />
-                          </Box>
-                        </IconButton>
-
-                        <Menu
-                          anchorEl={moreMenuAnchor}
-                          open={Boolean(moreMenuAnchor)}
-                          onClose={() => setMoreMenuAnchor(null)}
-                          anchorOrigin={{
-                            vertical: 'bottom',
-                            horizontal: 'right',
-                          }}
-                          transformOrigin={{
-                            vertical: 'top',
-                            horizontal: 'right',
-                          }}
-                        >
-                          <MenuItem component={Link} to="/shop" onClick={() => setMoreMenuAnchor(null)}>
-                            <ListItemIcon>
-                              <ShoppingCart fontSize="small" />
-                            </ListItemIcon>
-                            <ListItemText>Shop</ListItemText>
-                          </MenuItem>
-                          <MenuItem component={Link} to="/meetings" onClick={() => setMoreMenuAnchor(null)}>
-                            <ListItemIcon>
-                              <EventIcon fontSize="small" />
-                            </ListItemIcon>
-                            <ListItemText>Meetings</ListItemText>
-                          </MenuItem>
-                          <MenuItem component={Link} to="/blog" onClick={() => setMoreMenuAnchor(null)}>
-                            <ListItemIcon>
-                              <Article fontSize="small" />
-                            </ListItemIcon>
-                            <ListItemText>Blog</ListItemText>
-                          </MenuItem>
-                        </Menu>
-                      </>
-                    )}
-
-                    <IconButton color="inherit" onClick={toggleTheme}>
-                      {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+                    <IconButton
+                      color="inherit"
+                      onClick={(e) => setMoreMenuAnchor(e.currentTarget)}
+                      sx={{ ml: 1 }}
+                    >
+                      <Box sx={{ position: 'relative', width: 24, height: 24 }}>
+                        {/* 3 squares */}
+                        <Box sx={{
+                          position: 'absolute',
+                          top: 2,
+                          left: 2,
+                          width: 6,
+                          height: 6,
+                          backgroundColor: 'currentColor',
+                          borderRadius: 0.5
+                        }} />
+                        <Box sx={{
+                          position: 'absolute',
+                          top: 2,
+                          right: 2,
+                          width: 6,
+                          height: 6,
+                          backgroundColor: 'currentColor',
+                          borderRadius: 0.5
+                        }} />
+                        <Box sx={{
+                          position: 'absolute',
+                          bottom: 2,
+                          left: 2,
+                          width: 6,
+                          height: 6,
+                          backgroundColor: 'currentColor',
+                          borderRadius: 0.5
+                        }} />
+                        {/* 1 circle */}
+                        <Box sx={{
+                          position: 'absolute',
+                          bottom: 2,
+                          right: 2,
+                          width: 6,
+                          height: 6,
+                          backgroundColor: 'currentColor',
+                          borderRadius: '50%'
+                        }} />
+                      </Box>
                     </IconButton>
-                  </Box>
-                </Toolbar>
-              </AppBar>
-            )}
 
-            <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-              {drawer}
-            </Drawer>
+                    <Menu
+                      anchorEl={moreMenuAnchor}
+                      open={Boolean(moreMenuAnchor)}
+                      onClose={() => setMoreMenuAnchor(null)}
+                      anchorOrigin={{
+                        vertical: 'bottom',
+                        horizontal: 'right',
+                      }}
+                      transformOrigin={{
+                        vertical: 'top',
+                        horizontal: 'right',
+                      }}
+                    >
+                      <MenuItem component={Link} to="/shop" onClick={() => setMoreMenuAnchor(null)}>
+                        <ListItemIcon>
+                          <ShoppingCart fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText>Shop</ListItemText>
+                      </MenuItem>
+                      <MenuItem component={Link} to="/meetings" onClick={() => setMoreMenuAnchor(null)}>
+                        <ListItemIcon>
+                          <EventIcon fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText>Meetings</ListItemText>
+                      </MenuItem>
+                      <MenuItem component={Link} to="/blog" onClick={() => setMoreMenuAnchor(null)}>
+                        <ListItemIcon>
+                          <Article fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText>Blog</ListItemText>
+                      </MenuItem>
+                    </Menu>
+                  </>
+                )}
 
-            <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-              <Breadcrumbs />
+                <IconButton color="inherit" onClick={toggleTheme}>
+                  {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+                </IconButton>
+              </Box>
+            </Toolbar>
+          </AppBar>
+        )}
+
+        <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+          {drawer}
+        </Drawer>
+
+        <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+          <Breadcrumbs />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   {/* Root route - Homepage for logged-in users showing all public posts */}
@@ -922,12 +1082,32 @@ function App() {
                   />
                 </Routes>
               </Suspense>
-            </Container>
-            <QuickAccessMenu />
-            <Onboarding />
-          </Router>
-        </ErrorBoundary>
-      </ThemeProvider>
+            </motion.div>
+          </AnimatePresence>
+        </Container>
+        <QuickAccessMenu />
+        <Onboarding />
+      </ErrorBoundary>
+    </ThemeProvider>
+  );
+}
+
+function App() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        refetchOnWindowFocus: false,
+        retry: 1,
+        staleTime: 5 * 60 * 1000,
+      },
+    },
+  });
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <AppContent />
+      </Router>
     </QueryClientProvider >
   );
 }
