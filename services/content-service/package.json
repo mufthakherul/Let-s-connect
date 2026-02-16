@@ -4,7 +4,8 @@
   "description": "Content management service for posts, feeds, and videos",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node tests/feed-filters.test.js"
   },
   "dependencies": {
     "express": "^4.18.2",

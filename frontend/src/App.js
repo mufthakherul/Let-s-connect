@@ -52,6 +52,7 @@ const Shop = lazy(() => import('./components/Shop'));
 const Docs = lazy(() => import('./components/Docs'));
 const Chat = lazy(() => import('./components/Chat'));
 const Profile = lazy(() => import('./components/Profile'));
+const PublicProfile = lazy(() => import('./components/PublicProfile'));
 const Groups = lazy(() => import('./components/Groups'));
 const Bookmarks = lazy(() => import('./components/Bookmarks'));
 const Cart = lazy(() => import('./components/Cart'));
@@ -1157,6 +1158,10 @@ function AppContent() {
                   <Route
                     path="/profile"
                     element={internalUser ? <Profile user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/profile/:id"
+                    element={internalUser ? <PublicProfile user={internalUser} /> : <Navigate to="/login" />}
                   />
                   <Route
                     path="/admin"
