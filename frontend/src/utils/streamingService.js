@@ -256,6 +256,82 @@ export const streamingService = {
         return response.data;
     },
 
+    // ==================== SEARCH / RECOMMENDATIONS ====================
+
+    // Full-text channel search
+    searchChannels: async (q = '', options = {}) => {
+        const params = { q, ...options };
+        const response = await axios.get(`${API_URL}/api/channels/search`, { params, headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Search suggestions
+    getSearchSuggestions: async (q = '', limit = 10) => {
+        const response = await axios.get(`${API_URL}/api/channels/search/suggestions`, { params: { q, limit }, headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Search filters (categories/countries/languages)
+    getSearchFilters: async () => {
+        const response = await axios.get(`${API_URL}/api/channels/search/filters`, { headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Get personalized recommendations
+    getRecommendations: async (params = {}) => {
+        const response = await axios.get(`${API_URL}/api/recommendations`, { params, headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Track a channel view for recommendations
+    trackChannelView: async (payload = {}) => {
+        const response = await axios.post(`${API_URL}/api/channels/view`, payload, { headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Rate a channel
+    rateChannel: async (payload = {}) => {
+        const response = await axios.post(`${API_URL}/api/channels/rate`, payload, { headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Get similar channels
+    getSimilarChannels: async (channelId, limit = 10) => {
+        const response = await axios.get(`${API_URL}/api/channels/${channelId}/similar`, { params: { limit }, headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Recommendation stats
+    getRecommendationStats: async (userId) => {
+        const response = await axios.get(`${API_URL}/api/recommendations/stats/${userId}`, { headers: getAuthHeader() });
+        return response.data;
+    },
+
+    getSystemRecommendationStats: async () => {
+        const response = await axios.get(`${API_URL}/api/recommendations/system-stats`, { headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // ==================== TELEMETRY ====================
+
+    // Report fallback usage from the client
+    reportFallbackEvent: async (payload = {}) => {
+        const response = await axios.post(`${API_URL}/api/streaming/telemetry/fallbacks`, payload, { headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Query fallback events
+    getFallbackEvents: async (params = {}) => {
+        const response = await axios.get(`${API_URL}/api/streaming/telemetry/fallbacks`, { params, headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Aggregated fallback report
+    getFallbackReport: async (params = {}) => {
+        const response = await axios.get(`${API_URL}/api/streaming/telemetry/fallbacks/report`, { params, headers: getAuthHeader() });
+        return response.data;
+    },
+
     // ==================== HEALTH ====================
 
     // Health check
