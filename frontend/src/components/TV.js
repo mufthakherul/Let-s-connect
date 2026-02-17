@@ -37,6 +37,17 @@ const TV = () => {
     const playerRef = useRef(null);
     const shakaPlayerRef = useRef(null);
     const shakaUiRef = useRef(null);
+    // Track stream attempt index per channel (0 = primary, 1..n = alternatives)
+    const streamAttemptRef = useRef({});
+
+    const getStreamForChannel = (channel) => {
+        if (!channel) return null;
+        const attempt = streamAttemptRef.current[channel.id] || 0;
+        const alts = channel.metadata?.alternativeUrls || [];
+        if (attempt === 0) return safeStreamUrl(channel.streamUrl);
+        const alt = alts[attempt - 1];
+        return alt ? safeStreamUrl(alt) : null;
+    }
 
     // New channel form
     const [newChannel, setNewChannel] = useState({
@@ -259,24 +270,64 @@ const TV = () => {
                 const error = event?.detail || event;
                 if (!canceled) {
                     setPlayerError(error?.message || 'Playback error');
+                    // Attempt a fallback when Shaka reports an error during playback
+                    const attempt = streamAttemptRef.current[currentChannel?.id] || 0;
+                    const alts = currentChannel?.metadata?.alternativeUrls || [];
+                    if (currentChannel && attempt < alts.length) {
+                        streamAttemptRef.current[currentChannel.id] = attempt + 1;
+                        const nextUrl = getStreamForChannel(currentChannel);
+                        toast(`Playback error — switching to fallback ${attempt + 1}/${alts.length}`, { icon: '🔁' });
+                        player.load(nextUrl).catch(err => {
+                            // will be handled by the player's error event if it fails again
+                            console.error('Fallback load failed:', err);
+                        });
+                    }
                 }
             });
 
-            try {
-                await player.load(safeStreamUrl(currentChannel.streamUrl));
-                if (!canceled) {
-                    setIsPlaying(true);
-                    streamingService.startWatching(currentChannel.id, 'tv');
-                }
-            } catch (error) {
-                if (!canceled) {
-                    const msg = error?.message || 'Failed to load stream';
-                    setPlayerError(msg);
-                    // provide immediate user feedback
-                    toast.error(`Playback failed: ${msg}`);
+            const tryLoad = async () => {
+                const streamUrl = getStreamForChannel(currentChannel);
+                if (!streamUrl) {
+                    setPlayerError('No valid stream URL available');
                     setIsPlaying(false);
+                    return;
                 }
-            }
+
+                try {
+                    await player.load(streamUrl);
+                    if (!canceled) {
+                        setIsPlaying(true);
+                        streamingService.startWatching(currentChannel.id, 'tv');
+                    }
+                } catch (error) {
+                    const attempt = streamAttemptRef.current[currentChannel.id] || 0;
+                    const alts = currentChannel.metadata?.alternativeUrls || [];
+
+                    // If there is an alternative URL available, try next one
+                    if (attempt < (alts.length)) {
+                        streamAttemptRef.current[currentChannel.id] = attempt + 1;
+                        const nextUrl = getStreamForChannel(currentChannel);
+                        toast(`Primary stream failed — trying fallback ${attempt + 1}/${alts.length}`, { icon: '🔁' });
+
+                        // Small delay before retrying
+                        setTimeout(() => {
+                            tryLoad();
+                        }, 700);
+                        return;
+                    }
+
+                    if (!canceled) {
+                        const msg = error?.message || 'Failed to load stream';
+                        setPlayerError(msg);
+                        toast.error(`Playback failed: ${msg}`);
+                        setIsPlaying(false);
+                    }
+                }
+            };
+
+            // reset attempt counter for this channel and try loading
+            streamAttemptRef.current[currentChannel.id] = 0;
+            tryLoad();
         };
 
         initShakaPlayer();
