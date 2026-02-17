@@ -369,14 +369,14 @@ class AuditLogger {
     } = filters;
 
     const where = {};
-    
+
     if (userId) where.userId = userId;
     if (action) where.action = action;
     if (category) where.category = category;
     if (resource) where.resource = resource;
     if (status) where.status = status;
     if (ipAddress) where.ipAddress = ipAddress;
-    
+
     if (startDate || endDate) {
       where.timestamp = {};
       if (startDate) where.timestamp[Op.gte] = new Date(startDate);

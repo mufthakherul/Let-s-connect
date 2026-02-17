@@ -469,7 +469,7 @@ class SecurityService {
     });
 
     const uniqueIPs = new Set(recentSessions.map(s => s.ipAddress));
-    
+
     if (uniqueIPs.size > 5) {
       await this.logSecurityEvent({
         eventType: 'suspicious_activity',
@@ -499,12 +499,12 @@ class SecurityService {
    */
   async getSecurityEvents(filters = {}, options = {}) {
     const where = {};
-    
+
     if (filters.eventType) where.eventType = filters.eventType;
     if (filters.severity) where.severity = filters.severity;
     if (filters.ipAddress) where.ipAddress = filters.ipAddress;
     if (filters.userId) where.userId = filters.userId;
-    
+
     if (filters.startDate || filters.endDate) {
       where.timestamp = {};
       if (filters.startDate) where.timestamp[Op.gte] = new Date(filters.startDate);
@@ -538,13 +538,13 @@ function securityHeadersMiddleware(options = {}) {
   return (req, res, next) => {
     // X-Content-Type-Options
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    
+
     // X-Frame-Options
     res.setHeader('X-Frame-Options', options.frameOptions || 'DENY');
-    
+
     // X-XSS-Protection
     res.setHeader('X-XSS-Protection', '1; mode=block');
-    
+
     // Strict-Transport-Security (HSTS)
     if (options.hsts !== false) {
       res.setHeader(
@@ -552,10 +552,10 @@ function securityHeadersMiddleware(options = {}) {
         `max-age=${options.hstsMaxAge || 31536000}; includeSubDomains; preload`
       );
     }
-    
+
     // Referrer-Policy
     res.setHeader('Referrer-Policy', options.referrerPolicy || 'strict-origin-when-cross-origin');
-    
+
     // Permissions-Policy
     const permissionsPolicy = options.permissionsPolicy || {
       camera: [],
@@ -603,10 +603,10 @@ function cspMiddleware(options = {}) {
 function ipWhitelistMiddleware(securityService, organizationId = null) {
   return async (req, res, next) => {
     const ipAddress = req.ip || req.connection.remoteAddress;
-    
+
     try {
       const isWhitelisted = await securityService.isIPWhitelisted(ipAddress, organizationId);
-      
+
       if (!isWhitelisted) {
         await securityService.logSecurityEvent({
           eventType: 'blocked_ip',
