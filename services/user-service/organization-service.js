@@ -22,7 +22,6 @@ function initializeOrganizationModels(sequelize) {
     },
     slug: {
       type: DataTypes.STRING(100),
-      unique: true,
       allowNull: false,
       comment: 'URL-friendly identifier'
     },
