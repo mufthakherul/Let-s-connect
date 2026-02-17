@@ -319,24 +319,14 @@ const seed = async () => {
             process.exit(1);
         }
 
-        // Load YouTube TV channels (local JSON)
-        let youtubeChannels = [];
-        try {
-            const youtubePath = path.join(__dirname, 'data', 'Youtube-Tv.json');
-            if (fs.existsSync(youtubePath)) {
-                const youtubeRaw = JSON.parse(fs.readFileSync(youtubePath, 'utf8'));
-                const youtubeParser = new TVPlaylistFetcher();
-                youtubeChannels = youtubeParser.parseYouTubeChannels(youtubeRaw, {
-                    name: 'YouTube Live TV',
-                    category: 'Mixed',
-                    country: 'Worldwide'
-                });
-                console.log(`✅ Loaded ${youtubeChannels.length} YouTube live channels`);
-            } else {
-                console.log('ℹ️  YouTube channel file not found, skipping');
-            }
-        } catch (error) {
-            console.log(`⚠️  Failed to load YouTube channels: ${error.message}`);
+        // NOTE: local YouTube data is already included by TVPlaylistFetcher.fetchAllSources()
+        // (the fetcher will load `data/Youtube-Tv.json` when present). To avoid duplicate
+        // loading we just report how many YouTube entries were included in `tvChannels`.
+        const youtubeLocalCount = tvChannels.filter(ch => (ch.source === 'youtube') || (ch.playlistSource && String(ch.playlistSource).toLowerCase().includes('youtube'))).length;
+        if (youtubeLocalCount > 0) {
+            console.log(`✅ Included ${youtubeLocalCount} YouTube channels (loaded by TVPlaylistFetcher)`);
+        } else {
+            console.log('ℹ️  No local YouTube channels detected in fetched TV sources');
         }
 
         if (!tvChannels || tvChannels.length === 0) {
@@ -349,7 +339,9 @@ const seed = async () => {
         const staticTVData = JSON.parse(fs.readFileSync(staticTVPath, 'utf8'));
 
         // Merge data
-        const onlineTV = [...tvChannels, ...youtubeChannels];
+        // TVPlaylistFetcher already includes local YouTube entries (if any), so use `tvChannels` as the
+        // single authoritative online source list to prevent double-counting.
+        const onlineTV = tvChannels;
         const mergedTV = mergeData(onlineTV, staticTVData, 'tv');
         console.log(`📊 Merged Data: ${mergedTV.length} unique TV channels`);
         console.log(`  - Online sources: ${onlineTV.length}`);
