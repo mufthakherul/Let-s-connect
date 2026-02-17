@@ -24,7 +24,7 @@ class TVPlaylistFetcher {
             },
             {
                 name: 'IPTV ORG (Primary M3U Pages)',
-                url: 'https://iptv-org.github.io/iptv/index.m3u',
+                url: 'https://iptv-org.github.io/ip-tv/in-dex.m3u',
                 category: 'Mixed',
                 country: 'Worldwide',
                 priority: 2
