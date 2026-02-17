@@ -12,6 +12,7 @@ import {
     Star, Public, Hd
 } from '@mui/icons-material';
 import { streamingService } from '../utils/streamingService';
+import { getApiBaseUrl } from '../utils/api';
 import toast from 'react-hot-toast';
 import shaka from 'shaka-player/dist/shaka-player.ui';
 import 'shaka-player/dist/controls.css';
@@ -58,6 +59,12 @@ const TV = () => {
     }, [selectedCategory, searchQuery, sourceTab]);
 
     const sourceFilter = sourceTab === 0 ? 'youtube' : sourceTab === 1 ? 'iptv' : 'custom';
+
+    const isHttpsContext = () => typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const isInsecureUrl = (value) => typeof value === 'string' && value.startsWith('http://');
+    const proxyUrl = (value) => `${getApiBaseUrl()}/api/streaming/proxy?url=${encodeURIComponent(value)}`;
+    const safeStreamUrl = (value) => (isHttpsContext() && isInsecureUrl(value) ? proxyUrl(value) : value);
+    const safeImageUrl = (value) => (isHttpsContext() && isInsecureUrl(value) ? proxyUrl(value) : value);
 
     const isYouTubeChannel = (channel) => {
         if (!channel) return false;
@@ -110,6 +117,10 @@ const TV = () => {
     };
 
     const handlePlay = async (channel) => {
+        if (!channel.streamUrl) {
+            toast.error('Stream URL is missing for this channel.');
+            return;
+        }
         if (currentChannel?.id === channel.id && isPlaying) {
             // Pause current channel
             if (videoRef.current) {
@@ -238,7 +249,7 @@ const TV = () => {
             });
 
             try {
-                await player.load(currentChannel.streamUrl);
+                await player.load(safeStreamUrl(currentChannel.streamUrl));
                 if (!canceled) {
                     setIsPlaying(true);
                     streamingService.startWatching(currentChannel.id, 'tv');
@@ -317,7 +328,7 @@ const TV = () => {
                     <CardMedia
                         component="img"
                         height="140"
-                        image={channel.logoUrl || 'https://via.placeholder.com/300x140?text=TV'}
+                        image={safeImageUrl(channel.logoUrl) || 'https://via.placeholder.com/300x140?text=TV'}
                         alt={channel.name}
                         sx={{ objectFit: 'cover' }}
                     />

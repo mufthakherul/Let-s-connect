@@ -12,6 +12,7 @@ import {
     Star, Public, Language
 } from '@mui/icons-material';
 import { streamingService } from '../utils/streamingService';
+import { getApiBaseUrl } from '../utils/api';
 import toast from 'react-hot-toast';
 
 const Radio = () => {
@@ -99,7 +100,17 @@ const Radio = () => {
         }
     };
 
+    const isHttpsContext = () => typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const isInsecureUrl = (value) => typeof value === 'string' && value.startsWith('http://');
+    const proxyUrl = (value) => `${getApiBaseUrl()}/api/streaming/proxy?url=${encodeURIComponent(value)}`;
+    const safeStreamUrl = (value) => (isHttpsContext() && isInsecureUrl(value) ? proxyUrl(value) : value);
+    const safeImageUrl = (value) => (isHttpsContext() && isInsecureUrl(value) ? proxyUrl(value) : value);
+
     const handlePlay = async (station) => {
+        if (!station.streamUrl) {
+            toast.error('Stream URL is missing for this station.');
+            return;
+        }
         if (currentStation?.id === station.id && isPlaying) {
             // Pause current station
             if (audioRef.current) {
@@ -117,7 +128,7 @@ const Radio = () => {
             // Play new station
             setCurrentStation(station);
             if (audioRef.current) {
-                audioRef.current.src = station.streamUrl;
+                audioRef.current.src = safeStreamUrl(station.streamUrl);
                 audioRef.current.load();
                 audioRef.current.play()
                     .then(() => {
@@ -203,7 +214,7 @@ const Radio = () => {
                     <CardMedia
                         component="img"
                         height="140"
-                        image={station.logoUrl || 'https://via.placeholder.com/300x140?text=Radio'}
+                        image={safeImageUrl(station.logoUrl) || 'https://via.placeholder.com/300x140?text=Radio'}
                         alt={station.name}
                         sx={{ objectFit: 'cover' }}
                     />
