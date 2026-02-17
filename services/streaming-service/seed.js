@@ -385,12 +385,26 @@ const seed = async () => {
         // ========== FETCH ADDITIONAL SOURCES ==========
         console.log('\n📡 Fetching TV channels from additional sources (IPTV-ORG, YouTube)...\n');
 
-        // Fetch from IPTV-ORG API
-        const iptvOrgChannels = await fetchIPTVOrgChannels();
+        // Detect whether TVPlaylistFetcher already included IPTV-ORG / YouTube entries
+        const youtubeLocalCount = tvChannels.filter(ch => (ch.source === 'youtube') || (ch.playlistSource && String(ch.playlistSource).toLowerCase().includes('youtube'))).length;
+        const iptvOrgLocalCount = tvChannels.filter(ch => ch.source && String(ch.source).toLowerCase().includes('iptv-org')).length;
+
+        // Fetch from IPTV-ORG API only if not already present in tvChannels
+        let iptvOrgChannels = [];
+        if (iptvOrgLocalCount > 0) {
+            console.log(`ℹ️ Detected ${iptvOrgLocalCount} IPTV-ORG channels already loaded by TVPlaylistFetcher — skipping separate IPTV-ORG API fetch.`);
+        } else {
+            iptvOrgChannels = await fetchIPTVOrgChannels();
+        }
         console.log('');
 
-        // Fetch and enrich YouTube channels
-        const youtubeChannels = await fetchYouTubeChannels();
+        // Fetch and enrich YouTube channels only when not already loaded by TVPlaylistFetcher
+        let youtubeChannels = [];
+        if (youtubeLocalCount > 0) {
+            console.log(`ℹ️ Detected ${youtubeLocalCount} YouTube channels already loaded by TVPlaylistFetcher — skipping separate YouTube enrichment.`);
+        } else {
+            youtubeChannels = await fetchYouTubeChannels();
+        }
         console.log('');
 
         // ========== ENRICH AND DEDUPLICATE ==========
