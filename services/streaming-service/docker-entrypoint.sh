@@ -27,3 +27,7 @@ else
 fi
 
 echo "✨ Database initialization completed"
+
+# Execute the container command (CMD) so the server keeps running after initialization
+# This makes the entrypoint script behave like a proper wrapper and starts `node server.js`
+exec "$@"

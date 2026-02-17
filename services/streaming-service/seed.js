@@ -319,6 +319,26 @@ const seed = async () => {
             process.exit(1);
         }
 
+        // Load YouTube TV channels (local JSON)
+        let youtubeChannels = [];
+        try {
+            const youtubePath = path.join(__dirname, 'data', 'Youtube-Tv.json');
+            if (fs.existsSync(youtubePath)) {
+                const youtubeRaw = JSON.parse(fs.readFileSync(youtubePath, 'utf8'));
+                const youtubeParser = new TVPlaylistFetcher();
+                youtubeChannels = youtubeParser.parseYouTubeChannels(youtubeRaw, {
+                    name: 'YouTube Live TV',
+                    category: 'Mixed',
+                    country: 'Worldwide'
+                });
+                console.log(`✅ Loaded ${youtubeChannels.length} YouTube live channels`);
+            } else {
+                console.log('ℹ️  YouTube channel file not found, skipping');
+            }
+        } catch (error) {
+            console.log(`⚠️  Failed to load YouTube channels: ${error.message}`);
+        }
+
         if (!tvChannels || tvChannels.length === 0) {
             console.error('❌ No TV channel data available');
             process.exit(1);
@@ -329,9 +349,10 @@ const seed = async () => {
         const staticTVData = JSON.parse(fs.readFileSync(staticTVPath, 'utf8'));
 
         // Merge data
-        const mergedTV = mergeData(tvChannels, staticTVData, 'tv');
+        const onlineTV = [...tvChannels, ...youtubeChannels];
+        const mergedTV = mergeData(onlineTV, staticTVData, 'tv');
         console.log(`📊 Merged Data: ${mergedTV.length} unique TV channels`);
-        console.log(`  - Online sources: ${tvChannels.length}`);
+        console.log(`  - Online sources: ${onlineTV.length}`);
         console.log(`  - Static fallback: ${staticTVData.length}`);
         console.log(`  - Total unique: ${mergedTV.length}\n`);
 
@@ -344,16 +365,23 @@ const seed = async () => {
             bySource: {}
         };
 
-        for (const channel of mergedTV) {
-            try {
-                // Check if already exists by URL
-                const existing = await TVChannel.findOne({
-                    where: { streamUrl: channel.streamUrl }
-                });
+        // Process TV seed in chunks to avoid long single-run spikes and improve resilience
+        const chunkSize = mergedTV.length > 5000 ? 500 : 1000;
+        for (let i = 0; i < mergedTV.length; i += chunkSize) {
+            const chunk = mergedTV.slice(i, i + chunkSize);
 
-                if (existing) {
-                    tvReport.skipped++;
-                } else {
+            for (const channel of chunk) {
+                try {
+                    // Check if already exists by URL
+                    const existing = await TVChannel.findOne({
+                        where: { streamUrl: channel.streamUrl }
+                    });
+
+                    if (existing) {
+                        tvReport.skipped++;
+                        continue;
+                    }
+
                     const created = await TVChannel.create({
                         name: sanitizeString(channel.name || 'Unknown', 512),
                         description: channel.description || '',
@@ -376,10 +404,14 @@ const seed = async () => {
                     if (tvReport.created % 50 === 0) {
                         console.log(`  ⏳ Progress: ${tvReport.created} channels added...`);
                     }
+                } catch (error) {
+                    console.log(`  ⚠️  Error seeding "${channel.name}": ${error.message}`);
                 }
-            } catch (error) {
-                console.log(`  ⚠️  Error seeding "${channel.name}": ${error.message}`);
             }
+
+            console.log(`  ⏳ Seeded ${Math.min(i + chunkSize, mergedTV.length)}/${mergedTV.length} TV channels...`);
+            // small pause between chunks to relieve DB and network
+            await new Promise(resolve => setTimeout(resolve, 250));
         }
 
         console.log(`\n📊 TV Channels Final Report:`);

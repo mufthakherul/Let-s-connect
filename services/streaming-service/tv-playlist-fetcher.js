@@ -10,42 +10,24 @@ class TVPlaylistFetcher {
         this.timeout = options.timeout || 20000;
         this.retries = options.retries || 3;
         this.maxSize = options.maxSize || 50 * 1024 * 1024; // 50MB per source
+        this.maxPlaylistDepth = options.maxPlaylistDepth || 2; // follow nested playlists up to this depth
+
         // Official IPTV sources - worldwide coverage
+        // NOTE: add iptv-org API streams.json (provides direct stream URLs) and keep M3U fallbacks
         this.sources = [
             {
-                name: 'IPTV ORG (Primary)',
-                url: 'https://iptv-org.github.io/iptv-org/iptv/index.m3u',
+                name: 'IPTV ORG (API - streams.json)',
+                url: 'https://iptv-org.github.io/api/streams.json',
                 category: 'Mixed',
                 country: 'Worldwide',
                 priority: 1
             },
             {
-                name: 'IPTV ORG (Fallback - GitHub)',
-                url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/index.m3u',
+                name: 'IPTV ORG (Primary M3U Pages)',
+                url: 'https://iptv-org.github.io/iptv/index.m3u',
                 category: 'Mixed',
                 country: 'Worldwide',
                 priority: 2
-            },
-            {
-                name: 'M3U Extended',
-                url: 'https://raw.githubusercontent.com/m3u8-xtream/m3u8-xtream-playlist/main/playlist.m3u',
-                category: 'Mixed',
-                country: 'Worldwide',
-                priority: 3
-            },
-            {
-                name: 'IPTV2',
-                url: 'https://raw.githubusercontent.com/freiptv/IPTV2/master/playlist.m3u',
-                category: 'Mixed',
-                country: 'Worldwide',
-                priority: 4
-            },
-            {
-                name: 'Public IPTV',
-                url: 'https://publiciptv.com/iptv.m3u',
-                category: 'Mixed',
-                country: 'Worldwide',
-                priority: 5
             }
         ];
     }
@@ -101,9 +83,45 @@ class TVPlaylistFetcher {
     /**
      * Fetch and parse M3U8 playlist
      */
-    async fetchPlaylist(url, sourceInfo = {}) {
+    async fetchPlaylist(url, sourceInfo = {}, depth = 0) {
         const content = await this._fetchWithRetry(url, this.retries);
-        return this._parseM3U(content, sourceInfo);
+
+        // If JSON (API) — parse streams.json or generic JSON arrays
+        const trimmed = (content || '').trim();
+        if (url.endsWith('.json') || trimmed.startsWith('[') || trimmed.startsWith('{')) {
+            try {
+                return this._parseStreamsJSON(trimmed, sourceInfo);
+            } catch (err) {
+                // fallback to attempting M3U parse if JSON parse fails
+                console.log(`  ⚠️  JSON parse failed for ${url}: ${err.message}`);
+            }
+        }
+
+        // Parse M3U content
+        let channels = this._parseM3U(content, sourceInfo);
+
+        // Expand nested playlists (if any) up to maxPlaylistDepth
+        if (depth < this.maxPlaylistDepth) {
+            const expanded = [];
+            for (const ch of channels) {
+                if (this._isPlaylistUrl(ch.streamUrl)) {
+                    try {
+                        const inner = await this.fetchPlaylist(ch.streamUrl, sourceInfo, depth + 1);
+                        // preserve parent metadata where possible
+                        if (Array.isArray(inner) && inner.length > 0) {
+                            expanded.push(...inner);
+                            continue;
+                        }
+                    } catch (err) {
+                        console.log(`  ⚠️  Nested playlist fetch failed for ${ch.streamUrl}: ${err.message}`);
+                    }
+                }
+                expanded.push(ch);
+            }
+            channels = expanded;
+        }
+
+        return channels;
     }
 
     /**
@@ -159,6 +177,13 @@ class TVPlaylistFetcher {
                         originalLine: extinfLine
                     }
                 };
+
+                // Basic platform tagging for non-HLS sources (e.g. YouTube)
+                const su = (streamUrl || '').toLowerCase();
+                if (su.includes('youtube.com') || su.includes('youtu.be')) {
+                    channel.metadata.platform = 'youtube';
+                    channel.source = 'youtube';
+                }
 
                 channels.push(channel);
                 extinfLine = null;
@@ -250,6 +275,98 @@ class TVPlaylistFetcher {
         if (combined.includes('480') || combined.includes('480p')) return 'SD';
 
         return 'Unknown';
+    }
+
+    /**
+     * Parse iptv-org `streams.json` (or similar JSON arrays containing stream entries)
+     */
+    _parseStreamsJSON(content, sourceInfo = {}) {
+        let data;
+        try {
+            data = JSON.parse(content);
+        } catch (err) {
+            throw new Error('Invalid JSON');
+        }
+
+        const channels = [];
+        if (!Array.isArray(data)) return channels;
+
+        for (const s of data) {
+            // Streams JSON format (iptv-org): { channel, feed, title, url, referrer, user_agent, quality }
+            if (!s.url) continue;
+
+            const name = s.title || s.channel || sourceInfo.name || 'Unknown';
+
+            channels.push({
+                name: String(name).slice(0, 512),
+                description: '',
+                streamUrl: String(s.url),
+                epgUrl: '',
+                category: sourceInfo.category || 'Mixed',
+                country: sourceInfo.country || 'Unknown',
+                language: 'Unknown',
+                logoUrl: '',
+                resolution: s.quality || 'Unknown',
+                isActive: true,
+                source: 'iptv-org-api',
+                playlistSource: sourceInfo.name || 'streams.json',
+                metadata: {
+                    channelId: s.channel || '',
+                    feed: s.feed || '',
+                    referrer: s.referrer || ''
+                }
+            });
+        }
+
+        return channels;
+    }
+
+    /**
+     * Parse YouTube live channel JSON entries
+     */
+    parseYouTubeChannels(entries, sourceInfo = {}) {
+        if (!Array.isArray(entries)) return [];
+
+        const channels = [];
+        for (const entry of entries) {
+            const name = entry.name || sourceInfo.name || 'Unknown';
+            const liveUrl = entry.liveUrl || '';
+            const iframeUrl = entry.iframeUrl || '';
+
+            if (!liveUrl) continue;
+
+            channels.push({
+                name: String(name).slice(0, 512),
+                description: entry.categoryFull || entry.category || '',
+                streamUrl: String(liveUrl),
+                epgUrl: '',
+                category: entry.category || sourceInfo.category || 'Mixed',
+                country: entry.country || sourceInfo.country || 'Unknown',
+                language: 'Unknown',
+                logoUrl: entry.logoUrl || '',
+                resolution: 'Unknown',
+                isActive: true,
+                source: 'youtube',
+                playlistSource: sourceInfo.name || 'YouTube Live',
+                metadata: {
+                    platform: entry.platform || 'YouTube',
+                    handle: entry.handle || '',
+                    iframeUrl: iframeUrl || '',
+                    categoryFull: entry.categoryFull || ''
+                }
+            });
+        }
+
+        return channels;
+    }
+
+    /**
+     * Heuristic: does this URL look like a playlist (m3u/m3u8) rather than a direct media stream?
+     */
+    _isPlaylistUrl(url) {
+        if (!url || typeof url !== 'string') return false;
+        const u = url.split('?')[0].toLowerCase();
+        return u.endsWith('.m3u') || u.endsWith('.m3u8') || u.includes('playlist');
     }
 
     /**

@@ -13,6 +13,8 @@ import {
 } from '@mui/icons-material';
 import { streamingService } from '../utils/streamingService';
 import toast from 'react-hot-toast';
+import shaka from 'shaka-player/dist/shaka-player.ui';
+import 'shaka-player/dist/controls.css';
 
 const TV = () => {
     const [channels, setChannels] = useState([]);
@@ -24,9 +26,16 @@ const TV = () => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [currentTab, setCurrentTab] = useState(0);
+    const [sourceTab, setSourceTab] = useState(1);
     const [selectedCategory, setSelectedCategory] = useState('');
     const [addChannelOpen, setAddChannelOpen] = useState(false);
+    const [customPlaylistUrl, setCustomPlaylistUrl] = useState('');
+    const [importingPlaylist, setImportingPlaylist] = useState(false);
+    const [playerError, setPlayerError] = useState('');
     const videoRef = useRef(null);
+    const playerRef = useRef(null);
+    const shakaPlayerRef = useRef(null);
+    const shakaUiRef = useRef(null);
 
     // New channel form
     const [newChannel, setNewChannel] = useState({
@@ -46,14 +55,23 @@ const TV = () => {
         loadCategories();
         loadFavorites();
         loadHistory();
-    }, [selectedCategory, searchQuery]);
+    }, [selectedCategory, searchQuery, sourceTab]);
+
+    const sourceFilter = sourceTab === 0 ? 'youtube' : sourceTab === 1 ? 'iptv' : 'custom';
+
+    const isYouTubeChannel = (channel) => {
+        if (!channel) return false;
+        const url = (channel.streamUrl || '').toLowerCase();
+        return channel.source === 'youtube' || url.includes('youtube.com') || url.includes('youtu.be');
+    };
 
     const loadChannels = async () => {
         try {
             setLoading(true);
             const response = await streamingService.getTVChannels({
                 category: selectedCategory,
-                search: searchQuery
+                search: searchQuery,
+                source: sourceFilter
             });
             setChannels(response.channels || []);
         } catch (error) {
@@ -66,7 +84,7 @@ const TV = () => {
 
     const loadCategories = async () => {
         try {
-            const response = await streamingService.getTVCategories();
+            const response = await streamingService.getTVCategories({ source: sourceFilter });
             setCategories(response || []);
         } catch (error) {
             console.error('Failed to load categories:', error);
@@ -96,9 +114,9 @@ const TV = () => {
             // Pause current channel
             if (videoRef.current) {
                 videoRef.current.pause();
-                setIsPlaying(false);
-                await streamingService.stopWatching(channel.id, 'tv');
             }
+            setIsPlaying(false);
+            await streamingService.stopWatching(channel.id, 'tv');
         } else {
             // Stop previous channel if playing
             if (currentChannel && videoRef.current) {
@@ -108,33 +126,136 @@ const TV = () => {
 
             // Play new channel
             setCurrentChannel(channel);
-            if (videoRef.current) {
-                videoRef.current.src = channel.streamUrl;
-                videoRef.current.load();
-                videoRef.current.play()
-                    .then(() => {
-                        setIsPlaying(true);
-                        streamingService.startWatching(channel.id, 'tv');
-                    })
-                    .catch(error => {
-                        toast.error('Failed to play channel');
-                        console.error(error);
-                    });
+            if (isYouTubeChannel(channel)) {
+                setIsPlaying(true);
+                streamingService.startWatching(channel.id, 'tv');
+                return;
             }
+            setIsPlaying(false);
         }
     };
 
     const handleFullscreen = () => {
-        if (videoRef.current) {
-            if (videoRef.current.requestFullscreen) {
-                videoRef.current.requestFullscreen();
-            } else if (videoRef.current.webkitRequestFullscreen) {
-                videoRef.current.webkitRequestFullscreen();
-            } else if (videoRef.current.mozRequestFullScreen) {
-                videoRef.current.mozRequestFullScreen();
+        if (playerRef.current) {
+            if (playerRef.current.requestFullscreen) {
+                playerRef.current.requestFullscreen();
+            } else if (playerRef.current.webkitRequestFullscreen) {
+                playerRef.current.webkitRequestFullscreen();
+            } else if (playerRef.current.mozRequestFullScreen) {
+                playerRef.current.mozRequestFullScreen();
             }
         }
     };
+
+    const handleImportPlaylist = async () => {
+        if (!customPlaylistUrl.trim()) {
+            toast.error('Playlist URL is required');
+            return;
+        }
+
+        try {
+            setImportingPlaylist(true);
+            const response = await streamingService.importTVPlaylist({
+                url: customPlaylistUrl.trim(),
+                name: 'Custom Playlist'
+            });
+            toast.success(`Imported ${response.created} channels`);
+            setCustomPlaylistUrl('');
+            loadChannels();
+            loadCategories();
+        } catch (error) {
+            toast.error(error.response?.data?.error || 'Failed to import playlist');
+            console.error(error);
+        } finally {
+            setImportingPlaylist(false);
+        }
+    };
+
+    useEffect(() => {
+        let canceled = false;
+
+        const initShakaPlayer = async () => {
+            setPlayerError('');
+
+            if (!currentChannel || isYouTubeChannel(currentChannel)) {
+                return;
+            }
+
+            if (!shaka.Player.isBrowserSupported()) {
+                setPlayerError('Shaka Player is not supported in this browser.');
+                return;
+            }
+
+            shaka.polyfill.installAll();
+
+            if (!videoRef.current || !playerRef.current) {
+                return;
+            }
+
+            if (shakaUiRef.current) {
+                shakaUiRef.current.destroy();
+                shakaUiRef.current = null;
+            }
+
+            if (shakaPlayerRef.current) {
+                await shakaPlayerRef.current.destroy();
+                shakaPlayerRef.current = null;
+            }
+
+            const player = new shaka.Player(videoRef.current);
+            const ui = new shaka.ui.Overlay(player, playerRef.current, videoRef.current);
+
+            shakaPlayerRef.current = player;
+            shakaUiRef.current = ui;
+
+            ui.configure({
+                controlPanelElements: [
+                    'play_pause',
+                    'time_and_duration',
+                    'spacer',
+                    'mute',
+                    'volume',
+                    'captions',
+                    'language',
+                    'picture_in_picture',
+                    'fullscreen',
+                    'overflow_menu'
+                ],
+                overflowMenuButtons: [
+                    'quality',
+                    'playback_rate',
+                    'audio_language',
+                    'captions',
+                    'statistics'
+                ]
+            });
+
+            player.addEventListener('error', (event) => {
+                const error = event?.detail || event;
+                if (!canceled) {
+                    setPlayerError(error?.message || 'Playback error');
+                }
+            });
+
+            try {
+                await player.load(currentChannel.streamUrl);
+                if (!canceled) {
+                    setIsPlaying(true);
+                    streamingService.startWatching(currentChannel.id, 'tv');
+                }
+            } catch (error) {
+                if (!canceled) {
+                    setPlayerError(error?.message || 'Failed to load stream');
+                }
+            }
+        };
+
+        initShakaPlayer();
+
+        return () => {
+            canceled = true;
+        };
+    }, [currentChannel]);
 
     const handleToggleFavorite = async (channel) => {
         try {
@@ -252,22 +373,86 @@ const TV = () => {
                 </Typography>
             </Box>
 
+            {/* Source Tabs */}
+            <Tabs
+                value={sourceTab}
+                onChange={(e, v) => setSourceTab(v)}
+                sx={{ mb: 2 }}
+                variant="scrollable"
+                scrollButtons="auto"
+            >
+                <Tab label="YouTube Live" />
+                <Tab label="Open IPTV" />
+                <Tab label="My Playlist" />
+            </Tabs>
+
+            {sourceTab === 2 && (
+                <Paper sx={{ p: 2, mb: 3 }}>
+                    <Typography variant="h6" gutterBottom>
+                        Import Your Playlist
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Paste your M3U/M3U8 playlist URL from your subscription provider.
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
+                        <TextField
+                            fullWidth
+                            label="Playlist URL"
+                            value={customPlaylistUrl}
+                            onChange={(e) => setCustomPlaylistUrl(e.target.value)}
+                        />
+                        <Button
+                            variant="contained"
+                            onClick={handleImportPlaylist}
+                            disabled={importingPlaylist}
+                        >
+                            {importingPlaylist ? 'Importing...' : 'Import'}
+                        </Button>
+                    </Box>
+                </Paper>
+            )}
+
             {/* Video Player */}
             {currentChannel && (
                 <Paper sx={{ p: 2, mb: 3 }}>
-                    <Box sx={{ position: 'relative', width: '100%', paddingTop: '56.25%', bgcolor: 'black' }}>
-                        <video
-                            ref={videoRef}
-                            controls
-                            style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: '100%',
-                                height: '100%'
-                            }}
-                        />
+                    <Box
+                        ref={playerRef}
+                        sx={{ position: 'relative', width: '100%', paddingTop: '56.25%', bgcolor: 'black' }}
+                    >
+                        {isYouTubeChannel(currentChannel) ? (
+                            <iframe
+                                title={currentChannel.name}
+                                src={currentChannel.metadata?.iframeUrl || currentChannel.streamUrl}
+                                allow="autoplay; encrypted-media; picture-in-picture"
+                                allowFullScreen
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    border: 0
+                                }}
+                            />
+                        ) : (
+                            <video
+                                ref={videoRef}
+                                controls
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    height: '100%'
+                                }}
+                            />
+                        )}
                     </Box>
+                    {playerError && (
+                        <Alert severity="error" sx={{ mt: 2 }}>
+                            {playerError}
+                        </Alert>
+                    )}
                     <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                             <Avatar

@@ -3223,7 +3223,8 @@ app.use(cspMiddleware({
 }));
 
 // Sync Phase 8 models with database
-sequelize.sync().then(() => {
+const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
+sequelize.sync({ alter: shouldAlterSchema }).then(() => {
   console.log('[Phase 8] Database models synchronized');
 
   // Setup Phase 8 endpoints
