@@ -22,14 +22,16 @@ class TVPlaylistFetcher {
                 url: 'https://iptv-org.github.io/api/streams.json',
                 category: 'Mixed',
                 country: 'Worldwide',
-                priority: 1
+                priority: 1,
+                enabled: true
             },
             {
                 name: 'IPTV ORG (Primary M3U Pages)',
                 url: 'https://iptv-org.github.io/ip-tv/in-dex.m3u',
                 category: 'Mixed',
                 country: 'Worldwide',
-                priority: 2
+                priority: 2,
+                enabled: false // disabled: stop fetching primary M3U pages (priority 2)
             }
         ];
     }
@@ -44,8 +46,13 @@ class TVPlaylistFetcher {
 
         console.log(`📺 Fetching TV playlists from ${this.sources.length} sources (500K+ worldwide)...`);
 
-        // Sort by priority
-        const sortedSources = [...this.sources].sort((a, b) => (a.priority || 999) - (b.priority || 999));
+        // Filter out disabled sources then sort by priority
+        const activeSources = [...this.sources].filter(s => s.enabled !== false);
+        if (activeSources.length !== this.sources.length) {
+            const skipped = this.sources.filter(s => s.enabled === false).map(s => s.name).join(', ');
+            console.log(`  ℹ️ Skipping disabled sources: ${skipped}`);
+        }
+        const sortedSources = activeSources.sort((a, b) => (a.priority || 999) - (b.priority || 999));
 
         for (const source of sortedSources) {
             try {
