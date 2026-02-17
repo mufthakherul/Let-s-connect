@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const axios = require('axios');
+const net = require('net');
 const NodeCache = require('node-cache');
 require('dotenv').config();
 
@@ -206,6 +207,39 @@ const sanitizeValue = (value, max = 1024) => {
     return typeof value === 'string' ? value.slice(0, max) : String(value).slice(0, max);
 };
 
+const isPrivateIpv4 = (ip) => {
+    const parts = ip.split('.').map((p) => parseInt(p, 10));
+    if (parts.length !== 4 || parts.some((p) => Number.isNaN(p))) return true;
+    if (parts[0] === 10) return true;
+    if (parts[0] === 127) return true;
+    if (parts[0] === 169 && parts[1] === 254) return true;
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    if (parts[0] === 192 && parts[1] === 168) return true;
+    return false;
+};
+
+const isPrivateIpv6 = (ip) => {
+    const lowered = ip.toLowerCase();
+    return lowered === '::1' || lowered.startsWith('fe80:') || lowered.startsWith('fc') || lowered.startsWith('fd');
+};
+
+const isBlockedHost = (hostname) => {
+    if (!hostname) return true;
+    const lowered = hostname.toLowerCase();
+    if (lowered === 'localhost' || lowered.endsWith('.localhost') || lowered.endsWith('.local')) return true;
+    const ipType = net.isIP(lowered);
+    if (ipType === 4) return isPrivateIpv4(lowered);
+    if (ipType === 6) return isPrivateIpv6(lowered);
+    return false;
+};
+
+const proxyBase = (req) => `${req.protocol}://${req.get('host')}${req.originalUrl.split('?')[0]}?url=`;
+
+const rewritePlaylist = (content, req) => {
+    const base = proxyBase(req);
+    return content.replace(/http:\/\/[^\s"']+/g, (match) => `${base}${encodeURIComponent(match)}`);
+};
+
 // Parse M3U playlist
 const parseM3U = (content) => {
     const lines = content.split('\n').filter(line => line.trim());
@@ -247,6 +281,71 @@ const parseM3U = (content) => {
 };
 
 // ==================== RADIO STATION ROUTES ====================
+
+// Stream proxy (handles http streams on https pages)
+app.get('/proxy', async (req, res) => {
+    const rawUrl = req.query.url;
+    if (!rawUrl || typeof rawUrl !== 'string') {
+        return res.status(400).json({ error: 'url query param is required' });
+    }
+
+    let target;
+    try {
+        target = new URL(rawUrl);
+    } catch (error) {
+        return res.status(400).json({ error: 'Invalid url' });
+    }
+
+    if (!['http:', 'https:'].includes(target.protocol)) {
+        return res.status(400).json({ error: 'Only http/https protocols are supported' });
+    }
+
+    if (isBlockedHost(target.hostname)) {
+        return res.status(400).json({ error: 'Blocked target host' });
+    }
+
+    const headers = {};
+    if (req.headers.range) {
+        headers.range = req.headers.range;
+    }
+
+    const isPlaylist = target.pathname.toLowerCase().endsWith('.m3u8');
+
+    try {
+        if (isPlaylist) {
+            const response = await axios.get(target.href, {
+                headers,
+                timeout: 15000,
+                responseType: 'text',
+                validateStatus: (status) => status < 500
+            });
+            res.status(response.status);
+            res.set('Content-Type', response.headers['content-type'] || 'application/vnd.apple.mpegurl');
+            res.set('Cache-Control', 'no-store');
+            res.send(rewritePlaylist(response.data, req));
+            return;
+        }
+
+        const response = await axios.get(target.href, {
+            headers,
+            timeout: 15000,
+            responseType: 'stream',
+            validateStatus: (status) => status < 500
+        });
+
+        res.status(response.status);
+        ['content-type', 'content-length', 'accept-ranges', 'content-range'].forEach((key) => {
+            if (response.headers[key]) {
+                res.set(key, response.headers[key]);
+            }
+        });
+        res.set('Cache-Control', 'no-store');
+        response.data.pipe(res);
+    } catch (error) {
+        console.error('[Proxy] Stream error:', error?.message || error);
+        res.status(502).json({ error: 'Failed to fetch stream' });
+    }
+});
 
 // Get all radio stations
 app.get('/radio/stations', async (req, res) => {

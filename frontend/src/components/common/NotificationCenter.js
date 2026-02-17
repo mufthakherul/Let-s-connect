@@ -45,7 +45,7 @@ const NotificationCenter = () => {
       if (filterType !== 'all') {
         params.type = filterType;
       }
-      const response = await api.get('/user-service/notifications', { params });
+      const response = await api.get('/user/notifications', { params });
       setNotifications(response.data.notifications || []);
       setUnreadCount(response.data.unreadCount || 0);
     } catch (error) {
@@ -58,7 +58,7 @@ const NotificationCenter = () => {
   // Fetch preferences
   const fetchPreferences = async () => {
     try {
-      const response = await api.get('/user-service/notifications/preferences');
+      const response = await api.get('/user/notifications/preferences');
       setPreferences(response.data);
     } catch (error) {
       console.error('Failed to fetch preferences:', error);
@@ -83,7 +83,7 @@ const NotificationCenter = () => {
 
   const handleMarkAsRead = async (id) => {
     try {
-      await api.put(`/user-service/notifications/${id}/read`);
+      await api.put(`/user/notifications/${id}/read`);
       setNotifications(notifications.map(n =>
         n.id === id ? { ...n, isRead: true } : n
       ));
@@ -95,7 +95,7 @@ const NotificationCenter = () => {
 
   const handleMarkAllAsRead = async () => {
     try {
-      await api.put('/user-service/notifications/read-all');
+      await api.put('/user/notifications/read-all');
       setNotifications(notifications.map(n => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (error) {
@@ -105,7 +105,7 @@ const NotificationCenter = () => {
 
   const handleDelete = async (id) => {
     try {
-      await api.delete(`/user-service/notifications/${id}`);
+      await api.delete(`/user/notifications/${id}`);
       setNotifications(notifications.filter(n => n.id !== id));
     } catch (error) {
       console.error('Failed to delete notification:', error);
@@ -114,7 +114,7 @@ const NotificationCenter = () => {
 
   const handleDeleteAllRead = async () => {
     try {
-      await api.delete('/user-service/notifications/read');
+      await api.delete('/user/notifications/read');
       setNotifications(notifications.filter(n => !n.isRead));
     } catch (error) {
       console.error('Failed to delete read notifications:', error);
@@ -128,7 +128,7 @@ const NotificationCenter = () => {
 
   const handleSavePreferences = async () => {
     try {
-      await api.put('/user-service/notifications/preferences', preferences);
+      await api.put('/user/notifications/preferences', preferences);
       setPrefsOpen(false);
     } catch (error) {
       console.error('Failed to save preferences:', error);
