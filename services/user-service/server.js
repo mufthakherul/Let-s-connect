@@ -2253,6 +2253,18 @@ const EMAIL_FROM = process.env.EMAIL_FROM || 'noreply@letconnect.com';
 
 // Helper function to send email notification via Mailgun
 async function sendEmailNotification(userEmail, notification) {
+  if (!process.env.MAILGUN_API_KEY) {
+    const err = new Error('Mailgun API key not configured');
+    console.error('Mailgun send aborted:', err.message);
+    throw err;
+  }
+
+  if (!process.env.MAILGUN_DOMAIN || process.env.MAILGUN_DOMAIN === 'sandbox.mailgun.org') {
+    const err = new Error('MAILGUN_DOMAIN not configured or using placeholder');
+    console.error('Mailgun send aborted:', err.message);
+    throw err;
+  }
+
   try {
     const emailData = {
       from: EMAIL_FROM,
