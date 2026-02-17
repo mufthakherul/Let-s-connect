@@ -121,7 +121,6 @@ function initializeAuditModels(sequelize) {
     resourceType: {
       type: DataTypes.STRING(50),
       allowNull: false,
-      unique: true,
       comment: 'Type of resource (e.g., user, post, audit_log)'
     },
     retentionPeriodDays: {
@@ -152,6 +151,10 @@ function initializeAuditModels(sequelize) {
       defaultValue: [],
       comment: 'Compliance requirements (e.g., GDPR, HIPAA)'
     }
+  }, {
+    indexes: [
+      { unique: true, fields: ['resourceType'] }
+    ]
   });
 
   // Right to be Forgotten Requests Model

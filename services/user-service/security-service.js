@@ -166,8 +166,7 @@ function initializeSecurityModels(sequelize) {
     },
     sessionToken: {
       type: DataTypes.STRING(500),
-      allowNull: false,
-      unique: true
+      allowNull: false
     },
     refreshToken: {
       type: DataTypes.STRING(500),

@@ -68,12 +68,10 @@ const User = sequelize.define('User', {
   },
   username: {
     type: DataTypes.STRING,
-    unique: true,
     allowNull: false
   },
   email: {
     type: DataTypes.STRING,
-    unique: true,
     allowNull: false,
     validate: { isEmail: true }
   },
@@ -108,6 +106,10 @@ const User = sequelize.define('User', {
   }
 }, {
   timestamps: true,
+  indexes: [
+    { unique: true, fields: ['username'] },
+    { unique: true, fields: ['email'] }
+  ],
   hooks: {
     beforeCreate: async (user) => {
       if (user.password) {
@@ -391,8 +393,7 @@ const NotificationPreference = sequelize.define('NotificationPreference', {
   },
   userId: {
     type: DataTypes.UUID,
-    allowNull: false,
-    unique: true
+    allowNull: false
   },
   emailNotifications: {
     type: DataTypes.BOOLEAN,
@@ -447,8 +448,7 @@ const PasswordResetToken = sequelize.define('PasswordResetToken', {
   },
   token: {
     type: DataTypes.STRING,
-    allowNull: false,
-    unique: true
+    allowNull: false
   },
   userId: {
     type: DataTypes.UUID,
@@ -462,6 +462,10 @@ const PasswordResetToken = sequelize.define('PasswordResetToken', {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   }
+}, {
+  indexes: [
+    { unique: true, fields: ['token'] }
+  ]
 });
 
 PasswordResetToken.belongsTo(User, { foreignKey: 'userId' });
