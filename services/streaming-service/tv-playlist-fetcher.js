@@ -1,5 +1,7 @@
 const http = require('http');
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * Fetches TV playlists from various public sources
@@ -70,6 +72,32 @@ class TVPlaylistFetcher {
                 errorCount++;
                 console.log(`  ⚠️  ${source.name}: ${error.message}`);
             }
+        }
+
+        // Attempt to include local YouTube Live JSON into results (if present)
+        try {
+            const youtubePath = path.join(__dirname, 'data', 'Youtube-Tv.json');
+            if (fs.existsSync(youtubePath)) {
+                const youtubeRaw = JSON.parse(fs.readFileSync(youtubePath, 'utf8'));
+                const ytChannels = this.parseYouTubeChannels(youtubeRaw, {
+                    name: 'YouTube Live (local)',
+                    category: 'Mixed',
+                    country: 'Worldwide'
+                });
+                let added = 0;
+                for (const ch of ytChannels) {
+                    if (ch.streamUrl) {
+                        const key = ch.streamUrl.toLowerCase();
+                        if (!allChannels.has(key)) {
+                            allChannels.set(key, ch);
+                            added++;
+                        }
+                    }
+                }
+                console.log(`  ✅ Loaded ${added} YouTube channels from local data (total: ${allChannels.size})`);
+            }
+        } catch (err) {
+            console.log(`  ⚠️  Failed to load local YouTube channels: ${err.message}`);
         }
 
         console.log(`\n📊 TV Playlist Summary:`);
