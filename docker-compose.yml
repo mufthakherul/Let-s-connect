@@ -39,6 +39,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/users
       - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - DB_SYNC_ALTER=${DB_SYNC_ALTER:-true}
       # Mailgun Configuration
       - MAILGUN_API_KEY=${MAILGUN_API_KEY}
       - MAILGUN_PUBLIC_KEY=${MAILGUN_PUBLIC_KEY}
@@ -47,7 +48,7 @@ services:
       - EMAIL_FROM=${EMAIL_FROM:-noreply@sandbox.mailgun.org}
       # hCaptcha secret (server-side verification)
       - HCAPTCHA_SECRET=${HCAPTCHA_SECRET}
-      
+
       # Google OAuth Configuration
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
@@ -71,6 +72,7 @@ services:
       - "8002:8002"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/content
+      - DB_SYNC_ALTER=${DB_SYNC_ALTER:-true}
       - REDIS_URL=redis://redis:6379
       - ELASTICSEARCH_URL=http://elasticsearch:9200
     depends_on:
@@ -90,6 +92,7 @@ services:
       - "8003:8003"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/messages
+      - DB_SYNC_ALTER=${DB_SYNC_ALTER:-true}
       - REDIS_URL=redis://redis:6379
     depends_on:
       postgres:
@@ -106,6 +109,7 @@ services:
       - "8004:8004"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/collaboration
+      - DB_SYNC_ALTER=${DB_SYNC_ALTER:-true}
     depends_on:
       postgres:
         condition: service_healthy
@@ -119,6 +123,7 @@ services:
       - "8005:8005"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/media
+      - DB_SYNC_ALTER=${DB_SYNC_ALTER:-true}
       - S3_BUCKET=${S3_BUCKET:-lets-connect-media}
       - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
     depends_on:
@@ -136,6 +141,7 @@ services:
       - "8006:8006"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/shop
+      - DB_SYNC_ALTER=${DB_SYNC_ALTER:-true}
     depends_on:
       postgres:
         condition: service_healthy
@@ -164,6 +170,7 @@ services:
       - "8009:8009"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/streaming
+      - DB_SYNC_ALTER=${DB_SYNC_ALTER:-true}
       - REDIS_URL=redis://redis:6379
       - RUN_SEED=true
       - NODE_ENV=production
@@ -187,7 +194,7 @@ services:
       - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
       # hCaptcha site key exposed to frontend (browser)
       - REACT_APP_HCAPTCHA_SITEKEY=${REACT_APP_HCAPTCHA_SITEKEY}
-      
+
     ports:
       - "3000:3000"
     depends_on:

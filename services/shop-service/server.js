@@ -37,8 +37,8 @@ try {
   cacheProductReviews = (req, res, next) => next();
   cacheOrder = (req, res, next) => next();
   cacheCategories = (req, res, next) => next();
-  invalidateProductCaches = async () => {};
-  invalidateOrderCaches = async () => {};
+  invalidateProductCaches = async () => { };
+  invalidateOrderCaches = async () => { };
 }
 
 // Models
@@ -199,7 +199,8 @@ ProductReview.belongsTo(Product, { foreignKey: 'productId' });
 Product.hasMany(WishlistItem, { foreignKey: 'productId' });
 WishlistItem.belongsTo(Product, { foreignKey: 'productId' });
 
-sequelize.sync();
+const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
+const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
 
 // Routes
 
@@ -262,12 +263,12 @@ app.get('/public/products/:id', cacheProduct, async (req, res) => {
 app.post('/products', async (req, res) => {
   try {
     const product = await Product.create(req.body);
-    
+
     // Invalidate cache after successful creation
     if (cacheEnabled) {
       await invalidateProductCaches(product.id);
     }
-    
+
     res.status(201).json(product);
   } catch (error) {
     console.error(error);
@@ -396,13 +397,13 @@ app.put('/orders/:id/status', async (req, res) => {
 app.post('/cart', async (req, res) => {
   try {
     const { productId, quantity = 1 } = req.body;
-    
+
     // Get authenticated user ID from header set by gateway
     const userId = req.header('x-user-id');
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    
+
     // Validate quantity
     if (!Number.isInteger(quantity) || quantity < 1) {
       return res.status(400).json({ error: 'Quantity must be a positive integer' });
@@ -416,7 +417,7 @@ app.post('/cart', async (req, res) => {
 
     // Check if already in cart
     let cartItem = await CartItem.findOne({ where: { userId, productId } });
-    
+
     if (cartItem) {
       // Update quantity
       cartItem.quantity += quantity;
@@ -446,12 +447,12 @@ app.get('/cart/:userId', async (req, res) => {
     if (!authUserId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    
+
     // Ensure user can only access their own cart
     if (authUserId !== req.params.userId) {
       return res.status(403).json({ error: 'Access denied' });
     }
-    
+
     const cartItems = await CartItem.findAll({
       where: { userId: req.params.userId },
       include: [Product]
@@ -474,7 +475,7 @@ app.put('/cart/:id', async (req, res) => {
   try {
     const { quantity } = req.body;
     const cartItem = await CartItem.findByPk(req.params.id);
-    
+
     if (!cartItem) {
       return res.status(404).json({ error: 'Cart item not found' });
     }
@@ -498,7 +499,7 @@ app.put('/cart/:id', async (req, res) => {
 app.delete('/cart/:id', async (req, res) => {
   try {
     const cartItem = await CartItem.findByPk(req.params.id);
-    
+
     if (!cartItem) {
       return res.status(404).json({ error: 'Cart item not found' });
     }
@@ -583,8 +584,8 @@ app.get('/products/:productId/reviews', async (req, res) => {
     // Calculate average rating
     const allReviews = await ProductReview.findAll({
       where: { productId: req.params.productId },
-      attributes: [[sequelize.fn('AVG', sequelize.col('rating')), 'avgRating'], 
-                   [sequelize.fn('COUNT', sequelize.col('id')), 'totalReviews']]
+      attributes: [[sequelize.fn('AVG', sequelize.col('rating')), 'avgRating'],
+      [sequelize.fn('COUNT', sequelize.col('id')), 'totalReviews']]
     });
 
     const stats = allReviews[0] ? {
@@ -603,7 +604,7 @@ app.get('/products/:productId/reviews', async (req, res) => {
 app.post('/reviews/:id/helpful', async (req, res) => {
   try {
     const review = await ProductReview.findByPk(req.params.id);
-    
+
     if (!review) {
       return res.status(404).json({ error: 'Review not found' });
     }
@@ -636,7 +637,7 @@ app.post('/wishlist', async (req, res) => {
     }
 
     const item = await WishlistItem.create({ userId, productId });
-    
+
     // Include product details
     const itemWithProduct = await WishlistItem.findByPk(item.id, {
       include: [Product]
@@ -669,7 +670,7 @@ app.get('/wishlist/:userId', async (req, res) => {
 app.delete('/wishlist/:id', async (req, res) => {
   try {
     const item = await WishlistItem.findByPk(req.params.id);
-    
+
     if (!item) {
       return res.status(404).json({ error: 'Wishlist item not found' });
     }
@@ -682,6 +683,16 @@ app.delete('/wishlist/:id', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Shop service running on port ${PORT}`);
-});
+async function startServer() {
+  try {
+    await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+    app.listen(PORT, () => {
+      console.log(`Shop service running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Database initialization failed:', error);
+    process.exit(1);
+  }
+}
+
+startServer();

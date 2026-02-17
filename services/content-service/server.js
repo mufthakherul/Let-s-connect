@@ -1119,29 +1119,43 @@ const SavedSearch = sequelize.define('SavedSearch', {
   ]
 });
 
-sequelize.sync().then(async () => {
-  // Initialize default awards if they don't exist
-  try {
-    const awards = [
-      { name: 'Gold Award', description: 'A prestigious gold award', icon: '🥇', cost: 500, type: 'gold' },
-      { name: 'Silver Award', description: 'A valuable silver award', icon: '🥈', cost: 100, type: 'silver' },
-      { name: 'Platinum Award', description: 'The ultimate platinum award', icon: '💎', cost: 1800, type: 'platinum' },
-      { name: 'Helpful', description: 'This post was helpful', icon: '👍', cost: 50, type: 'custom' },
-      { name: 'Wholesome', description: 'A wholesome post', icon: '❤️', cost: 50, type: 'custom' }
-    ];
+const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
+const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
 
-    for (const awardData of awards) {
-      await Award.findOrCreate({
-        where: { name: awardData.name },
-        defaults: awardData
-      });
+async function startServer() {
+  try {
+    await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+
+    // Initialize default awards if they don't exist
+    try {
+      const awards = [
+        { name: 'Gold Award', description: 'A prestigious gold award', icon: '🥇', cost: 500, type: 'gold' },
+        { name: 'Silver Award', description: 'A valuable silver award', icon: '🥈', cost: 100, type: 'silver' },
+        { name: 'Platinum Award', description: 'The ultimate platinum award', icon: '💎', cost: 1800, type: 'platinum' },
+        { name: 'Helpful', description: 'This post was helpful', icon: '👍', cost: 50, type: 'custom' },
+        { name: 'Wholesome', description: 'A wholesome post', icon: '❤️', cost: 50, type: 'custom' }
+      ];
+
+      for (const awardData of awards) {
+        await Award.findOrCreate({
+          where: { name: awardData.name },
+          defaults: awardData
+        });
+      }
+
+      console.log('Default awards initialized');
+    } catch (error) {
+      console.error('Error initializing awards:', error);
     }
 
-    console.log('Default awards initialized');
+    app.listen(PORT, () => {
+      console.log(`Content service running on port ${PORT}`);
+    });
   } catch (error) {
-    console.error('Error initializing awards:', error);
+    console.error('Database initialization failed:', error);
+    process.exit(1);
   }
-});
+}
 
 // Routes
 
@@ -5805,6 +5819,4 @@ app.delete('/saved-searches/:searchId', async (req, res) => {
 
 // ==================== END SAVED SEARCHES ====================
 
-app.listen(PORT, () => {
-  console.log(`Content service running on port ${PORT}`);
-});
+startServer();
