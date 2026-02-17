@@ -24,6 +24,12 @@ Welcome to the Let's Connect documentation. This directory contains comprehensiv
 - **[ELASTICSEARCH_IMPLEMENTATION.md](ELASTICSEARCH_IMPLEMENTATION.md)** - Elasticsearch setup for search functionality
 - **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Quick reference for common tasks
 
+### Streaming & Media (NEW!)
+- **[TV_PROFESSIONAL_UPGRADE.md](TV_PROFESSIONAL_UPGRADE.md)** - 60,000+ TV channels with professional enrichment
+- **[TV_ADVANCED_FEATURES.md](TV_ADVANCED_FEATURES.md)** - Search, health checks, recommendations, auto-discovery
+- **[TV_QUICK_START.md](TV_QUICK_START.md)** - Get started with the new TV system in 5 minutes
+- **[STREAMING_FEATURES.md](STREAMING_FEATURES.md)** - Streaming capabilities overview
+
 ### Development
 - **[TESTING.md](../TESTING.md)** - Testing strategy and guidelines
 - **[SECURITY_NOTES.md](../SECURITY_NOTES.md)** - Security best practices and guidelines

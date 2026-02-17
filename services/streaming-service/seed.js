@@ -6,6 +6,9 @@ require('dotenv').config();
 // Import dynamic fetchers
 const RadioBrowserFetcher = require('./radio-browser-fetcher');
 const TVPlaylistFetcher = require('./tv-playlist-fetcher');
+const YouTubeEnricher = require('./youtube-enricher');
+const IPTVOrgAPI = require('./iptv-org-api');
+const ChannelEnricher = require('./channel-enricher');
 
 // Database connection
 const sequelize = new Sequelize(
@@ -128,6 +131,57 @@ async function fetchRadioStations() {
         console.log(`\n⚠️  Could not fetch from online source: ${error.message}`);
         console.log(`📦 Falling back to ${fallbackData.length} static radio stations\n`);
         return fallbackData;
+    }
+}
+
+/**
+ * Fetch TV channels from IPTV-ORG API
+ */
+async function fetchIPTVOrgChannels() {
+    console.log('🌐 Fetching channels from IPTV-ORG API...');
+    try {
+        const iptvAPI = new IPTVOrgAPI({ timeout: 30000, retries: 3 });
+        const channels = await iptvAPI.fetchChannels();
+
+        if (channels && channels.length > 0) {
+            console.log(`✅ Fetched ${channels.length} channels from IPTV-ORG`);
+            return channels;
+        } else {
+            console.log('⚠️  IPTV-ORG returned no channels');
+            return [];
+        }
+    } catch (error) {
+        console.log(`⚠️  IPTV-ORG fetch failed: ${error.message}`);
+        return [];
+    }
+}
+
+/**
+ * Fetch and enrich YouTube channels
+ */
+async function fetchYouTubeChannels() {
+    const youtubeDataPath = path.join(__dirname, 'data', 'Youtube-Tv.json');
+
+    console.log('🎥 Loading YouTube channels from local data...');
+    try {
+        if (!fs.existsSync(youtubeDataPath)) {
+            console.log('⚠️  YouTube data file not found');
+            return [];
+        }
+
+        const youtubeRaw = JSON.parse(fs.readFileSync(youtubeDataPath, 'utf8'));
+        if (!Array.isArray(youtubeRaw)) return [];
+
+        const enricher = new YouTubeEnricher({ timeout: 5000, retries: 1 });
+
+        console.log('🔧 Enriching YouTube channels with metadata and logos...');
+        const enriched = await enricher.enrichChannels(youtubeRaw);
+
+        console.log(`✅ Loaded and enriched ${enriched.length} YouTube channels`);
+        return enriched;
+    } catch (error) {
+        console.log(`⚠️  YouTube enrichment failed: ${error.message}`);
+        return [];
     }
 }
 
@@ -319,16 +373,6 @@ const seed = async () => {
             process.exit(1);
         }
 
-        // NOTE: local YouTube data is already included by TVPlaylistFetcher.fetchAllSources()
-        // (the fetcher will load `data/Youtube-Tv.json` when present). To avoid duplicate
-        // loading we just report how many YouTube entries were included in `tvChannels`.
-        const youtubeLocalCount = tvChannels.filter(ch => (ch.source === 'youtube') || (ch.playlistSource && String(ch.playlistSource).toLowerCase().includes('youtube'))).length;
-        if (youtubeLocalCount > 0) {
-            console.log(`✅ Included ${youtubeLocalCount} YouTube channels (loaded by TVPlaylistFetcher)`);
-        } else {
-            console.log('ℹ️  No local YouTube channels detected in fetched TV sources');
-        }
-
         if (!tvChannels || tvChannels.length === 0) {
             console.error('❌ No TV channel data available');
             process.exit(1);
@@ -338,15 +382,52 @@ const seed = async () => {
         const staticTVPath = path.join(__dirname, 'seed-data', 'tv-channels.json');
         const staticTVData = JSON.parse(fs.readFileSync(staticTVPath, 'utf8'));
 
-        // Merge data
-        // TVPlaylistFetcher already includes local YouTube entries (if any), so use `tvChannels` as the
-        // single authoritative online source list to prevent double-counting.
-        const onlineTV = tvChannels;
-        const mergedTV = mergeData(onlineTV, staticTVData, 'tv');
-        console.log(`📊 Merged Data: ${mergedTV.length} unique TV channels`);
-        console.log(`  - Online sources: ${onlineTV.length}`);
-        console.log(`  - Static fallback: ${staticTVData.length}`);
-        console.log(`  - Total unique: ${mergedTV.length}\n`);
+        // ========== FETCH ADDITIONAL SOURCES ==========
+        console.log('\n📡 Fetching TV channels from additional sources (IPTV-ORG, YouTube)...\n');
+
+        // Fetch from IPTV-ORG API
+        const iptvOrgChannels = await fetchIPTVOrgChannels();
+        console.log('');
+
+        // Fetch and enrich YouTube channels
+        const youtubeChannels = await fetchYouTubeChannels();
+        console.log('');
+
+        // ========== ENRICH AND DEDUPLICATE ==========
+        console.log('🔧 Enriching all channels with logos and metadata...\n');
+
+        const enricher = new ChannelEnricher({
+            validateStreams: true,
+            maxConcurrent: 5
+        });
+
+        // Combine all sources
+        let allChannels = [...tvChannels, ...iptvOrgChannels, ...youtubeChannels, ...staticTVData];
+        console.log(`📊 Combined sources: ${allChannels.length} total channels (before deduplication)`);
+        console.log(`  - Playlist channels: ${tvChannels.length}`);
+        console.log(`  - IPTV-ORG channels: ${iptvOrgChannels.length}`);
+        console.log(`  - YouTube channels: ${youtubeChannels.length}`);
+        console.log(`  - Static fallback: ${staticTVData.length}\n`);
+
+        // Enrich channels
+        const enrichedChannels = await enricher.enrichChannels(allChannels, { skipInvalid: false });
+        console.log('');
+
+        // Deduplicate
+        const mergedTV = enricher.deduplicateChannels(enrichedChannels);
+
+        // Report statistics
+        const iptvCount = mergedTV.filter(ch => ch.source === 'iptv-org').length;
+        const youtubeCount = mergedTV.filter(ch => ch.source === 'youtube' || ch.metadata?.platform === 'YouTube').length;
+        const playlistCount = mergedTV.filter(ch => ch.source === 'playlist').length;
+        const otherCount = mergedTV.length - iptvCount - youtubeCount - playlistCount;
+
+        console.log(`📊 Final Merged Channel Summary:`);
+        console.log(`  - IPTV-ORG channels: ${iptvCount}`);
+        console.log(`  - YouTube channels: ${youtubeCount}`);
+        console.log(`  - Playlist channels: ${playlistCount}`);
+        console.log(`  - Other sources: ${otherCount}`);
+        console.log(`  📁 Total unique: ${mergedTV.length}\n`);
 
         console.log(`🔄 Seeding ${mergedTV.length} TV channels to database...\n`);
 
