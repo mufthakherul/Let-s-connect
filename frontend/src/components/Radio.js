@@ -104,7 +104,15 @@ const Radio = () => {
     const isInsecureUrl = (value) => typeof value === 'string' && value.startsWith('http://');
     const proxyUrl = (value) => `${getApiBaseUrl()}/api/streaming/proxy?url=${encodeURIComponent(value)}`;
     const safeStreamUrl = (value) => (isHttpsContext() && isInsecureUrl(value) ? proxyUrl(value) : value);
-    const safeImageUrl = (value) => (isHttpsContext() && isInsecureUrl(value) ? proxyUrl(value) : value);
+    const safeImageUrl = (value) => {
+        if (!value || typeof value !== 'string') return null;
+        const trimmed = value.trim();
+        if (/^https?:\/\//i.test(trimmed) || /^\/\//.test(trimmed)) {
+            return (isHttpsContext() && isInsecureUrl(trimmed)) ? proxyUrl(trimmed) : trimmed;
+        }
+        if (/^data:/.test(trimmed)) return trimmed;
+        return null;
+    };
 
     const handlePlay = async (station) => {
         if (!station.streamUrl) {

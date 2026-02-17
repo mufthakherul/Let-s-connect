@@ -64,7 +64,20 @@ const TV = () => {
     const isInsecureUrl = (value) => typeof value === 'string' && value.startsWith('http://');
     const proxyUrl = (value) => `${getApiBaseUrl()}/api/streaming/proxy?url=${encodeURIComponent(value)}`;
     const safeStreamUrl = (value) => (isHttpsContext() && isInsecureUrl(value) ? proxyUrl(value) : value);
-    const safeImageUrl = (value) => (isHttpsContext() && isInsecureUrl(value) ? proxyUrl(value) : value);
+
+    // Validate image URLs so malformed values like "300x140?text=TV" don't become broken requests
+    const safeImageUrl = (value) => {
+        if (!value || typeof value !== 'string') return null;
+        const trimmed = value.trim();
+        // Accept only absolute URLs (http/https) or protocol-relative //host
+        if (/^https?:\/\//i.test(trimmed) || /^\/\//.test(trimmed)) {
+            return (isHttpsContext() && isInsecureUrl(trimmed)) ? proxyUrl(trimmed) : trimmed;
+        }
+        // If it's already an embed/data URI, allow it
+        if (/^data:/.test(trimmed)) return trimmed;
+        // otherwise treat as invalid so placeholder is used instead
+        return null;
+    };
 
     const isYouTubeChannel = (channel) => {
         if (!channel) return false;
@@ -232,10 +245,11 @@ const TV = () => {
                     'fullscreen',
                     'overflow_menu'
                 ],
+                // 'audio_language' is not a valid overflow control in newer Shaka UI versions — use 'language'
                 overflowMenuButtons: [
                     'quality',
                     'playback_rate',
-                    'audio_language',
+                    'language',
                     'captions',
                     'statistics'
                 ]
@@ -256,7 +270,11 @@ const TV = () => {
                 }
             } catch (error) {
                 if (!canceled) {
-                    setPlayerError(error?.message || 'Failed to load stream');
+                    const msg = error?.message || 'Failed to load stream';
+                    setPlayerError(msg);
+                    // provide immediate user feedback
+                    toast.error(`Playback failed: ${msg}`);
+                    setIsPlaying(false);
                 }
             }
         };
@@ -433,7 +451,22 @@ const TV = () => {
                         {isYouTubeChannel(currentChannel) ? (
                             <iframe
                                 title={currentChannel.name}
-                                src={currentChannel.metadata?.iframeUrl || currentChannel.streamUrl}
+                                src={
+                                    currentChannel.metadata?.iframeUrl || (function constructYouTubeEmbed() {
+                                        const url = (currentChannel.streamUrl || '').trim();
+                                        if (/\/embed\//i.test(url)) return url;
+                                        // channel handle e.g. /@Handle/live -> embed URL
+                                        const handleMatch = url.match(/youtube\.com\/(?:@[^/]+)\/live/i);
+                                        if (handleMatch) {
+                                            const parts = url.split('/');
+                                            const handle = parts.slice(-2).join('/');
+                                            return `https://www.youtube.com/embed/${handle}`;
+                                        }
+                                        const vidMatch = url.match(/[?&]v=([^&]+)/);
+                                        if (vidMatch) return `https://www.youtube.com/embed/${vidMatch[1]}`;
+                                        return url; // last resort
+                                    })()
+                                }
                                 allow="autoplay; encrypted-media; picture-in-picture"
                                 allowFullScreen
                                 style={{
