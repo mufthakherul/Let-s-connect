@@ -590,7 +590,8 @@ MessageReaction.belongsTo(Message, { foreignKey: 'messageId' });
 Message.belongsTo(Message, { as: 'replyTo', foreignKey: 'replyToId' });
 Message.belongsTo(Message, { as: 'forwardedFrom', foreignKey: 'forwardedFromId' });
 
-sequelize.sync();
+const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
+const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
 
 // Socket.IO for real-time messaging
 io.on('connection', (socket) => {
@@ -2093,7 +2094,7 @@ app.post('/calls/:callId/recording', async (req, res) => {
     } else if (action === 'stop') {
       // In production, this would save the recording to MinIO/S3
       const recordingUrl = `recordings/${callId}-${Date.now()}.webm`;
-      
+
       await call.update({
         isRecording: false,
         recordingUrl
@@ -2242,12 +2243,12 @@ app.get('/notifications', async (req, res) => {
     });
 
     const total = await Notification.count({ where: whereClause });
-    const unreadCount = await Notification.count({ 
-      where: { userId, isRead: false } 
+    const unreadCount = await Notification.count({
+      where: { userId, isRead: false }
     });
 
-    res.json({ 
-      notifications, 
+    res.json({
+      notifications,
       total,
       unreadCount,
       hasMore: total > parseInt(offset) + parseInt(limit)
@@ -2270,8 +2271,8 @@ app.post('/notifications', async (req, res) => {
     const { userId, type, title, body, actionUrl, metadata, priority } = req.body;
 
     if (!userId || !type || !title || !body) {
-      return res.status(400).json({ 
-        error: 'userId, type, title, and body are required' 
+      return res.status(400).json({
+        error: 'userId, type, title, and body are required'
       });
     }
 
@@ -2295,10 +2296,10 @@ app.post('/notifications', async (req, res) => {
       'system': 'enableSystem',
       'announcement': 'enableAnnouncements'
     };
-    
+
     const typeKey = typeFieldMap[type];
     if (typeKey && preferences[typeKey] === false) {
-      return res.json({ 
+      return res.json({
         message: 'Notification blocked by user preferences',
         delivered: false
       });
@@ -2326,7 +2327,7 @@ app.post('/notifications', async (req, res) => {
       createdAt: notification.createdAt
     });
 
-    res.json({ 
+    res.json({
       notification,
       delivered: true
     });
@@ -2361,11 +2362,11 @@ app.put('/notifications/:notificationId/read', async (req, res) => {
     });
 
     // Get updated unread count
-    const unreadCount = await Notification.count({ 
-      where: { userId, isRead: false } 
+    const unreadCount = await Notification.count({
+      where: { userId, isRead: false }
     });
 
-    res.json({ 
+    res.json({
       notification,
       unreadCount
     });
@@ -2384,19 +2385,19 @@ app.put('/notifications/read-all', async (req, res) => {
     }
 
     await Notification.update(
-      { 
+      {
         isRead: true,
         readAt: new Date()
       },
-      { 
-        where: { 
-          userId, 
-          isRead: false 
-        } 
+      {
+        where: {
+          userId,
+          isRead: false
+        }
       }
     );
 
-    res.json({ 
+    res.json({
       message: 'All notifications marked as read',
       unreadCount: 0
     });
@@ -2443,13 +2444,13 @@ app.delete('/notifications/clear-read', async (req, res) => {
     }
 
     const deleted = await Notification.destroy({
-      where: { 
-        userId, 
-        isRead: true 
+      where: {
+        userId,
+        isRead: true
       }
     });
 
-    res.json({ 
+    res.json({
       message: 'Read notifications cleared',
       deletedCount: deleted
     });
@@ -2468,7 +2469,7 @@ app.get('/notifications/preferences', async (req, res) => {
     }
 
     let preferences = await NotificationPreference.findOne({ where: { userId } });
-    
+
     if (!preferences) {
       // Create default preferences
       preferences = await NotificationPreference.create({ userId });
@@ -2491,7 +2492,7 @@ app.put('/notifications/preferences', async (req, res) => {
 
     const allowedFields = [
       'enableMessages', 'enableMentions', 'enableReplies', 'enableReactions',
-      'enableCalls', 'enableFriendRequests', 'enableServerInvites', 
+      'enableCalls', 'enableFriendRequests', 'enableServerInvites',
       'enableRoleUpdates', 'enableSystem', 'enableAnnouncements',
       'enablePushNotifications', 'enableEmailDigest', 'digestFrequency',
       'quietHoursStart', 'quietHoursEnd'
@@ -2509,7 +2510,7 @@ app.put('/notifications/preferences', async (req, res) => {
     }
 
     let preferences = await NotificationPreference.findOne({ where: { userId } });
-    
+
     if (!preferences) {
       preferences = await NotificationPreference.create({ userId, ...updates });
     } else {
@@ -2809,6 +2810,16 @@ app.delete('/categories/:categoryId', async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Messaging service running on port ${PORT}`);
-});
+async function startServer() {
+  try {
+    await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+    server.listen(PORT, () => {
+      console.log(`Messaging service running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Database initialization failed:', error);
+    process.exit(1);
+  }
+}
+
+startServer();

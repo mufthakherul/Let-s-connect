@@ -96,7 +96,8 @@ const MediaFile = sequelize.define('MediaFile', {
   metadata: DataTypes.JSONB         // { width, height, format }
 });
 
-sequelize.sync();
+const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
+const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
 
 // Multer configuration
 const upload = multer({
@@ -349,6 +350,16 @@ app.delete('/files/:fileId', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Media service running on port ${PORT}`);
-});
+async function startServer() {
+  try {
+    await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+    app.listen(PORT, () => {
+      console.log(`Media service running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Database initialization failed:', error);
+    process.exit(1);
+  }
+}
+
+startServer();

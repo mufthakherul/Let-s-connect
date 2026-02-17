@@ -2255,7 +2255,8 @@ QuizQuestion.belongsTo(Meeting, { foreignKey: 'meetingId' });
 QuizQuestion.hasMany(QuizResponse, { foreignKey: 'questionId', as: 'responses' });
 QuizResponse.belongsTo(QuizQuestion, { foreignKey: 'questionId' });
 
-sequelize.sync();
+const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
+const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
 
 // Routes
 
@@ -4240,12 +4241,12 @@ app.post('/meetings/:id/role-permissions', async (req, res) => {
     }
 
     const meeting = await requireMeetingAccess(req.params.id, userId);
-    
+
     // Only host or moderator can set permissions
     const participant = await MeetingParticipant.findOne({
       where: { meetingId: req.params.id, userId }
     });
-    
+
     if (!participant || !['host', 'moderator'].includes(participant.role)) {
       return res.status(403).json({ error: 'Only hosts and moderators can manage permissions' });
     }
@@ -5726,7 +5727,7 @@ app.post('/meetings/:id/ai-summary', async (req, res) => {
     // In a real implementation, this would call an AI service
     // For now, we'll create a placeholder summary
     const meeting = await Meeting.findByPk(req.params.id);
-    
+
     const summary = await AISummary.create({
       meetingId: req.params.id,
       agendaItemId,
@@ -5787,7 +5788,7 @@ app.put('/meetings/:id/ai-summary/:summaryId', async (req, res) => {
     }
 
     const { reviewStatus, summary: editedSummary } = req.body;
-    await summary.update({ 
+    await summary.update({
       reviewStatus,
       summary: editedSummary || summary.summary
     });
@@ -5914,7 +5915,7 @@ app.post('/meetings/:id/brief', async (req, res) => {
     // In a real implementation, this would generate a contextual brief using AI
     // For now, we'll create a placeholder
     const meeting = await Meeting.findByPk(req.params.id);
-    
+
     // Get related decisions
     const recentDecisions = await DecisionLog.findAll({
       where: { meetingId: { [Op.ne]: req.params.id } },
@@ -5986,7 +5987,7 @@ app.get('/user/experience-profile', async (req, res) => {
     }
 
     let profile = await UserExperienceProfile.findOne({ where: { userId } });
-    
+
     if (!profile) {
       profile = await UserExperienceProfile.create({ userId });
     }
@@ -6009,7 +6010,7 @@ app.put('/user/experience-profile', async (req, res) => {
     const { experienceLevel, preferredComplexity, interfacePreferences, roleSpecificSettings, meetingTypePreferences } = req.body;
 
     let profile = await UserExperienceProfile.findOne({ where: { userId } });
-    
+
     if (!profile) {
       profile = await UserExperienceProfile.create({
         userId,
@@ -6069,7 +6070,7 @@ app.post('/user/onboarding-step', async (req, res) => {
       const allSteps = await OnboardingStep.findAll({ where: { userId } });
       const completedSteps = allSteps.filter(s => s.completed).length;
       const totalSteps = allSteps.length;
-      
+
       await profile.update({
         completedOnboarding: completedSteps === totalSteps,
         onboardingProgress: { completedSteps, totalSteps }
@@ -6150,7 +6151,7 @@ app.get('/meetings/:id/captions', async (req, res) => {
 
     const { startTime, endTime, speakerId } = req.query;
     const where = { meetingId: req.params.id };
-    
+
     if (startTime) {
       where.timestamp = { [Op.gte]: new Date(startTime) };
     }
@@ -6182,7 +6183,7 @@ app.get('/user/accessibility-settings', async (req, res) => {
     }
 
     let settings = await AccessibilitySettings.findOne({ where: { userId } });
-    
+
     if (!settings) {
       settings = await AccessibilitySettings.create({ userId });
     }
@@ -6205,7 +6206,7 @@ app.put('/user/accessibility-settings', async (req, res) => {
     const updateData = req.body;
 
     let settings = await AccessibilitySettings.findOne({ where: { userId } });
-    
+
     if (!settings) {
       settings = await AccessibilitySettings.create({ userId, ...updateData });
     } else {
@@ -6386,7 +6387,7 @@ app.get('/user/media-quality', async (req, res) => {
     if (meetingId) where.meetingId = meetingId;
 
     let profile = await MediaQualityProfile.findOne({ where });
-    
+
     if (!profile) {
       profile = await MediaQualityProfile.create({ userId, meetingId });
     }
@@ -6412,7 +6413,7 @@ app.put('/user/media-quality', async (req, res) => {
     if (meetingId) where.meetingId = meetingId;
 
     let profile = await MediaQualityProfile.findOne({ where });
-    
+
     if (!profile) {
       profile = await MediaQualityProfile.create({
         userId,
@@ -8627,6 +8628,16 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`Collaboration service running on port ${PORT}`);
-});
+async function startServer() {
+  try {
+    await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+    server.listen(PORT, () => {
+      console.log(`Collaboration service running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Database initialization failed:', error);
+    process.exit(1);
+  }
+}
+
+startServer();

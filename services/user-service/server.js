@@ -153,6 +153,48 @@ const Profile = sequelize.define('Profile', {
   socialLinks: DataTypes.JSONB
 });
 
+const profileColumnDefinitions = {
+  headline: { type: DataTypes.STRING },
+  pronouns: { type: DataTypes.STRING },
+  phoneNumber: { type: DataTypes.STRING },
+  contactEmail: { type: DataTypes.STRING },
+  contactPhone: { type: DataTypes.STRING },
+  dateOfBirth: { type: DataTypes.DATE },
+  location: { type: DataTypes.STRING },
+  city: { type: DataTypes.STRING },
+  country: { type: DataTypes.STRING },
+  timezone: { type: DataTypes.STRING },
+  website: { type: DataTypes.STRING },
+  portfolioUrl: { type: DataTypes.STRING },
+  company: { type: DataTypes.STRING },
+  jobTitle: { type: DataTypes.STRING },
+  industry: { type: DataTypes.STRING },
+  experienceLevel: { type: DataTypes.STRING },
+  yearsExperience: { type: DataTypes.INTEGER },
+  skills: { type: DataTypes.ARRAY(DataTypes.STRING) },
+  interests: { type: DataTypes.ARRAY(DataTypes.STRING) },
+  languages: { type: DataTypes.ARRAY(DataTypes.STRING) },
+  certifications: { type: DataTypes.ARRAY(DataTypes.STRING) },
+  education: { type: DataTypes.JSONB },
+  socialLinks: { type: DataTypes.JSONB }
+};
+
+async function ensureProfileSchema() {
+  try {
+    const queryInterface = sequelize.getQueryInterface();
+    const table = await queryInterface.describeTable('Profiles');
+    const missing = Object.keys(profileColumnDefinitions).filter((col) => !table[col]);
+    for (const col of missing) {
+      await queryInterface.addColumn('Profiles', col, profileColumnDefinitions[col]);
+    }
+    if (missing.length) {
+      console.log(`[Schema] Added missing Profile columns: ${missing.join(', ')}`);
+    }
+  } catch (err) {
+    console.warn('[Schema] Profile schema check failed:', err?.message || err);
+  }
+}
+
 User.hasOne(Profile, { foreignKey: 'userId' });
 Profile.belongsTo(User, { foreignKey: 'userId' });
 
@@ -3224,35 +3266,44 @@ app.use(cspMiddleware({
 
 // Sync Phase 8 models with database
 const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
-sequelize.sync({ alter: shouldAlterSchema }).then(() => {
-  console.log('[Phase 8] Database models synchronized');
+const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
 
-  // Setup Phase 8 endpoints
-  setupPhase8Endpoints(app, phase8Models, {
-    enterpriseAuth,
-    auditService,
-    organizationService,
-    analyticsService,
-    workflowEngine,
-    securityService,
-    integrationManager
-  });
+async function startServer() {
+  try {
+    await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+    await ensureProfileSchema();
+    console.log('[Phase 8] Database models synchronized');
 
-  console.log('[Phase 8] ✅ Enterprise Features initialized successfully');
-  console.log('[Phase 8] Features enabled:');
-  console.log('  - SAML 2.0 & LDAP Authentication');
-  console.log('  - Audit & Compliance Logging');
-  console.log('  - Multi-tenant Organizations');
-  console.log('  - Advanced Analytics & Dashboards');
-  console.log('  - Workflow Automation');
-  console.log('  - Enterprise Integrations:', integrationManager.list().join(', '));
-  console.log('  - Enhanced Security (IP Whitelist, CSP, Advanced Sessions)');
-}).catch(err => {
-  console.error('[Phase 8] Failed to initialize:', err);
-});
+    // Setup Phase 8 endpoints
+    setupPhase8Endpoints(app, phase8Models, {
+      enterpriseAuth,
+      auditService,
+      organizationService,
+      analyticsService,
+      workflowEngine,
+      securityService,
+      integrationManager
+    });
+
+    console.log('[Phase 8] ✅ Enterprise Features initialized successfully');
+    console.log('[Phase 8] Features enabled:');
+    console.log('  - SAML 2.0 & LDAP Authentication');
+    console.log('  - Audit & Compliance Logging');
+    console.log('  - Multi-tenant Organizations');
+    console.log('  - Advanced Analytics & Dashboards');
+    console.log('  - Workflow Automation');
+    console.log('  - Enterprise Integrations:', integrationManager.list().join(', '));
+    console.log('  - Enhanced Security (IP Whitelist, CSP, Advanced Sessions)');
+
+    app.listen(PORT, () => {
+      console.log(`User service running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('[Phase 8] Failed to initialize:', err);
+    process.exit(1);
+  }
+}
 
 // ==================== END PHASE 8 ====================
 
-app.listen(PORT, () => {
-  console.log(`User service running on port ${PORT}`);
-});
+startServer();

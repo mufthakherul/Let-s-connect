@@ -177,11 +177,8 @@ const Playlist = sequelize.define('Playlist', {
 });
 
 // Initialize database
-sequelize.sync({ alter: true }).then(() => {
-    console.log('[Streaming] Database synced (altered where necessary)');
-}).catch(err => {
-    console.error('[Streaming] Database sync error:', err);
-});
+const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
+const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -1134,7 +1131,18 @@ app.get('/health', async (req, res) => {
 
 // ==================== START SERVER ====================
 
-app.listen(PORT, () => {
-    console.log(`[Streaming] Service running on port ${PORT}`);
-    console.log(`[Streaming] IPFM (Radio) and IPTV service ready`);
-});
+async function startServer() {
+    try {
+        await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+        console.log('[Streaming] Database synced');
+        app.listen(PORT, () => {
+            console.log(`[Streaming] Service running on port ${PORT}`);
+            console.log(`[Streaming] IPFM (Radio) and IPTV service ready`);
+        });
+    } catch (err) {
+        console.error('[Streaming] Database sync error:', err);
+        process.exit(1);
+    }
+}
+
+startServer();
