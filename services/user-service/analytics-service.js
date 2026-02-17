@@ -533,7 +533,7 @@ class AnalyticsService {
 
     // This is a simplified implementation
     // In production, you'd query users based on criteria and analyze their behavior
-    
+
     const analysis = {
       cohortId,
       name: cohort.name,
@@ -583,13 +583,13 @@ class AnalyticsService {
 
     // Calculate statistics by metric type
     const summary = {};
-    
+
     const metricTypes = [...new Set(metrics.map(m => m.metricType))];
-    
+
     for (const type of metricTypes) {
       const typeMetrics = metrics.filter(m => m.metricType === type);
       const values = typeMetrics.map(m => m.value);
-      
+
       summary[type] = {
         count: values.length,
         avg: values.reduce((a, b) => a + b, 0) / values.length,
@@ -635,7 +635,7 @@ class AnalyticsService {
    */
   async createScheduledReport(data, userId) {
     const nextRun = this.calculateNextRun(data.schedule);
-    
+
     return await this.ScheduledReport.create({
       userId,
       organizationId: data.organizationId,
@@ -653,7 +653,7 @@ class AnalyticsService {
    */
   calculateNextRun(schedule) {
     const now = new Date();
-    
+
     switch (schedule) {
       case 'daily':
         return new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -714,7 +714,7 @@ class AnalyticsService {
    */
   async generateUserActivityReport(config) {
     const { startDate, endDate } = config;
-    
+
     const events = await this.UserBehaviorEvent.findAll({
       where: {
         timestamp: {
@@ -758,9 +758,9 @@ class AnalyticsService {
    */
   async generatePerformanceReport(config) {
     const { service, hours = 24 } = config;
-    
+
     const summary = await this.getPerformanceSummary(service, hours);
-    
+
     return {
       service,
       period: `${hours} hours`,
@@ -773,7 +773,7 @@ class AnalyticsService {
    */
   getTopEvents(events, limit) {
     const eventCounts = {};
-    
+
     events.forEach(e => {
       eventCounts[e.eventName] = (eventCounts[e.eventName] || 0) + 1;
     });
@@ -789,7 +789,7 @@ class AnalyticsService {
    */
   aggregateByDay(events) {
     const byDay = {};
-    
+
     events.forEach(e => {
       const day = e.timestamp.toISOString().split('T')[0];
       byDay[day] = (byDay[day] || 0) + 1;
