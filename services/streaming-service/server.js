@@ -34,19 +34,19 @@ const RadioStation = sequelize.define('RadioStation', {
         primaryKey: true
     },
     name: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: false
     },
     description: DataTypes.TEXT,
     streamUrl: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: false
     },
-    websiteUrl: DataTypes.STRING,
-    genre: DataTypes.STRING,
-    country: DataTypes.STRING,
-    language: DataTypes.STRING,
-    logoUrl: DataTypes.STRING,
+    websiteUrl: DataTypes.TEXT,
+    genre: DataTypes.TEXT,
+    country: DataTypes.TEXT,
+    language: DataTypes.TEXT,
+    logoUrl: DataTypes.TEXT,
     bitrate: DataTypes.INTEGER,
     isActive: {
         type: DataTypes.BOOLEAN,
@@ -55,6 +55,10 @@ const RadioStation = sequelize.define('RadioStation', {
     listeners: {
         type: DataTypes.INTEGER,
         defaultValue: 0
+    },
+    source: {
+        type: DataTypes.TEXT,
+        defaultValue: 'manual'
     },
     metadata: DataTypes.JSONB, // For additional info like codec, format, etc.
     addedBy: DataTypes.UUID // User who added this station
@@ -68,19 +72,19 @@ const TVChannel = sequelize.define('TVChannel', {
         primaryKey: true
     },
     name: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: false
     },
     description: DataTypes.TEXT,
     streamUrl: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: false
     },
-    epgUrl: DataTypes.STRING, // Electronic Program Guide URL
+    epgUrl: DataTypes.TEXT, // Electronic Program Guide URL
     category: DataTypes.STRING, // News, Sports, Entertainment, etc.
-    country: DataTypes.STRING,
-    language: DataTypes.STRING,
-    logoUrl: DataTypes.STRING,
+    country: DataTypes.TEXT,
+    language: DataTypes.TEXT,
+    logoUrl: DataTypes.TEXT,
     resolution: DataTypes.STRING, // HD, FHD, 4K
     isActive: {
         type: DataTypes.BOOLEAN,
@@ -89,6 +93,10 @@ const TVChannel = sequelize.define('TVChannel', {
     viewers: {
         type: DataTypes.INTEGER,
         defaultValue: 0
+    },
+    source: {
+        type: DataTypes.TEXT,
+        defaultValue: 'manual'
     },
     metadata: DataTypes.JSONB,
     addedBy: DataTypes.UUID
@@ -169,8 +177,8 @@ const Playlist = sequelize.define('Playlist', {
 });
 
 // Initialize database
-sequelize.sync().then(() => {
-    console.log('[Streaming] Database synced');
+sequelize.sync({ alter: true }).then(() => {
+    console.log('[Streaming] Database synced (altered where necessary)');
 }).catch(err => {
     console.error('[Streaming] Database sync error:', err);
 });

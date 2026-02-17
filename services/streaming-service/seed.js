@@ -25,19 +25,19 @@ const RadioStation = sequelize.define('RadioStation', {
         primaryKey: true
     },
     name: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: false
     },
     description: DataTypes.TEXT,
     streamUrl: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: false
     },
-    websiteUrl: DataTypes.STRING,
-    genre: DataTypes.STRING,
-    country: DataTypes.STRING,
-    language: DataTypes.STRING,
-    logoUrl: DataTypes.STRING,
+    websiteUrl: DataTypes.TEXT,
+    genre: DataTypes.TEXT,
+    country: DataTypes.TEXT,
+    language: DataTypes.TEXT,
+    logoUrl: DataTypes.TEXT,
     bitrate: DataTypes.INTEGER,
     isActive: {
         type: DataTypes.BOOLEAN,
@@ -48,7 +48,7 @@ const RadioStation = sequelize.define('RadioStation', {
         defaultValue: 0
     },
     source: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         defaultValue: 'manual'
     },
     metadata: DataTypes.JSONB,
@@ -62,19 +62,19 @@ const TVChannel = sequelize.define('TVChannel', {
         primaryKey: true
     },
     name: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: false
     },
     description: DataTypes.TEXT,
     streamUrl: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: false
     },
-    epgUrl: DataTypes.STRING,
+    epgUrl: DataTypes.TEXT,
     category: DataTypes.STRING,
-    country: DataTypes.STRING,
-    language: DataTypes.STRING,
-    logoUrl: DataTypes.STRING,
+    country: DataTypes.TEXT,
+    language: DataTypes.TEXT,
+    logoUrl: DataTypes.TEXT,
     resolution: DataTypes.STRING,
     isActive: {
         type: DataTypes.BOOLEAN,
@@ -85,7 +85,7 @@ const TVChannel = sequelize.define('TVChannel', {
         defaultValue: 0
     },
     source: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         defaultValue: 'manual'
     },
     metadata: DataTypes.JSONB,
@@ -188,6 +188,12 @@ function mergeData(onlineData, fallbackData, type = 'radio') {
 
 // ==================== SEED FUNCTION ====================
 
+// Helper: sanitize strings from external sources to avoid accidental DB overflow
+function sanitizeString(value, max = 1024) {
+    if (value === undefined || value === null) return '';
+    return typeof value === 'string' ? value.slice(0, max) : String(value).slice(0, max);
+}
+
 const seed = async () => {
     try {
         console.log('🌱 Starting streaming database seeding...\n');
@@ -195,8 +201,8 @@ const seed = async () => {
 
         // Sync database
         console.log('🔧 Synchronizing database models...');
-        await sequelize.sync();
-        console.log('✅ Database models synced\n');
+        await sequelize.sync({ alter: true });
+        console.log('✅ Database models synced (altered where necessary)\n');
 
         // ========== RADIO STATIONS ==========
         console.log('═══════════════════════════════════════════');
@@ -249,17 +255,17 @@ const seed = async () => {
                     radioReport.skipped++;
                 } else {
                     const created = await RadioStation.create({
-                        name: station.name || 'Unknown',
+                        name: sanitizeString(station.name || 'Unknown', 512),
                         description: station.description || '',
-                        streamUrl: station.streamUrl,
-                        websiteUrl: station.websiteUrl || '',
-                        genre: station.genre || 'Mixed',
-                        country: station.country || 'Unknown',
-                        language: station.language || 'Unknown',
-                        logoUrl: station.logoUrl || '',
+                        streamUrl: sanitizeString(station.streamUrl || '', 2048),
+                        websiteUrl: sanitizeString(station.websiteUrl || '', 1024),
+                        genre: sanitizeString(station.genre || 'Mixed', 255),
+                        country: sanitizeString(station.country || 'Unknown', 128),
+                        language: sanitizeString(station.language || 'Unknown', 128),
+                        logoUrl: sanitizeString(station.logoUrl || '', 1024),
                         bitrate: station.bitrate || 128,
                         isActive: true,
-                        source: station.source || 'dynamic',
+                        source: sanitizeString(station.source || 'dynamic', 64),
                         metadata: station.metadata || {}
                     });
 
@@ -349,17 +355,17 @@ const seed = async () => {
                     tvReport.skipped++;
                 } else {
                     const created = await TVChannel.create({
-                        name: channel.name || 'Unknown',
+                        name: sanitizeString(channel.name || 'Unknown', 512),
                         description: channel.description || '',
-                        streamUrl: channel.streamUrl,
-                        epgUrl: channel.epgUrl || '',
-                        category: channel.category || 'Mixed',
-                        country: channel.country || 'Unknown',
-                        language: channel.language || 'Unknown',
-                        logoUrl: channel.logoUrl || '',
-                        resolution: channel.resolution || 'Unknown',
+                        streamUrl: sanitizeString(channel.streamUrl || '', 2048),
+                        epgUrl: sanitizeString(channel.epgUrl || '', 1024),
+                        category: sanitizeString(channel.category || 'Mixed', 256),
+                        country: sanitizeString(channel.country || 'Unknown', 128),
+                        language: sanitizeString(channel.language || 'Unknown', 128),
+                        logoUrl: sanitizeString(channel.logoUrl || '', 1024),
+                        resolution: sanitizeString(channel.resolution || 'Unknown', 64),
                         isActive: true,
-                        source: channel.source || 'dynamic',
+                        source: sanitizeString(channel.source || 'dynamic', 64),
                         metadata: channel.metadata || {}
                     });
 
