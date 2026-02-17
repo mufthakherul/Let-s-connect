@@ -203,6 +203,12 @@ const validateStreamUrl = async (url) => {
     }
 };
 
+// Trim and coerce external strings to avoid DB overflow
+const sanitizeValue = (value, max = 1024) => {
+    if (value === undefined || value === null) return '';
+    return typeof value === 'string' ? value.slice(0, max) : String(value).slice(0, max);
+};
+
 // Parse M3U playlist
 const parseM3U = (content) => {
     const lines = content.split('\n').filter(line => line.trim());
@@ -457,13 +463,24 @@ app.post('/radio/stations/:id/stop', async (req, res) => {
 // Get all TV channels
 app.get('/tv/channels', async (req, res) => {
     try {
-        const { category, country, language, search, limit = 50, offset = 0 } = req.query;
+        const { category, country, language, search, source, limit = 50, offset = 0 } = req.query;
 
         const where = { isActive: true };
 
         if (category) where.category = category;
         if (country) where.country = country;
         if (language) where.language = language;
+        if (source) {
+            if (source === 'iptv') {
+                where.source = { [Op.in]: ['playlist', 'iptv-org-api'] };
+            } else if (source === 'youtube') {
+                where.source = 'youtube';
+            } else if (source === 'custom') {
+                where.source = 'custom';
+            } else {
+                where.source = source;
+            }
+        }
         if (search) {
             where[Op.or] = [
                 { name: { [Op.iLike]: `%${search}%` } },
@@ -488,6 +505,81 @@ app.get('/tv/channels', async (req, res) => {
     } catch (error) {
         console.error('[TV] Error fetching channels:', error);
         res.status(500).json({ error: 'Failed to fetch TV channels' });
+    }
+});
+
+// Import custom TV playlist (M3U/M3U8)
+app.post('/tv/import', async (req, res) => {
+    try {
+        const userId = getUserId(req);
+        if (!userId) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
+        const { url, content, name } = req.body;
+        if (!url && !content) {
+            return res.status(400).json({ error: 'Playlist url or content is required' });
+        }
+
+        let playlistContent = content;
+        if (url) {
+            const response = await axios.get(url, { timeout: 15000, responseType: 'text' });
+            playlistContent = response.data;
+        }
+
+        const items = parseM3U(playlistContent || '');
+        if (!items || items.length === 0) {
+            return res.status(400).json({ error: 'No channels found in playlist' });
+        }
+
+        const chunkSize = items.length > 2000 ? 200 : 500;
+        let created = 0;
+        let skipped = 0;
+
+        for (let i = 0; i < items.length; i += chunkSize) {
+            const chunk = items.slice(i, i + chunkSize);
+            for (const item of chunk) {
+                if (!item.streamUrl) {
+                    continue;
+                }
+
+                const existing = await TVChannel.findOne({ where: { streamUrl: item.streamUrl } });
+                if (existing) {
+                    skipped++;
+                    continue;
+                }
+
+                await TVChannel.create({
+                    name: sanitizeValue(item.name || 'Unknown', 512),
+                    description: sanitizeValue(item.category || '', 1024),
+                    streamUrl: sanitizeValue(item.streamUrl || '', 2048),
+                    epgUrl: sanitizeValue(item.epgUrl || '', 1024),
+                    category: sanitizeValue(item.category || 'Mixed', 256),
+                    country: 'Unknown',
+                    language: 'Unknown',
+                    logoUrl: sanitizeValue(item.logoUrl || '', 1024),
+                    resolution: 'Unknown',
+                    isActive: true,
+                    source: 'custom',
+                    metadata: {
+                        playlistName: sanitizeValue(name || '', 256),
+                        sourceUrl: sanitizeValue(url || '', 2048),
+                        importedBy: userId
+                    }
+                });
+                created++;
+            }
+        }
+
+        res.status(201).json({
+            message: 'Playlist imported',
+            created,
+            skipped,
+            total: created + skipped
+        });
+    } catch (error) {
+        console.error('[TV] Error importing playlist:', error);
+        res.status(500).json({ error: 'Failed to import TV playlist' });
     }
 });
 
@@ -934,10 +1026,23 @@ app.get('/radio/popular', async (req, res) => {
 // Get popular TV channels
 app.get('/tv/popular', async (req, res) => {
     try {
-        const { limit = 20 } = req.query;
+        const { limit = 20, source } = req.query;
+
+        const where = { isActive: true };
+        if (source) {
+            if (source === 'iptv') {
+                where.source = { [Op.in]: ['playlist', 'iptv-org-api'] };
+            } else if (source === 'youtube') {
+                where.source = 'youtube';
+            } else if (source === 'custom') {
+                where.source = 'custom';
+            } else {
+                where.source = source;
+            }
+        }
 
         const channels = await TVChannel.findAll({
-            where: { isActive: true },
+            where,
             limit: parseInt(limit),
             order: [['viewers', 'DESC']]
         });
@@ -967,10 +1072,30 @@ app.get('/radio/genres', async (req, res) => {
 // Get available categories
 app.get('/tv/categories', async (req, res) => {
     try {
-        const result = await sequelize.query(
-            'SELECT DISTINCT category FROM "TVChannels" WHERE category IS NOT NULL AND "isActive" = true ORDER BY category',
-            { type: Sequelize.QueryTypes.SELECT }
-        );
+        const { source } = req.query;
+        let query = 'SELECT DISTINCT category FROM "TVChannels" WHERE category IS NOT NULL AND "isActive" = true';
+        const replacements = {};
+
+        if (source === 'youtube') {
+            query += ' AND source = :source';
+            replacements.source = 'youtube';
+        } else if (source === 'custom') {
+            query += ' AND source = :source';
+            replacements.source = 'custom';
+        } else if (source === 'iptv') {
+            query += ' AND source IN (:iptvSources)';
+            replacements.iptvSources = ['playlist', 'iptv-org-api'];
+        } else if (source) {
+            query += ' AND source = :source';
+            replacements.source = source;
+        }
+
+        query += ' ORDER BY category';
+
+        const result = await sequelize.query(query, {
+            type: Sequelize.QueryTypes.SELECT,
+            replacements
+        });
 
         res.json(result.map(r => r.category));
     } catch (error) {

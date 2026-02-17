@@ -38,6 +38,8 @@ export default function CaptchaField({ onSolve, onClear, variant = 'auto', label
   const [solved, setSolved] = useState(false);
   const hcaptchaContainerRef = useRef(null);
   const widgetIdRef = useRef(null);
+  const hcaptchaReadyRef = useRef(false);
+  const hcaptchaCallbackRef = useRef(`hcaptchaOnload_${Math.random().toString(36).slice(2)}`);
 
   const generate = useCallback(() => {
     setSolved(false);
@@ -74,6 +76,7 @@ export default function CaptchaField({ onSolve, onClear, variant = 'auto', label
           // already rendered
           return;
         }
+        if (!hcaptchaReadyRef.current) return;
         if (!window.hcaptcha || !hcaptchaContainerRef.current) return;
         widgetIdRef.current = window.hcaptcha.render(hcaptchaContainerRef.current, {
           sitekey: siteKey,
@@ -93,23 +96,32 @@ export default function CaptchaField({ onSolve, onClear, variant = 'auto', label
     };
 
     const ensureScript = () => {
-      if (window.hcaptcha) {
+      const id = 'hcaptcha-api-script';
+      const onloadName = hcaptchaCallbackRef.current;
+
+      window[onloadName] = () => {
+        hcaptchaReadyRef.current = true;
+        renderWidget();
+      };
+
+      if (window.hcaptcha && typeof window.hcaptcha.render === 'function') {
+        hcaptchaReadyRef.current = true;
         renderWidget();
         return;
       }
-      const id = 'hcaptcha-api-script';
-      if (document.getElementById(id)) {
-        // wait for global to be available
-        const s = setInterval(() => { if (window.hcaptcha) { clearInterval(s); renderWidget(); } }, 250);
+
+      const existing = document.getElementById(id);
+      if (existing) {
+        existing.addEventListener('load', window[onloadName], { once: true });
         return;
       }
+
       const script = document.createElement('script');
       script.id = id;
-      // Use explicit render mode and rely on onload to avoid premature render warnings
-      script.src = 'https://js.hcaptcha.com/1/api.js?render=explicit';
+      // Use explicit render mode with onload callback to avoid premature render warnings
+      script.src = `https://js.hcaptcha.com/1/api.js?render=explicit&onload=${onloadName}`;
       script.async = true;
       script.defer = true;
-      script.onload = () => renderWidget();
       document.head.appendChild(script);
     };
 
@@ -120,6 +132,10 @@ export default function CaptchaField({ onSolve, onClear, variant = 'auto', label
         if (widgetIdRef.current !== null && window.hcaptcha) {
           window.hcaptcha.remove(widgetIdRef.current);
           widgetIdRef.current = null;
+        }
+        const onloadName = hcaptchaCallbackRef.current;
+        if (window[onloadName]) {
+          delete window[onloadName];
         }
       } catch (e) { /* ignore */ }
     };

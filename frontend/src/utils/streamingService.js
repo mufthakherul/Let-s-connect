@@ -161,10 +161,21 @@ export const streamingService = {
     },
 
     // Get available TV categories
-    getTVCategories: async () => {
+    getTVCategories: async (params = {}) => {
         const response = await axios.get(`${API_URL}/api/streaming/tv/categories`, {
+            params,
             headers: getAuthHeader()
         });
+        return response.data;
+    },
+
+    // Import custom TV playlist (M3U/M3U8)
+    importTVPlaylist: async ({ url, content, name }) => {
+        const response = await axios.post(
+            `${API_URL}/api/streaming/tv/import`,
+            { url, content, name },
+            { headers: getAuthHeader() }
+        );
         return response.data;
     },
 
