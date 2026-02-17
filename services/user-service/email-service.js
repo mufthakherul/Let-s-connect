@@ -38,7 +38,7 @@ function initializeEmailTransport() {
   if (!mailgunClient && mgKey) {
     try {
       const mg = new Mailgun(FormData);
-      mailgunClient = mg.client({ username: 'api', key: mgKey, url: process.env.MAILGUN_BASE_URL || 'https://api.mailgun.net/v3' });
+      mailgunClient = mg.client({ username: 'api', key: mgKey, url: (process.env.MAILGUN_BASE_URL || 'https://api.mailgun.net').replace(/\/v3\/?$/, '') });
       mailgunDomain = process.env.MAILGUN_DOMAIN || mailgunDomain;
       console.log('[Email] Mailgun client initialized');
     } catch (err) {
