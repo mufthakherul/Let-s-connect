@@ -590,7 +590,8 @@ MessageReaction.belongsTo(Message, { foreignKey: 'messageId' });
 Message.belongsTo(Message, { as: 'replyTo', foreignKey: 'replyToId' });
 Message.belongsTo(Message, { as: 'forwardedFrom', foreignKey: 'forwardedFromId' });
 
-const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
+// Only run sequelize ALTER when explicitly enabled to avoid invalid SQL on fresh DBs
+const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true';
 const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
 
 // Socket.IO for real-time messaging

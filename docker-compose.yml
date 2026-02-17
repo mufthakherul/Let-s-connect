@@ -92,6 +92,7 @@ services:
     ports:
       - "8003:8003"
     environment:
+      - NODE_ENV=${NODE_ENV:-production}
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/messages
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
       - REDIS_URL=redis://redis:6379
