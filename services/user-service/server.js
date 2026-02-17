@@ -2239,7 +2239,7 @@ const mailgun = new Mailgun(FormData);
 const mailgunClientOptions = {
   username: 'api',
   key: process.env.MAILGUN_API_KEY || '',
-  url: process.env.MAILGUN_BASE_URL || 'https://api.mailgun.net'
+  url: (process.env.MAILGUN_BASE_URL || 'https://api.mailgun.net').replace(/\/v3\/?$/, '')
 };
 
 if (process.env.MAILGUN_PUBLIC_KEY) {
