@@ -198,8 +198,15 @@ const authMiddleware = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
-    // Forward authenticated user ID to downstream services
+
+    // Forward key user attributes to downstream services as headers so
+    // services behind the gateway can rely on gateway-auth without
+    // validating the JWT themselves.
     req.headers['x-user-id'] = decoded.id;
+    req.headers['x-user-role'] = decoded.role || '';
+    req.headers['x-user-email'] = decoded.email || '';
+    req.headers['x-user-is-admin'] = (decoded.isAdmin === true || decoded.role === 'admin') ? 'true' : 'false';
+
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Invalid token' });

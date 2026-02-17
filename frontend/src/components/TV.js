@@ -39,6 +39,7 @@ const TV = () => {
     const shakaUiRef = useRef(null);
     // Track stream attempt index per channel (0 = primary, 1..n = alternatives)
     const streamAttemptRef = useRef({});
+    const [similarChannels, setSimilarChannels] = useState([]);
 
     const getStreamForChannel = (channel) => {
         if (!channel) return null;
@@ -277,6 +278,17 @@ const TV = () => {
                         streamAttemptRef.current[currentChannel.id] = attempt + 1;
                         const nextUrl = getStreamForChannel(currentChannel);
                         toast(`Playback error — switching to fallback ${attempt + 1}/${alts.length}`, { icon: '🔁' });
+
+                        // Report telemetry about fallback usage (best-effort)
+                        streamingService.reportFallbackEvent({
+                            itemId: currentChannel.id,
+                            itemType: 'tv',
+                            primaryUrl: currentChannel.streamUrl,
+                            usedUrl: nextUrl,
+                            attemptIndex: attempt + 1,
+                            error: error?.message || 'Shaka player error'
+                        }).catch(() => { });
+
                         player.load(nextUrl).catch(err => {
                             // will be handled by the player's error event if it fails again
                             console.error('Fallback load failed:', err);
@@ -298,6 +310,8 @@ const TV = () => {
                     if (!canceled) {
                         setIsPlaying(true);
                         streamingService.startWatching(currentChannel.id, 'tv');
+                        // Track view for recommendations (best-effort; server ignores missing userId)
+                        streamingService.trackChannelView({ userId: localStorage.getItem('userId') || undefined, channelId: currentChannel.id, watchDurationMs: 0 }).catch(() => { });
                     }
                 } catch (error) {
                     const attempt = streamAttemptRef.current[currentChannel.id] || 0;
@@ -308,6 +322,16 @@ const TV = () => {
                         streamAttemptRef.current[currentChannel.id] = attempt + 1;
                         const nextUrl = getStreamForChannel(currentChannel);
                         toast(`Primary stream failed — trying fallback ${attempt + 1}/${alts.length}`, { icon: '🔁' });
+
+                        // Report telemetry about fallback usage (best-effort)
+                        streamingService.reportFallbackEvent({
+                            itemId: currentChannel.id,
+                            itemType: 'tv',
+                            primaryUrl: currentChannel.streamUrl,
+                            usedUrl: nextUrl,
+                            attemptIndex: attempt + 1,
+                            error: error?.message || 'Primary load failed'
+                        }).catch(() => { });
 
                         // Small delay before retrying
                         setTimeout(() => {
@@ -335,6 +359,23 @@ const TV = () => {
         return () => {
             canceled = true;
         };
+    }, [currentChannel]);
+
+    // Fetch similar channels when a channel is selected (UI can render these)
+    useEffect(() => {
+        if (!currentChannel || !currentChannel.id) {
+            setSimilarChannels([]);
+            return;
+        }
+
+        (async () => {
+            try {
+                const resp = await streamingService.getSimilarChannels(currentChannel.id, 8);
+                setSimilarChannels(resp.similar || []);
+            } catch (err) {
+                console.error('Failed to load similar channels:', err);
+            }
+        })();
     }, [currentChannel]);
 
     const handleToggleFavorite = async (channel) => {
@@ -560,6 +601,23 @@ const TV = () => {
                                 <Typography variant="caption" color="text.secondary">
                                     {currentChannel.category} • {currentChannel.viewers || 0} watching
                                 </Typography>
+
+                                {similarChannels && similarChannels.length > 0 && (
+                                    <Box sx={{ mt: 1, display: 'flex', gap: 1, alignItems: 'center', overflowX: 'auto' }}>
+                                        <Typography variant="caption" sx={{ mr: 1, color: 'text.secondary' }}>Similar:</Typography>
+                                        {similarChannels.slice(0, 8).map(sc => (
+                                            <Button
+                                                key={sc.id || sc.name}
+                                                size="small"
+                                                onClick={(e) => { e.stopPropagation(); handlePlay(sc); }}
+                                                sx={{ textTransform: 'none' }}
+                                            >
+                                                <Avatar src={safeImageUrl(sc.logoUrl) || undefined} sx={{ width: 28, height: 28, mr: 1 }} />
+                                                <Typography variant="caption" noWrap>{sc.name}</Typography>
+                                            </Button>
+                                        ))}
+                                    </Box>
+                                )}
                             </Box>
                         </Box>
                         <Box sx={{ display: 'flex', gap: 1 }}>

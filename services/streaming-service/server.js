@@ -6,12 +6,42 @@ const net = require('net');
 const NodeCache = require('node-cache');
 require('dotenv').config();
 
+// Advanced TV services (search, health, recommendations)
+const ChannelSearch = require('./channel-search');
+const ChannelHealthChecker = require('./channel-health-checker');
+const ChannelRecommender = require('./channel-recommender');
+
+// In-memory service instances (initialized after DB sync)
+let searchEngine = null;
+let healthChecker = null;
+let recommender = null;
+
 const app = express();
 const PORT = process.env.PORT || 8009;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// If requests are proxied through the API Gateway the gateway will
+// forward authenticated user info via headers (x-user-id, x-user-role,
+// x-user-is-admin). Populate req.user from those headers so internal
+// routes can use `req.user.isAdmin` consistently.
+app.use((req, res, next) => {
+    try {
+        if (!req.user && req.headers['x-user-id']) {
+            req.user = {
+                id: req.headers['x-user-id'],
+                role: req.headers['x-user-role'] || null,
+                email: req.headers['x-user-email'] || null,
+                isAdmin: String(req.headers['x-user-is-admin'] || '').toLowerCase() === 'true'
+            };
+        }
+    } catch (err) {
+        // Non-fatal — continue without req.user
+    }
+    next();
+});
 
 // Cache for stream metadata (TTL: 5 minutes)
 const streamCache = new NodeCache({ stdTTL: 300 });
@@ -145,6 +175,36 @@ const PlaybackHistory = sequelize.define('PlaybackHistory', {
     },
     duration: DataTypes.INTEGER, // Duration in seconds
     lastPosition: DataTypes.INTEGER // Last playback position in seconds
+});
+
+// Telemetry: Fallback events (stores when client switched to alternativeUrl)
+const FallbackEvent = sequelize.define('FallbackEvent', {
+    id: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
+        primaryKey: true
+    },
+    itemId: { // TVChannel.id or RadioStation.id
+        type: DataTypes.UUID,
+        allowNull: true
+    },
+    itemType: {
+        type: DataTypes.ENUM('radio', 'tv'),
+        allowNull: false,
+        defaultValue: 'tv'
+    },
+    primaryUrl: DataTypes.TEXT,
+    usedUrl: DataTypes.TEXT,
+    attemptIndex: DataTypes.INTEGER,
+    error: DataTypes.TEXT,
+    userId: DataTypes.UUID,
+    metadata: DataTypes.JSONB
+}, {
+    indexes: [
+        { fields: ['itemId'] },
+        { fields: ['itemType'] },
+        { fields: ['createdAt'] }
+    ]
 });
 
 // M3U Playlist Model (for importing/exporting playlists)
@@ -1200,6 +1260,352 @@ app.get('/tv/categories', async (req, res) => {
     }
 });
 
+// ========== ADVANCED TV SERVICES (Search, Health, Recommendations) ==========
+
+// Initialize in-memory services (call after DB sync)
+async function initializeTVServices() {
+    try {
+        const channels = await TVChannel.findAll();
+        searchEngine = new ChannelSearch(channels.map(c => c.toJSON()));
+        healthChecker = new ChannelHealthChecker({ timeout: 5000 });
+        recommender = new ChannelRecommender(channels.map(c => c.toJSON()));
+        console.log('✅ TV services initialized');
+    } catch (err) {
+        console.error('❌ Failed to initialize TV services:', err.message);
+    }
+}
+
+// Helper to ensure services are ready
+const servicesReady = () => searchEngine && healthChecker && recommender;
+
+// ========== CHANNEL SEARCH ==========
+app.get('/api/channels/search', (req, res) => {
+    if (!searchEngine) return res.status(503).json({ error: 'Search service not ready' });
+
+    try {
+        const {
+            q = '',
+            limit = 50,
+            offset = 0,
+            category,
+            country,
+            language,
+            source,
+            sortBy = 'relevance'
+        } = req.query;
+
+        const results = searchEngine.search(q, {
+            limit: Math.min(parseInt(limit), 250),
+            offset: Math.max(0, parseInt(offset)),
+            category,
+            country,
+            language,
+            source,
+            sortBy
+        });
+
+        res.json({ success: true, total: results.total, limit: results.limit, offset: results.offset, results: results.results });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/channels/search/suggestions', (req, res) => {
+    if (!searchEngine) return res.status(503).json({ error: 'Search service not ready' });
+
+    try {
+        const { q = '', limit = 10 } = req.query;
+        const suggestions = searchEngine.getSuggestions(q, Math.min(parseInt(limit), 50));
+        res.json({ success: true, suggestions });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/channels/search/filters', (req, res) => {
+    if (!searchEngine) return res.status(503).json({ error: 'Search service not ready' });
+
+    try {
+        res.json({
+            categories: searchEngine.getCategories(),
+            countries: searchEngine.getCountries(),
+            languages: searchEngine.getLanguages(),
+            stats: searchEngine.getStats()
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ========== CHANNEL HEALTH ==========
+app.get('/api/channels/health', (req, res) => {
+    if (!healthChecker) return res.status(503).json({ error: 'Health service not ready' });
+
+    try {
+        const health = healthChecker.getSystemHealth();
+        res.json({ success: true, data: health });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/channels/:channelId/health', (req, res) => {
+    if (!healthChecker) return res.status(503).json({ error: 'Health service not ready' });
+
+    try {
+        const health = healthChecker.getCachedHealth(req.params.channelId);
+        if (!health) return res.status(404).json({ error: 'No health data for channel' });
+        res.json({ success: true, data: health });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/channels/health/problems', (req, res) => {
+    if (!healthChecker) return res.status(503).json({ error: 'Health service not ready' });
+
+    try {
+        const minUptime = parseInt(req.query.minUptime || 95);
+        const problems = healthChecker.getProblemChannels(Math.max(0, Math.min(100, minUptime)));
+        res.json({ success: true, problems, count: problems.length });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/channels/health/report', (req, res) => {
+    if (!healthChecker) return res.status(503).json({ error: 'Health service not ready' });
+
+    try {
+        const report = healthChecker.generateReport();
+        res.json({ success: true, report });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Trigger health check (admin only — requires gateway-auth to populate `req.user.isAdmin`)
+app.post('/api/channels/health/check', async (req, res) => {
+    if (!healthChecker) return res.status(503).json({ error: 'Health service not ready' });
+
+    try {
+        // Require real authenticated user from API Gateway
+        if (!req.user || !req.user.isAdmin) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+
+        const channels = await TVChannel.findAll({ limit: 100 }); // quick test
+        const result = await healthChecker.checkMultipleChannels(channels, { progress: false });
+
+        res.json({ success: true, checked: result.totalChecked, summary: result.summary });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ========== RECOMMENDATIONS ==========
+app.get('/api/recommendations', (req, res) => {
+    if (!recommender) return res.status(503).json({ error: 'Recommender not ready' });
+
+    try {
+        const { userId, limit = 20, category, country } = req.query;
+        if (!userId) return res.status(400).json({ error: 'userId required' });
+
+        let recommendations;
+        if (category) {
+            recommendations = recommender.getRecommendationsByCategory(userId, category, parseInt(limit));
+        } else if (country) {
+            recommendations = recommender.getRecommendationsByCountry(userId, country, parseInt(limit));
+        } else {
+            recommendations = recommender.getRecommendations(userId, Math.min(parseInt(limit), 100));
+        }
+
+        res.json({ success: true, recommendations });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/channels/view', (req, res) => {
+    if (!recommender) return res.status(503).json({ error: 'Recommender not ready' });
+
+    try {
+        const { userId, channelId, watchDurationMs = 0 } = req.body;
+        if (!userId || !channelId) return res.status(400).json({ error: 'userId and channelId required' });
+
+        recommender.trackView(userId, channelId, parseInt(watchDurationMs));
+        res.json({ success: true, message: 'View tracked' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/channels/rate', (req, res) => {
+    if (!recommender) return res.status(503).json({ error: 'Recommender not ready' });
+
+    try {
+        const { userId, channelId, rating } = req.body;
+        if (!userId || !channelId || rating === undefined) return res.status(400).json({ error: 'userId, channelId, and rating required' });
+
+        const ratingNum = parseInt(rating);
+        if (ratingNum < 1 || ratingNum > 5) return res.status(400).json({ error: 'Rating must be 1-5' });
+
+        recommender.rateChannel(userId, channelId, ratingNum);
+        res.json({ success: true, message: 'Rating saved' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/channels/:channelId/similar', (req, res) => {
+    if (!recommender) return res.status(503).json({ error: 'Recommender not ready' });
+
+    try {
+        const { limit = 10 } = req.query;
+        const similar = recommender.getSimilarChannels(req.params.channelId, parseInt(limit));
+        res.json({ success: true, similar });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/recommendations/stats/:userId', (req, res) => {
+    if (!recommender) return res.status(503).json({ error: 'Recommender not ready' });
+
+    try {
+        const stats = recommender.getUserStats(req.params.userId);
+        res.json({ success: true, stats });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/recommendations/system-stats', (req, res) => {
+    if (!recommender) return res.status(503).json({ error: 'Recommender not ready' });
+
+    try {
+        const stats = recommender.getSystemStats();
+        res.json({ success: true, stats });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Schedule periodic health checks (runs every 6 hours)
+function scheduleHealthChecks() {
+    const HEALTH_CHECK_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
+
+    setInterval(async () => {
+        try {
+            if (!healthChecker) return;
+            const channels = await TVChannel.findAll({ limit: 1000 });
+            const toCheck = healthChecker.getChannelsNeedingRecheck(channels);
+
+            if (toCheck.length === 0) {
+                console.log('✓ All channels have recent health data');
+                return;
+            }
+
+            console.log(`🏥 Running health check on ${toCheck.length} channels...`);
+            const result = await healthChecker.checkMultipleChannels(toCheck, { progress: false });
+
+            console.log(`📊 Health check complete: ${result.summary.healthy}/${result.summary.healthy + result.summary.warning + result.summary.error} healthy`);
+        } catch (error) {
+            console.error('❌ Health check error:', error.message);
+        }
+    }, HEALTH_CHECK_INTERVAL);
+
+    console.log('✅ Health check scheduler started (every 6 hours)');
+}
+
+
+// ==================== TELEMETRY: FALLBACK EVENTS ==========
+
+/**
+ * Record a fallback usage event
+ * POST /telemetry/fallbacks
+ * Body: { itemId, itemType, primaryUrl, usedUrl, attemptIndex, error, metadata }
+ */
+app.post('/telemetry/fallbacks', async (req, res) => {
+    try {
+        const {
+            itemId = null,
+            itemType = 'tv',
+            primaryUrl = null,
+            usedUrl = null,
+            attemptIndex = 0,
+            error = null,
+            metadata = {}
+        } = req.body || {};
+
+        const userId = req.user?.id || req.body.userId || null;
+
+        const ev = await FallbackEvent.create({
+            itemId,
+            itemType,
+            primaryUrl,
+            usedUrl,
+            attemptIndex,
+            error,
+            userId,
+            metadata
+        });
+
+        res.status(201).json({ success: true, event: ev });
+    } catch (err) {
+        console.error('[Telemetry] Failed to record fallback event:', err.message);
+        res.status(500).json({ error: 'Failed to record fallback event' });
+    }
+});
+
+/**
+ * Query fallback events
+ * GET /telemetry/fallbacks?itemId=&itemType=&limit=100&sinceDays=7
+ */
+app.get('/telemetry/fallbacks', async (req, res) => {
+    try {
+        const { itemId, itemType, limit = 100, sinceDays = 30 } = req.query;
+        const where = {};
+        if (itemId) where.itemId = itemId;
+        if (itemType) where.itemType = itemType;
+        if (sinceDays) where.createdAt = { [Op.gte]: new Date(Date.now() - Math.max(1, parseInt(sinceDays)) * 24 * 60 * 60 * 1000) };
+
+        const events = await FallbackEvent.findAll({ where, limit: Math.min(parseInt(limit), 1000), order: [['createdAt', 'DESC']] });
+        res.json({ success: true, events });
+    } catch (err) {
+        console.error('[Telemetry] Failed to query fallback events:', err.message);
+        res.status(500).json({ error: 'Failed to query fallback events' });
+    }
+});
+
+/**
+ * Aggregated fallback report (top channels, counts)
+ * GET /telemetry/fallbacks/report?days=7&limit=20
+ */
+app.get('/telemetry/fallbacks/report', async (req, res) => {
+    try {
+        const days = Math.max(1, parseInt(req.query.days || '7'));
+        const limit = Math.min(100, parseInt(req.query.limit || '20'));
+        const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+        const rows = await sequelize.query(
+            `SELECT "itemId", "itemType", COUNT(*) AS count
+             FROM "FallbackEvents"
+             WHERE "createdAt" >= :since
+             GROUP BY "itemId", "itemType"
+             ORDER BY count DESC
+             LIMIT :limit`,
+            { replacements: { since, limit }, type: Sequelize.QueryTypes.SELECT }
+        );
+
+        res.json({ success: true, top: rows });
+    } catch (err) {
+        console.error('[Telemetry] Failed to generate fallback report:', err.message);
+        res.status(500).json({ error: 'Failed to generate fallback report' });
+    }
+});
+
+
 // ==================== HEALTH CHECK ====================
 
 app.get('/health', async (req, res) => {
@@ -1234,6 +1640,13 @@ async function startServer() {
     try {
         await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
         console.log('[Streaming] Database synced');
+
+        // Initialize search / health / recommender services now that DB is ready
+        await initializeTVServices();
+
+        // Start periodic health checks
+        setTimeout(scheduleHealthChecks, 5000);
+
         app.listen(PORT, () => {
             console.log(`[Streaming] Service running on port ${PORT}`);
             console.log(`[Streaming] IPFM (Radio) and IPTV service ready`);

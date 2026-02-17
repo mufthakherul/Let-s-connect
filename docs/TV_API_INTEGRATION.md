@@ -172,13 +172,31 @@ app.get('/api/channels/health/report', (req, res) => {
     }
 });
 
+// ========== TELEMETRY ==========
+
+/**
+ * Report fallback usage from clients
+ * POST /api/streaming/telemetry/fallbacks
+ * Body: { itemId, itemType, primaryUrl, usedUrl, attemptIndex, error, metadata }
+ */
+
+/**
+ * Query fallback events
+ * GET /api/streaming/telemetry/fallbacks?itemId=&itemType=&limit=100&sinceDays=7
+ */
+
+/**
+ * Aggregated fallback report
+ * GET /api/streaming/telemetry/fallbacks/report?days=7&limit=20
+ */
+
 /**
  * Trigger health check (Admin only)
  * POST /api/channels/health/check
  */
 app.post('/api/channels/health/check', async (req, res) => {
     try {
-        // Check if admin
+        // Check if admin — requires API Gateway to populate `req.user.isAdmin`
         if (!req.user || !req.user.isAdmin) {
             return res.status(403).json({ error: 'Admin access required' });
         }

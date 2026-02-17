@@ -173,7 +173,19 @@ const Radio = () => {
 
                         if (attempt < alts.length) {
                             streamAttemptRef.current[station.id] = attempt + 1;
+                            const nextUrl = getStreamForStation(station);
                             toast(`Primary stream failed — trying fallback ${attempt + 1}/${alts.length}`, { icon: '🔁' });
+
+                            // Report fallback telemetry (best-effort)
+                            streamingService.reportFallbackEvent({
+                                itemId: station.id,
+                                itemType: 'radio',
+                                primaryUrl: station.streamUrl,
+                                usedUrl: nextUrl,
+                                attemptIndex: attempt + 1,
+                                error: error?.message || 'Audio play error'
+                            }).catch(() => { });
+
                             // small delay then retry
                             setTimeout(tryPlay, 700);
                             return;
@@ -191,7 +203,19 @@ const Radio = () => {
                     const alts = station.metadata?.alternativeUrls || [];
                     if (attempt < alts.length) {
                         streamAttemptRef.current[station.id] = attempt + 1;
+                        const nextUrl = getStreamForStation(station);
                         toast(`Audio error — switching to fallback ${attempt + 1}/${alts.length}`, { icon: '🔁' });
+
+                        // Report fallback telemetry (best-effort)
+                        streamingService.reportFallbackEvent({
+                            itemId: station.id,
+                            itemType: 'radio',
+                            primaryUrl: station.streamUrl,
+                            usedUrl: nextUrl,
+                            attemptIndex: attempt + 1,
+                            error: 'HTMLMediaElement error'
+                        }).catch(() => { });
+
                         setTimeout(tryPlay, 700);
                     } else {
                         toast.error('Audio playback error');
