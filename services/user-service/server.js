@@ -342,7 +342,7 @@ const Notification = sequelize.define('Notification', {
       'like', 'comment', 'follow', 'mention', 'message',
       'friend_request', 'group_invite', 'page_invite',
       'post_share', 'video_upload', 'order_status',
-      'system', 'other'
+      'email', 'system', 'other'
     ),
     allowNull: false,
     defaultValue: 'other'
