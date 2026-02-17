@@ -1119,7 +1119,7 @@ const SavedSearch = sequelize.define('SavedSearch', {
   ]
 });
 
-const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
+const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true';
 const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
 
 async function startServer() {
