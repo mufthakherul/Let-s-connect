@@ -30,6 +30,17 @@ const Radio = () => {
     const [selectedGenre, setSelectedGenre] = useState('');
     const [addStationOpen, setAddStationOpen] = useState(false);
     const audioRef = useRef(null);
+    // Track stream attempt index per station (0 = primary, 1..n = alternatives)
+    const streamAttemptRef = useRef({});
+
+    const getStreamForStation = (station) => {
+        if (!station) return null;
+        const attempt = streamAttemptRef.current[station.id] || 0;
+        const alts = station.metadata?.alternativeUrls || [];
+        if (attempt === 0) return safeStreamUrl(station.streamUrl);
+        const alt = alts[attempt - 1];
+        return alt ? safeStreamUrl(alt) : null;
+    };
 
     // New station form
     const [newStation, setNewStation] = useState({
@@ -135,19 +146,61 @@ const Radio = () => {
 
             // Play new station
             setCurrentStation(station);
-            if (audioRef.current) {
-                audioRef.current.src = safeStreamUrl(station.streamUrl);
+            // reset attempt counter for this station
+            streamAttemptRef.current[station.id] = 0;
+
+            const tryPlay = () => {
+                const streamUrl = getStreamForStation(station);
+                if (!streamUrl) {
+                    toast.error('No valid stream URL available');
+                    setIsPlaying(false);
+                    return;
+                }
+
+                if (!audioRef.current) return;
+                audioRef.current.src = streamUrl;
                 audioRef.current.load();
+
                 audioRef.current.play()
                     .then(() => {
                         setIsPlaying(true);
                         streamingService.startListening(station.id, 'radio');
                     })
-                    .catch(error => {
+                    .catch(async (error) => {
+                        console.error('Play failed:', error);
+                        const attempt = streamAttemptRef.current[station.id] || 0;
+                        const alts = station.metadata?.alternativeUrls || [];
+
+                        if (attempt < alts.length) {
+                            streamAttemptRef.current[station.id] = attempt + 1;
+                            toast(`Primary stream failed — trying fallback ${attempt + 1}/${alts.length}`, { icon: '🔁' });
+                            // small delay then retry
+                            setTimeout(tryPlay, 700);
+                            return;
+                        }
+
                         toast.error('Failed to play station');
-                        console.error(error);
+                        setIsPlaying(false);
                     });
+            };
+
+            // attach error handler to audio element to attempt fallbacks
+            if (audioRef.current) {
+                audioRef.current.onerror = () => {
+                    const attempt = streamAttemptRef.current[station.id] || 0;
+                    const alts = station.metadata?.alternativeUrls || [];
+                    if (attempt < alts.length) {
+                        streamAttemptRef.current[station.id] = attempt + 1;
+                        toast(`Audio error — switching to fallback ${attempt + 1}/${alts.length}`, { icon: '🔁' });
+                        setTimeout(tryPlay, 700);
+                    } else {
+                        toast.error('Audio playback error');
+                        setIsPlaying(false);
+                    }
+                };
             }
+
+            tryPlay();
         }
     };
 
