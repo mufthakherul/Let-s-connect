@@ -1,11 +1,13 @@
 const fs = require('fs');
 const path = require('path');
-const { Sequelize, DataTypes } = require('sequelize');
+const { Sequelize, DataTypes, Op } = require('sequelize');
 require('dotenv').config();
 
 // Import dynamic fetchers
 const RadioBrowserFetcher = require('./radio-browser-fetcher');
 const TVPlaylistFetcher = require('./tv-playlist-fetcher');
+const XiphFetcher = require('./xiph-fetcher');
+const RadiossFetcher = require('./radioss-fetcher');
 const YouTubeEnricher = require('./youtube-enricher');
 const IPTVOrgAPI = require('./iptv-org-api');
 const ChannelEnricher = require('./channel-enricher');
@@ -106,29 +108,94 @@ async function fetchRadioStations() {
 
     console.log('🌐 Attempting to fetch radio stations from online sources...\n');
 
+    // Helper: normalize station name for de-dup key
+    const normalizeNameKey = (name = '', country = '') => {
+        return (String(name).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() + '||' + String(country || '').toLowerCase()).trim();
+    };
+
     try {
         const fetcher = new RadioBrowserFetcher({
             timeout: 15000,
             retries: 3,
-            fetchWorldwide: true  // Enable worldwide fetching (800,000+ stations)
+            fetchWorldwide: true
         });
 
-        // Initialize servers via DNS discovery as per official API docs
         console.log('🔍 Initializing radio-browser.info API servers...');
         await fetcher.initializeServers();
         console.log('');
 
-        // Fetch worldwide stations (all 800,000+)
-        const stations = await fetcher.fetchMultipleCountries();
+        // Primary source: radio-browser (massive index)
+        const rbStations = await fetcher.fetchMultipleCountries();
+        console.log(`  ✅ radio-browser: ${Array.isArray(rbStations) ? rbStations.length : 0} stations fetched`);
 
-        if (stations && stations.length > 0) {
-            console.log(`\n✅ Successfully fetched ${stations.length} radio stations from online sources`);
-            return stations;
+        // Secondary: Xiph directory (yp.xml)
+        const xiph = new XiphFetcher({ timeout: 10000 });
+        const xiphStations = await xiph.fetchAll();
+        console.log(`  ✅ xiph directory: ${xiphStations.length} entries fetched`);
+
+        // Secondary: radioss.app (may be Cloudflare-protected) - try but tolerate failure
+        const radioss = new RadiossFetcher({ timeout: 10000, retries: 2 });
+        const radiossStations = await radioss.fetchAll();
+        if (radiossStations.length > 0) {
+            console.log(`  ✅ radioss.app: ${radiossStations.length} stations fetched`);
         } else {
-            throw new Error('No stations fetched');
+            console.log('  ℹ️ radioss.app: no data (may be blocked); continuing with other sources');
         }
+
+        // Combine all sources into a name-keyed Map to collect alternative URLs
+        const map = new Map();
+
+        const add = (s) => {
+            if (!s) return;
+            const name = s.name || s.server_name || s.title || '';
+            const country = s.country || s.countrycode || '';
+            const streamUrl = (s.streamUrl || s.listen_url || s.url || s.stream || '').trim();
+            if (!name && !streamUrl) return;
+
+            const key = name ? normalizeNameKey(name, country) : `__url__:${streamUrl}`;
+            if (!map.has(key)) {
+                const base = {
+                    name: name || streamUrl || 'Unknown',
+                    description: s.description || s.tags || '',
+                    streamUrl: streamUrl || '',
+                    websiteUrl: s.websiteUrl || s.homepage || s.website || '',
+                    genre: s.genre || (s.tags ? (s.tags.split(',')[0] || '') : ''),
+                    country: country || 'Unknown',
+                    language: s.language || 'Unknown',
+                    logoUrl: s.logoUrl || s.favicon || '',
+                    bitrate: s.bitrate || s.bitrate_kbps || 0,
+                    isActive: true,
+                    source: s.source || 'combined',
+                    metadata: s.metadata || {}
+                };
+                base.metadata.alternativeUrls = base.metadata.alternativeUrls || [];
+                map.set(key, base);
+            } else {
+                const existing = map.get(key);
+                // register alternative URL if different
+                if (streamUrl && streamUrl !== existing.streamUrl && !existing.metadata.alternativeUrls.includes(streamUrl)) {
+                    existing.metadata.alternativeUrls.push(streamUrl);
+                }
+                // prefer richer logo/website if missing
+                if (!existing.logoUrl && (s.logoUrl || s.favicon)) existing.logoUrl = s.logoUrl || s.favicon;
+                if (!existing.websiteUrl && (s.websiteUrl || s.homepage)) existing.websiteUrl = s.websiteUrl || s.homepage;
+            }
+        };
+
+        // Add radio-browser stations (already normalized by fetcher)
+        for (const s of rbStations) add(s);
+        // Add Xiph entries
+        for (const s of xiphStations) add(s);
+        // Add radioss entries
+        for (const s of radiossStations) add(s);
+        // Add static fallback as last-resort
+        for (const s of fallbackData) add(s);
+
+        const combined = Array.from(map.values());
+        console.log(`\n✅ Consolidated radio stations: ${combined.length} unique entries (collected alternative URLs where available)`);
+        return combined;
     } catch (error) {
-        console.log(`\n⚠️  Could not fetch from online source: ${error.message}`);
+        console.log(`\n⚠️  Could not fetch radio stations from online sources: ${error.message}`);
         console.log(`📦 Falling back to ${fallbackData.length} static radio stations\n`);
         return fallbackData;
     }
@@ -294,42 +361,67 @@ const seed = async () => {
         const radioReport = {
             created: 0,
             skipped: 0,
+            updatedAlternatives: 0,
             byCountry: {},
             bySource: {}
         };
 
         for (const station of mergedRadio) {
             try {
-                // Check if already exists by URL (more reliable than name)
+                // Try to find existing by streamUrl OR by strong name+country match
                 const existing = await RadioStation.findOne({
-                    where: { streamUrl: station.streamUrl }
+                    where: {
+                        [Op.or]: [
+                            { streamUrl: station.streamUrl },
+                            {
+                                name: { [Op.iLike]: station.name || '' },
+                                country: station.country || null
+                            }
+                        ]
+                    }
                 });
 
                 if (existing) {
-                    radioReport.skipped++;
-                } else {
-                    const created = await RadioStation.create({
-                        name: sanitizeString(station.name || 'Unknown', 512),
-                        description: station.description || '',
-                        streamUrl: sanitizeString(station.streamUrl || '', 2048),
-                        websiteUrl: sanitizeString(station.websiteUrl || '', 1024),
-                        genre: sanitizeString(station.genre || 'Mixed', 255),
-                        country: sanitizeString(station.country || 'Unknown', 128),
-                        language: sanitizeString(station.language || 'Unknown', 128),
-                        logoUrl: sanitizeString(station.logoUrl || '', 1024),
-                        bitrate: station.bitrate || 128,
-                        isActive: true,
-                        source: sanitizeString(station.source || 'dynamic', 64),
-                        metadata: station.metadata || {}
-                    });
+                    const incomingUrl = (station.streamUrl || '').trim();
+                    const meta = existing.metadata || {};
+                    meta.alternativeUrls = meta.alternativeUrls || [];
 
-                    radioReport.created++;
-                    radioReport.byCountry[station.country] = (radioReport.byCountry[station.country] || 0) + 1;
-                    radioReport.bySource[station.source || 'dynamic'] = (radioReport.bySource[station.source || 'dynamic'] || 0) + 1;
+                    // If this is a different URL, add as alternative URL (fallback)
+                    if (incomingUrl && incomingUrl !== existing.streamUrl && !meta.alternativeUrls.includes(incomingUrl)) {
+                        meta.alternativeUrls.unshift(incomingUrl);
+                        // allow many alternatives (cap for safety)
+                        meta.alternativeUrls = Array.from(new Set(meta.alternativeUrls)).slice(0, 1000);
 
-                    if (radioReport.created % 50 === 0) {
-                        console.log(`  ⏳ Progress: ${radioReport.created} stations added...`);
+                        await existing.update({ metadata: meta });
+                        radioReport.updatedAlternatives++;
+                    } else {
+                        radioReport.skipped++;
                     }
+
+                    continue;
+                }
+
+                const created = await RadioStation.create({
+                    name: sanitizeString(station.name || 'Unknown', 512),
+                    description: station.description || '',
+                    streamUrl: sanitizeString(station.streamUrl || '', 2048),
+                    websiteUrl: sanitizeString(station.websiteUrl || '', 1024),
+                    genre: sanitizeString(station.genre || 'Mixed', 255),
+                    country: sanitizeString(station.country || 'Unknown', 128),
+                    language: sanitizeString(station.language || 'Unknown', 128),
+                    logoUrl: sanitizeString(station.logoUrl || '', 1024),
+                    bitrate: station.bitrate || 128,
+                    isActive: true,
+                    source: sanitizeString(station.source || 'dynamic', 64),
+                    metadata: station.metadata || {}
+                });
+
+                radioReport.created++;
+                radioReport.byCountry[station.country] = (radioReport.byCountry[station.country] || 0) + 1;
+                radioReport.bySource[station.source || 'dynamic'] = (radioReport.bySource[station.source || 'dynamic'] || 0) + 1;
+
+                if (radioReport.created % 50 === 0) {
+                    console.log(`  ⏳ Progress: ${radioReport.created} stations added...`);
                 }
             } catch (error) {
                 console.log(`  ⚠️  Error seeding "${station.name}": ${error.message}`);
@@ -339,6 +431,7 @@ const seed = async () => {
         console.log(`\n📊 Radio Stations Final Report:`);
         console.log(`  ✅ Created: ${radioReport.created}`);
         console.log(`  ⏭️  Skipped (duplicates): ${radioReport.skipped}`);
+        if (radioReport.updatedAlternatives) console.log(`  🔁 Updated alternatives: ${radioReport.updatedAlternatives}`);
         console.log(`  📁 Total unique: ${radioReport.created + radioReport.skipped}`);
 
         if (Object.keys(radioReport.byCountry).length > 0) {
@@ -448,6 +541,7 @@ const seed = async () => {
         const tvReport = {
             created: 0,
             skipped: 0,
+            updatedAlternatives: 0,
             byCategory: {},
             bySource: {}
         };
@@ -459,13 +553,33 @@ const seed = async () => {
 
             for (const channel of chunk) {
                 try {
-                    // Check if already exists by URL
+                    // Try to find existing by streamUrl OR by name+country
                     const existing = await TVChannel.findOne({
-                        where: { streamUrl: channel.streamUrl }
+                        where: {
+                            [Op.or]: [
+                                { streamUrl: channel.streamUrl },
+                                {
+                                    name: { [Op.iLike]: channel.name || '' },
+                                    country: channel.country || null
+                                }
+                            ]
+                        }
                     });
 
                     if (existing) {
-                        tvReport.skipped++;
+                        const incomingUrl = (channel.streamUrl || '').trim();
+                        const meta = existing.metadata || {};
+                        meta.alternativeUrls = meta.alternativeUrls || [];
+
+                        if (incomingUrl && incomingUrl !== existing.streamUrl && !meta.alternativeUrls.includes(incomingUrl)) {
+                            meta.alternativeUrls.unshift(incomingUrl);
+                            meta.alternativeUrls = Array.from(new Set(meta.alternativeUrls)).slice(0, 1000);
+                            await existing.update({ metadata: meta });
+                            tvReport.updatedAlternatives++;
+                        } else {
+                            tvReport.skipped++;
+                        }
+
                         continue;
                     }
 
@@ -504,6 +618,7 @@ const seed = async () => {
         console.log(`\n📊 TV Channels Final Report:`);
         console.log(`  ✅ Created: ${tvReport.created}`);
         console.log(`  ⏭️  Skipped (duplicates): ${tvReport.skipped}`);
+        if (tvReport.updatedAlternatives) console.log(`  🔁 Updated alternatives: ${tvReport.updatedAlternatives}`);
         console.log(`  📁 Total unique: ${tvReport.created + tvReport.skipped}`);
 
         if (Object.keys(tvReport.byCategory).length > 0) {
