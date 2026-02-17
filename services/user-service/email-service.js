@@ -5,11 +5,15 @@
  */
 
 const nodemailer = require('nodemailer');
+const Mailgun = require('mailgun.js');
+const FormData = require('form-data');
 
 // Email transport configuration
 let transporter = null;
+let mailgunClient = null;
+let mailgunDomain = process.env.MAILGUN_DOMAIN || '';
 
-// Initialize email transporter
+// Initialize email transporter (SMTP)
 function initializeEmailTransport() {
   const smtpConfig = {
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -26,7 +30,23 @@ function initializeEmailTransport() {
     transporter = nodemailer.createTransport(smtpConfig);
     console.log('[Email] SMTP transport initialized');
   } else {
-    console.warn('[Email] SMTP credentials not configured. Email notifications disabled.');
+    console.warn('[Email] SMTP credentials not configured. SMTP disabled.');
+  }
+
+  // Initialize Mailgun client if API key is provided
+  const mgKey = process.env.MAILGUN_API_KEY || '';
+  if (!mailgunClient && mgKey) {
+    try {
+      const mg = new Mailgun(FormData);
+      mailgunClient = mg.client({ username: 'api', key: mgKey, url: process.env.MAILGUN_BASE_URL || 'https://api.mailgun.net' });
+      mailgunDomain = process.env.MAILGUN_DOMAIN || mailgunDomain;
+      console.log('[Email] Mailgun client initialized');
+    } catch (err) {
+      console.warn('[Email] Mailgun initialization failed:', err.message);
+      mailgunClient = null;
+    }
+  } else if (!mgKey) {
+    console.log('[Email] Mailgun API key not configured');
   }
 }
 
@@ -127,44 +147,59 @@ const emailTemplates = {
  * @returns {Promise<object>} - Email send result
  */
 async function sendEmail(to, template, data) {
-  if (!transporter) {
-    console.warn('[Email] SMTP not configured. Email not sent.');
-    return { success: false, error: 'SMTP not configured' };
+  // Resolve template
+  const templateData = emailTemplates[template];
+  if (!templateData) {
+    return { success: false, error: `Email template '${template}' not found` };
   }
 
-  try {
-    const templateData = emailTemplates[template];
-    if (!templateData) {
-      throw new Error(`Email template '${template}' not found`);
+  const { subject, html, text } = typeof templateData === 'function'
+    ? templateData(data.user, data.data || data)
+    : templateData;
+
+  // 1) Prefer SMTP transporter if available
+  if (transporter) {
+    try {
+      const mailOptions = {
+        from: process.env.SMTP_FROM || '"Let\'s Connect" <noreply@letsconnect.com>',
+        to,
+        subject,
+        text,
+        html
+      };
+
+      const result = await transporter.sendMail(mailOptions);
+      console.log('[Email] Sent via SMTP:', result.messageId);
+      return { success: true, messageId: result.messageId, provider: 'smtp', template };
+    } catch (error) {
+      console.error('[Email] SMTP send failed:', error);
+      // fallthrough to try Mailgun if configured
     }
-
-    const { subject, html, text } = typeof templateData === 'function' 
-      ? templateData(data.user, data.data || data)
-      : templateData;
-
-    const mailOptions = {
-      from: process.env.SMTP_FROM || '"Let\'s Connect" <noreply@letsconnect.com>',
-      to,
-      subject,
-      text,
-      html
-    };
-
-    const result = await transporter.sendMail(mailOptions);
-    console.log('[Email] Sent successfully:', result.messageId);
-    
-    return {
-      success: true,
-      messageId: result.messageId,
-      template
-    };
-  } catch (error) {
-    console.error('[Email] Send failed:', error);
-    return {
-      success: false,
-      error: error.message
-    };
   }
+
+  // 2) Fallback to Mailgun (if configured)
+  if (mailgunClient && mailgunDomain) {
+    try {
+      const emailData = {
+        from: process.env.EMAIL_FROM || process.env.SMTP_FROM || '"Let\'s Connect" <noreply@letsconnect.com>',
+        to,
+        subject,
+        text,
+        html
+      };
+
+      const result = await mailgunClient.messages.create(mailgunDomain, emailData);
+      console.log('[Email] Sent via Mailgun:', result.id);
+      return { success: true, messageId: result.id, provider: 'mailgun', template };
+    } catch (err) {
+      console.error('[Email] Mailgun send failed:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  // 3) No provider available
+  console.warn('[Email] No email provider configured (SMTP or Mailgun)');
+  return { success: false, error: 'No email provider configured' };
 }
 
 /**
@@ -207,18 +242,25 @@ async function sendBulkEmails(recipients) {
  * @returns {Promise<boolean>} - Connection status
  */
 async function verifyConnection() {
-  if (!transporter) {
-    return false;
+  // Check SMTP first
+  if (transporter) {
+    try {
+      await transporter.verify();
+      console.log('[Email] SMTP connection verified');
+      return true;
+    } catch (error) {
+      console.error('[Email] SMTP connection failed:', error.message || error);
+      // fall through to mailgun check
+    }
   }
 
-  try {
-    await transporter.verify();
-    console.log('[Email] SMTP connection verified');
+  // If Mailgun credentials are present, consider that 'configured'
+  if (mailgunClient && mailgunDomain) {
+    console.log('[Email] Mailgun configured (connection not actively verified)');
     return true;
-  } catch (error) {
-    console.error('[Email] SMTP connection failed:', error);
-    return false;
   }
+
+  return false;
 }
 
 module.exports = {
