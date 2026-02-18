@@ -201,7 +201,7 @@ Get video details and increment view count.
 
 ### Create Post
 
-Create a new post.
+Create a new post. Supports anonymous posting by authenticated users (`anonymous: true`).
 
 **Endpoint:** `POST /api/content/posts`
 
@@ -214,11 +214,13 @@ Create a new post.
   "content": "My new post",
   "type": "text",
   "mediaUrls": [],
-  "visibility": "public"
+  "visibility": "public",
+  "anonymous": true          // optional — when true, public response hides the author and shows anonHandle
 }
 ```
 
 **Response:** 201 Created
+- For anonymous posts the API returns `isAnonymous: true`, `anonHandle` and does not expose `userId` in the public response.
 
 ### Get User Feed
 
@@ -251,7 +253,7 @@ Upload video metadata.
 
 ### Add Comment
 
-Add comment to post.
+Add comment to post. Supports anonymous comments via `anonymous: true` (authenticated users only).
 
 **Endpoint:** `POST /api/content/posts/:postId/comments`
 
@@ -262,7 +264,8 @@ Add comment to post.
 {
   "userId": "user-uuid",
   "content": "Great post!",
-  "parentId": null
+  "parentId": null,
+  "anonymous": true          // optional — hides author in public response
 }
 ```
 

@@ -246,6 +246,7 @@ Let's Connect combines the best features from 14+ popular platforms:
 - Post deletion
 - Post reporting
 - Media attachments
+- Anonymous posting: per-community persistent pseudonyms, public posts show `Anonymous • Anon•XXXX`; the server stores a sealed mapping that is zeroized after 1 year, platform will not unmask identities. (Author self-deletion via challenge flow; public reporting & legal takedown supported)
 
 #### 🔮 Planned
 - Stories (24-hour content)
