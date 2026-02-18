@@ -9,7 +9,7 @@
         "seed": "node seed.js",
         "seed:fast": "node seed-fast.js",
         "seed:minimal": "SEED_MODE=minimal node seed-fast.js",
-        "seed:full": "SEED_MODE=full node seed.js",
+        "seed:full": "USE_FULL_SEED=true node seed.js",
         "seed:skip": "SEED_MODE=skip node seed-fast.js"
     },
     "dependencies": {
