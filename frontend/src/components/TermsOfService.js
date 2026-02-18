@@ -32,6 +32,24 @@ export default function TermsOfService() {
                     </Typography>
 
                     <Typography variant="h6" gutterBottom>
+                        Anonymous posting
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                        Registered users may choose to post or comment anonymously. Anonymous contributions are shown
+                        publicly with a randomized pseudonym and are not linked to your public profile or "My posts" history.
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                        The platform stores a sealed, encrypted mapping used only for internal moderation and retention.
+                        Mapping ciphertexts are zeroized after the configured retention period (default: 1 year). The
+                        platform does not provide a mechanism to disclose or "unmask" anonymous authors.
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                        Anonymous posts remain subject to these Terms and our Community Guidelines. You may request
+                        removal of your anonymous content through the deletion-request workflow (author challenge);
+                        reports and takedowns are handled without revealing underlying author identity.
+                    </Typography>
+
+                    <Typography variant="h6" gutterBottom>
                         Termination & liability
                     </Typography>
                     <Typography variant="body2" color="text.secondary" paragraph>
