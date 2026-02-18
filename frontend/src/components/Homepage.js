@@ -792,8 +792,8 @@ function Homepage({ user }) {
                                 </FormControl>
 
                                 <FormControlLabel
-                                  control={<Switch checked={postAnonymous} onChange={(e) => setPostAnonymous(e.target.checked)} />}
-                                  label="Post anonymously"
+                                    control={<Switch checked={postAnonymous} onChange={(e) => setPostAnonymous(e.target.checked)} />}
+                                    label="Post anonymously"
                                 />
 
                                 <Button
