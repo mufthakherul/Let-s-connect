@@ -35,6 +35,24 @@ export default function PrivacyPolicy() {
                     </Typography>
 
                     <Typography variant="h6" gutterBottom>
+                        Anonymous posting
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                        When you post or comment anonymously we display a public pseudonym and hide any link to
+                        your account. The server stores an encrypted mapping (user → pseudonym) for internal
+                        moderation/retention only; mapping ciphertexts are deleted after one year by default.
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                        Deleted or removed content is archived in a non-public store for auditing and abuse
+                        investigations; access to archived content and anonymized mappings is strictly controlled
+                        and audited. The platform does not provide a mechanism to unmask anonymous authors.
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                        You can request deletion of your anonymous content using the deletion-request flow which
+                        verifies limited challenge metadata (approximate time, device class, etc.).
+                    </Typography>
+
+                    <Typography variant="h6" gutterBottom>
                         Your choices
                     </Typography>
                     <Typography variant="body2" color="text.secondary" paragraph>

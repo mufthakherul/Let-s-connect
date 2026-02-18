@@ -135,6 +135,34 @@ curl -X POST http://localhost:8000/api/content/posts \
   }'
 ```
 
+**Anonymous post (API):**
+
+```bash
+curl -X POST http://localhost:8000/api/content/posts \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "userId": "YOUR_USER_ID",
+    "content": "This is an anonymous test",
+    "type": "text",
+    "visibility": "public",
+    "anonymous": true
+  }'
+```
+
+Expected: response contains `isAnonymous: true` and `anonHandle`; the post appears in public feed but does not increase the user's public post count in analytics.
+
+**Author deletion request (API):**
+
+```bash
+curl -X POST http://localhost:8000/api/content/posts/POST_ID/deletion-request \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{ "requesterType": "author", "metadata": { "approxCreatedAt": "2026-02-18T12:00:00Z" } }'
+```
+
+Expected: post is removed from public listings and archived.
+
 **Create a Video:**
 
 ```bash
