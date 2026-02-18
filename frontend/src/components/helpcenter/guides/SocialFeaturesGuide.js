@@ -78,13 +78,14 @@ export default function SocialFeaturesGuide() {
                             posts remain subject to community rules and moderation.
                         </Typography>
                         <Typography variant="body2" color="text.secondary" paragraph>
-                            If you need anonymous content removed, use the post's menu and choose "Request deletion" or submit a Help Center support ticket. The "Request deletion" menu option will open the Help Center with prefilled challenge metadata (approximate post time and device class) to simplify verification. Because anonymous posts/comments are not linked to your public profile, you cannot edit or delete them from your account or post history — removal must be handled via the deletion-request process. The platform stores only a sealed, encrypted mapping for internal moderation; that mapping is inaccessible to users and is zeroized after the retention period (default: 1 year). The platform does not provide a routine unmasking mechanism.'
+                            If you need anonymous content removed, use the post's menu and choose "Request deletion" or submit a Help Center support ticket. The "Request deletion" menu option will open the Help Center with prefilled challenge metadata (approximate post time and device class) to simplify verification. Because anonymous posts/comments are not linked to your public profile, you cannot edit or delete them from your account or post history — removal must be handled via the deletion-request process. The platform stores only a sealed, encrypted mapping for internal moderation; that mapping is inaccessible to users and is zeroized after the retention period (default: 1 year). The platform does not provide a routine unmasking mechanism.
                         </Typography>
                     </Box>
+                </Box>
 
-                    <Divider sx={{ my: 4 }} />
+                <Divider sx={{ my: 4 }} />
 
-                    <Box sx={{ mb: 4 }}>
+                <Box sx={{ mb: 4 }}>
                         <Typography variant="h5" gutterBottom fontWeight={600}>
                             <Comment sx={{ verticalAlign: 'middle', mr: 1 }} />
                             Reactions & Comments
@@ -124,9 +125,9 @@ export default function SocialFeaturesGuide() {
                         </Box>
                     </Box>
 
-                    <Divider sx={{ my: 4 }} />
+                <Divider sx={{ my: 4 }} />
 
-                    <Box sx={{ mb: 4 }}>
+                <Box sx={{ mb: 4 }}>
                         <Typography variant="h5" gutterBottom fontWeight={600}>
                             <Share sx={{ verticalAlign: 'middle', mr: 1 }} />
                             Sharing Content
@@ -141,9 +142,9 @@ export default function SocialFeaturesGuide() {
                         </Typography>
                     </Box>
 
-                    <Divider sx={{ my: 4 }} />
+                <Divider sx={{ my: 4 }} />
 
-                    <Box sx={{ mb: 4 }}>
+                <Box sx={{ mb: 4 }}>
                         <Typography variant="h5" gutterBottom fontWeight={600}>
                             <People sx={{ verticalAlign: 'middle', mr: 1 }} />
                             Friend Connections
@@ -192,9 +193,9 @@ export default function SocialFeaturesGuide() {
                         </Box>
                     </Box>
 
-                    <Divider sx={{ my: 4 }} />
+                <Divider sx={{ my: 4 }} />
 
-                    <Box sx={{ mb: 4 }}>
+                <Box sx={{ mb: 4 }}>
                         <Typography variant="h5" gutterBottom fontWeight={600}>
                             <Bookmark sx={{ verticalAlign: 'middle', mr: 1 }} />
                             Saving & Bookmarking
@@ -208,9 +209,9 @@ export default function SocialFeaturesGuide() {
                         </Typography>
                     </Box>
 
-                    <Divider sx={{ my: 4 }} />
+                <Divider sx={{ my: 4 }} />
 
-                    <Box sx={{ mb: 4 }}>
+                <Box sx={{ mb: 4 }}>
                         <Typography variant="h5" gutterBottom fontWeight={600}>
                             <TrendingUp sx={{ verticalAlign: 'middle', mr: 1 }} />
                             Discovering Content
@@ -248,9 +249,9 @@ export default function SocialFeaturesGuide() {
                         </Box>
                     </Box>
 
-                    <Divider sx={{ my: 4 }} />
+                <Divider sx={{ my: 4 }} />
 
-                    <Box sx={{ mb: 4 }}>
+                <Box sx={{ mb: 4 }}>
                         <Typography variant="h5" gutterBottom fontWeight={600}>
                             Groups & Communities
                         </Typography>
@@ -264,9 +265,9 @@ export default function SocialFeaturesGuide() {
                         </Typography>
                     </Box>
 
-                    <Divider sx={{ my: 4 }} />
+                <Divider sx={{ my: 4 }} />
 
-                    <Box sx={{ p: 3, bgcolor: 'action.hover', borderRadius: 2 }}>
+                <Box sx={{ p: 3, bgcolor: 'action.hover', borderRadius: 2 }}>
                         <Typography variant="h6" gutterBottom>
                             Tips for Better Engagement
                         </Typography>
@@ -281,7 +282,7 @@ export default function SocialFeaturesGuide() {
                             Need help with specific features? Check out <Link to="/helpcenter/faq">FAQ</Link> or <Link to="/helpcenter/tickets">Submit a Ticket</Link>
                         </Typography>
                     </Box>
-            </Paper>
+                </Paper>
         </Container>
     );
 }

@@ -1,0 +1,136 @@
+# GitLab CI/CD Pipeline for Let's Connect
+
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+
+# Build Frontend
+build:frontend:
+  stage: build
+  image: node:18-alpine
+  script:
+    - cd frontend
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - frontend/build/
+    expire_in: 1 hour
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Build Services (example for one service, repeat for others)
+build:services:
+  stage: build
+  image: docker:20.10
+  services:
+    - docker:20.10-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    # Install docker-compose
+    - apk add --no-cache docker-compose || apk add --no-cache py3-pip && pip3 install docker-compose
+  script:
+    # Build all services
+    - docker-compose build
+  only:
+    - main
+    - develop
+
+# Test Frontend
+test:frontend:
+  stage: test
+  image: node:18-alpine
+  script:
+    - cd frontend
+    - npm ci
+    - npm run test -- --watchAll=false --passWithNoTests
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Security Scan (optional but recommended)
+security:dependency-scan:
+  stage: test
+  image: node:18-alpine
+  script:
+    - cd frontend
+    - npm audit --audit-level=moderate || true
+  allow_failure: true
+  only:
+    - main
+    - develop
+
+# Deploy to GitLab Pages (for static hosting)
+pages:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - mkdir -p public
+    - cp -r frontend/build/* public/
+  artifacts:
+    paths:
+      - public
+  only:
+    - main
+
+# Deploy to Production (using Docker Compose on a server)
+deploy:production:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H $DEPLOY_SERVER >> ~/.ssh/known_hosts
+  script:
+    - |
+      ssh $DEPLOY_USER@$DEPLOY_SERVER << EOF
+        cd $DEPLOY_PATH
+        git pull origin main
+        docker-compose down
+        docker-compose up -d --build
+        docker-compose ps
+      EOF
+  environment:
+    name: production
+    url: $PRODUCTION_URL
+  only:
+    - main
+  when: manual
+
+# Deploy to Staging
+deploy:staging:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H $STAGING_SERVER >> ~/.ssh/known_hosts
+  script:
+    - |
+      ssh $DEPLOY_USER@$STAGING_SERVER << EOF
+        cd $STAGING_PATH
+        git pull origin develop
+        docker-compose down
+        docker-compose up -d --build
+        docker-compose ps
+      EOF
+  environment:
+    name: staging
+    url: $STAGING_URL
+  only:
+    - develop
+  when: manual

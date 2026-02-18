@@ -32,7 +32,7 @@
 #*.spec.js
 
 # CI/CD
-.gitlab-ci.yml
+# .gitlab-ci.yml
 .travis.yml
 azure-pipelines.yml
 
