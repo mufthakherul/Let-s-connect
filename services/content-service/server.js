@@ -106,6 +106,13 @@ const Post = sequelize.define('Post', {
     type: DataTypes.ENUM('public', 'friends', 'private'),
     defaultValue: 'public'
   },
+  // Anonymous posting flag (publicly hides author/identity)
+  isAnonymous: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  // Reference to anonymized identity used for display (nullable)
+  anonIdentityId: DataTypes.UUID,
   isPublished: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
@@ -156,6 +163,12 @@ const Comment = sequelize.define('Comment', {
     allowNull: false
   },
   parentId: DataTypes.UUID,
+  // Comment-level anonymous flag
+  isAnonymous: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  anonIdentityId: DataTypes.UUID,
   upvotes: {
     type: DataTypes.INTEGER,
     defaultValue: 0
@@ -168,6 +181,33 @@ const Comment = sequelize.define('Comment', {
     type: DataTypes.INTEGER,
     defaultValue: 0
   }
+});
+
+// Anonymized pseudonym identities (server stores sealed mapping; mappingCiphertext is zeroized per retention policy)
+const AnonIdentity = sequelize.define('AnonIdentity', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  communityId: DataTypes.UUID, // null = global
+  handle: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  avatarUrl: DataTypes.STRING,
+  mappingHash: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true,
+    comment: 'HMAC(userId|scope) for lookup without storing plaintext userId'
+  },
+  mappingCiphertext: {
+    type: DataTypes.TEXT,
+    comment: 'Encrypted sealed mapping (deleted after retention period)'
+  },
+  revokedAt: DataTypes.DATE,
+  zeroizedAt: DataTypes.DATE
 });
 
 const Video = sequelize.define('Video', {
@@ -966,6 +1006,13 @@ const BlogTagAssociation = sequelize.define('BlogTagAssociation', {
 // Relationships
 Post.hasMany(Comment, { foreignKey: 'postId' });
 Comment.belongsTo(Post, { foreignKey: 'postId' });
+
+// AnonIdentity associations
+Post.belongsTo(AnonIdentity, { foreignKey: 'anonIdentityId' });
+AnonIdentity.hasMany(Post, { foreignKey: 'anonIdentityId' });
+Comment.belongsTo(AnonIdentity, { foreignKey: 'anonIdentityId' });
+AnonIdentity.hasMany(Comment, { foreignKey: 'anonIdentityId' });
+
 Post.hasMany(Reaction, { foreignKey: 'postId' });
 Post.hasMany(Vote, { foreignKey: 'postId' });
 Post.belongsToMany(Hashtag, { through: PostHashtag, foreignKey: 'postId' });
@@ -1148,6 +1195,21 @@ async function startServer() {
       console.error('Error initializing awards:', error);
     }
 
+    // Scheduled cleanup: zeroize sealed mapping_ciphertext after retention period (1 year)
+    setInterval(async () => {
+      try {
+        const cutoff = new Date();
+        cutoff.setFullYear(cutoff.getFullYear() - 1);
+        const [updated] = await AnonIdentity.update(
+          { mappingCiphertext: null, zeroizedAt: new Date() },
+          { where: { mappingCiphertext: { [Op.ne]: null }, createdAt: { [Op.lte]: cutoff } } }
+        );
+        if (updated) console.log(`[Anon] Zeroized ${updated} anon mappings older than 1 year`);
+      } catch (err) {
+        console.error('[Anon] cleanup failed', err);
+      }
+    }, 24 * 60 * 60 * 1000); // daily
+
     app.listen(PORT, () => {
       console.log(`Content service running on port ${PORT}`);
     });
@@ -1254,6 +1316,71 @@ function extractHashtags(content) {
   return matches ? matches.map(tag => tag.toLowerCase().substring(1)) : [];
 }
 
+// --- Anonymous identity helpers ---
+const ANON_HMAC_SECRET = process.env.ANON_HMAC_SECRET || 'anon-hmac-secret-change-me';
+const ANON_KEY = process.env.ANON_KEY || process.env.JWT_SECRET || 'anon-key-change-me';
+
+function mappingHashFor(userId, scope) {
+  const h = crypto.createHmac('sha256', ANON_HMAC_SECRET);
+  h.update(`${userId}|${scope || 'global'}`);
+  return h.digest('hex');
+}
+
+function encryptMapping(plaintext) {
+  const key = crypto.createHash('sha256').update(ANON_KEY).digest();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(String(plaintext), 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, tag, encrypted]).toString('base64');
+}
+
+function generateAnonHandle() {
+  return `Anon•${crypto.randomBytes(3).toString('hex')}`.slice(0, 12);
+}
+
+async function findOrCreateAnonIdentity(userId, communityId = null) {
+  const scope = communityId || 'global';
+  const mapHash = mappingHashFor(userId, scope);
+  let anon = await AnonIdentity.findOne({ where: { mappingHash: mapHash } });
+  if (anon) return anon;
+
+  // create new pseudonym for this (user, scope)
+  let handle = generateAnonHandle();
+  // ensure uniqueness of handle
+  while (await AnonIdentity.findOne({ where: { handle } })) {
+    handle = generateAnonHandle();
+  }
+
+  const mappingCiphertext = encryptMapping(userId);
+  anon = await AnonIdentity.create({ communityId: communityId || null, handle, mappingHash: mapHash, mappingCiphertext });
+  return anon;
+}
+
+async function sanitizePostsForResponse(posts) {
+  // accepts array of plain objects or sequelize instances
+  const plain = posts.map(p => (typeof p.toJSON === 'function' ? p.toJSON() : p));
+  const anonIds = [...new Set(plain.filter(p => p.isAnonymous && p.anonIdentityId).map(p => p.anonIdentityId))];
+  const anonMap = {};
+  if (anonIds.length) {
+    const anonRows = await AnonIdentity.findAll({ where: { id: { [Op.in]: anonIds } } });
+    for (const a of anonRows) anonMap[a.id] = a.toJSON();
+  }
+
+  return plain.map(p => {
+    if (!p.isAnonymous) return p;
+    const anon = p.anonIdentityId ? anonMap[p.anonIdentityId] : null;
+    return {
+      ...p,
+      userId: null, // hide author id in public API
+      author: { firstName: 'Anonymous', lastName: '' },
+      anonHandle: anon ? anon.handle : 'Anonymous',
+      anonAvatar: anon ? anon.avatarUrl : null
+    };
+  });
+}
+
+
 // Create post (requires auth via gateway) - Updated with hashtag support
 app.post('/posts', async (req, res) => {
   try {
@@ -1262,7 +1389,7 @@ app.post('/posts', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { content, type, mediaUrls, visibility, communityId, groupId, pageId, flairId, characterLimit } = req.body;
+    const { content, type, mediaUrls, visibility, communityId, groupId, pageId, flairId, characterLimit, anonymous } = req.body;
 
     // Twitter-style character limit validation (default 280, can be overridden)
     const limit = characterLimit || 280;
@@ -1274,6 +1401,12 @@ app.post('/posts', async (req, res) => {
       });
     }
 
+    let anonIdentity = null;
+    if (anonymous) {
+      // gating: only authenticated users can post anonymously (verification gating handled elsewhere)
+      anonIdentity = await findOrCreateAnonIdentity(userId, communityId || null);
+    }
+
     const post = await Post.create({
       userId,
       content,
@@ -1283,7 +1416,9 @@ app.post('/posts', async (req, res) => {
       communityId,
       groupId,
       pageId,
-      flairId
+      flairId,
+      isAnonymous: Boolean(anonymous),
+      anonIdentityId: anonIdentity ? anonIdentity.id : null
     });
 
     // Extract and save hashtags (deduplicate first)
@@ -1297,7 +1432,17 @@ app.post('/posts', async (req, res) => {
       await hashtag.increment('postCount');
     }
 
-    res.status(201).json(post);
+    // Serialize anonymous display when needed
+    const responsePost = (post.toJSON && post.toJSON()) || post;
+    if (responsePost.isAnonymous && responsePost.anonIdentityId) {
+      const anon = await AnonIdentity.findByPk(responsePost.anonIdentityId);
+      responsePost.userId = null; // hide author id
+      responsePost.author = { firstName: 'Anonymous', lastName: '' };
+      responsePost.anonHandle = anon ? anon.handle : 'Anonymous';
+      responsePost.anonAvatar = anon ? anon.avatarUrl : null;
+    }
+
+    res.status(201).json(responsePost);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to create post' });
@@ -1450,14 +1595,24 @@ app.post('/videos', async (req, res) => {
 // Add comment
 app.post('/posts/:postId/comments', async (req, res) => {
   try {
-    const { userId, content, parentId } = req.body;
+    const { userId, content, parentId, anonymous } = req.body;
     const { postId } = req.params;
+
+    let anonIdentity = null;
+    if (anonymous) {
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+      // currently per-community pseudonym uses post.communityId; fallback to null
+      const post = await Post.findByPk(postId);
+      anonIdentity = await findOrCreateAnonIdentity(userId, post?.communityId || null);
+    }
 
     const comment = await Comment.create({
       postId,
       userId,
       content,
-      parentId
+      parentId,
+      isAnonymous: Boolean(anonymous),
+      anonIdentityId: anonIdentity ? anonIdentity.id : null
     });
 
     await Post.increment('comments', { where: { id: postId } });
@@ -1467,7 +1622,16 @@ app.post('/posts/:postId/comments', async (req, res) => {
       await invalidatePostCaches(postId);
     }
 
-    res.status(201).json(comment);
+    // Hide userId from public response for anonymous comments
+    const resp = comment.toJSON ? comment.toJSON() : comment;
+    if (resp.isAnonymous && resp.anonIdentityId) {
+      const ai = await AnonIdentity.findByPk(resp.anonIdentityId);
+      resp.userId = null;
+      resp.author = { firstName: 'Anonymous', lastName: '' };
+      resp.anonHandle = ai ? ai.handle : 'Anonymous';
+    }
+
+    res.status(201).json(resp);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to add comment' });
@@ -1573,7 +1737,10 @@ app.get('/hashtags/:tag/posts', async (req, res) => {
       offset: parseInt(offset)
     });
 
-    res.json({ tag, posts: posts || [], total: hashtag.postCount });
+    {
+      const sanitized = await sanitizePostsForResponse(posts || []);
+      res.json({ tag, posts: sanitized, total: hashtag.postCount });
+    }
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch hashtag posts' });
@@ -2303,7 +2470,7 @@ app.post('/posts/:postId/reply', async (req, res) => {
     }
 
     const { postId } = req.params;
-    const { content } = req.body;
+    const { content, anonymous } = req.body;
 
     if (!content) {
       return res.status(400).json({ error: 'content is required' });
@@ -2314,18 +2481,86 @@ app.post('/posts/:postId/reply', async (req, res) => {
       return res.status(404).json({ error: 'Parent post not found' });
     }
 
+    let anonIdentity = null;
+    if (anonymous) {
+      anonIdentity = await findOrCreateAnonIdentity(userId, parentPost.communityId || null);
+    }
+
     const reply = await Post.create({
       userId,
       content,
       type: 'text',
       visibility: parentPost.visibility,
-      parentId: postId
+      parentId: postId,
+      isAnonymous: Boolean(anonymous),
+      anonIdentityId: anonIdentity ? anonIdentity.id : null
     });
 
-    res.json(reply);
+    const resp = reply.toJSON ? reply.toJSON() : reply;
+    if (resp.isAnonymous && resp.anonIdentityId) {
+      const ai = await AnonIdentity.findByPk(resp.anonIdentityId);
+      resp.userId = null;
+      resp.author = { firstName: 'Anonymous', lastName: '' };
+      resp.anonHandle = ai ? ai.handle : 'Anonymous';
+    }
+
+    res.json(resp);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to create reply' });
+  }
+});
+
+// Author / public / legal deletion request for a post (does NOT unmask)
+app.post('/posts/:postId/deletion-request', async (req, res) => {
+  try {
+    const requesterId = req.header('x-user-id');
+    const { postId } = req.params;
+    const { requesterType = 'author', metadata, legalDocument } = req.body || {};
+
+    const post = await Post.findByPk(postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    // Author self-request (challenge flow)
+    if (requesterType === 'author') {
+      if (!requesterId || requesterId !== post.userId) return res.status(403).json({ error: 'Forbidden' });
+
+      // Very small challenge: if provided approximate createdAt, verify it's within 48 hours
+      if (metadata?.approxCreatedAt) {
+        const approx = new Date(metadata.approxCreatedAt).getTime();
+        const actual = new Date(post.createdAt).getTime();
+        if (Math.abs(actual - approx) > 48 * 60 * 60 * 1000) {
+          return res.status(400).json({ error: 'Challenge verification failed' });
+        }
+      }
+
+      // Archive and remove from public view
+      await Archive.create({
+        type: 'post',
+        originalId: post.id,
+        userId: post.userId,
+        content: post,
+        reason: 'author_deletion_request'
+      });
+      await post.update({ isPublished: false });
+
+      return res.json({ message: 'Post removed from public view and archived' });
+    }
+
+    // Legal request (platform will not unmask; only removes content with documentation)
+    if (requesterType === 'legal') {
+      if (!legalDocument) return res.status(400).json({ error: 'legalDocument required' });
+      await Archive.create({ type: 'post', originalId: post.id, userId: post.userId, content: post, reason: 'legal_takedown' });
+      await post.update({ isPublished: false });
+      return res.json({ message: 'Post removed due to legal request' });
+    }
+
+    // Public reporting — create a moderation flag
+    await ContentFlag.create({ userId: requesterId || null, itemType: 'post', itemId: post.id, reason: metadata?.reason || 'reported' });
+    return res.json({ message: 'Report submitted; moderators will review' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to process deletion request' });
   }
 });
 
@@ -2758,7 +2993,8 @@ app.get('/groups/:groupId/posts', async (req, res) => {
       offset
     });
 
-    res.json(posts);
+    const sanitized = await sanitizePostsForResponse(posts);
+    res.json(sanitized);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch group posts' });
@@ -2828,7 +3064,8 @@ app.get('/pages/:pageId/posts', async (req, res) => {
       offset: parseInt(offset)
     });
 
-    res.json(posts);
+    const sanitized = await sanitizePostsForResponse(posts);
+    res.json(sanitized);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch page posts' });
@@ -3484,7 +3721,8 @@ app.get('/posts/sorted', async (req, res) => {
       offset: parseInt(offset)
     });
 
-    res.json(posts);
+    const sanitized = await sanitizePostsForResponse(posts);
+    res.json(sanitized);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch sorted posts' });
@@ -4208,7 +4446,7 @@ app.get('/analytics/user/:userId', async (req, res) => {
     startDate.setDate(startDate.getDate() - parseInt(period));
 
     // Get post stats
-    const totalPosts = await Post.count({ where: { userId } });
+    const totalPosts = await Post.count({ where: { userId, isAnonymous: false } });
     const periodPostCount = await Post.count({
       where: {
         userId,
@@ -4242,7 +4480,7 @@ app.get('/analytics/user/:userId', async (req, res) => {
     });
 
     // Get comment stats
-    const totalComments = await Comment.count({ where: { userId } });
+    const totalComments = await Comment.count({ where: { userId, isAnonymous: false } });
     const periodComments = await Comment.count({
       where: {
         userId,
