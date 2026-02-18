@@ -174,8 +174,18 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/streaming
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
       - REDIS_URL=redis://redis:6379
-      - RUN_SEED=true
+      - RUN_SEED=${RUN_SEED:-true}
       - NODE_ENV=production
+      # Fast seeding configuration (for quick development startup)
+      - SEED_MODE=${SEED_MODE:-minimal}
+      - SEED_MINIMAL_RADIO_LIMIT=${SEED_MINIMAL_RADIO_LIMIT:-50}
+      - SEED_MINIMAL_TV_LIMIT=${SEED_MINIMAL_TV_LIMIT:-50}
+      - SEED_SKIP_ONLINE_FETCH=${SEED_SKIP_ONLINE_FETCH:-true}
+      - SEED_SKIP_VALIDATION=${SEED_SKIP_VALIDATION:-true}
+      - SEED_SKIP_ENRICHMENT=${SEED_SKIP_ENRICHMENT:-true}
+      - SEED_BATCH_SIZE=${SEED_BATCH_SIZE:-100}
+      # Set USE_FULL_SEED=true for production deployment with full data
+      - USE_FULL_SEED=${USE_FULL_SEED:-false}
     depends_on:
       postgres:
         condition: service_healthy
