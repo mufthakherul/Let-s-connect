@@ -62,7 +62,25 @@ export default function SocialFeaturesGuide() {
                             </Typography>
                         </CardContent>
                     </Card>
-                </Box>
+
+                    <Box sx={{ mt: 2 }}>
+                        <Typography variant="h6" gutterBottom fontWeight={500}>
+                            Anonymous posting
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" paragraph>
+                            Toggle "Post anonymously" in the composer to publish without your profile being
+                            associated publicly. Anonymous posts display a platform pseudonym (e.g. "Anonymous • Anon•A1b2")
+                            and will not appear on your public profile or in your visible post history.
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" paragraph>
+                            Pseudonyms are persistent within a community so your pseudonym remains the same inside
+                            that community. Attachments and links are allowed but are scanned and moderated. Anonymous
+                            posts remain subject to community rules and moderation.
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" paragraph>
+                            If you need anonymous content removed, use the post's menu and choose "Request deletion" or submit a Help Center support ticket. Because anonymous posts/comments are not linked to your public profile, you cannot edit or delete them from your account or post history — removal must be handled via the deletion-request process. The platform stores only a sealed, encrypted mapping for internal moderation; that mapping is inaccessible to users and is zeroized after the retention period (default: 1 year). The platform does not provide a routine unmasking mechanism.'
+                        </Typography>
+                    </Box>
 
                 <Divider sx={{ my: 4 }} />
 
