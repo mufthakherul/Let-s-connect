@@ -83,8 +83,8 @@ export default function ErrorPage({ code = 500, title, message, details, actions
     }, [autoRetryEnabled, reduceMotion]);
 
     const handleRetry = () => window.location.reload();
-    const handleHome = () => navigate('/');
-    const handleContact = () => navigate('/helpcenter/feedback');
+    const handleHome = () => { window.location.href = '/'; };
+    const handleContact = () => { window.location.href = '/helpcenter/feedback'; };
 
     const suggestions = [
         { label: 'Home', to: '/' },
@@ -181,7 +181,7 @@ export default function ErrorPage({ code = 500, title, message, details, actions
 
                             <Grid item>
                                 {code === 401 ? (
-                                    <Button variant="outlined" onClick={() => navigate('/login')} startIcon={<RefreshIcon />}>Sign in</Button>
+                                    <Button variant="outlined" onClick={() => { window.location.href = '/login'; }} startIcon={<RefreshIcon />}>Sign in</Button>
                                 ) : (
                                     <Button variant="outlined" onClick={handleRetry} startIcon={<RefreshIcon />}>Reload</Button>
                                 )}
@@ -211,7 +211,7 @@ export default function ErrorPage({ code = 500, title, message, details, actions
                             <Typography variant="subtitle2" sx={{ mb: 1 }}>Helpful links</Typography>
                             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                                 {suggestions.map((s) => (
-                                    <Chip key={s.label} label={s.label} onClick={() => navigate(s.to)} clickable variant="outlined" />
+                                    <Chip key={s.label} label={s.label} onClick={() => { window.location.href = s.to; }} clickable variant="outlined" />
                                 ))}
                             </Box>
                         </Box>

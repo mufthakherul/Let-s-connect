@@ -1,5 +1,6 @@
 const https = require('https');
 const http = require('http');
+const IPTVOrgAPI = require('./iptv-org-api');
 
 /**
  * TV Channel Enrichment Service
@@ -11,6 +12,8 @@ class ChannelEnricher {
         this.maxConcurrent = options.maxConcurrent || 10;
         this.logoCache = new Map();
         this.validateStreams = options.validateStreams !== false; // default true
+        // IPTV-ORG API helper (shared instance with light caching)
+        this.iptvApi = options.iptvApi || new IPTVOrgAPI({ timeout: options.iptvTimeout || 15000, retries: 1 });
     }
 
     /**
@@ -103,6 +106,20 @@ class ChannelEnricher {
         // Priority 2: Platform-specific logo fetchers
         if (channel.source === 'youtube' || channel.metadata?.platform === 'YouTube') {
             logoSources.push(await this.fetchYouTubeLogo(channel));
+        }
+
+        // Priority 2.5: Try IPTV-ORG metadata (channelId/tvgId) for logo before generic web search
+        try {
+            const id = channel.metadata?.channelId || channel.metadata?.tvgId;
+            if (id) {
+                const iptvChan = await this.iptvApi.getChannelById(id);
+                if (iptvChan) {
+                    if (iptvChan.logo) logoSources.push(iptvChan.logo);
+                    if (iptvChan.logoUrl) logoSources.push(iptvChan.logoUrl);
+                }
+            }
+        } catch (err) {
+            // ignore IPTV lookup failures — continue with other logo sources
         }
 
         // Priority 3: Web-based logo searches
@@ -257,27 +274,73 @@ class ChannelEnricher {
 
     /**
      * Validate if a stream URL is accessible
+     * - Try HEAD first, fall back to a short GET when HEAD is unsupported
+     * - Inspect Content-Type and first bytes for HLS markers (#EXTM3U/#EXTINF)
+     * - Treat transient DNS lookup failures (ENOTFOUND/EAI_AGAIN) as non-fatal so
+     *   imported IPTV playlists won't mark many otherwise-valid channels inactive
      */
     async validateStreamUrl(url) {
         if (!url || typeof url !== 'string') return false;
 
         try {
-            // For YouTube streams, consider them valid by default
-            if (url.includes('youtube.com') || url.includes('youtu.be')) {
-                return true;
-            }
+            // Accept YouTube URLs quickly
+            if (url.includes('youtube.com') || url.includes('youtu.be')) return true;
 
-            // For IPTV streams, do a quick HEAD request
-            return await new Promise((resolve) => {
-                const timeout = setTimeout(() => resolve(false), this.timeout);
-
+            const tryHead = () => new Promise((resolve) => {
+                const timeout = setTimeout(() => resolve({ ok: false, reason: 'timeout' }), this.timeout);
                 const protocol = url.startsWith('https') ? https : http;
-                const req = protocol.head(url, { timeout: this.timeout, maxRedirects: 3 }, (res) => {
+                const req = protocol.request(url, { method: 'HEAD', timeout: this.timeout }, (res) => {
                     clearTimeout(timeout);
-                    // Accept 2xx, 3xx, and some 4xx (404 might be temporary)
-                    // Reject only clear errors like 403, 410, 451
                     const code = res.statusCode;
-                    resolve(!(code === 403 || code === 410 || code === 451 || code >= 500));
+                    // Consider most non-5xx/forbidden responses acceptable
+                    if (code === 403 || code === 410 || code === 451 || code >= 500) {
+                        resolve({ ok: false, statusCode: code });
+                    } else {
+                        resolve({ ok: true, statusCode: code });
+                    }
+                });
+
+                req.on('error', (err) => {
+                    clearTimeout(timeout);
+                    resolve({ ok: false, error: err });
+                });
+
+                req.end();
+            });
+
+            const head = await tryHead();
+            if (head.ok) return true;
+
+            // HEAD failed or returned an ambiguous status — try a short GET and inspect
+            const tryGet = () => new Promise((resolve) => {
+                const timeout = setTimeout(() => resolve(false), this.timeout);
+                const protocol = url.startsWith('https') ? https : http;
+                const req = protocol.get(url, { timeout: this.timeout }, (res) => {
+                    clearTimeout(timeout);
+                    const ct = (res.headers['content-type'] || '').toLowerCase();
+
+                    // Accept HLS/content-type hints immediately
+                    if (ct.includes('mpegurl') || ct.includes('vnd.apple.mpegurl') || ct.includes('m3u8') || ct.includes('audio') || ct.includes('video')) {
+                        resolve(true);
+                        req.destroy();
+                        return;
+                    }
+
+                    // Read first chunk(s) and look for HLS markers
+                    let data = '';
+                    res.setEncoding('utf8');
+                    res.on('data', chunk => {
+                        data += chunk;
+                        if (data.length > 2048) data = data.slice(0, 2048);
+                        if (data.includes('#EXTM3U') || data.includes('#EXTINF')) {
+                            resolve(true);
+                            req.destroy();
+                        }
+                    });
+
+                    res.on('end', () => {
+                        resolve(data.includes('#EXTM3U') || data.includes('#EXTINF'));
+                    });
                 });
 
                 req.on('error', () => {
@@ -287,6 +350,16 @@ class ChannelEnricher {
 
                 req.end();
             });
+
+            const getOk = await tryGet();
+            if (getOk) return true;
+
+            // If HEAD error was DNS lookup related, don't mark as invalid (transient/blocked DNS)
+            if (head.error && head.error.code && (head.error.code === 'ENOTFOUND' || head.error.code === 'EAI_AGAIN')) {
+                return true;
+            }
+
+            return false;
         } catch (error) {
             return false;
         }
