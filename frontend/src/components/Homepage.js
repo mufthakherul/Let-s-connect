@@ -50,7 +50,7 @@ import {
 } from '@mui/icons-material';
 import { useInView } from 'react-intersection-observer';
 import { useNavigate } from 'react-router-dom';
-import { formatRelativeTime, formatNumber, getInitials } from '../utils/helpers';
+import { formatRelativeTime, formatApproximateTime, formatNumber, getInitials } from '../utils/helpers';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 import { motion } from 'framer-motion';
@@ -515,7 +515,7 @@ function Homepage({ user }) {
                             </MuiLink>
                         )
                     }
-                    subheader={formatRelativeTime(post.createdAt)}
+                    subheader={post.isAnonymous ? formatApproximateTime(post.createdAt) : formatRelativeTime(post.createdAt)}
                     action={
                         <Stack direction="row" spacing={1} alignItems="center">
                             {post.userId !== user.id && (
@@ -941,6 +941,29 @@ function Homepage({ user }) {
                 open={Boolean(postMenuAnchor)}
                 onClose={handleClosePostMenu}
             >
+                {/* Request deletion (prefills Help Center ticket) - only for anonymous posts */}
+                {posts.find(p => p.id === postMenuTarget && p.isAnonymous) && (
+                    <MenuItem
+                        onClick={() => {
+                            const post = posts.find(p => p.id === postMenuTarget);
+                            const approxCreatedAt = post?.createdAt || '';
+                            const device = (typeof navigator !== 'undefined') ? `${navigator.platform || ''} ${navigator.userAgent || ''}` : '';
+                            const params = new URLSearchParams({
+                                category: 'security',
+                                subject: 'Delete anonymous post',
+                                postId: String(postMenuTarget),
+                                requesterType: 'author',
+                                approxCreatedAt,
+                                device: device.slice(0, 120) // limit length
+                            });
+                            navigate(`/helpcenter/tickets?${params.toString()}`);
+                            handleClosePostMenu();
+                        }}
+                    >
+                        Request deletion
+                    </MenuItem>
+                )}
+
                 <MenuItem onClick={() => { handleToggleBookmark(postMenuTarget); handleClosePostMenu(); }}>
                     {bookmarks[postMenuTarget] ? 'Remove Bookmark' : 'Save to Bookmarks'}
                 </MenuItem>

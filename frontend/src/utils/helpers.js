@@ -10,6 +10,25 @@ export const formatRelativeTime = (date) => {
   return formatDistance(new Date(date), new Date(), { addSuffix: true });
 };
 
+// Coarse-grained / approximate time labels used for anonymous content to avoid
+// exposing exact timestamps (e.g. "recently", "within a week", "a few weeks ago", etc.)
+export const formatApproximateTime = (date) => {
+  if (!date) return '';
+  const then = new Date(date).getTime();
+  const now = Date.now();
+  const diff = Math.max(0, now - then);
+  const minutes = Math.floor(diff / (1000 * 60));
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  if (minutes < 60) return 'recently';
+  if (hours < 24) return 'recently';
+  if (days <= 7) return 'within the last week';
+  if (days <= 30) return 'a few weeks ago';
+  if (days <= 365) return 'over a month ago';
+  return 'over a year ago';
+};
+
 export const formatRelativeDate = (date) => {
   if (!date) return '';
   return formatRelative(new Date(date), new Date());
