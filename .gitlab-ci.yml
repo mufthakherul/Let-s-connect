@@ -34,6 +34,8 @@ build:services:
     - docker:20.10-dind
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    # Install docker-compose
+    - apk add --no-cache docker-compose || apk add --no-cache py3-pip && pip3 install docker-compose
   script:
     # Build all services
     - docker-compose build
@@ -92,7 +94,7 @@ deploy:production:
     - ssh-keyscan -H $DEPLOY_SERVER >> ~/.ssh/known_hosts
   script:
     - |
-      ssh $DEPLOY_USER@$DEPLOY_SERVER << 'EOF'
+      ssh $DEPLOY_USER@$DEPLOY_SERVER << EOF
         cd $DEPLOY_PATH
         git pull origin main
         docker-compose down
@@ -119,7 +121,7 @@ deploy:staging:
     - ssh-keyscan -H $STAGING_SERVER >> ~/.ssh/known_hosts
   script:
     - |
-      ssh $DEPLOY_USER@$STAGING_SERVER << 'EOF'
+      ssh $DEPLOY_USER@$STAGING_SERVER << EOF
         cd $STAGING_PATH
         git pull origin develop
         docker-compose down
