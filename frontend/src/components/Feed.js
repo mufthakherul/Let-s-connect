@@ -46,7 +46,7 @@ import {
 } from '@mui/icons-material';
 import { useInView } from 'react-intersection-observer';
 import { useNavigate } from 'react-router-dom';
-import { formatRelativeTime, formatNumber, getInitials } from '../utils/helpers';
+import { formatRelativeTime, formatApproximateTime, formatNumber, getInitials } from '../utils/helpers';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 
@@ -606,7 +606,7 @@ function Feed({ user }) {
               subheader={
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography variant="caption" color="text.secondary">
-                    {formatRelativeTime(post.createdAt)}
+                    {post.isAnonymous ? formatApproximateTime(post.createdAt) : formatRelativeTime(post.createdAt)}
                   </Typography>
                   {getVisibilityIcon(post.visibility)}
                 </Box>
@@ -732,7 +732,7 @@ function Feed({ user }) {
           {threadView?.post && (
             <Box sx={{ mb: 2 }}>
               <Typography variant="subtitle2" color="text.secondary">
-                {formatRelativeTime(threadView.post.createdAt)}
+                {threadView.post?.isAnonymous ? formatApproximateTime(threadView.post.createdAt) : formatRelativeTime(threadView.post.createdAt)}
               </Typography>
               <Typography variant="body1" sx={{ mb: 2 }}>
                 {threadView.post.content}
@@ -744,7 +744,7 @@ function Feed({ user }) {
               <Card key={reply.id} variant="outlined">
                 <CardContent>
                   <Typography variant="caption" color="text.secondary">
-                    {formatRelativeTime(reply.createdAt)}
+                    {reply.isAnonymous ? formatApproximateTime(reply.createdAt) : formatRelativeTime(reply.createdAt)}
                   </Typography>
                   <Typography variant="body2">{reply.content}</Typography>
                 </CardContent>
