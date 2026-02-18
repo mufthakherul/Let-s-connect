@@ -208,6 +208,16 @@ class IPTVOrgAPI {
     }
 
     /**
+     * Get a single channel by IPTV-ORG id (uses internal cache when available)
+     */
+    async getChannelById(channelId) {
+        if (!channelId) return null;
+        // Ensure cache is populated
+        const channels = await this.fetchChannels();
+        return channels.find(c => c.id === channelId || (c.tvg && c.tvg.id === channelId)) || null;
+    }
+
+    /**
      * Fetch with intelligent caching
      */
     async _fetchWithCache(url) {

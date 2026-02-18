@@ -482,13 +482,40 @@ const seed = async () => {
         const youtubeLocalCount = tvChannels.filter(ch => (ch.source === 'youtube') || (ch.playlistSource && String(ch.playlistSource).toLowerCase().includes('youtube'))).length;
         const iptvOrgLocalCount = tvChannels.filter(ch => ch.source && String(ch.source).toLowerCase().includes('iptv-org')).length;
 
-        // Fetch from IPTV-ORG API only if not already present in tvChannels
+        // Always fetch IPTV-ORG data — use it to enrich existing channels and supply missing logos/metadata
         let iptvOrgChannels = [];
-        if (iptvOrgLocalCount > 0) {
-            console.log(`ℹ️ Detected ${iptvOrgLocalCount} IPTV-ORG channels already loaded by TVPlaylistFetcher — skipping separate IPTV-ORG API fetch.`);
-        } else {
+        try {
             iptvOrgChannels = await fetchIPTVOrgChannels();
+            console.log(`ℹ️ Fetched ${iptvOrgChannels.length} IPTV-ORG channels (will be used to enrich/merge)`);
+        } catch (err) {
+            console.log(`⚠️ IPTV-ORG fetch failed: ${err.message}`);
+            iptvOrgChannels = [];
         }
+
+        // If TVPlaylistFetcher already included IPTV-ORG entries, merge IPTV-ORG metadata (logos, tvg ids)
+        if (iptvOrgChannels.length > 0 && tvChannels.length > 0) {
+            const iptvMapByStream = new Map();
+            const iptvMapById = new Map();
+            for (const iptv of iptvOrgChannels) {
+                if (iptv.streamUrl) iptvMapByStream.set((iptv.streamUrl || '').toLowerCase().trim(), iptv);
+                if (iptv.metadata?.channelId) iptvMapById.set(iptv.metadata.channelId, iptv);
+                if (iptv.metadata?.tvgId) iptvMapById.set(iptv.metadata.tvgId, iptv);
+            }
+
+            for (const ch of tvChannels) {
+                const key = (ch.streamUrl || '').toLowerCase().trim();
+                const match = iptvMapByStream.get(key) || (ch.metadata && iptvMapById.get(ch.metadata.channelId || ch.metadata.tvgId));
+                if (match) {
+                    // prefer IPTV-ORG logo when missing
+                    if (!ch.logoUrl && (match.logo || match.logoUrl)) {
+                        ch.logoUrl = match.logo || match.logoUrl;
+                    }
+                    // merge useful metadata fields without overwriting existing values
+                    ch.metadata = Object.assign({}, match.metadata || {}, ch.metadata || {});
+                }
+            }
+        }
+
         console.log('');
 
         // Fetch and enrich YouTube channels only when not already loaded by TVPlaylistFetcher

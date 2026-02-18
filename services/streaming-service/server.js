@@ -253,10 +253,29 @@ const validateStreamUrl = async (url) => {
     try {
         const response = await axios.head(url, {
             timeout: 5000,
+            maxRedirects: 5,
             validateStatus: (status) => status < 500
         });
-        return response.status === 200;
+
+        // Accept 2xx and 3xx responses (and 206 Partial Content) as valid
+        if (response.status >= 200 && response.status < 400) return true;
+        if (response.status === 206) return true;
+
+        // HEAD returned an unexpected status -> try a short GET to detect HLS markers
+        try {
+            const getRes = await axios.get(url, { timeout: 5000, responseType: 'text', maxRedirects: 5 });
+            const ct = (getRes.headers['content-type'] || '').toLowerCase();
+            if (ct.includes('mpegurl') || ct.includes('vnd.apple.mpegurl') || ct.includes('m3u8')) return true;
+            const body = (typeof getRes.data === 'string') ? getRes.data.slice(0, 2048) : '';
+            return body.includes('#EXTM3U') || body.includes('#EXTINF');
+        } catch (err) {
+            return false;
+        }
     } catch (error) {
+        // Treat DNS resolution problems as non-fatal for imported playlists
+        if (error && error.code && (error.code === 'ENOTFOUND' || error.code === 'EAI_AGAIN')) {
+            return true;
+        }
         return false;
     }
 };
