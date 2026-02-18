@@ -40,6 +40,10 @@ export default function FAQ() {
                     a: 'By default, posts are public. You can change the visibility to "Friends Only" or "Private" when creating a post.'
                 },
                 {
+                    q: 'Can I post anonymously?',
+                    a: 'Yes. Registered users may toggle "Post anonymously" when composing — anonymous posts/comments display a platform pseudonym (for example "Anonymous • Anon•A1b2") and are not linked to your public profile or visible post history. The public record contains no user-identifying fields. For internal moderation only we keep a sealed, encrypted mapping between the pseudonym and the account; that sealed mapping is inaccessible through the UI and is automatically deleted after one year. Because anonymous items are not associated with your profile you cannot edit or remove them from your account directly. To remove an anonymous post/comment, submit a deletion request (use the post menu → "Request deletion" or open a Help Center support ticket). The platform will verify ownership using a small challenge (approximate time/device metadata) and, if validated, archive and remove the item from public view. Anonymous content remains subject to moderation and community rules.'
+                },
+                {
                     q: 'How is my data protected?',
                     a: 'We use encryption in transit (TLS), regular security audits, and role-based access controls. See our Privacy Policy for details.'
                 },

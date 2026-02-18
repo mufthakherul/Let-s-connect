@@ -99,7 +99,22 @@ volumes:
 ---
 
 ## Additional Security Recommendations
+### Anonymous posting — sealed mappings, retention & deletion requests
 
+**Location**: `services/content-service` (AnonIdentity storage)
+
+**Notes**:
+- Public view: anonymous posts/comments do **not** include user-identifying fields and are not shown on the user's public profile or visible post history.
+- Sealed mapping: the service stores a sealed, encrypted mapping (user → pseudonym) strictly for moderation/abuse-handling and legal compliance. Mapping ciphertexts are zeroized after 1 year by default; mappings are not exposed via the UI.
+- User controls: because anonymous items are not linked to the user's public profile, users **cannot** directly edit or delete anonymous posts/comments from their account; removal must be initiated via the deletion-request workflow.
+- Deletion-request flow: authors may request deletion by submitting the deletion-request endpoint or using the Help Center (the platform verifies ownership using a small challenge such as approximate creation time/device class). Verified requests result in archival and removal from public listings.
+
+**Operational controls**:
+- Store mapping encryption keys in a secrets manager or KMS; never hardcode keys in manifests.
+- Enable strict RBAC and audit logging for any access to archived content or mapping records.
+- Schedule and monitor zeroization/retention jobs.
+
+**Legal/Policy**: The platform does **not** provide a routine unmasking mechanism; ensure your legal/takedown policies and privacy disclosures reflect this behavior and comply with applicable laws.
 ### 4. TLS/SSL Certificates
 
 **Location**: `k8s/ingress.yaml`, line 48
