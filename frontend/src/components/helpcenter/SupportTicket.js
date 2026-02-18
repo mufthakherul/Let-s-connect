@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Container, Typography, Paper, Box, TextField, Button, Alert,
     FormControl, InputLabel, Select, MenuItem, Chip, LinearProgress
@@ -6,7 +6,10 @@ import {
 import { SendOutlined, AttachFile } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 
+import { useLocation } from 'react-router-dom';
+
 export default function SupportTicket() {
+    const location = useLocation();
     const [formData, setFormData] = useState({
         priority: 'medium',
         category: '',
@@ -17,6 +20,33 @@ export default function SupportTicket() {
     const [attachments, setAttachments] = useState([]);
     const [submitted, setSubmitted] = useState(false);
     const [ticketNumber, setTicketNumber] = useState('');
+
+    // Prefill from query params (used by "Request deletion" from post menu)
+    useEffect(() => {
+        const qs = new URLSearchParams(location.search);
+        const category = qs.get('category');
+        const subject = qs.get('subject');
+        const postId = qs.get('postId');
+        const approxCreatedAt = qs.get('approxCreatedAt');
+        const device = qs.get('device');
+        const requesterType = qs.get('requesterType');
+
+        if (category || subject || postId) {
+            const prefilledDescription = [];
+            if (postId) prefilledDescription.push(`Post ID: ${postId}`);
+            if (approxCreatedAt) prefilledDescription.push(`Approximate time: ${approxCreatedAt}`);
+            if (device) prefilledDescription.push(`Device: ${device}`);
+            if (requesterType) prefilledDescription.push(`Requester: ${requesterType}`);
+            prefilledDescription.push('\nPlease provide any additional details you remember that will help verify ownership.');
+
+            setFormData((prev) => ({
+                ...prev,
+                category: category || prev.category,
+                subject: subject || prev.subject,
+                description: prefilledDescription.join('\n')
+            }));
+        }
+    }, [location.search]);
 
     const handleFileChange = (e) => {
         const files = Array.from(e.target.files);
