@@ -84,12 +84,14 @@ function Feed({ user }) {
   const [threadDialogOpen, setThreadDialogOpen] = useState(false);
   const [threadView, setThreadView] = useState(null);
   const [replyText, setReplyText] = useState('');
+  const [replyAnonymous, setReplyAnonymous] = useState(false);
   const [awardDialogPost, setAwardDialogPost] = useState(null);
   const [awards, setAwards] = useState([]);
   const [postAwards, setPostAwards] = useState({});
   const [selectedAwardId, setSelectedAwardId] = useState('');
   const [awardMessage, setAwardMessage] = useState('');
   const [bookmarks, setBookmarks] = useState({});
+  const [postAnonymous, setPostAnonymous] = useState(false); // new toggle for anonymous posting
   const { ref, inView } = useInView();
 
   useEffect(() => {
@@ -146,7 +148,8 @@ function Feed({ user }) {
       const response = await api.post('/content/posts', {
         content: newPost,
         visibility,
-        type: 'text'
+        type: 'text',
+        anonymous: postAnonymous
       });
 
       setPosts([response.data, ...posts]);
@@ -282,7 +285,8 @@ function Feed({ user }) {
     if (!replyText.trim() || !threadView?.post?.id) return;
     try {
       const response = await api.post(`/content/posts/${threadView.post.id}/reply`, {
-        content: replyText
+        content: replyText,
+        anonymous: replyAnonymous
       });
       setThreadView((prev) => ({
         ...prev,
@@ -535,6 +539,11 @@ function Feed({ user }) {
                 label="Thread"
               />
 
+              <FormControlLabel
+                control={<Switch checked={postAnonymous} onChange={(e) => setPostAnonymous(e.target.checked)} />}
+                label="Post anonymously"
+              />
+
               <Button
                 variant="contained"
                 onClick={threadMode ? handleCreateThread : handleCreatePost}
@@ -581,7 +590,7 @@ function Feed({ user }) {
             <CardHeader
               avatar={
                 <Avatar sx={{ bgcolor: 'primary.main' }}>
-                  {post.userName ? getInitials(post.userName) : 'U'}
+                  {post.isAnonymous ? (post.anonHandle ? getInitials(post.anonHandle) : 'A') : (post.userName ? getInitials(post.userName) : 'U')}
                 </Avatar>
               }
               action={
@@ -591,7 +600,7 @@ function Feed({ user }) {
               }
               title={
                 <Typography variant="subtitle1" fontWeight="600">
-                  {post.userName || `User ${post.userId.substring(0, 8)}`}
+                  {post.isAnonymous ? (post.anonHandle || 'Anonymous') : (post.userName || `User ${post.userId ? post.userId.substring(0, 8) : ''}`)}
                 </Typography>
               }
               subheader={
@@ -750,6 +759,11 @@ function Feed({ user }) {
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
             sx={{ mt: 2 }}
+          />
+          <FormControlLabel
+            control={<Switch checked={replyAnonymous} onChange={(e) => setReplyAnonymous(e.target.checked)} />}
+            label="Post anonymously"
+            sx={{ mt: 1 }}
           />
         </DialogContent>
         <DialogActions>

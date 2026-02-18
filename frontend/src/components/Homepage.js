@@ -124,6 +124,7 @@ function Homepage({ user }) {
     const [reactionTarget, setReactionTarget] = useState(null);
     const [postMenuAnchor, setPostMenuAnchor] = useState(null);
     const [postMenuTarget, setPostMenuTarget] = useState(null);
+    const [postAnonymous, setPostAnonymous] = useState(false); // composer anonymous toggle
     const [retweetAnchor, setRetweetAnchor] = useState(null);
     const [retweetTarget, setRetweetTarget] = useState(null);
     const [quoteDialogOpen, setQuoteDialogOpen] = useState(false);
@@ -269,7 +270,8 @@ function Homepage({ user }) {
                 type: postType,
                 mediaUrls,
                 visibility,
-                userId: user.id
+                userId: user.id,
+                anonymous: postAnonymous
             });
 
             setPosts(prev => [response.data, ...prev]);
@@ -489,23 +491,29 @@ function Homepage({ user }) {
             <Card component={motion.div} variants={cardVariants} key={post.id || index} sx={{ mb: 2, ...hoverCardSx }}>
                 <CardHeader
                     avatar={
-                        <Tooltip title="View profile" arrow>
+                        <Tooltip title={post.isAnonymous ? 'Anonymous' : 'View profile'} arrow>
                             <Avatar
-                                sx={{ cursor: 'pointer' }}
-                                onClick={() => navigate(`/profile/${post.userId}`)}
+                                sx={{ cursor: post.isAnonymous ? 'default' : 'pointer' }}
+                                onClick={() => { if (!post.isAnonymous) navigate(`/profile/${post.userId}`); }}
                             >
-                                {getInitials(`${post.author?.firstName || ''} ${post.author?.lastName || ''}`)}
+                                {post.isAnonymous ? (post.anonHandle ? getInitials(post.anonHandle) : 'A') : getInitials(`${post.author?.firstName || ''} ${post.author?.lastName || ''}`)}
                             </Avatar>
                         </Tooltip>
                     }
                     title={
-                        <MuiLink
-                            component="span"
-                            onClick={() => navigate(`/profile/${post.userId}`)}
-                            sx={{ cursor: 'pointer', fontWeight: 'bold' }}
-                        >
-                            {post.author?.firstName} {post.author?.lastName}
-                        </MuiLink>
+                        post.isAnonymous ? (
+                            <Typography component="span" sx={{ fontWeight: 'bold' }}>
+                                {post.anonHandle || 'Anonymous'}
+                            </Typography>
+                        ) : (
+                            <MuiLink
+                                component="span"
+                                onClick={() => navigate(`/profile/${post.userId}`)}
+                                sx={{ cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                                {post.author?.firstName} {post.author?.lastName}
+                            </MuiLink>
+                        )
                     }
                     subheader={formatRelativeTime(post.createdAt)}
                     action={
@@ -782,6 +790,12 @@ function Homepage({ user }) {
                                         ))}
                                     </Select>
                                 </FormControl>
+
+                                <FormControlLabel
+                                  control={<Switch checked={postAnonymous} onChange={(e) => setPostAnonymous(e.target.checked)} />}
+                                  label="Post anonymously"
+                                />
+
                                 <Button
                                     variant="contained"
                                     onClick={handleCreatePost}
