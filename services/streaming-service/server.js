@@ -983,11 +983,18 @@ app.get('/favorites', async (req, res) => {
         const radioIds = favorites.filter(f => f.itemType === 'radio').map(f => f.itemId);
         const tvIds = favorites.filter(f => f.itemType === 'tv').map(f => f.itemId);
 
-        // Batch fetch all items
-        const [radioStations, tvChannels] = await Promise.all([
-            radioIds.length > 0 ? RadioStation.findAll({ where: { id: { [Op.in]: radioIds } } }) : [],
-            tvIds.length > 0 ? TVChannel.findAll({ where: { id: { [Op.in]: tvIds } } }) : []
-        ]);
+        let radioStations = [];
+        let tvChannels = [];
+
+        // Only fetch if we have IDs
+        if (radioIds.length > 0 || tvIds.length > 0) {
+            const results = await Promise.all([
+                radioIds.length > 0 ? RadioStation.findAll({ where: { id: { [Op.in]: radioIds } } }) : [],
+                tvIds.length > 0 ? TVChannel.findAll({ where: { id: { [Op.in]: tvIds } } }) : []
+            ]);
+            radioStations = results[0];
+            tvChannels = results[1];
+        }
 
         // Create lookup maps for O(1) access
         const radioMap = new Map(radioStations.map(s => [s.id, s]));
@@ -1205,11 +1212,18 @@ app.get('/history', async (req, res) => {
         const radioIds = history.filter(h => h.itemType === 'radio').map(h => h.itemId);
         const tvIds = history.filter(h => h.itemType === 'tv').map(h => h.itemId);
 
-        // Batch fetch all items
-        const [radioStations, tvChannels] = await Promise.all([
-            radioIds.length > 0 ? RadioStation.findAll({ where: { id: { [Op.in]: radioIds } } }) : [],
-            tvIds.length > 0 ? TVChannel.findAll({ where: { id: { [Op.in]: tvIds } } }) : []
-        ]);
+        let radioStations = [];
+        let tvChannels = [];
+
+        // Only fetch if we have IDs
+        if (radioIds.length > 0 || tvIds.length > 0) {
+            const results = await Promise.all([
+                radioIds.length > 0 ? RadioStation.findAll({ where: { id: { [Op.in]: radioIds } } }) : [],
+                tvIds.length > 0 ? TVChannel.findAll({ where: { id: { [Op.in]: tvIds } } }) : []
+            ]);
+            radioStations = results[0];
+            tvChannels = results[1];
+        }
 
         // Create lookup maps for O(1) access
         const radioMap = new Map(radioStations.map(s => [s.id, s]));
