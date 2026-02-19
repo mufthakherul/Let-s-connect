@@ -1115,6 +1115,67 @@ const Archive = sequelize.define('Archive', {
   ]
 });
 
+// Post Version Control System
+const PostVersion = sequelize.define('PostVersion', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  postId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'Original post ID'
+  },
+  versionNumber: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    comment: 'Sequential version number (1, 2, 3...)'
+  },
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+    comment: 'Post content at this version'
+  },
+  mediaUrls: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
+    comment: 'Media URLs at this version'
+  },
+  editedBy: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'User who made this edit'
+  },
+  editReason: {
+    type: DataTypes.STRING,
+    comment: 'Optional reason for the edit'
+  },
+  changesSummary: {
+    type: DataTypes.TEXT,
+    comment: 'Summary of what was changed'
+  },
+  metadata: {
+    type: DataTypes.JSONB,
+    comment: 'Additional version metadata (diff, size, etc.)'
+  },
+  ipAddress: {
+    type: DataTypes.STRING,
+    comment: 'IP address of editor (for legal/moderation)'
+  },
+  userAgent: {
+    type: DataTypes.TEXT,
+    comment: 'User agent of editor'
+  }
+}, {
+  indexes: [
+    { fields: ['postId'] },
+    { fields: ['versionNumber'] },
+    { fields: ['editedBy'] },
+    { fields: ['createdAt'] },
+    { unique: true, fields: ['postId', 'versionNumber'] }
+  ]
+});
+
 // Phase 6: Saved Search/Filter System
 const SavedSearch = sequelize.define('SavedSearch', {
   id: {
@@ -6056,5 +6117,256 @@ app.delete('/saved-searches/:searchId', async (req, res) => {
 });
 
 // ==================== END SAVED SEARCHES ====================
+
+// ==================== POST VERSION CONTROL ====================
+
+// Get version history for a post
+app.get('/posts/:postId/versions', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.header('x-user-id');
+
+    // Check if post exists and user has permission
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    // Check permission: owner or law-order (admin/moderator)
+    const userRole = req.header('x-user-role');
+    const hasPermission = post.userId === userId || ['admin', 'moderator'].includes(userRole);
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Not authorized to view post history' });
+    }
+
+    const versions = await PostVersion.findAll({
+      where: { postId },
+      order: [['versionNumber', 'DESC']],
+      include: [{
+        model: sequelize.models.User,
+        as: 'editor',
+        attributes: ['id', 'firstName', 'lastName']
+      }]
+    });
+
+    res.json({ 
+      post: {
+        id: post.id,
+        currentContent: post.content,
+        currentMediaUrls: post.mediaUrls
+      },
+      versions,
+      totalVersions: versions.length 
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch version history' });
+  }
+});
+
+// Get a specific version
+app.get('/posts/:postId/versions/:versionNumber', async (req, res) => {
+  try {
+    const { postId, versionNumber } = req.params;
+    const userId = req.header('x-user-id');
+
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const userRole = req.header('x-user-role');
+    const hasPermission = post.userId === userId || ['admin', 'moderator'].includes(userRole);
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const version = await PostVersion.findOne({
+      where: { postId, versionNumber: parseInt(versionNumber) }
+    });
+
+    if (!version) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+
+    res.json(version);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch version' });
+  }
+});
+
+// Compare two versions
+app.get('/posts/:postId/versions/compare/:version1/:version2', async (req, res) => {
+  try {
+    const { postId, version1, version2 } = req.params;
+    const userId = req.header('x-user-id');
+
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const userRole = req.header('x-user-role');
+    const hasPermission = post.userId === userId || ['admin', 'moderator'].includes(userRole);
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const v1 = await PostVersion.findOne({
+      where: { postId, versionNumber: parseInt(version1) }
+    });
+    const v2 = await PostVersion.findOne({
+      where: { postId, versionNumber: parseInt(version2) }
+    });
+
+    if (!v1 || !v2) {
+      return res.status(404).json({ error: 'One or both versions not found' });
+    }
+
+    // Simple diff calculation (can be enhanced with a diff library)
+    const diff = {
+      content: {
+        old: v1.content,
+        new: v2.content,
+        changed: v1.content !== v2.content
+      },
+      mediaUrls: {
+        old: v1.mediaUrls || [],
+        new: v2.mediaUrls || [],
+        changed: JSON.stringify(v1.mediaUrls) !== JSON.stringify(v2.mediaUrls)
+      }
+    };
+
+    res.json({
+      version1: v1,
+      version2: v2,
+      diff
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to compare versions' });
+  }
+});
+
+// Restore a specific version
+app.post('/posts/:postId/versions/:versionNumber/restore', async (req, res) => {
+  try {
+    const { postId, versionNumber } = req.params;
+    const userId = req.header('x-user-id');
+
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    // Only owner can restore
+    if (post.userId !== userId) {
+      return res.status(403).json({ error: 'Only post owner can restore versions' });
+    }
+
+    const version = await PostVersion.findOne({
+      where: { postId, versionNumber: parseInt(versionNumber) }
+    });
+
+    if (!version) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+
+    // Save current state as new version before restoring
+    const latestVersion = await PostVersion.findOne({
+      where: { postId },
+      order: [['versionNumber', 'DESC']]
+    });
+
+    const nextVersionNumber = latestVersion ? latestVersion.versionNumber + 1 : 1;
+
+    await PostVersion.create({
+      postId,
+      versionNumber: nextVersionNumber,
+      content: post.content,
+      mediaUrls: post.mediaUrls,
+      editedBy: userId,
+      editReason: `Restoration from version ${versionNumber}`,
+      changesSummary: 'Restored from earlier version',
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    // Restore the version
+    await post.update({
+      content: version.content,
+      mediaUrls: version.mediaUrls
+    });
+
+    res.json({
+      message: 'Version restored successfully',
+      post,
+      restoredFrom: versionNumber,
+      newVersionNumber: nextVersionNumber
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to restore version' });
+  }
+});
+
+// Update a post (with version tracking)
+app.put('/posts/:postId', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.header('x-user-id');
+    const { content, mediaUrls, editReason } = req.body;
+
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    if (post.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Save current version before updating
+    const latestVersion = await PostVersion.findOne({
+      where: { postId },
+      order: [['versionNumber', 'DESC']]
+    });
+
+    const nextVersionNumber = latestVersion ? latestVersion.versionNumber + 1 : 1;
+
+    await PostVersion.create({
+      postId,
+      versionNumber: nextVersionNumber,
+      content: post.content,
+      mediaUrls: post.mediaUrls,
+      editedBy: userId,
+      editReason: editReason || 'Content updated',
+      changesSummary: 'Post edited',
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    // Update post
+    await post.update({
+      content: content || post.content,
+      mediaUrls: mediaUrls !== undefined ? mediaUrls : post.mediaUrls
+    });
+
+    res.json({ 
+      post,
+      versionCreated: nextVersionNumber,
+      message: 'Post updated successfully'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update post' });
+  }
+});
+
+// ==================== END POST VERSION CONTROL ====================
 
 startServer();
