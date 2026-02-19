@@ -61,6 +61,9 @@ function LoginModern({ setUser }) {
   const setGlobalUser = useAuthStore((s) => s.setUser);
   const setGlobalToken = useAuthStore((s) => s.setToken);
   
+  // Grace period to prevent race conditions between auth state propagation and background requests
+  const AUTH_GRACE_PERIOD_MS = 8000; // 8 seconds
+  
   // Use modern hooks
   const [rememberEmail, setRememberEmail, removeRememberEmail] = useLocalStorage('rememberEmail', '');
   const [showPassword, setShowPassword] = React.useState(false);
@@ -111,7 +114,7 @@ function LoginModern({ setUser }) {
         
         // Grace period for auth propagation
         try { 
-          window.__suppressAuthRedirectUntil = Date.now() + 8000; 
+          window.__suppressAuthRedirectUntil = Date.now() + AUTH_GRACE_PERIOD_MS; 
         } catch (e) { /* ignore */ }
         
         // Handle remember email

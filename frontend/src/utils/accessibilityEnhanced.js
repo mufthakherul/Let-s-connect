@@ -3,7 +3,7 @@
  * Provides consistent ARIA attributes and keyboard navigation
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 
 /**
  * Focus trap for modals and dialogs
