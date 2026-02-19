@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
     Speed, Security, CloudDone, Groups, Chat, VideoLibrary,
-    ShoppingCart, Description, SmartToy, VerifiedUser, Event, Tv, Radio
+    ShoppingCart, Description, VerifiedUser, Event, Lock, Radio, Tv, Pages as PagesIcon
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 
@@ -54,55 +54,64 @@ function UnregisterLanding() {
             title: 'Social Feed',
             description: 'Share posts, images, and videos with your network',
             link: '/feed',
-            icon: <Groups sx={{ fontSize: 40, color: 'primary.main' }} />
+            icon: <Groups sx={{ fontSize: 40, color: 'primary.main' }} />,
+            requiresLogin: true
         },
         {
             title: 'Video Platform',
             description: 'Watch and upload videos with channel subscriptions',
             link: '/videos',
-            icon: <VideoLibrary sx={{ fontSize: 40, color: 'error.main' }} />
+            icon: <VideoLibrary sx={{ fontSize: 40, color: 'error.main' }} />,
+            requiresLogin: false
         },
         {
             title: 'Real-time Chat',
             description: 'Message friends, groups, and servers instantly',
             link: '/chat',
-            icon: <Chat sx={{ fontSize: 40, color: 'success.main' }} />
+            icon: <Chat sx={{ fontSize: 40, color: 'success.main' }} />,
+            requiresLogin: true
+        },
+        {
+            title: 'Pages',
+            description: 'Create and manage professional pages for organizations, communities, or projects',
+            link: '/pages',
+            icon: <PagesIcon sx={{ fontSize: 40, color: 'secondary.main' }} />,
+            requiresLogin: true
         },
         {
             title: 'Collaboration',
             description: 'Create docs, wikis, tasks, and manage projects',
             link: '/docs',
-            icon: <Description sx={{ fontSize: 40, color: 'info.main' }} />
+            icon: <Description sx={{ fontSize: 40, color: 'info.main' }} />,
+            requiresLogin: false
         },
         {
             title: 'Shop',
             description: 'Browse products, manage cart, and place orders',
             link: '/shop',
-            icon: <ShoppingCart sx={{ fontSize: 40, color: 'warning.main' }} />
-        },
-        {
-            title: 'Smart Assistant',
-            description: 'Context-aware assistant that helps you get more done, faster',
-            link: '/chat',
-            icon: <SmartToy sx={{ fontSize: 40, color: 'secondary.main' }} />
+            icon: <ShoppingCart sx={{ fontSize: 40, color: 'warning.main' }} />,
+            requiresLogin: false
         },
         {
             title: 'Meetings',
             description: 'Schedule and join secure video meetings and webinars with screen sharing',
             link: '/meetings',
-            icon: <Event sx={{ fontSize: 40, color: 'primary.main' }} />
+            icon: <Event sx={{ fontSize: 40, color: 'primary.main' }} />,
+            requiresLogin: false
         },
         {
             title: 'Live TV (IPTV)',
-            description: 'Watch live channels and curated streams in a modern player',
+            description: 'Watch live channels and curated streams - essential for independent media access',
             link: '/tv',
-            icon: <Tv sx={{ fontSize: 40, color: 'error.main' }} />
+            icon: <Tv sx={{ fontSize: 40, color: 'error.main' }} />,
+            requiresLogin: true
         },
         {
             title: 'Live Radio (IP)',
-            description: 'Stream internet radio stations and low-latency audio channels (RTC)',
+            description: 'Stream internet radio stations and podcasts with low-latency audio',
             link: '/radio',
-            icon: <Radio sx={{ fontSize: 40, color: 'success.main' }} />
+            icon: <Radio sx={{ fontSize: 40, color: 'success.main' }} />,
+            requiresLogin: true
         }
     ];
 
@@ -160,7 +169,13 @@ function UnregisterLanding() {
                 initial="hidden"
                 animate="visible"
                 exit={{ opacity: 0, y: -10 }}
-                sx={{ position: 'relative', overflow: 'visible', zIndex: 1 }}
+                sx={{ 
+                    position: 'relative', 
+                    overflow: 'visible', 
+                    zIndex: 1,
+                    // Ensure content is always visible regardless of theme
+                    isolation: 'isolate',
+                }}
             >
                 {/* Decorative background shapes (subtle, non-distracting) */}
                 {!prefersReducedMotion && (
@@ -202,7 +217,7 @@ function UnregisterLanding() {
                     </>
                 )}
                 {/* Hero Section */}
-                <Box component={motion.div} variants={fadeInUp} sx={{ textAlign: 'center', mb: 8, mt: 4 }}>
+                <Box component={motion.div} variants={fadeInUp} sx={{ textAlign: 'center', mb: 8, mt: 4, position: 'relative', zIndex: 2 }}>
                     <Typography
                         component={motion.h1}
                         variants={fadeInUp}
@@ -218,7 +233,10 @@ function UnregisterLanding() {
                             // Explicit fallback color to ensure visibility
                             color: supportsTextClip ? 'transparent' : theme.palette.text.primary,
                             // keep a solid-color fallback for high-contrast / older browsers
-                            textShadow: supportsTextClip ? 'none' : undefined
+                            textShadow: supportsTextClip ? 'none' : undefined,
+                            // Force visibility in stacking context
+                            position: 'relative',
+                            zIndex: 2,
                         })}
                     >
                         Welcome to Let's Connect
@@ -296,7 +314,7 @@ function UnregisterLanding() {
                 </Box>
 
                 {/* Features Grid */}
-                <Box sx={{ mb: 8 }}>
+                <Box sx={{ mb: 8, position: 'relative', zIndex: 2 }}>
                     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: 'center', justifyContent: 'space-between', mb: 3 }} component={motion.div} variants={fadeInUp}>
                         <Typography component={motion.h2} variant="h4" fontWeight="bold" sx={{ mb: { xs: 1, md: 0 } }}>
                             Features
@@ -330,28 +348,63 @@ function UnregisterLanding() {
                                             {feature.icon}
                                         </Box>
 
-                                        <Typography variant="h6" gutterBottom fontWeight="600">
-                                            {feature.title}
-                                        </Typography>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+                                            <Typography variant="h6" fontWeight="600">
+                                                {feature.title}
+                                            </Typography>
+                                            {feature.requiresLogin && (
+                                                <Chip 
+                                                    icon={<Lock sx={{ fontSize: 14 }} />} 
+                                                    label="Login" 
+                                                    size="small" 
+                                                    color="primary" 
+                                                    variant="outlined"
+                                                    sx={{ height: 20, fontSize: '0.7rem' }}
+                                                />
+                                            )}
+                                        </Box>
 
                                         <Typography variant="body2" color="text.secondary" paragraph>
                                             {feature.description}
                                         </Typography>
 
-                                        <Button
-                                            size="small"
-                                            component={Link}
-                                            to={feature.link}
-                                            variant="text"
-                                            sx={{
-                                                '&:hover': { transform: 'translateX(6px)' },
-                                                transition: 'all 0.25s ease'
-                                            }}
-                                        >
-                                            <Box component={motion.span} whileHover={{ x: 6 }} sx={{ display: 'inline-flex', alignItems: 'center' }}>
-                                                Learn More →
-                                            </Box>
-                                        </Button>
+                                        {feature.requiresLogin ? (
+                                            <Stack direction="row" spacing={1} justifyContent="center">
+                                                <Button
+                                                    size="small"
+                                                    component={Link}
+                                                    to="/login"
+                                                    variant="outlined"
+                                                    sx={{ fontSize: '0.75rem' }}
+                                                >
+                                                    Login
+                                                </Button>
+                                                <Button
+                                                    size="small"
+                                                    component={Link}
+                                                    to="/register"
+                                                    variant="contained"
+                                                    sx={{ fontSize: '0.75rem' }}
+                                                >
+                                                    Sign Up
+                                                </Button>
+                                            </Stack>
+                                        ) : (
+                                            <Button
+                                                size="small"
+                                                component={Link}
+                                                to={feature.link}
+                                                variant="text"
+                                                sx={{
+                                                    '&:hover': { transform: 'translateX(6px)' },
+                                                    transition: 'all 0.25s ease'
+                                                }}
+                                            >
+                                                <Box component={motion.span} whileHover={{ x: 6 }} sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                    Learn More →
+                                                </Box>
+                                            </Button>
+                                        )}
                                     </CardContent>
                                 </MotionCard>
                             </Grid>
@@ -360,7 +413,7 @@ function UnregisterLanding() {
                 </Box>
 
                 {/* Platform Features */}
-                <Paper elevation={0} sx={{ p: 4, mb: 8, bgcolor: 'background.default', borderRadius: 3 }} component={motion.div} variants={fadeInUp}>
+                <Paper elevation={0} sx={{ p: 4, mb: 8, bgcolor: 'background.default', borderRadius: 3, position: 'relative', zIndex: 2 }} component={motion.div} variants={fadeInUp}>
                     <Typography variant="h4" fontWeight="bold" gutterBottom sx={{ mb: 3 }}>
                         What's Included
                     </Typography>
@@ -402,7 +455,7 @@ function UnregisterLanding() {
                 </Paper>
 
                 {/* Security & Trust */}
-                <Box sx={{ mb: 8, textAlign: 'center' }} component={motion.div} variants={fadeInUp}>
+                <Box sx={{ mb: 8, textAlign: 'center', position: 'relative', zIndex: 2 }} component={motion.div} variants={fadeInUp}>
                     <Typography variant="h4" fontWeight="bold" gutterBottom sx={{ mb: 3 }}>
                         Security & Trust
                     </Typography>
@@ -434,7 +487,9 @@ function UnregisterLanding() {
                         mb: 4,
                         textAlign: 'center',
                         background: `linear-gradient(135deg, ${theme.palette.primary.main}15, ${theme.palette.secondary.main}15)`,
-                        borderRadius: 3
+                        borderRadius: 3,
+                        position: 'relative',
+                        zIndex: 2
                     }}
                     component={motion.div}
                     variants={fadeInUp}
