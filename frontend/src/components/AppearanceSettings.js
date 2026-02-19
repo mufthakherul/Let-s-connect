@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -41,10 +41,12 @@ import {
   PlayArrow,
   Pause,
   Brightness4,
-  Brightness7
+  Brightness7,
+  Lock
 } from '@mui/icons-material';
-import { useAppearanceStore, FONT_FAMILIES, NAVBAR_ICON_STYLES, BACKGROUND_ANIMATIONS, THEME_PRESETS } from '../store/appearanceStore';
+import { useAppearanceStore, FONT_FAMILIES, NAVBAR_ICON_STYLES, BACKGROUND_ANIMATIONS, THEME_PRESETS, CARD_STYLES, LAYOUT_DENSITY } from '../store/appearanceStore';
 import { useThemeStore } from '../store/themeStore';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 function TabPanel({ children, value, index }) {
@@ -56,10 +58,20 @@ function TabPanel({ children, value, index }) {
 }
 
 const AppearanceSettings = () => {
+  const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
   const [previewMode, setPreviewMode] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importText, setImportText] = useState('');
+  
+  // Check authentication
+  useEffect(() => {
+    const user = localStorage.getItem('user');
+    if (!user) {
+      toast.error('Please login to customize appearance settings');
+      navigate('/login');
+    }
+  }, [navigate]);
   
   const {
     theme,
@@ -82,6 +94,14 @@ const AppearanceSettings = () => {
     autoScroll,
     scrollSpeed,
     pauseOnHover,
+    cardStyle,
+    layoutDensity,
+    darkMode,
+    headingFont,
+    animationSpeed,
+    reduceMotion,
+    highContrast,
+    colorBlindMode,
     updateSetting,
     applyThemePreset,
     resetAppearance,
