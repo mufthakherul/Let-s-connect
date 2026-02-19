@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
     Speed, Security, CloudDone, Groups, Chat, VideoLibrary,
-    ShoppingCart, Description, VerifiedUser, Event, Lock
+    ShoppingCart, Description, VerifiedUser, Event, Lock, Radio, Tv, Pages as PagesIcon
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 
@@ -72,6 +72,13 @@ function UnregisterLanding() {
             requiresLogin: true
         },
         {
+            title: 'Pages',
+            description: 'Create and manage professional pages for organizations, communities, or projects',
+            link: '/pages',
+            icon: <PagesIcon sx={{ fontSize: 40, color: 'secondary.main' }} />,
+            requiresLogin: true
+        },
+        {
             title: 'Collaboration',
             description: 'Create docs, wikis, tasks, and manage projects',
             link: '/docs',
@@ -94,14 +101,14 @@ function UnregisterLanding() {
         },
         {
             title: 'Live TV (IPTV)',
-            description: 'Watch live channels and curated streams in a modern player',
+            description: 'Watch live channels and curated streams - essential for independent media access',
             link: '/tv',
             icon: <Tv sx={{ fontSize: 40, color: 'error.main' }} />,
             requiresLogin: true
         },
         {
             title: 'Live Radio (IP)',
-            description: 'Stream internet radio stations and low-latency audio channels (RTC)',
+            description: 'Stream internet radio stations and podcasts with low-latency audio',
             link: '/radio',
             icon: <Radio sx={{ fontSize: 40, color: 'success.main' }} />,
             requiresLogin: true
