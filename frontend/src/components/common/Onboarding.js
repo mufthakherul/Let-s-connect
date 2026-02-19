@@ -61,7 +61,7 @@ const onboardingSteps = [
     description: 'Personalize your theme, set up notifications, and configure your preferences.',
     icon: <SettingsIcon sx={{ fontSize: 60, color: 'primary.main' }} />,
     features: ['Dark/Light Mode', 'Accent Colors', 'Email Preferences', 'Security'],
-    action: { label: 'Theme Settings', path: '/settings/theme' },
+    action: { label: 'Theme Settings', path: '/settings' },
   },
   {
     title: 'You\'re All Set! 🚀',

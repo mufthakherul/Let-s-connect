@@ -123,20 +123,27 @@ const emailTemplates = {
     text: `Your ${digestData.period} Digest\n\nHi ${userData.firstName || 'there'},\n\nHere's what happened in your network:\n${digestData.items?.join('\n') || 'No new activity'}\n\nBest regards,\nThe Let's Connect Team`
   }),
 
-  verification: (userData, verificationCode) => ({
-    subject: 'Verify Your Email - Let\'s Connect',
-    html: `
+  verification: (userData, verification) => {
+    const code = verification && typeof verification === 'object' ? verification.code : verification;
+    const token = verification && typeof verification === 'object' ? verification.token : null;
+    const link = token ? `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${encodeURIComponent(token)}` : null;
+
+    return {
+      subject: 'Verify Your Email - Let\'s Connect',
+      html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #1976d2;">Verify Your Email</h1>
         <p>Hi ${userData.firstName || 'there'},</p>
         <p>Please verify your email address to activate your Let's Connect account.</p>
-        <p>Your verification code is: <strong style="font-size: 24px; color: #1976d2;">${verificationCode}</strong></p>
+        ${code ? `<p>Your verification code is: <strong style="font-size: 24px; color: #1976d2;">${code}</strong></p>` : ''}
+        ${link ? `<p><a href="${link}" style="background-color: #1976d2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Verify email</a></p>` : ''}
         <p>This code will expire in 24 hours.</p>
         <p>Best regards,<br>The Let's Connect Team</p>
       </div>
     `,
-    text: `Verify Your Email\n\nHi ${userData.firstName || 'there'},\n\nYour verification code is: ${verificationCode}\n\nThis code will expire in 24 hours.\n\nBest regards,\nThe Let's Connect Team`
-  })
+      text: `Verify Your Email\n\nHi ${userData.firstName || 'there'},\n\n${code ? `Your verification code is: ${code}\n\n` : ''}${link ? `Or click to verify: ${link}\n\n` : ''}This code will expire in 24 hours.\n\nBest regards,\nThe Let's Connect Team`
+    };
+  }
 };
 
 /**

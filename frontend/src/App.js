@@ -75,9 +75,10 @@ const TV = lazy(() => import('./components/TV'));
 const Pages = lazy(() => import('./components/Pages'));
 const Friends = lazy(() => import('./components/Friends'));
 const AppearanceSettings = lazy(() => import('./components/AppearanceSettings'));
+const SettingsHub = lazy(() => import('./components/SettingsHub'));
 const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./components/TermsOfService'));
-const CookiePolicy = lazy(() => import('./components/CookiePolicy'));
+const CookiePolicy = lazy(() => import('./components/CookiePolicy')); "
 const HelpCenter = lazy(() => import('./components/helpcenter/HelpCenter'));
 const UserManuals = lazy(() => import('./components/helpcenter/UserManuals'));
 const FAQ = lazy(() => import('./components/helpcenter/FAQ'));
@@ -870,12 +871,12 @@ function AppContent() {
                         </ListItemIcon>
                         <ListItemText>View / Switch Profile</ListItemText>
                       </MenuItem>
-                      <MenuItem component={Link} to="/settings/theme" onClick={() => setProfileMenuAnchor(null)}>
+                      <MenuItem component={Link} to="/settings" onClick={() => setProfileMenuAnchor(null)}>
                         <ListItemIcon>
                           <SettingsIcon fontSize="small" />
                         </ListItemIcon>
                         <ListItemText>Settings</ListItemText>
-                      </MenuItem>
+                      </MenuItem>"
                       <MenuItem onClick={() => { setProfileMenuAnchor(null); handleLogout(); }}>
                         <ListItemIcon>
                           <ExitToApp fontSize="small" />
@@ -1051,7 +1052,7 @@ function AppContent() {
                 Toggle theme
               </Button>
 
-              <Button fullWidth component={Link} to="/settings/theme" onClick={() => setSettingsDialogOpen(false)}>
+              <Button fullWidth component={Link} to="/settings" onClick={() => setSettingsDialogOpen(false)}>"
                 Theme settings
               </Button>
 
@@ -1162,12 +1163,14 @@ function AppContent() {
                   />
                   {/* Phase 3 Features - OAuth Login */}
                   <Route path="/login/oauth" element={<OAuthLogin />} />
+                  {/* Settings hub */}
+                  <Route path="/settings" element={<SettingsHub />} />
                   {/* Phase 5 Features - Theme Settings */}
                   <Route path="/settings/theme" element={<ThemeSettings />} />
                   {/* Phase 5 Features - Accessibility Settings */}
                   <Route path="/settings/accessibility" element={<AccessibilitySettings />} />
                   {/* Advanced Appearance Settings */}
-                  <Route path="/settings/appearance" element={<AppearanceSettings />} />
+                  <Route path="/settings/appearance" element={<AppearanceSettings />} />"
 
                   {/* Legal & policies */}
                   <Route path="/privacy" element={<PrivacyPolicy />} />

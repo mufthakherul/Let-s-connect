@@ -103,6 +103,38 @@ const User = sequelize.define('User', {
     type: DataTypes.ARRAY(DataTypes.STRING),
     defaultValue: [],
     comment: 'Hashed backup codes for 2FA recovery'
+  },
+
+  // Email verification fields
+  isEmailVerified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  emailVerificationCode: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: '6-digit code sent to user email for verification'
+  },
+  emailVerificationCodeExpiresAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  emailVerificationToken: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'One-time token for link-based email verification'
+  },
+  emailVerificationTokenExpiresAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  emailVerifiedAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  lastVerificationSentAt: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   timestamps: true,
@@ -926,6 +958,27 @@ app.post('/register', async (req, res) => {
 
     await Profile.create({ userId: user.id });
 
+    // Generate email verification code + token (6-digit code + link token)
+    const verificationCode = String(100000 + Math.floor(Math.random() * 900000));
+    const verificationToken = crypto.randomBytes(24).toString('hex');
+    const expires = new Date(Date.now() + (parseInt(process.env.EMAIL_VERIF_EXP_HOURS || '24') * 60 * 60 * 1000));
+
+    user.emailVerificationCode = verificationCode;
+    user.emailVerificationCodeExpiresAt = expires;
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationTokenExpiresAt = expires;
+    user.lastVerificationSentAt = new Date();
+    await user.save();
+
+    // Send verification email (best-effort; do not block registration)
+    (async () => {
+      try {
+        await emailService.sendEmail(user.email, 'verification', { user: user.get ? user.get({ plain: true }) : user, data: { code: verificationCode, token: verificationToken } });
+      } catch (e) {
+        console.error('Failed to send verification email:', e?.message || e);
+      }
+    })();
+
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
     res.status(201).json({
@@ -942,6 +995,111 @@ app.post('/register', async (req, res) => {
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ error: 'Registration failed. Please try again.' });
+  }
+});
+
+// Resend verification (public) - rate-limited by per-account cooldown
+app.post('/resend-verification', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    const user = await User.findOne({ where: { email } });
+    // Always return a generic message to avoid account enumeration
+    if (!user) {
+      return res.json({ message: 'If an account exists, a verification email has been sent' });
+    }
+
+    if (user.isEmailVerified) {
+      return res.json({ message: 'Email already verified' });
+    }
+
+    // Simple cooldown to prevent abuse
+    const cooldownMs = 60 * 1000; // 1 minute
+    if (user.lastVerificationSentAt && (new Date() - new Date(user.lastVerificationSentAt) < cooldownMs)) {
+      return res.status(429).json({ error: 'Too many requests — please wait before requesting another verification email' });
+    }
+
+    const verificationCode = String(100000 + Math.floor(Math.random() * 900000));
+    const verificationToken = crypto.randomBytes(24).toString('hex');
+    const expires = new Date(Date.now() + (parseInt(process.env.EMAIL_VERIF_EXP_HOURS || '24') * 60 * 60 * 1000));
+
+    user.emailVerificationCode = verificationCode;
+    user.emailVerificationCodeExpiresAt = expires;
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationTokenExpiresAt = expires;
+    user.lastVerificationSentAt = new Date();
+    await user.save();
+
+    try {
+      await emailService.sendEmail(user.email, 'verification', { user: user.get ? user.get({ plain: true }) : user, data: { code: verificationCode, token: verificationToken } });
+    } catch (err) {
+      console.error('resend verification send failed:', err?.message || err);
+    }
+
+    return res.json({ message: 'If an account exists, a verification email has been sent' });
+  } catch (err) {
+    console.error('resend-verification error:', err);
+    return res.status(500).json({ error: 'Failed to resend verification' });
+  }
+});
+
+// Verify email (API)
+app.post('/verify-email', async (req, res) => {
+  try {
+    const { token, email, code } = req.body || {};
+    let user = null;
+
+    if (token) {
+      user = await User.findOne({ where: { emailVerificationToken: token } });
+      if (!user) return res.status(400).json({ error: 'Invalid or expired token' });
+      if (user.emailVerificationTokenExpiresAt && new Date() > new Date(user.emailVerificationTokenExpiresAt)) return res.status(400).json({ error: 'Token expired' });
+    } else if (email && code) {
+      user = await User.findOne({ where: { email, emailVerificationCode: code } });
+      if (!user) return res.status(400).json({ error: 'Invalid code' });
+      if (user.emailVerificationCodeExpiresAt && new Date() > new Date(user.emailVerificationCodeExpiresAt)) return res.status(400).json({ error: 'Code expired' });
+    } else {
+      return res.status(400).json({ error: 'token or (email+code) required' });
+    }
+
+    user.isEmailVerified = true;
+    user.emailVerifiedAt = new Date();
+    user.emailVerificationToken = null;
+    user.emailVerificationTokenExpiresAt = null;
+    user.emailVerificationCode = null;
+    user.emailVerificationCodeExpiresAt = null;
+    await user.save();
+
+    return res.json({ message: 'Email verified successfully', verified: true });
+  } catch (err) {
+    console.error('verify-email error:', err);
+    return res.status(500).json({ error: 'Failed to verify email' });
+  }
+});
+
+// Verify email via link (clickable)
+app.get('/verify-email', async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (!token) return res.status(400).send('Missing token');
+
+    const user = await User.findOne({ where: { emailVerificationToken: token } });
+    if (!user) return res.status(400).send('Invalid token');
+    if (user.emailVerificationTokenExpiresAt && new Date() > new Date(user.emailVerificationTokenExpiresAt)) return res.status(400).send('Token expired');
+
+    user.isEmailVerified = true;
+    user.emailVerifiedAt = new Date();
+    user.emailVerificationToken = null;
+    user.emailVerificationTokenExpiresAt = null;
+    user.emailVerificationCode = null;
+    user.emailVerificationCodeExpiresAt = null;
+    await user.save();
+
+    const redirectTo = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?verified=1`;
+    return res.redirect(redirectTo);
+  } catch (err) {
+    console.error('Email verification (link) error:', err);
+    return res.status(500).send('Verification failed');
   }
 });
 
@@ -1381,7 +1539,7 @@ app.post('/pages/:id/follow', async (req, res) => {
       // Unfollow
       await existingFollow.destroy();
       await page.decrement('followers');
-      
+
       // Update insights for unfollows
       const today = new Date().toISOString().split('T')[0];
       const [insight] = await PageInsight.findOrCreate({
@@ -1519,7 +1677,7 @@ app.post('/pages/:id/view', async (req, res) => {
     // Update insights
     const [insight, insightCreated] = await PageInsight.findOrCreate({
       where: { pageId: id, date: today },
-      defaults: { 
+      defaults: {
         totalViews: 1,
         uniqueViewers: userId && viewCreated ? 1 : 0
       }
@@ -1801,9 +1959,9 @@ app.post('/friends/request', async (req, res) => {
         const senderPrefs = await UserPreferences.findOne({
           where: { userId: senderId }
         });
-        
+
         const autoAccept = senderPrefs?.autoAcceptMutualFriendRequests || false;
-        
+
         if (autoAccept) {
           // Auto-accept the mutual friend request
           existingRequest.status = 'accepted';
@@ -1824,14 +1982,14 @@ app.post('/friends/request', async (req, res) => {
             metadata: { actorId: senderId }
           });
 
-          return res.status(200).json({ 
+          return res.status(200).json({
             message: 'Friend request accepted automatically (mutual request detected)',
             friendship: true,
             autoAccepted: true
           });
         } else {
           // Don't auto-accept - user must manually accept both requests
-          return res.status(400).json({ 
+          return res.status(400).json({
             error: 'You both have pending friend requests. Please accept the existing request or enable auto-accept in your settings.',
             mutualRequest: true,
             existingRequestId: existingRequest.id
@@ -2047,7 +2205,7 @@ app.get('/friends', async (req, res) => {
     });
 
     // Extract friend IDs
-    const friendIds = friendships.map(f => 
+    const friendIds = friendships.map(f =>
       f.userId === userId ? f.friendId : f.userId
     );
 
@@ -2073,9 +2231,9 @@ app.get('/friends', async (req, res) => {
       order: [['firstName', 'ASC'], ['username', 'ASC']]
     });
 
-    res.json({ 
-      friends: friends.rows, 
-      total: friends.count 
+    res.json({
+      friends: friends.rows,
+      total: friends.count
     });
   } catch (error) {
     console.error(error);
@@ -2128,7 +2286,7 @@ app.get('/friends/mutual/:userId', async (req, res) => {
     );
 
     // Find mutual friends
-    const mutualFriendIds = currentUserFriendIds.filter(id => 
+    const mutualFriendIds = currentUserFriendIds.filter(id =>
       otherUserFriendIds.includes(id)
     );
 
@@ -2141,9 +2299,9 @@ app.get('/friends/mutual/:userId', async (req, res) => {
       attributes: ['id', 'username', 'firstName', 'lastName', 'avatar']
     });
 
-    res.json({ 
-      mutualFriends, 
-      count: mutualFriends.length 
+    res.json({
+      mutualFriends,
+      count: mutualFriends.length
     });
   } catch (error) {
     console.error(error);
