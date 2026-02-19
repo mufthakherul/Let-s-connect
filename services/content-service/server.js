@@ -1115,6 +1115,105 @@ const Archive = sequelize.define('Archive', {
   ]
 });
 
+// Universal Content Version Control System
+// Supports: posts, blogs, videos, wikis, docs, projects, pages, images, and all content types
+const ContentVersion = sequelize.define('ContentVersion', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  contentType: {
+    type: DataTypes.ENUM('post', 'blog', 'video', 'wiki', 'doc', 'project', 'page', 'image', 'comment'),
+    allowNull: false,
+    comment: 'Type of content being versioned'
+  },
+  contentId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'ID of the content being versioned'
+  },
+  versionNumber: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    comment: 'Sequential version number (1, 2, 3...)'
+  },
+  title: {
+    type: DataTypes.STRING,
+    comment: 'Title/subject at this version (for blogs, videos, docs, etc.)'
+  },
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+    comment: 'Content at this version'
+  },
+  mediaUrls: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
+    comment: 'Media URLs at this version'
+  },
+  metadata: {
+    type: DataTypes.JSONB,
+    comment: 'Additional content-specific fields (tags, category, visibility, etc.)'
+  },
+  editedBy: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'User who made this edit'
+  },
+  editedByName: {
+    type: DataTypes.STRING,
+    comment: 'Cached editor name for display (firstName lastName)'
+  },
+  editReason: {
+    type: DataTypes.STRING,
+    comment: 'Optional reason for the edit'
+  },
+  changesSummary: {
+    type: DataTypes.TEXT,
+    comment: 'Summary of what was changed'
+  },
+  diffData: {
+    type: DataTypes.JSONB,
+    comment: 'Structured diff information (additions, deletions, modifications)'
+  },
+  ipAddress: {
+    type: DataTypes.STRING,
+    comment: 'IP address of editor (for legal/moderation)'
+  },
+  userAgent: {
+    type: DataTypes.TEXT,
+    comment: 'User agent of editor'
+  },
+  sizeBytes: {
+    type: DataTypes.INTEGER,
+    comment: 'Size of content in bytes'
+  },
+  isMinor: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Minor edit flag (typo fixes, formatting)'
+  },
+  isMajor: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Major edit flag (significant content changes)'
+  },
+  tags: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
+    comment: 'Version tags (e.g., "reviewed", "approved", "draft")'
+  }
+}, {
+  indexes: [
+    { fields: ['contentType'] },
+    { fields: ['contentId'] },
+    { fields: ['versionNumber'] },
+    { fields: ['editedBy'] },
+    { fields: ['createdAt'] },
+    { unique: true, fields: ['contentType', 'contentId', 'versionNumber'] },
+    { fields: ['contentType', 'contentId', 'createdAt'] }
+  ]
+});
+
 // Phase 6: Saved Search/Filter System
 const SavedSearch = sequelize.define('SavedSearch', {
   id: {
@@ -6056,5 +6155,456 @@ app.delete('/saved-searches/:searchId', async (req, res) => {
 });
 
 // ==================== END SAVED SEARCHES ====================
+
+// ==================== UNIVERSAL CONTENT VERSION CONTROL ====================
+
+// Helper function to get content by type and ID
+async function getContentByType(contentType, contentId) {
+  const models = {
+    post: Post,
+    blog: Blog,
+    video: Video,
+    // Add other content types as needed
+  };
+  
+  const model = models[contentType];
+  if (!model) {
+    return null;
+  }
+  
+  return await model.findByPk(contentId);
+}
+
+// Helper function to create version snapshot
+async function createVersionSnapshot(contentType, content, editedBy, editedByName, editReason, req) {
+  const latestVersion = await ContentVersion.findOne({
+    where: { contentType, contentId: content.id },
+    order: [['versionNumber', 'DESC']]
+  });
+
+  const nextVersionNumber = latestVersion ? latestVersion.versionNumber + 1 : 1;
+
+  const versionData = {
+    contentType,
+    contentId: content.id,
+    versionNumber: nextVersionNumber,
+    content: content.content,
+    editedBy,
+    editedByName,
+    editReason: editReason || 'Content updated',
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'],
+    sizeBytes: content.content ? Buffer.byteLength(content.content, 'utf8') : 0
+  };
+
+  // Add type-specific fields
+  if (content.title) versionData.title = content.title;
+  if (content.mediaUrls) versionData.mediaUrls = content.mediaUrls;
+  
+  // Store additional metadata
+  const metadata = {};
+  if (content.visibility) metadata.visibility = content.visibility;
+  if (content.tags) metadata.tags = content.tags;
+  if (content.category) metadata.category = content.category;
+  if (Object.keys(metadata).length > 0) versionData.metadata = metadata;
+
+  return await ContentVersion.create(versionData);
+}
+
+// Get version history for any content type
+app.get('/:contentType/:contentId/versions', async (req, res) => {
+  try {
+    const { contentType, contentId } = req.params;
+    const userId = req.header('x-user-id');
+    const userRole = req.header('x-user-role');
+
+    // Validate content type
+    const validTypes = ['posts', 'blogs', 'videos', 'wikis', 'docs', 'projects', 'pages', 'images'];
+    if (!validTypes.includes(contentType)) {
+      return res.status(400).json({ error: 'Invalid content type' });
+    }
+
+    // Normalize content type (remove trailing 's')
+    const normalizedType = contentType.endsWith('s') ? contentType.slice(0, -1) : contentType;
+
+    // Check if content exists and user has permission
+    const content = await getContentByType(normalizedType, contentId);
+    if (!content) {
+      return res.status(404).json({ error: `${contentType} not found` });
+    }
+
+    // Check permission: owner or law-order (admin/moderator)
+    const hasPermission = content.userId === userId || ['admin', 'moderator'].includes(userRole);
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Not authorized to view version history' });
+    }
+
+    const versions = await ContentVersion.findAll({
+      where: { contentType: normalizedType, contentId },
+      order: [['versionNumber', 'DESC']]
+    });
+
+    res.json({ 
+      content: {
+        id: content.id,
+        type: normalizedType,
+        currentContent: content.content,
+        currentTitle: content.title,
+        currentMediaUrls: content.mediaUrls
+      },
+      versions,
+      totalVersions: versions.length 
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch version history' });
+  }
+});
+
+// Get a specific version
+app.get('/:contentType/:contentId/versions/:versionNumber', async (req, res) => {
+  try {
+    const { contentType, contentId, versionNumber } = req.params;
+    const userId = req.header('x-user-id');
+    const userRole = req.header('x-user-role');
+
+    const normalizedType = contentType.endsWith('s') ? contentType.slice(0, -1) : contentType;
+
+    const content = await getContentByType(normalizedType, contentId);
+    if (!content) {
+      return res.status(404).json({ error: `${contentType} not found` });
+    }
+
+    const hasPermission = content.userId === userId || ['admin', 'moderator'].includes(userRole);
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const version = await ContentVersion.findOne({
+      where: { 
+        contentType: normalizedType, 
+        contentId, 
+        versionNumber: parseInt(versionNumber) 
+      }
+    });
+
+    if (!version) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+
+    res.json(version);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch version' });
+  }
+});
+
+// Compare two versions with advanced diff
+app.get('/:contentType/:contentId/versions/compare/:version1/:version2', async (req, res) => {
+  try {
+    const { contentType, contentId, version1, version2 } = req.params;
+    const userId = req.header('x-user-id');
+    const userRole = req.header('x-user-role');
+
+    const normalizedType = contentType.endsWith('s') ? contentType.slice(0, -1) : contentType;
+
+    const content = await getContentByType(normalizedType, contentId);
+    if (!content) {
+      return res.status(404).json({ error: `${contentType} not found` });
+    }
+
+    const hasPermission = content.userId === userId || ['admin', 'moderator'].includes(userRole);
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const v1 = await ContentVersion.findOne({
+      where: { contentType: normalizedType, contentId, versionNumber: parseInt(version1) }
+    });
+    const v2 = await ContentVersion.findOne({
+      where: { contentType: normalizedType, contentId, versionNumber: parseInt(version2) }
+    });
+
+    if (!v1 || !v2) {
+      return res.status(404).json({ error: 'One or both versions not found' });
+    }
+
+    // Advanced diff calculation
+    const diff = {
+      title: {
+        old: v1.title,
+        new: v2.title,
+        changed: v1.title !== v2.title
+      },
+      content: {
+        old: v1.content,
+        new: v2.content,
+        changed: v1.content !== v2.content,
+        sizeDiff: (v2.sizeBytes || 0) - (v1.sizeBytes || 0)
+      },
+      mediaUrls: {
+        old: v1.mediaUrls || [],
+        new: v2.mediaUrls || [],
+        changed: JSON.stringify(v1.mediaUrls) !== JSON.stringify(v2.mediaUrls),
+        added: (v2.mediaUrls || []).filter(url => !(v1.mediaUrls || []).includes(url)),
+        removed: (v1.mediaUrls || []).filter(url => !(v2.mediaUrls || []).includes(url))
+      },
+      metadata: {
+        old: v1.metadata,
+        new: v2.metadata,
+        changed: JSON.stringify(v1.metadata) !== JSON.stringify(v2.metadata)
+      },
+      timeDiff: new Date(v2.createdAt) - new Date(v1.createdAt),
+      editor: {
+        v1: v1.editedByName,
+        v2: v2.editedByName,
+        changed: v1.editedBy !== v2.editedBy
+      }
+    };
+
+    res.json({
+      version1: v1,
+      version2: v2,
+      diff,
+      summary: {
+        totalChanges: [diff.title.changed, diff.content.changed, diff.mediaUrls.changed, diff.metadata.changed].filter(Boolean).length,
+        isMinorEdit: Math.abs(diff.content.sizeDiff) < 100,
+        isMajorEdit: Math.abs(diff.content.sizeDiff) > 500
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to compare versions' });
+  }
+});
+
+// Restore a specific version
+app.post('/:contentType/:contentId/versions/:versionNumber/restore', async (req, res) => {
+  try {
+    const { contentType, contentId, versionNumber } = req.params;
+    const userId = req.header('x-user-id');
+    const userName = req.header('x-user-name') || 'User';
+
+    const normalizedType = contentType.endsWith('s') ? contentType.slice(0, -1) : contentType;
+
+    const content = await getContentByType(normalizedType, contentId);
+    if (!content) {
+      return res.status(404).json({ error: `${contentType} not found` });
+    }
+
+    // Only owner can restore
+    if (content.userId !== userId) {
+      return res.status(403).json({ error: 'Only content owner can restore versions' });
+    }
+
+    const version = await ContentVersion.findOne({
+      where: { contentType: normalizedType, contentId, versionNumber: parseInt(versionNumber) }
+    });
+
+    if (!version) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+
+    // Save current state as new version before restoring
+    await createVersionSnapshot(
+      normalizedType,
+      content,
+      userId,
+      userName,
+      `Restoration from version ${versionNumber}`,
+      req
+    );
+
+    // Restore the version
+    const updateData = {
+      content: version.content
+    };
+    if (version.title) updateData.title = version.title;
+    if (version.mediaUrls) updateData.mediaUrls = version.mediaUrls;
+
+    await content.update(updateData);
+
+    res.json({
+      message: 'Version restored successfully',
+      content,
+      restoredFrom: versionNumber
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to restore version' });
+  }
+});
+
+// Update content with automatic versioning (universal endpoint)
+app.put('/:contentType/:contentId', async (req, res) => {
+  try {
+    const { contentType, contentId } = req.params;
+    const userId = req.header('x-user-id');
+    const userName = req.header('x-user-name') || 'User';
+    const { content, title, mediaUrls, editReason, isMinor, isMajor, tags } = req.body;
+
+    const normalizedType = contentType.endsWith('s') ? contentType.slice(0, -1) : contentType;
+
+    const contentItem = await getContentByType(normalizedType, contentId);
+    if (!contentItem) {
+      return res.status(404).json({ error: `${contentType} not found` });
+    }
+
+    if (contentItem.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Save current version before updating
+    const version = await createVersionSnapshot(
+      normalizedType,
+      contentItem,
+      userId,
+      userName,
+      editReason,
+      req
+    );
+
+    // Update version flags if provided
+    if (isMinor !== undefined || isMajor !== undefined || tags !== undefined) {
+      const versionUpdate = {};
+      if (isMinor !== undefined) versionUpdate.isMinor = isMinor;
+      if (isMajor !== undefined) versionUpdate.isMajor = isMajor;
+      if (tags !== undefined) versionUpdate.tags = tags;
+      await version.update(versionUpdate);
+    }
+
+    // Update content
+    const updateData = {};
+    if (content !== undefined) updateData.content = content;
+    if (title !== undefined) updateData.title = title;
+    if (mediaUrls !== undefined) updateData.mediaUrls = mediaUrls;
+
+    await contentItem.update(updateData);
+
+    res.json({ 
+      content: contentItem,
+      versionCreated: version.versionNumber,
+      message: `${contentType} updated successfully`
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update content' });
+  }
+});
+
+// Get version statistics for content
+app.get('/:contentType/:contentId/versions/stats', async (req, res) => {
+  try {
+    const { contentType, contentId } = req.params;
+    const userId = req.header('x-user-id');
+    const userRole = req.header('x-user-role');
+
+    const normalizedType = contentType.endsWith('s') ? contentType.slice(0, -1) : contentType;
+
+    const content = await getContentByType(normalizedType, contentId);
+    if (!content) {
+      return res.status(404).json({ error: `${contentType} not found` });
+    }
+
+    const hasPermission = content.userId === userId || ['admin', 'moderator'].includes(userRole);
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const versions = await ContentVersion.findAll({
+      where: { contentType: normalizedType, contentId },
+      order: [['versionNumber', 'ASC']]
+    });
+
+    if (versions.length === 0) {
+      return res.json({ 
+        totalVersions: 0,
+        message: 'No edit history available'
+      });
+    }
+
+    // Calculate statistics
+    const stats = {
+      totalVersions: versions.length,
+      minorEdits: versions.filter(v => v.isMinor).length,
+      majorEdits: versions.filter(v => v.isMajor).length,
+      editors: [...new Set(versions.map(v => v.editedBy))].length,
+      editorNames: [...new Set(versions.map(v => v.editedByName).filter(Boolean))],
+      firstEdit: versions[0].createdAt,
+      lastEdit: versions[versions.length - 1].createdAt,
+      totalSizeChange: versions[versions.length - 1].sizeBytes - versions[0].sizeBytes,
+      averageEditSize: versions.reduce((sum, v) => sum + (v.sizeBytes || 0), 0) / versions.length,
+      editsByMonth: {},
+      editsByDay: {}
+    };
+
+    // Group edits by time period
+    versions.forEach(v => {
+      const date = new Date(v.createdAt);
+      const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const day = date.toISOString().split('T')[0];
+      
+      stats.editsByMonth[month] = (stats.editsByMonth[month] || 0) + 1;
+      stats.editsByDay[day] = (stats.editsByDay[day] || 0) + 1;
+    });
+
+    res.json(stats);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch version statistics' });
+  }
+});
+
+// ==================== END UNIVERSAL CONTENT VERSION CONTROL ====================
+
+startServer();
+  try {
+    const { postId } = req.params;
+    const userId = req.header('x-user-id');
+
+    // Check if post exists and user has permission
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    // Check permission: owner or law-order (admin/moderator)
+    const userRole = req.header('x-user-role');
+    const hasPermission = post.userId === userId || ['admin', 'moderator'].includes(userRole);
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Not authorized to view post history' });
+    }
+
+    const versions = await PostVersion.findAll({
+      where: { postId },
+      order: [['versionNumber', 'DESC']],
+      include: [{
+        model: sequelize.models.User,
+        as: 'editor',
+        attributes: ['id', 'firstName', 'lastName']
+      }]
+    });
+
+    res.json({ 
+      post: {
+        id: post.id,
+        currentContent: post.content,
+        currentMediaUrls: post.mediaUrls
+      },
+      versions,
+      totalVersions: versions.length 
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch version history' });
+  }
+});
+
+// ==================== END UNIVERSAL CONTENT VERSION CONTROL ====================
 
 startServer();
