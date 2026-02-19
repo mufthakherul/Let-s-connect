@@ -506,6 +506,35 @@ const FriendRequest = sequelize.define('FriendRequest', {
   ]
 });
 
+// User Preferences Model for friend settings
+const UserPreferences = sequelize.define('UserPreferences', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    unique: true,
+    comment: 'User ID for these preferences'
+  },
+  autoAcceptMutualFriendRequests: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Auto-accept friend requests from users who you also sent a request to'
+  },
+  friendRequestPrivacy: {
+    type: DataTypes.ENUM('everyone', 'friends_of_friends', 'no_one'),
+    defaultValue: 'everyone',
+    comment: 'Who can send you friend requests'
+  }
+}, {
+  indexes: [
+    { unique: true, fields: ['userId'] }
+  ]
+});
+
 // PHASE 3: Notification System Models
 const Notification = sequelize.define('Notification', {
   id: {
@@ -1765,29 +1794,47 @@ app.post('/friends/request', async (req, res) => {
 
     if (existingRequest) {
       if (existingRequest.senderId === receiverId) {
-        // The other user already sent us a request - auto-accept it
-        existingRequest.status = 'accepted';
-        await existingRequest.save();
-
-        // Create friendship
-        await Friend.create({
-          userId: senderId,
-          friendId: receiverId
+        // The other user already sent us a request
+        // Check if sender has auto-accept enabled
+        const senderPrefs = await UserPreferences.findOne({
+          where: { userId: senderId }
         });
+        
+        const autoAccept = senderPrefs?.autoAcceptMutualFriendRequests || false;
+        
+        if (autoAccept) {
+          // Auto-accept the mutual friend request
+          existingRequest.status = 'accepted';
+          await existingRequest.save();
 
-        // Create notification
-        await Notification.create({
-          userId: receiverId,
-          type: 'friend_request',
-          title: 'Friend Request Accepted',
-          message: `Your friend request was accepted`,
-          metadata: { actorId: senderId }
-        });
+          // Create friendship
+          await Friend.create({
+            userId: senderId,
+            friendId: receiverId
+          });
 
-        return res.status(200).json({ 
-          message: 'Friend request accepted automatically',
-          friendship: true 
-        });
+          // Create notification
+          await Notification.create({
+            userId: receiverId,
+            type: 'friend_request',
+            title: 'Friend Request Accepted',
+            message: `Your friend request was accepted`,
+            metadata: { actorId: senderId }
+          });
+
+          return res.status(200).json({ 
+            message: 'Friend request accepted automatically (mutual request detected)',
+            friendship: true,
+            autoAccepted: true
+          });
+        } else {
+          // Don't auto-accept - user must manually accept both requests
+          return res.status(400).json({ 
+            error: 'You both have pending friend requests. Please accept the existing request or enable auto-accept in your settings.',
+            mutualRequest: true,
+            existingRequestId: existingRequest.id
+          });
+        }
       } else {
         return res.status(400).json({ error: 'Friend request already sent' });
       }
@@ -2284,6 +2331,73 @@ app.get('/friends/status/:userId', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to check friendship status' });
+  }
+});
+
+// ==================== USER PREFERENCES APIs ====================
+
+// Get user preferences
+app.get('/preferences', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    let preferences = await UserPreferences.findOne({
+      where: { userId }
+    });
+
+    if (!preferences) {
+      // Create default preferences
+      preferences = await UserPreferences.create({
+        userId,
+        autoAcceptMutualFriendRequests: false,
+        friendRequestPrivacy: 'everyone'
+      });
+    }
+
+    res.json(preferences);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch preferences' });
+  }
+});
+
+// Update user preferences
+app.put('/preferences', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { autoAcceptMutualFriendRequests, friendRequestPrivacy } = req.body;
+
+    let preferences = await UserPreferences.findOne({
+      where: { userId }
+    });
+
+    if (!preferences) {
+      preferences = await UserPreferences.create({
+        userId,
+        autoAcceptMutualFriendRequests: autoAcceptMutualFriendRequests || false,
+        friendRequestPrivacy: friendRequestPrivacy || 'everyone'
+      });
+    } else {
+      if (autoAcceptMutualFriendRequests !== undefined) {
+        preferences.autoAcceptMutualFriendRequests = autoAcceptMutualFriendRequests;
+      }
+      if (friendRequestPrivacy !== undefined) {
+        preferences.friendRequestPrivacy = friendRequestPrivacy;
+      }
+      await preferences.save();
+    }
+
+    res.json(preferences);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update preferences' });
   }
 });
 
