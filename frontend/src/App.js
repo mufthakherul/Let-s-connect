@@ -73,6 +73,7 @@ const MeetingLobby = lazy(() => import('./components/MeetingLobby'));
 const Radio = lazy(() => import('./components/Radio'));
 const TV = lazy(() => import('./components/TV'));
 const Pages = lazy(() => import('./components/Pages'));
+const Friends = lazy(() => import('./components/Friends'));
 const AppearanceSettings = lazy(() => import('./components/AppearanceSettings'));
 const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./components/TermsOfService'));
@@ -430,6 +431,7 @@ function AppContent() {
     { label: 'Cookies', path: '/cookies', icon: <VerifiedUser sx={{ fontSize: 20 }} />, public: true },
     { label: 'Meetings', path: '/meetings', icon: <EventIcon />, public: true },
     { label: 'Feed', path: '/feed', icon: <FeedIcon />, public: false },
+    { label: 'Friends', path: '/friends', icon: <PeopleIcon />, public: false },
     { label: 'Groups', path: '/groups', icon: <GroupIcon />, public: false },
     { label: 'Pages', path: '/pages', icon: <PagesIcon />, public: false },
     { label: 'Radio', path: '/radio', icon: <RadioIcon />, public: false },
@@ -1116,6 +1118,10 @@ function AppContent() {
                   <Route
                     path="/pages"
                     element={internalUser ? <Pages user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/friends"
+                    element={internalUser ? <Friends user={internalUser} /> : <Navigate to="/login" />}
                   />
                   <Route
                     path="/bookmarks"
