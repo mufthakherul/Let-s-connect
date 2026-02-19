@@ -70,6 +70,9 @@ const ResetPassword = lazy(() => import('./components/ResetPassword'));
 const Meetings = lazy(() => import('./components/Meetings'));
 const MeetingRoom = lazy(() => import('./components/MeetingRoom'));
 const MeetingLobby = lazy(() => import('./components/MeetingLobby'));
+const Radio = lazy(() => import('./components/Radio'));
+const TV = lazy(() => import('./components/TV'));
+const Pages = lazy(() => import('./components/Pages'));
 const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./components/TermsOfService'));
 const CookiePolicy = lazy(() => import('./components/CookiePolicy'));
@@ -92,6 +95,9 @@ const BookmarksGuide = lazy(() => import('./components/helpcenter/guides/Bookmar
 const ProfileGuide = lazy(() => import('./components/helpcenter/guides/ProfileGuide'));
 const EmailSettingsGuide = lazy(() => import('./components/helpcenter/guides/EmailSettingsGuide'));
 const SearchGuide = lazy(() => import('./components/helpcenter/guides/SearchGuide'));
+const LiveRadioGuide = lazy(() => import('./components/helpcenter/guides/LiveRadioGuide'));
+const LiveTvGuide = lazy(() => import('./components/helpcenter/guides/LiveTvGuide'));
+const PagesGuide = lazy(() => import('./components/helpcenter/guides/PagesGuide'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -424,6 +430,9 @@ function AppContent() {
     { label: 'Meetings', path: '/meetings', icon: <EventIcon />, public: true },
     { label: 'Feed', path: '/feed', icon: <FeedIcon />, public: false },
     { label: 'Groups', path: '/groups', icon: <GroupIcon />, public: false },
+    { label: 'Pages', path: '/pages', icon: <PagesIcon />, public: false },
+    { label: 'Radio', path: '/radio', icon: <RadioIcon />, public: false },
+    { label: 'TV', path: '/tv', icon: <TvIcon />, public: false },
     { label: 'Cart', path: '/cart', icon: <ShoppingCartOutlined />, public: false },
     { label: 'Bookmarks', path: '/bookmarks', icon: <Bookmark />, public: false },
     { label: 'Chat', path: '/chat', icon: <ChatIcon />, public: false },
@@ -750,6 +759,12 @@ function AppContent() {
                       </ListItemIcon>
                       <ListItemText>Docs</ListItemText>
                     </MenuItem>
+                    <MenuItem component={Link} to="/pages" onClick={() => setRegisteredAppsAnchor(null)}>
+                      <ListItemIcon>
+                        <PagesIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText>Pages</ListItemText>
+                    </MenuItem>
                     <MenuItem component={Link} to="/shop" onClick={() => setRegisteredAppsAnchor(null)}>
                       <ListItemIcon>
                         <ShoppingCart fontSize="small" />
@@ -767,6 +782,18 @@ function AppContent() {
                         <Article fontSize="small" />
                       </ListItemIcon>
                       <ListItemText>Blog</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/radio" onClick={() => setRegisteredAppsAnchor(null)}>
+                      <ListItemIcon>
+                        <RadioIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText>Live Radio</ListItemText>
+                    </MenuItem>
+                    <MenuItem component={Link} to="/tv" onClick={() => setRegisteredAppsAnchor(null)}>
+                      <ListItemIcon>
+                        <TvIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText>Live TV</ListItemText>
                     </MenuItem>
                   </Menu>
                 </Box>
@@ -1085,6 +1112,10 @@ function AppContent() {
                     element={internalUser ? <Groups user={internalUser} /> : <Navigate to="/login" />}
                   />
                   <Route
+                    path="/pages"
+                    element={internalUser ? <Pages user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  <Route
                     path="/bookmarks"
                     element={internalUser ? <Bookmarks user={internalUser} /> : <Navigate to="/login" />}
                   />
@@ -1149,10 +1180,23 @@ function AppContent() {
                   <Route path="/helpcenter/manuals/shop" element={<ShopGuide />} />
                   <Route path="/helpcenter/manuals/cart" element={<CartGuide />} />
                   <Route path="/helpcenter/manuals/blog" element={<BlogGuide />} />
+                  <Route path="/helpcenter/manuals/pages" element={<PagesGuide />} />
+                  <Route path="/helpcenter/manuals/live-radio" element={<LiveRadioGuide />} />
+                  <Route path="/helpcenter/manuals/live-tv" element={<LiveTvGuide />} />
                   <Route path="/helpcenter/manuals/email-settings" element={<EmailSettingsGuide />} />
                   <Route path="/helpcenter/faq" element={<FAQ />} />
                   <Route path="/helpcenter/feedback" element={<Feedback />} />
                   <Route path="/helpcenter/tickets" element={<SupportTicket />} />
+
+                  {/* Streaming Features - Radio & TV */}
+                  <Route
+                    path="/radio"
+                    element={internalUser ? <Radio /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/tv"
+                    element={internalUser ? <TV /> : <Navigate to="/login" />}
+                  />
 
                   {/* Error pages for testing & catch-all 404 */}
                   <Route path="/error/401" element={<Error401 />} />
