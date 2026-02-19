@@ -3,14 +3,22 @@ import {
     Container, Paper, Typography, Box, TextField, Button,
     Tabs, Tab, List, ListItem, ListItemText, Chip,
     FormControl, InputLabel, Select, MenuItem, Grid,
-    CircularProgress, Alert, Card, CardContent, Divider
+    CircularProgress, Alert, Card, CardContent, Divider,
+    Avatar, ListItemAvatar
 } from '@mui/material';
-import { Search as SearchIcon, Schedule } from '@mui/icons-material';
-import { useLocation } from 'react-router-dom';
+import { 
+    Search as SearchIcon, 
+    Schedule,
+    Person as PersonIcon,
+    Group as GroupIcon,
+    Pages as PagesIcon
+} from '@mui/icons-material';
+import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 
 const Search = () => {
     const location = useLocation();
+    const navigate = useNavigate();
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState(null);
@@ -52,15 +60,60 @@ const Search = () => {
             setLoading(true);
             setError('');
 
-            const response = await api.get('/content-service/search', {
+            // Search content-service
+            const contentResponse = await api.get('/content-service/search', {
                 params: {
                     query: searchQuery,
-                    type: searchType,
+                    type: searchType === 'all' || ['posts', 'comments', 'blogs'].includes(searchType) ? searchType : 'all',
                     sortBy
                 }
             });
 
-            setResults(response.data.results);
+            // Search users (friends) if type is all or users
+            let users = { items: [], count: 0 };
+            if (searchType === 'all' || searchType === 'users') {
+                try {
+                    const userResponse = await api.get('/user-service/search', {
+                        params: { query: searchQuery }
+                    });
+                    users = { items: userResponse.data.users || [], count: userResponse.data.users?.length || 0 };
+                } catch (err) {
+                    console.error('User search failed:', err);
+                }
+            }
+
+            // Search groups if type is all or groups
+            let groups = { items: [], count: 0 };
+            if (searchType === 'all' || searchType === 'groups') {
+                try {
+                    const groupsResponse = await api.get('/content-service/groups', {
+                        params: { search: searchQuery }
+                    });
+                    groups = { items: groupsResponse.data || [], count: groupsResponse.data?.length || 0 };
+                } catch (err) {
+                    console.error('Groups search failed:', err);
+                }
+            }
+
+            // Search pages if type is all or pages
+            let pages = { items: [], count: 0 };
+            if (searchType === 'all' || searchType === 'pages') {
+                try {
+                    const pagesResponse = await api.get('/user-service/pages/search', {
+                        params: { query: searchQuery }
+                    });
+                    pages = { items: pagesResponse.data.pages || [], count: pagesResponse.data.pages?.length || 0 };
+                } catch (err) {
+                    console.error('Pages search failed:', err);
+                }
+            }
+
+            setResults({
+                ...contentResponse.data.results,
+                users,
+                groups,
+                pages
+            });
 
             // Save to history
             await api.post('/content-service/search/history', {
@@ -94,9 +147,47 @@ const Search = () => {
             <List>
                 {items.map((item, index) => (
                     <React.Fragment key={item.id || index}>
-                        <ListItem sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <ListItem 
+                            sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', cursor: 'pointer' }}
+                            onClick={() => {
+                                if (type === 'users') navigate(`/profile/${item.id}`);
+                                else if (type === 'groups') navigate(`/groups/${item.id}`);
+                                else if (type === 'pages') navigate(`/pages/${item.id}`);
+                            }}
+                        >
+                            {(type === 'users' || type === 'groups' || type === 'pages') && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', mb: 1 }}>
+                                    <ListItemAvatar>
+                                        <Avatar src={item.avatar || item.avatarUrl}>
+                                            {type === 'users' && <PersonIcon />}
+                                            {type === 'groups' && <GroupIcon />}
+                                            {type === 'pages' && <PagesIcon />}
+                                        </Avatar>
+                                    </ListItemAvatar>
+                                    <Box>
+                                        <Typography variant="h6">
+                                            {item.name || `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.username}
+                                        </Typography>
+                                        {type === 'users' && (
+                                            <Typography variant="body2" color="textSecondary">
+                                                @{item.username}
+                                            </Typography>
+                                        )}
+                                        {type === 'groups' && (
+                                            <Chip label={item.privacy} size="small" sx={{ mt: 0.5 }} />
+                                        )}
+                                        {type === 'pages' && item.isVerified && (
+                                            <Chip label="Verified" size="small" color="primary" sx={{ mt: 0.5 }} />
+                                        )}
+                                    </Box>
+                                </Box>
+                            )}
                             <ListItemText
-                                primary={item.title || item.content?.substring(0, 100) + '...'}
+                                primary={
+                                    type !== 'users' && type !== 'groups' && type !== 'pages' 
+                                        ? (item.title || item.content?.substring(0, 100) + '...') 
+                                        : (item.description || item.bio)
+                                }
                                 secondary={
                                     <Box sx={{ mt: 1 }}>
                                         <Typography variant="caption" color="text.secondary">
@@ -112,6 +203,12 @@ const Search = () => {
                                                     <Chip label={`${item.shares} shares`} size="small" />
                                                 )}
                                             </Box>
+                                        )}
+                                        {type === 'groups' && item.memberCount !== undefined && (
+                                            <Chip label={`${item.memberCount} members`} size="small" sx={{ mt: 1 }} />
+                                        )}
+                                        {type === 'pages' && item.followers !== undefined && (
+                                            <Chip label={`${item.followers} followers`} size="small" sx={{ mt: 1 }} />
                                         )}
                                     </Box>
                                 }
@@ -140,7 +237,7 @@ const Search = () => {
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                            placeholder="Search posts, comments, blogs..."
+                            placeholder="Search posts, users, groups, pages..."
                         />
                     </Grid>
                     <Grid item xs={12} md={3}>
@@ -151,6 +248,9 @@ const Search = () => {
                                 <MenuItem value="posts">Posts</MenuItem>
                                 <MenuItem value="comments">Comments</MenuItem>
                                 <MenuItem value="blogs">Blogs</MenuItem>
+                                <MenuItem value="users">Users</MenuItem>
+                                <MenuItem value="groups">Groups</MenuItem>
+                                <MenuItem value="pages">Pages</MenuItem>
                             </Select>
                         </FormControl>
                     </Grid>
@@ -218,6 +318,9 @@ const Search = () => {
                         {results.posts && <Tab label={`Posts (${results.posts.count})`} />}
                         {results.comments && <Tab label={`Comments (${results.comments.count})`} />}
                         {results.blogs && <Tab label={`Blogs (${results.blogs.count})`} />}
+                        {results.users && <Tab label={`Users (${results.users.count})`} />}
+                        {results.groups && <Tab label={`Groups (${results.groups.count})`} />}
+                        {results.pages && <Tab label={`Pages (${results.pages.count})`} />}
                         {results.hashtagPosts && <Tab label={`Hashtag Posts (${results.hashtagPosts.count})`} />}
                     </Tabs>
 
@@ -225,7 +328,10 @@ const Search = () => {
                         {currentTab === 0 && results.posts && renderResults(results.posts.items, 'posts')}
                         {currentTab === 1 && results.comments && renderResults(results.comments.items, 'comments')}
                         {currentTab === 2 && results.blogs && renderResults(results.blogs.items, 'blogs')}
-                        {currentTab === 3 && results.hashtagPosts && renderResults(results.hashtagPosts.items, 'hashtag posts')}
+                        {currentTab === 3 && results.users && renderResults(results.users.items, 'users')}
+                        {currentTab === 4 && results.groups && renderResults(results.groups.items, 'groups')}
+                        {currentTab === 5 && results.pages && renderResults(results.pages.items, 'pages')}
+                        {currentTab === 6 && results.hashtagPosts && renderResults(results.hashtagPosts.items, 'hashtag posts')}
                     </Box>
                 </Paper>
             )}

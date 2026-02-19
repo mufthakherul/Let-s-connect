@@ -1283,6 +1283,35 @@ app.get('/users/:userId/pages', async (req, res) => {
   }
 });
 
+// Search pages
+app.get('/pages/search', async (req, res) => {
+  try {
+    const { query, limit = 20, offset = 0 } = req.query;
+
+    if (!query) {
+      return res.status(400).json({ error: 'Query parameter is required' });
+    }
+
+    const pages = await Page.findAndCountAll({
+      where: {
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${query}%` } },
+          { description: { [Op.iLike]: `%${query}%` } },
+          { category: { [Op.iLike]: `%${query}%` } }
+        ]
+      },
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['followers', 'DESC'], ['createdAt', 'DESC']]
+    });
+
+    res.json({ pages: pages.rows, total: pages.count });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to search pages' });
+  }
+});
+
 // Update page
 app.put('/pages/:id', async (req, res) => {
   try {
