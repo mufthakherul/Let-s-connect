@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
     Speed, Security, CloudDone, Groups, Chat, VideoLibrary,
-    ShoppingCart, Description, SmartToy, VerifiedUser, Event, Tv, Radio, Lock
+    ShoppingCart, Description, VerifiedUser, Event, Lock
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 
@@ -361,20 +361,43 @@ function UnregisterLanding() {
                                             {feature.description}
                                         </Typography>
 
-                                        <Button
-                                            size="small"
-                                            component={Link}
-                                            to={feature.requiresLogin ? '/register' : feature.link}
-                                            variant="text"
-                                            sx={{
-                                                '&:hover': { transform: 'translateX(6px)' },
-                                                transition: 'all 0.25s ease'
-                                            }}
-                                        >
-                                            <Box component={motion.span} whileHover={{ x: 6 }} sx={{ display: 'inline-flex', alignItems: 'center' }}>
-                                                {feature.requiresLogin ? 'Sign Up to Access →' : 'Learn More →'}
-                                            </Box>
-                                        </Button>
+                                        {feature.requiresLogin ? (
+                                            <Stack direction="row" spacing={1} justifyContent="center">
+                                                <Button
+                                                    size="small"
+                                                    component={Link}
+                                                    to="/login"
+                                                    variant="outlined"
+                                                    sx={{ fontSize: '0.75rem' }}
+                                                >
+                                                    Login
+                                                </Button>
+                                                <Button
+                                                    size="small"
+                                                    component={Link}
+                                                    to="/register"
+                                                    variant="contained"
+                                                    sx={{ fontSize: '0.75rem' }}
+                                                >
+                                                    Sign Up
+                                                </Button>
+                                            </Stack>
+                                        ) : (
+                                            <Button
+                                                size="small"
+                                                component={Link}
+                                                to={feature.link}
+                                                variant="text"
+                                                sx={{
+                                                    '&:hover': { transform: 'translateX(6px)' },
+                                                    transition: 'all 0.25s ease'
+                                                }}
+                                            >
+                                                <Box component={motion.span} whileHover={{ x: 6 }} sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                    Learn More →
+                                                </Box>
+                                            </Button>
+                                        )}
                                     </CardContent>
                                 </MotionCard>
                             </Grid>
