@@ -325,6 +325,114 @@ const PageAdmin = sequelize.define('PageAdmin', {
   ]
 });
 
+// Page Analytics Models
+const PageView = sequelize.define('PageView', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  pageId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    comment: 'Viewer user ID (null for anonymous)'
+  },
+  viewDate: {
+    type: DataTypes.DATEONLY,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
+  },
+  viewCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1
+  }
+}, {
+  indexes: [
+    { fields: ['pageId', 'viewDate'] },
+    { fields: ['pageId', 'userId', 'viewDate'], unique: true }
+  ]
+});
+
+const PageFollower = sequelize.define('PageFollower', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  pageId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  notificationsEnabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['pageId', 'userId']
+    },
+    { fields: ['pageId'] },
+    { fields: ['userId'] }
+  ]
+});
+
+const PageInsight = sequelize.define('PageInsight', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  pageId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  },
+  totalViews: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  uniqueViewers: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  newFollowers: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  unfollows: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  postReach: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  postEngagement: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    comment: 'Total likes + comments + shares'
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['pageId', 'date']
+    }
+  ]
+});
+
 // Friends System Models (Facebook-style)
 const Friend = sequelize.define('Friend', {
   id: {
@@ -653,6 +761,14 @@ User.hasMany(Page, { foreignKey: 'userId' });
 Page.belongsTo(User, { foreignKey: 'userId' });
 Page.hasMany(PageAdmin, { foreignKey: 'pageId' });
 PageAdmin.belongsTo(Page, { foreignKey: 'pageId' });
+Page.hasMany(PageView, { foreignKey: 'pageId' });
+PageView.belongsTo(Page, { foreignKey: 'pageId' });
+Page.hasMany(PageFollower, { foreignKey: 'pageId' });
+PageFollower.belongsTo(Page, { foreignKey: 'pageId' });
+User.hasMany(PageFollower, { foreignKey: 'userId' });
+PageFollower.belongsTo(User, { foreignKey: 'userId' });
+Page.hasMany(PageInsight, { foreignKey: 'pageId' });
+PageInsight.belongsTo(Page, { foreignKey: 'pageId' });
 User.hasMany(Friend, { as: 'Friendships', foreignKey: 'userId' });
 Friend.belongsTo(User, { as: 'User', foreignKey: 'userId' });
 Friend.belongsTo(User, { as: 'FriendUser', foreignKey: 'friendId' });
@@ -1186,16 +1302,232 @@ app.put('/pages/:id', async (req, res) => {
 // Follow/like page (increment followers)
 app.post('/pages/:id/follow', async (req, res) => {
   try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const page = await Page.findByPk(req.params.id);
     if (!page) {
       return res.status(404).json({ error: 'Page not found' });
     }
 
-    await page.increment('followers');
-    res.json({ message: 'Page followed successfully' });
+    // Check if already following
+    const existingFollow = await PageFollower.findOne({
+      where: { pageId: page.id, userId }
+    });
+
+    if (existingFollow) {
+      // Unfollow
+      await existingFollow.destroy();
+      await page.decrement('followers');
+      
+      // Update insights for unfollows
+      const today = new Date().toISOString().split('T')[0];
+      const [insight] = await PageInsight.findOrCreate({
+        where: { pageId: page.id, date: today },
+        defaults: { unfollows: 0 }
+      });
+      await insight.increment('unfollows');
+
+      return res.json({ message: 'Page unfollowed successfully', following: false });
+    } else {
+      // Follow
+      await PageFollower.create({
+        pageId: page.id,
+        userId
+      });
+      await page.increment('followers');
+
+      // Update insights for new followers
+      const today = new Date().toISOString().split('T')[0];
+      const [insight] = await PageInsight.findOrCreate({
+        where: { pageId: page.id, date: today },
+        defaults: { newFollowers: 0 }
+      });
+      await insight.increment('newFollowers');
+
+      return res.json({ message: 'Page followed successfully', following: true });
+    }
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Failed to follow page' });
+    res.status(500).json({ error: 'Failed to follow/unfollow page' });
+  }
+});
+
+// Get page analytics
+app.get('/pages/:id/analytics', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { period = '30' } = req.query; // days
+
+    // Verify user has permission to view analytics
+    const page = await Page.findByPk(id);
+    if (!page) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+
+    const isOwner = page.userId === userId;
+    const isAdmin = await PageAdmin.findOne({
+      where: { pageId: id, userId, role: { [Op.in]: ['owner', 'admin', 'editor'] } }
+    });
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Not authorized to view analytics' });
+    }
+
+    // Get insights for the period
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - parseInt(period));
+
+    const insights = await PageInsight.findAll({
+      where: {
+        pageId: id,
+        date: { [Op.gte]: startDate }
+      },
+      order: [['date', 'ASC']]
+    });
+
+    // Calculate totals
+    const totals = insights.reduce((acc, insight) => ({
+      totalViews: acc.totalViews + insight.totalViews,
+      uniqueViewers: acc.uniqueViewers + insight.uniqueViewers,
+      newFollowers: acc.newFollowers + insight.newFollowers,
+      unfollows: acc.unfollows + insight.unfollows,
+      postReach: acc.postReach + insight.postReach,
+      postEngagement: acc.postEngagement + insight.postEngagement
+    }), {
+      totalViews: 0,
+      uniqueViewers: 0,
+      newFollowers: 0,
+      unfollows: 0,
+      postReach: 0,
+      postEngagement: 0
+    });
+
+    // Get current follower count
+    const followerCount = await PageFollower.count({ where: { pageId: id } });
+
+    res.json({
+      period: parseInt(period),
+      totals,
+      followerCount,
+      insights,
+      page: {
+        id: page.id,
+        name: page.name,
+        isVerified: page.isVerified
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+// Track page view
+app.post('/pages/:id/view', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id'); // optional for anonymous views
+    const { id } = req.params;
+
+    const page = await Page.findByPk(id);
+    if (!page) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+
+    // Track individual page view
+    if (userId) {
+      const [pageView, created] = await PageView.findOrCreate({
+        where: { pageId: id, userId, viewDate: today },
+        defaults: { viewCount: 0 }
+      });
+      if (!created) {
+        await pageView.increment('viewCount');
+      }
+    }
+
+    // Update insights
+    const [insight, insightCreated] = await PageInsight.findOrCreate({
+      where: { pageId: id, date: today },
+      defaults: { 
+        totalViews: 1,
+        uniqueViewers: userId ? 1 : 0
+      }
+    });
+
+    if (!insightCreated) {
+      await insight.increment('totalViews');
+      if (userId) {
+        // Check if this is a unique viewer today
+        const existingView = await PageView.findOne({
+          where: { pageId: id, userId, viewDate: today }
+        });
+        if (!existingView || existingView.viewCount === 1) {
+          await insight.increment('uniqueViewers');
+        }
+      }
+    }
+
+    res.json({ message: 'Page view tracked' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to track page view' });
+  }
+});
+
+// Get page followers
+app.get('/pages/:id/followers', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 20, offset = 0 } = req.query;
+
+    const followers = await PageFollower.findAndCountAll({
+      where: { pageId: id },
+      include: [{
+        model: User,
+        attributes: ['id', 'username', 'firstName', 'lastName', 'avatar']
+      }],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({
+      followers: followers.rows,
+      total: followers.count
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch followers' });
+  }
+});
+
+// Check if user follows a page
+app.get('/pages/:id/following', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.json({ following: false });
+    }
+
+    const { id } = req.params;
+
+    const following = await PageFollower.findOne({
+      where: { pageId: id, userId }
+    });
+
+    res.json({ following: !!following });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to check following status' });
   }
 });
 

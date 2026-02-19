@@ -506,6 +506,150 @@ const GroupMember = sequelize.define('GroupMember', {
   ]
 });
 
+// Group Analytics Models
+const GroupInsight = sequelize.define('GroupInsight', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  groupId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  },
+  newMembers: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  leftMembers: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  newPosts: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  totalEngagement: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    comment: 'Total likes + comments on group posts'
+  },
+  activeMembers: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    comment: 'Members who posted or commented today'
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['groupId', 'date']
+    }
+  ]
+});
+
+// Group Moderation Models
+const GroupRule = sequelize.define('GroupRule', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  groupId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  order: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+});
+
+const GroupReport = sequelize.define('GroupReport', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  groupId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  reporterId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  contentType: {
+    type: DataTypes.ENUM('post', 'comment', 'member'),
+    allowNull: false
+  },
+  contentId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  reason: {
+    type: DataTypes.ENUM('spam', 'harassment', 'hate_speech', 'violence', 'inappropriate', 'other'),
+    allowNull: false
+  },
+  description: DataTypes.TEXT,
+  status: {
+    type: DataTypes.ENUM('pending', 'reviewing', 'resolved', 'dismissed'),
+    defaultValue: 'pending'
+  },
+  reviewedBy: DataTypes.UUID,
+  resolution: DataTypes.TEXT,
+  resolvedAt: DataTypes.DATE
+}, {
+  indexes: [
+    { fields: ['groupId', 'status'] },
+    { fields: ['reporterId'] }
+  ]
+});
+
+const GroupMute = sequelize.define('GroupMute', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  groupId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  mutedBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  reason: DataTypes.TEXT,
+  expiresAt: {
+    type: DataTypes.DATE,
+    comment: 'Null for permanent mute'
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['groupId', 'userId']
+    }
+  ]
+});
+
 // NEW: Bookmarks Model (Twitter/X-inspired)
 const Bookmark = sequelize.define('Bookmark', {
   id: {
@@ -1029,6 +1173,14 @@ Group.hasMany(GroupMember, { foreignKey: 'groupId' });
 Group.hasMany(Post, { foreignKey: 'groupId' });
 Group.hasMany(GroupFile, { foreignKey: 'groupId' });
 Group.hasMany(GroupEvent, { foreignKey: 'groupId' });
+Group.hasMany(GroupInsight, { foreignKey: 'groupId' });
+GroupInsight.belongsTo(Group, { foreignKey: 'groupId' });
+Group.hasMany(GroupRule, { foreignKey: 'groupId' });
+GroupRule.belongsTo(Group, { foreignKey: 'groupId' });
+Group.hasMany(GroupReport, { foreignKey: 'groupId' });
+GroupReport.belongsTo(Group, { foreignKey: 'groupId' });
+Group.hasMany(GroupMute, { foreignKey: 'groupId' });
+GroupMute.belongsTo(Group, { foreignKey: 'groupId' });
 GroupEvent.hasMany(GroupEventAttendee, { foreignKey: 'eventId' });
 Playlist.hasMany(PlaylistItem, { foreignKey: 'playlistId' });
 PlaylistItem.belongsTo(Playlist, { foreignKey: 'playlistId' });
@@ -3570,6 +3722,406 @@ app.post('/events/:eventId/rsvp', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to RSVP to event' });
+  }
+});
+
+// ==================== GROUP ANALYTICS & MODERATION ENDPOINTS ====================
+
+// Get group analytics
+app.get('/groups/:id/analytics', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { period = '30' } = req.query; // days
+
+    // Verify user has permission to view analytics
+    const membership = await GroupMember.findOne({
+      where: { 
+        groupId: id, 
+        userId, 
+        role: { [Op.in]: ['admin', 'moderator'] },
+        status: 'active'
+      }
+    });
+
+    const group = await Group.findByPk(id);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    if (!membership && group.createdBy !== userId) {
+      return res.status(403).json({ error: 'Not authorized to view analytics' });
+    }
+
+    // Get insights for the period
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - parseInt(period));
+
+    const insights = await GroupInsight.findAll({
+      where: {
+        groupId: id,
+        date: { [Op.gte]: startDate }
+      },
+      order: [['date', 'ASC']]
+    });
+
+    // Calculate totals
+    const totals = insights.reduce((acc, insight) => ({
+      newMembers: acc.newMembers + insight.newMembers,
+      leftMembers: acc.leftMembers + insight.leftMembers,
+      newPosts: acc.newPosts + insight.newPosts,
+      totalEngagement: acc.totalEngagement + insight.totalEngagement,
+      avgActiveMembers: acc.avgActiveMembers + insight.activeMembers
+    }), {
+      newMembers: 0,
+      leftMembers: 0,
+      newPosts: 0,
+      totalEngagement: 0,
+      avgActiveMembers: 0
+    });
+
+    if (insights.length > 0) {
+      totals.avgActiveMembers = Math.round(totals.avgActiveMembers / insights.length);
+    }
+
+    res.json({
+      period: parseInt(period),
+      totals,
+      memberCount: group.memberCount,
+      insights,
+      group: {
+        id: group.id,
+        name: group.name,
+        privacy: group.privacy
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+// Get/Create group rules
+app.get('/groups/:id/rules', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const rules = await GroupRule.findAll({
+      where: { groupId: id },
+      order: [['order', 'ASC'], ['createdAt', 'ASC']]
+    });
+
+    res.json(rules);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch group rules' });
+  }
+});
+
+app.post('/groups/:id/rules', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { title, description, order } = req.body;
+
+    if (!title || !description) {
+      return res.status(400).json({ error: 'title and description are required' });
+    }
+
+    // Verify user is admin/moderator
+    const membership = await GroupMember.findOne({
+      where: { 
+        groupId: id, 
+        userId, 
+        role: { [Op.in]: ['admin', 'moderator'] },
+        status: 'active'
+      }
+    });
+
+    const group = await Group.findByPk(id);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    if (!membership && group.createdBy !== userId) {
+      return res.status(403).json({ error: 'Only admins/moderators can create rules' });
+    }
+
+    const rule = await GroupRule.create({
+      groupId: id,
+      title,
+      description,
+      order: order || 0
+    });
+
+    res.status(201).json(rule);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create group rule' });
+  }
+});
+
+// Report content in group
+app.post('/groups/:id/report', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { contentType, contentId, reason, description } = req.body;
+
+    if (!contentType || !contentId || !reason) {
+      return res.status(400).json({ error: 'contentType, contentId, and reason are required' });
+    }
+
+    // Verify user is group member
+    const membership = await GroupMember.findOne({
+      where: { groupId: id, userId, status: 'active' }
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Must be a group member to report content' });
+    }
+
+    const report = await GroupReport.create({
+      groupId: id,
+      reporterId: userId,
+      contentType,
+      contentId,
+      reason,
+      description,
+      status: 'pending'
+    });
+
+    res.status(201).json(report);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create report' });
+  }
+});
+
+// Get group reports (admin/moderator only)
+app.get('/groups/:id/reports', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { status = 'pending' } = req.query;
+
+    // Verify user is admin/moderator
+    const membership = await GroupMember.findOne({
+      where: { 
+        groupId: id, 
+        userId, 
+        role: { [Op.in]: ['admin', 'moderator'] },
+        status: 'active'
+      }
+    });
+
+    const group = await Group.findByPk(id);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    if (!membership && group.createdBy !== userId) {
+      return res.status(403).json({ error: 'Only admins/moderators can view reports' });
+    }
+
+    const reports = await GroupReport.findAll({
+      where: { 
+        groupId: id,
+        status
+      },
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(reports);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch reports' });
+  }
+});
+
+// Resolve group report
+app.put('/groups/:id/reports/:reportId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id, reportId } = req.params;
+    const { status, resolution } = req.body;
+
+    if (!status || !['resolved', 'dismissed'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    // Verify user is admin/moderator
+    const membership = await GroupMember.findOne({
+      where: { 
+        groupId: id, 
+        userId, 
+        role: { [Op.in]: ['admin', 'moderator'] },
+        status: 'active'
+      }
+    });
+
+    const group = await Group.findByPk(id);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    if (!membership && group.createdBy !== userId) {
+      return res.status(403).json({ error: 'Only admins/moderators can resolve reports' });
+    }
+
+    const report = await GroupReport.findByPk(reportId);
+    if (!report || report.groupId !== id) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    report.status = status;
+    report.resolution = resolution;
+    report.reviewedBy = userId;
+    report.resolvedAt = new Date();
+    await report.save();
+
+    res.json(report);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to resolve report' });
+  }
+});
+
+// Mute a group member
+app.post('/groups/:id/mute', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { targetUserId, reason, duration } = req.body; // duration in hours, null for permanent
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'targetUserId is required' });
+    }
+
+    // Verify user is admin/moderator
+    const membership = await GroupMember.findOne({
+      where: { 
+        groupId: id, 
+        userId, 
+        role: { [Op.in]: ['admin', 'moderator'] },
+        status: 'active'
+      }
+    });
+
+    const group = await Group.findByPk(id);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    if (!membership && group.createdBy !== userId) {
+      return res.status(403).json({ error: 'Only admins/moderators can mute members' });
+    }
+
+    // Check target user membership
+    const targetMembership = await GroupMember.findOne({
+      where: { groupId: id, userId: targetUserId }
+    });
+
+    if (!targetMembership) {
+      return res.status(404).json({ error: 'Target user is not a group member' });
+    }
+
+    // Cannot mute admins unless you're the group creator
+    if (targetMembership.role === 'admin' && group.createdBy !== userId) {
+      return res.status(403).json({ error: 'Cannot mute group admins' });
+    }
+
+    const expiresAt = duration ? new Date(Date.now() + duration * 60 * 60 * 1000) : null;
+
+    const [mute, created] = await GroupMute.findOrCreate({
+      where: { groupId: id, userId: targetUserId },
+      defaults: {
+        mutedBy: userId,
+        reason,
+        expiresAt
+      }
+    });
+
+    if (!created) {
+      mute.mutedBy = userId;
+      mute.reason = reason;
+      mute.expiresAt = expiresAt;
+      await mute.save();
+    }
+
+    res.status(created ? 201 : 200).json(mute);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to mute member' });
+  }
+});
+
+// Unmute a group member
+app.delete('/groups/:id/mute/:targetUserId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id, targetUserId } = req.params;
+
+    // Verify user is admin/moderator
+    const membership = await GroupMember.findOne({
+      where: { 
+        groupId: id, 
+        userId, 
+        role: { [Op.in]: ['admin', 'moderator'] },
+        status: 'active'
+      }
+    });
+
+    const group = await Group.findByPk(id);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    if (!membership && group.createdBy !== userId) {
+      return res.status(403).json({ error: 'Only admins/moderators can unmute members' });
+    }
+
+    const mute = await GroupMute.findOne({
+      where: { groupId: id, userId: targetUserId }
+    });
+
+    if (!mute) {
+      return res.status(404).json({ error: 'Mute not found' });
+    }
+
+    await mute.destroy();
+    res.json({ message: 'Member unmuted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to unmute member' });
   }
 });
 
