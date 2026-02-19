@@ -1423,9 +1423,19 @@ const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
 
 async function startServer() {
   try {
-    await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+    // Workaround: catch enum creation race / existing enum type errors produced by Postgres
+    try {
+      await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+    } catch (syncErr) {
+      // Sequelize may surface a unique constraint error when a Postgres enum type already exists
+      if (syncErr && syncErr.name === 'SequelizeUniqueConstraintError' && syncErr.parent && syncErr.parent.constraint === 'pg_type_typname_nsp_index') {
+        console.warn('[DB] Enum type already exists (pg_type_typname_nsp_index) — continuing startup');
+      } else {
+        throw syncErr;
+      }
+    }
 
-    // Initialize default awards if they don't exist
+    // Initialize default awards if they don't exist"
     try {
       const awards = [
         { name: 'Gold Award', description: 'A prestigious gold award', icon: '🥇', cost: 500, type: 'gold' },
@@ -7113,10 +7123,6 @@ app.get('/:contentType/:contentId/versions/stats', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch version statistics' });
   }
 });
-
-// ==================== END UNIVERSAL CONTENT VERSION CONTROL ====================
-
-startServer();
 
 // ==================== END UNIVERSAL CONTENT VERSION CONTROL ====================
 

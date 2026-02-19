@@ -78,7 +78,7 @@ const AppearanceSettings = lazy(() => import('./components/AppearanceSettings'))
 const SettingsHub = lazy(() => import('./components/SettingsHub'));
 const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./components/TermsOfService'));
-const CookiePolicy = lazy(() => import('./components/CookiePolicy')); "
+const CookiePolicy = lazy(() => import('./components/CookiePolicy'));
 const HelpCenter = lazy(() => import('./components/helpcenter/HelpCenter'));
 const UserManuals = lazy(() => import('./components/helpcenter/UserManuals'));
 const FAQ = lazy(() => import('./components/helpcenter/FAQ'));
