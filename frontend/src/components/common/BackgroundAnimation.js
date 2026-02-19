@@ -14,7 +14,7 @@ const FloatingParticles = () => {
                 width: '100%',
                 height: '100%',
                 pointerEvents: 'none',
-                zIndex: -9999,
+                zIndex: -1,
                 overflow: 'hidden'
             }}
         >
@@ -57,7 +57,7 @@ const GradientWaves = () => {
                 width: '100%',
                 height: '100%',
                 pointerEvents: 'none',
-                zIndex: -9999,
+                zIndex: -1,
                 overflow: 'hidden'
             }}
         >
@@ -141,7 +141,7 @@ const CursorTrail = ({ reducedMotion }) => {
                 position: 'fixed',
                 inset: 0,
                 pointerEvents: 'none',
-                zIndex: -9998,
+                zIndex: -1,
                 overflow: 'visible'
             }}
         >
@@ -185,12 +185,12 @@ const BackgroundAnimation = ({ variant = 'auto', isLoggedIn, reducedMotion }) =>
     // Allow explicit variant selection. 'auto' falls back to isLoggedIn behavior.
     switch (variant) {
         case 'loggedIn':
-            return <FloatingParticles sx={{ zIndex: -9999 }} />;
+            return <FloatingParticles />;
         case 'landing':
         case 'gradient':
             return (
                 <>
-                    <GradientWaves sx={{ zIndex: -9999 }} />
+                    <GradientWaves />
                     <CursorTrail reducedMotion={reducedMotion} />
                 </>
             );
@@ -205,7 +205,7 @@ const BackgroundAnimation = ({ variant = 'auto', isLoggedIn, reducedMotion }) =>
                         width: '100%',
                         height: '100%',
                         pointerEvents: 'none',
-                        zIndex: -9999,
+                        zIndex: -1,
                         overflow: 'hidden',
                         background: 'linear-gradient(180deg, rgba(0,0,0,0.04), transparent)'
                     }}
@@ -213,9 +213,9 @@ const BackgroundAnimation = ({ variant = 'auto', isLoggedIn, reducedMotion }) =>
             );
         case 'auto':
         default:
-            return isLoggedIn ? <FloatingParticles sx={{ zIndex: -10 }} /> : (
+            return isLoggedIn ? <FloatingParticles /> : (
                 <>
-                    <GradientWaves sx={{ zIndex: -10 }} />
+                    <GradientWaves />
                     <CursorTrail reducedMotion={reducedMotion} />
                 </>
             );
