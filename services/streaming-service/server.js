@@ -93,6 +93,15 @@ const RadioStation = sequelize.define('RadioStation', {
     },
     metadata: DataTypes.JSONB, // For additional info like codec, format, etc.
     addedBy: DataTypes.UUID // User who added this station
+}, {
+    indexes: [
+        { fields: ['isActive'] },
+        { fields: ['genre'] },
+        { fields: ['country'] },
+        { fields: ['language'] },
+        { fields: ['isActive', 'listeners'] },
+        { fields: ['source'] }
+    ]
 });
 
 // TV Channel Model
@@ -131,6 +140,15 @@ const TVChannel = sequelize.define('TVChannel', {
     },
     metadata: DataTypes.JSONB,
     addedBy: DataTypes.UUID
+}, {
+    indexes: [
+        { fields: ['isActive'] },
+        { fields: ['category'] },
+        { fields: ['country'] },
+        { fields: ['language'] },
+        { fields: ['isActive', 'viewers'] },
+        { fields: ['source'] }
+    ]
 });
 
 // User Favorites Model
@@ -152,6 +170,13 @@ const Favorite = sequelize.define('Favorite', {
         type: DataTypes.ENUM('radio', 'tv'),
         allowNull: false
     }
+}, {
+    indexes: [
+        { fields: ['userId'] },
+        { fields: ['itemId'] },
+        { fields: ['userId', 'itemType'] },
+        { unique: true, fields: ['userId', 'itemId', 'itemType'] }
+    ]
 });
 
 // Playback History Model
@@ -175,6 +200,13 @@ const PlaybackHistory = sequelize.define('PlaybackHistory', {
     },
     duration: DataTypes.INTEGER, // Duration in seconds
     lastPosition: DataTypes.INTEGER // Last playback position in seconds
+}, {
+    indexes: [
+        { fields: ['userId'] },
+        { fields: ['itemId'] },
+        { fields: ['userId', 'itemType'] },
+        { fields: ['userId', 'createdAt'] }
+    ]
 });
 
 // Telemetry: Fallback events (stores when client switched to alternativeUrl)
@@ -203,7 +235,9 @@ const FallbackEvent = sequelize.define('FallbackEvent', {
     indexes: [
         { fields: ['itemId'] },
         { fields: ['itemType'] },
-        { fields: ['createdAt'] }
+        { fields: ['userId'] },
+        { fields: ['createdAt'] },
+        { fields: ['itemId', 'itemType'] }
     ]
 });
 
@@ -945,20 +979,36 @@ app.get('/favorites', async (req, res) => {
 
         const favorites = await Favorite.findAll({ where });
 
-        // Fetch full details for each favorite
-        const results = await Promise.all(
-            favorites.map(async (fav) => {
-                if (fav.itemType === 'radio') {
-                    const station = await RadioStation.findByPk(fav.itemId);
-                    return { ...fav.toJSON(), item: station };
-                } else {
-                    const channel = await TVChannel.findByPk(fav.itemId);
-                    return { ...fav.toJSON(), item: channel };
-                }
-            })
-        );
+        // Fix N+1 query: Batch load all items at once
+        const radioIds = favorites.filter(f => f.itemType === 'radio').map(f => f.itemId);
+        const tvIds = favorites.filter(f => f.itemType === 'tv').map(f => f.itemId);
 
-        res.json(results.filter(r => r.item !== null));
+        let radioStations = [];
+        let tvChannels = [];
+
+        // Only fetch if we have IDs
+        if (radioIds.length > 0 || tvIds.length > 0) {
+            const results = await Promise.all([
+                radioIds.length > 0 ? RadioStation.findAll({ where: { id: { [Op.in]: radioIds } } }) : [],
+                tvIds.length > 0 ? TVChannel.findAll({ where: { id: { [Op.in]: tvIds } } }) : []
+            ]);
+            radioStations = results[0];
+            tvChannels = results[1];
+        }
+
+        // Create lookup maps for O(1) access
+        const radioMap = new Map(radioStations.map(s => [s.id, s]));
+        const tvMap = new Map(tvChannels.map(c => [c.id, c]));
+
+        // Map favorites to their items
+        const results = favorites.map(fav => {
+            const item = fav.itemType === 'radio' 
+                ? radioMap.get(fav.itemId)
+                : tvMap.get(fav.itemId);
+            return { ...fav.toJSON(), item };
+        }).filter(r => r.item !== null);
+
+        res.json(results);
     } catch (error) {
         console.error('[Favorites] Error fetching:', error);
         res.status(500).json({ error: 'Failed to fetch favorites' });
@@ -1158,20 +1208,36 @@ app.get('/history', async (req, res) => {
             order: [['createdAt', 'DESC']]
         });
 
-        // Fetch full details for each history item
-        const results = await Promise.all(
-            history.map(async (item) => {
-                if (item.itemType === 'radio') {
-                    const station = await RadioStation.findByPk(item.itemId);
-                    return { ...item.toJSON(), item: station };
-                } else {
-                    const channel = await TVChannel.findByPk(item.itemId);
-                    return { ...item.toJSON(), item: channel };
-                }
-            })
-        );
+        // Fix N+1 query: Batch load all items at once
+        const radioIds = history.filter(h => h.itemType === 'radio').map(h => h.itemId);
+        const tvIds = history.filter(h => h.itemType === 'tv').map(h => h.itemId);
 
-        res.json(results.filter(r => r.item !== null));
+        let radioStations = [];
+        let tvChannels = [];
+
+        // Only fetch if we have IDs
+        if (radioIds.length > 0 || tvIds.length > 0) {
+            const results = await Promise.all([
+                radioIds.length > 0 ? RadioStation.findAll({ where: { id: { [Op.in]: radioIds } } }) : [],
+                tvIds.length > 0 ? TVChannel.findAll({ where: { id: { [Op.in]: tvIds } } }) : []
+            ]);
+            radioStations = results[0];
+            tvChannels = results[1];
+        }
+
+        // Create lookup maps for O(1) access
+        const radioMap = new Map(radioStations.map(s => [s.id, s]));
+        const tvMap = new Map(tvChannels.map(c => [c.id, c]));
+
+        // Map history items to their details
+        const results = history.map(item => {
+            const details = item.itemType === 'radio'
+                ? radioMap.get(item.itemId)
+                : tvMap.get(item.itemId);
+            return { ...item.toJSON(), item: details };
+        }).filter(r => r.item !== null);
+
+        res.json(results);
     } catch (error) {
         console.error('[History] Error fetching:', error);
         res.status(500).json({ error: 'Failed to fetch playback history' });
@@ -1229,25 +1295,40 @@ app.get('/tv/popular', async (req, res) => {
     }
 });
 
-// Get available genres/categories
+// Get available genres/categories (with caching)
 app.get('/radio/genres', async (req, res) => {
     try {
+        // Check cache first (5 minute TTL)
+        const cached = streamCache.get('radio:genres');
+        if (cached) {
+            return res.json(cached);
+        }
+
         const result = await sequelize.query(
             'SELECT DISTINCT genre FROM "RadioStations" WHERE genre IS NOT NULL AND "isActive" = true ORDER BY genre',
             { type: Sequelize.QueryTypes.SELECT }
         );
 
-        res.json(result.map(r => r.genre));
+        const genres = result.map(r => r.genre);
+        streamCache.set('radio:genres', genres);
+        res.json(genres);
     } catch (error) {
         console.error('[Radio] Error fetching genres:', error);
         res.status(500).json({ error: 'Failed to fetch genres' });
     }
 });
 
-// Get available categories
 app.get('/tv/categories', async (req, res) => {
     try {
         const { source } = req.query;
+        const cacheKey = `tv:categories:${source || 'all'}`;
+        
+        // Check cache first (5 minute TTL)
+        const cached = streamCache.get(cacheKey);
+        if (cached) {
+            return res.json(cached);
+        }
+
         let query = 'SELECT DISTINCT category FROM "TVChannels" WHERE category IS NOT NULL AND "isActive" = true';
         const replacements = {};
 
@@ -1272,7 +1353,9 @@ app.get('/tv/categories', async (req, res) => {
             replacements
         });
 
-        res.json(result.map(r => r.category));
+        const categories = result.map(r => r.category);
+        streamCache.set(cacheKey, categories);
+        res.json(categories);
     } catch (error) {
         console.error('[TV] Error fetching categories:', error);
         res.status(500).json({ error: 'Failed to fetch categories' });

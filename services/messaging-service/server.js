@@ -413,6 +413,94 @@ const Call = sequelize.define('Call', {
   ]
 });
 
+// Message Search and Scheduling Models
+const ScheduledMessage = sequelize.define('ScheduledMessage', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  conversationId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  senderId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  type: {
+    type: DataTypes.ENUM('text', 'image', 'video', 'file'),
+    defaultValue: 'text'
+  },
+  attachments: DataTypes.ARRAY(DataTypes.STRING),
+  scheduledFor: {
+    type: DataTypes.DATE,
+    allowNull: false
+  },
+  status: {
+    type: DataTypes.ENUM('pending', 'sent', 'cancelled', 'failed'),
+    defaultValue: 'pending'
+  },
+  sentAt: DataTypes.DATE,
+  messageId: {
+    type: DataTypes.UUID,
+    comment: 'ID of the sent message after scheduling completes'
+  }
+}, {
+  indexes: [
+    { fields: ['conversationId'] },
+    { fields: ['senderId'] },
+    { fields: ['status', 'scheduledFor'] }
+  ]
+});
+
+const ConversationSettings = sequelize.define('ConversationSettings', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  conversationId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  muteNotifications: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  muteUntil: {
+    type: DataTypes.DATE,
+    comment: 'Null for indefinite mute'
+  },
+  customNickname: {
+    type: DataTypes.STRING,
+    comment: 'Custom nickname for the conversation'
+  },
+  theme: {
+    type: DataTypes.STRING,
+    comment: 'Custom theme color or emoji'
+  },
+  pinned: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['conversationId', 'userId']
+    }
+  ]
+});
+
 // Phase 6: Notification System
 const Notification = sequelize.define('Notification', {
   id: {
@@ -589,6 +677,12 @@ Message.hasMany(MessageReaction, { foreignKey: 'messageId', as: 'reactions' });
 MessageReaction.belongsTo(Message, { foreignKey: 'messageId' });
 Message.belongsTo(Message, { as: 'replyTo', foreignKey: 'replyToId' });
 Message.belongsTo(Message, { as: 'forwardedFrom', foreignKey: 'forwardedFromId' });
+
+// Scheduled messages and conversation settings relationships
+Conversation.hasMany(ScheduledMessage, { foreignKey: 'conversationId' });
+ScheduledMessage.belongsTo(Conversation, { foreignKey: 'conversationId' });
+Conversation.hasMany(ConversationSettings, { foreignKey: 'conversationId' });
+ConversationSettings.belongsTo(Conversation, { foreignKey: 'conversationId' });
 
 // Only run sequelize ALTER when explicitly enabled to avoid invalid SQL on fresh DBs
 const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true';
@@ -1763,6 +1857,273 @@ app.post('/messages/:messageId/forward', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to forward message' });
+  }
+});
+
+// ========== MESSAGE SEARCH & SCHEDULING ==========
+
+// Search messages in a conversation
+app.get('/conversations/:conversationId/search', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { conversationId } = req.params;
+    const { query, type, limit = 50, offset = 0 } = req.query;
+
+    if (!query) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    // Verify user is a participant
+    const conversation = await Conversation.findByPk(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    if (!conversation.participants.includes(userId)) {
+      return res.status(403).json({ error: 'Not a member of this conversation' });
+    }
+
+    // Build search query
+    const where = {
+      conversationId,
+      content: {
+        [Op.iLike]: `%${query}%`
+      }
+    };
+
+    if (type) {
+      where.type = type;
+    }
+
+    const messages = await Message.findAndCountAll({
+      where,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({
+      messages: messages.rows,
+      total: messages.count
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to search messages' });
+  }
+});
+
+// Create scheduled message
+app.post('/conversations/:conversationId/schedule', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { conversationId } = req.params;
+    const { content, type = 'text', attachments, scheduledFor } = req.body;
+
+    if (!content || !scheduledFor) {
+      return res.status(400).json({ error: 'content and scheduledFor are required' });
+    }
+
+    // Verify user is a participant
+    const conversation = await Conversation.findByPk(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    if (!conversation.participants.includes(userId)) {
+      return res.status(403).json({ error: 'Not a member of this conversation' });
+    }
+
+    // Validate scheduled time is in the future
+    const scheduledDate = new Date(scheduledFor);
+    if (scheduledDate <= new Date()) {
+      return res.status(400).json({ error: 'Scheduled time must be in the future' });
+    }
+
+    const scheduledMessage = await ScheduledMessage.create({
+      conversationId,
+      senderId: userId,
+      content,
+      type,
+      attachments: attachments || [],
+      scheduledFor: scheduledDate,
+      status: 'pending'
+    });
+
+    res.status(201).json(scheduledMessage);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to schedule message' });
+  }
+});
+
+// Get scheduled messages
+app.get('/conversations/:conversationId/scheduled', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { conversationId } = req.params;
+    const { status = 'pending' } = req.query;
+
+    // Verify user is a participant
+    const conversation = await Conversation.findByPk(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    if (!conversation.participants.includes(userId)) {
+      return res.status(403).json({ error: 'Not a member of this conversation' });
+    }
+
+    const scheduledMessages = await ScheduledMessage.findAll({
+      where: {
+        conversationId,
+        senderId: userId,
+        status
+      },
+      order: [['scheduledFor', 'ASC']]
+    });
+
+    res.json(scheduledMessages);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch scheduled messages' });
+  }
+});
+
+// Cancel scheduled message
+app.delete('/scheduled/:id', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+
+    const scheduledMessage = await ScheduledMessage.findByPk(id);
+    if (!scheduledMessage) {
+      return res.status(404).json({ error: 'Scheduled message not found' });
+    }
+
+    if (scheduledMessage.senderId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to cancel this scheduled message' });
+    }
+
+    if (scheduledMessage.status !== 'pending') {
+      return res.status(400).json({ error: 'Can only cancel pending scheduled messages' });
+    }
+
+    scheduledMessage.status = 'cancelled';
+    await scheduledMessage.save();
+
+    res.json({ message: 'Scheduled message cancelled' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to cancel scheduled message' });
+  }
+});
+
+// Get conversation settings
+app.get('/conversations/:conversationId/settings', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { conversationId } = req.params;
+
+    // Verify user is a participant
+    const conversation = await Conversation.findByPk(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    if (!conversation.participants.includes(userId)) {
+      return res.status(403).json({ error: 'Not a member of this conversation' });
+    }
+
+    let settings = await ConversationSettings.findOne({
+      where: { conversationId, userId }
+    });
+
+    if (!settings) {
+      // Create default settings
+      settings = await ConversationSettings.create({
+        conversationId,
+        userId,
+        muteNotifications: false,
+        pinned: false
+      });
+    }
+
+    res.json(settings);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch conversation settings' });
+  }
+});
+
+// Update conversation settings
+app.put('/conversations/:conversationId/settings', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { conversationId } = req.params;
+    const { muteNotifications, muteUntil, customNickname, theme, pinned } = req.body;
+
+    // Verify user is a participant
+    const conversation = await Conversation.findByPk(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    if (!conversation.participants.includes(userId)) {
+      return res.status(403).json({ error: 'Not a member of this conversation' });
+    }
+
+    let settings = await ConversationSettings.findOne({
+      where: { conversationId, userId }
+    });
+
+    if (!settings) {
+      settings = await ConversationSettings.create({
+        conversationId,
+        userId,
+        muteNotifications: muteNotifications || false,
+        muteUntil,
+        customNickname,
+        theme,
+        pinned: pinned || false
+      });
+    } else {
+      // Update only provided fields
+      if (muteNotifications !== undefined) settings.muteNotifications = muteNotifications;
+      if (muteUntil !== undefined) settings.muteUntil = muteUntil;
+      if (customNickname !== undefined) settings.customNickname = customNickname;
+      if (theme !== undefined) settings.theme = theme;
+      if (pinned !== undefined) settings.pinned = pinned;
+      await settings.save();
+    }
+
+    res.json(settings);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update conversation settings' });
   }
 });
 

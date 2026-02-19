@@ -325,6 +325,216 @@ const PageAdmin = sequelize.define('PageAdmin', {
   ]
 });
 
+// Page Analytics Models
+const PageView = sequelize.define('PageView', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  pageId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    comment: 'Viewer user ID (null for anonymous)'
+  },
+  viewDate: {
+    type: DataTypes.DATEONLY,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
+  },
+  viewCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1
+  }
+}, {
+  indexes: [
+    { fields: ['pageId', 'viewDate'] },
+    { fields: ['pageId', 'userId', 'viewDate'], unique: true }
+  ]
+});
+
+const PageFollower = sequelize.define('PageFollower', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  pageId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  notificationsEnabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['pageId', 'userId']
+    },
+    { fields: ['pageId'] },
+    { fields: ['userId'] }
+  ]
+});
+
+const PageInsight = sequelize.define('PageInsight', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  pageId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  },
+  totalViews: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  uniqueViewers: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  newFollowers: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  unfollows: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  postReach: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  postEngagement: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    comment: 'Total likes + comments + shares'
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['pageId', 'date']
+    }
+  ]
+});
+
+// Friends System Models (Facebook-style)
+const Friend = sequelize.define('Friend', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'First user in the friendship'
+  },
+  friendId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'Second user in the friendship'
+  },
+  status: {
+    type: DataTypes.ENUM('active', 'blocked'),
+    defaultValue: 'active'
+  },
+  closeFriend: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Marked as close friend (for feed prioritization)'
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['userId', 'friendId']
+    },
+    { fields: ['userId'] },
+    { fields: ['friendId'] }
+  ]
+});
+
+const FriendRequest = sequelize.define('FriendRequest', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  senderId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'User who sent the friend request'
+  },
+  receiverId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    comment: 'User who received the friend request'
+  },
+  status: {
+    type: DataTypes.ENUM('pending', 'accepted', 'rejected', 'cancelled'),
+    defaultValue: 'pending'
+  },
+  message: {
+    type: DataTypes.TEXT,
+    comment: 'Optional message with the friend request'
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['senderId', 'receiverId']
+    },
+    { fields: ['senderId'] },
+    { fields: ['receiverId'] },
+    { fields: ['status'] }
+  ]
+});
+
+// User Preferences Model for friend settings
+const UserPreferences = sequelize.define('UserPreferences', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    unique: true,
+    comment: 'User ID for these preferences'
+  },
+  autoAcceptMutualFriendRequests: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Auto-accept friend requests from users who you also sent a request to'
+  },
+  friendRequestPrivacy: {
+    type: DataTypes.ENUM('everyone', 'friends_of_friends', 'no_one'),
+    defaultValue: 'everyone',
+    comment: 'Who can send you friend requests'
+  }
+}, {
+  indexes: [
+    { unique: true, fields: ['userId'] }
+  ]
+});
+
 // PHASE 3: Notification System Models
 const Notification = sequelize.define('Notification', {
   id: {
@@ -580,10 +790,27 @@ User.hasMany(Page, { foreignKey: 'userId' });
 Page.belongsTo(User, { foreignKey: 'userId' });
 Page.hasMany(PageAdmin, { foreignKey: 'pageId' });
 PageAdmin.belongsTo(Page, { foreignKey: 'pageId' });
+Page.hasMany(PageView, { foreignKey: 'pageId' });
+PageView.belongsTo(Page, { foreignKey: 'pageId' });
+Page.hasMany(PageFollower, { foreignKey: 'pageId' });
+PageFollower.belongsTo(Page, { foreignKey: 'pageId' });
+User.hasMany(PageFollower, { foreignKey: 'userId' });
+PageFollower.belongsTo(User, { foreignKey: 'userId' });
+Page.hasMany(PageInsight, { foreignKey: 'pageId' });
+PageInsight.belongsTo(Page, { foreignKey: 'pageId' });
+User.hasMany(Friend, { as: 'Friendships', foreignKey: 'userId' });
+Friend.belongsTo(User, { as: 'User', foreignKey: 'userId' });
+Friend.belongsTo(User, { as: 'FriendUser', foreignKey: 'friendId' });
+User.hasMany(FriendRequest, { as: 'SentRequests', foreignKey: 'senderId' });
+User.hasMany(FriendRequest, { as: 'ReceivedRequests', foreignKey: 'receiverId' });
+FriendRequest.belongsTo(User, { as: 'Sender', foreignKey: 'senderId' });
+FriendRequest.belongsTo(User, { as: 'Receiver', foreignKey: 'receiverId' });
 User.hasMany(Notification, { foreignKey: 'userId' });
 Notification.belongsTo(User, { foreignKey: 'userId' });
 User.hasOne(NotificationPreference, { foreignKey: 'userId' });
 NotificationPreference.belongsTo(User, { foreignKey: 'userId' });
+User.hasOne(UserPreferences, { foreignKey: 'userId' });
+UserPreferences.belongsTo(User, { foreignKey: 'userId' });
 User.hasMany(AuditLog, { as: 'AdminActions', foreignKey: 'adminId' });
 AuditLog.belongsTo(User, { as: 'Admin', foreignKey: 'adminId' });
 User.hasMany(ContentFlag, { as: 'Reports', foreignKey: 'reporterId' });
@@ -1087,6 +1314,35 @@ app.get('/users/:userId/pages', async (req, res) => {
   }
 });
 
+// Search pages
+app.get('/pages/search', async (req, res) => {
+  try {
+    const { query, limit = 20, offset = 0 } = req.query;
+
+    if (!query) {
+      return res.status(400).json({ error: 'Query parameter is required' });
+    }
+
+    const pages = await Page.findAndCountAll({
+      where: {
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${query}%` } },
+          { description: { [Op.iLike]: `%${query}%` } },
+          { category: { [Op.iLike]: `%${query}%` } }
+        ]
+      },
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['followers', 'DESC'], ['createdAt', 'DESC']]
+    });
+
+    res.json({ pages: pages.rows, total: pages.count });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to search pages' });
+  }
+});
+
 // Update page
 app.put('/pages/:id', async (req, res) => {
   try {
@@ -1106,16 +1362,229 @@ app.put('/pages/:id', async (req, res) => {
 // Follow/like page (increment followers)
 app.post('/pages/:id/follow', async (req, res) => {
   try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const page = await Page.findByPk(req.params.id);
     if (!page) {
       return res.status(404).json({ error: 'Page not found' });
     }
 
-    await page.increment('followers');
-    res.json({ message: 'Page followed successfully' });
+    // Check if already following
+    const existingFollow = await PageFollower.findOne({
+      where: { pageId: page.id, userId }
+    });
+
+    if (existingFollow) {
+      // Unfollow
+      await existingFollow.destroy();
+      await page.decrement('followers');
+      
+      // Update insights for unfollows
+      const today = new Date().toISOString().split('T')[0];
+      const [insight] = await PageInsight.findOrCreate({
+        where: { pageId: page.id, date: today },
+        defaults: { unfollows: 0 }
+      });
+      await insight.increment('unfollows');
+
+      return res.json({ message: 'Page unfollowed successfully', following: false });
+    } else {
+      // Follow
+      await PageFollower.create({
+        pageId: page.id,
+        userId
+      });
+      await page.increment('followers');
+
+      // Update insights for new followers
+      const today = new Date().toISOString().split('T')[0];
+      const [insight] = await PageInsight.findOrCreate({
+        where: { pageId: page.id, date: today },
+        defaults: { newFollowers: 0 }
+      });
+      await insight.increment('newFollowers');
+
+      return res.json({ message: 'Page followed successfully', following: true });
+    }
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Failed to follow page' });
+    res.status(500).json({ error: 'Failed to follow/unfollow page' });
+  }
+});
+
+// Get page analytics
+app.get('/pages/:id/analytics', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { period = '30' } = req.query; // days
+
+    // Verify user has permission to view analytics
+    const page = await Page.findByPk(id);
+    if (!page) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+
+    const isOwner = page.userId === userId;
+    const isAdmin = await PageAdmin.findOne({
+      where: { pageId: id, userId, role: { [Op.in]: ['owner', 'admin', 'editor'] } }
+    });
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Not authorized to view analytics' });
+    }
+
+    // Get insights for the period
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - parseInt(period));
+
+    const insights = await PageInsight.findAll({
+      where: {
+        pageId: id,
+        date: { [Op.gte]: startDate }
+      },
+      order: [['date', 'ASC']]
+    });
+
+    // Calculate totals
+    const totals = insights.reduce((acc, insight) => ({
+      totalViews: acc.totalViews + insight.totalViews,
+      uniqueViewers: acc.uniqueViewers + insight.uniqueViewers,
+      newFollowers: acc.newFollowers + insight.newFollowers,
+      unfollows: acc.unfollows + insight.unfollows,
+      postReach: acc.postReach + insight.postReach,
+      postEngagement: acc.postEngagement + insight.postEngagement
+    }), {
+      totalViews: 0,
+      uniqueViewers: 0,
+      newFollowers: 0,
+      unfollows: 0,
+      postReach: 0,
+      postEngagement: 0
+    });
+
+    // Get current follower count
+    const followerCount = await PageFollower.count({ where: { pageId: id } });
+
+    res.json({
+      period: parseInt(period),
+      totals,
+      followerCount,
+      insights,
+      page: {
+        id: page.id,
+        name: page.name,
+        isVerified: page.isVerified
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+// Track page view
+app.post('/pages/:id/view', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id'); // optional for anonymous views
+    const { id } = req.params;
+
+    const page = await Page.findByPk(id);
+    if (!page) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+
+    // Track individual page view
+    let viewCreated = false;
+    if (userId) {
+      const [pageView, created] = await PageView.findOrCreate({
+        where: { pageId: id, userId, viewDate: today },
+        defaults: { viewCount: 1 }
+      });
+      viewCreated = created;
+      if (!created) {
+        await pageView.increment('viewCount');
+      }
+    }
+
+    // Update insights
+    const [insight, insightCreated] = await PageInsight.findOrCreate({
+      where: { pageId: id, date: today },
+      defaults: { 
+        totalViews: 1,
+        uniqueViewers: userId && viewCreated ? 1 : 0
+      }
+    });
+
+    if (!insightCreated) {
+      await insight.increment('totalViews');
+      // Only increment unique viewers if this is a new view for this user today
+      if (userId && viewCreated) {
+        await insight.increment('uniqueViewers');
+      }
+    }
+
+    res.json({ message: 'Page view tracked' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to track page view' });
+  }
+});
+
+// Get page followers
+app.get('/pages/:id/followers', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 20, offset = 0 } = req.query;
+
+    const followers = await PageFollower.findAndCountAll({
+      where: { pageId: id },
+      include: [{
+        model: User,
+        attributes: ['id', 'username', 'firstName', 'lastName', 'avatar']
+      }],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({
+      followers: followers.rows,
+      total: followers.count
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch followers' });
+  }
+});
+
+// Check if user follows a page
+app.get('/pages/:id/following', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.json({ following: false });
+    }
+
+    const { id } = req.params;
+
+    const following = await PageFollower.findOne({
+      where: { pageId: id, userId }
+    });
+
+    res.json({ following: !!following });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to check following status' });
   }
 });
 
@@ -1272,6 +1741,665 @@ app.delete('/pages/:pageId/admins/:adminId', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to remove page admin' });
+  }
+});
+
+// ==================== FRIENDS SYSTEM APIs ====================
+
+// Send friend request
+app.post('/friends/request', async (req, res) => {
+  try {
+    const senderId = req.header('x-user-id');
+    if (!senderId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { receiverId, message } = req.body;
+
+    if (!receiverId) {
+      return res.status(400).json({ error: 'Receiver ID is required' });
+    }
+
+    if (senderId === receiverId) {
+      return res.status(400).json({ error: 'Cannot send friend request to yourself' });
+    }
+
+    // Check if receiver exists
+    const receiver = await User.findByPk(receiverId);
+    if (!receiver) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if already friends
+    const existingFriendship = await Friend.findOne({
+      where: {
+        [Op.or]: [
+          { userId: senderId, friendId: receiverId },
+          { userId: receiverId, friendId: senderId }
+        ]
+      }
+    });
+
+    if (existingFriendship) {
+      return res.status(400).json({ error: 'Already friends with this user' });
+    }
+
+    // Check if request already exists
+    const existingRequest = await FriendRequest.findOne({
+      where: {
+        [Op.or]: [
+          { senderId, receiverId, status: 'pending' },
+          { senderId: receiverId, receiverId: senderId, status: 'pending' }
+        ]
+      }
+    });
+
+    if (existingRequest) {
+      if (existingRequest.senderId === receiverId) {
+        // The other user already sent us a request
+        // Check if sender has auto-accept enabled
+        const senderPrefs = await UserPreferences.findOne({
+          where: { userId: senderId }
+        });
+        
+        const autoAccept = senderPrefs?.autoAcceptMutualFriendRequests || false;
+        
+        if (autoAccept) {
+          // Auto-accept the mutual friend request
+          existingRequest.status = 'accepted';
+          await existingRequest.save();
+
+          // Create friendship
+          await Friend.create({
+            userId: senderId,
+            friendId: receiverId
+          });
+
+          // Create notification
+          await Notification.create({
+            userId: receiverId,
+            type: 'friend_request',
+            title: 'Friend Request Accepted',
+            message: `Your friend request was accepted`,
+            metadata: { actorId: senderId }
+          });
+
+          return res.status(200).json({ 
+            message: 'Friend request accepted automatically (mutual request detected)',
+            friendship: true,
+            autoAccepted: true
+          });
+        } else {
+          // Don't auto-accept - user must manually accept both requests
+          return res.status(400).json({ 
+            error: 'You both have pending friend requests. Please accept the existing request or enable auto-accept in your settings.',
+            mutualRequest: true,
+            existingRequestId: existingRequest.id
+          });
+        }
+      } else {
+        return res.status(400).json({ error: 'Friend request already sent' });
+      }
+    }
+
+    // Create new friend request
+    const friendRequest = await FriendRequest.create({
+      senderId,
+      receiverId,
+      message,
+      status: 'pending'
+    });
+
+    // Create notification for receiver
+    await Notification.create({
+      userId: receiverId,
+      type: 'friend_request',
+      title: 'New Friend Request',
+      message: `You have a new friend request`,
+      actionUrl: `/friends/requests`,
+      metadata: { actorId: senderId, requestId: friendRequest.id }
+    });
+
+    res.status(201).json(friendRequest);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to send friend request' });
+  }
+});
+
+// Get friend requests (received)
+app.get('/friends/requests', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { type = 'received' } = req.query;
+
+    let requests;
+    if (type === 'sent') {
+      requests = await FriendRequest.findAll({
+        where: { senderId: userId, status: 'pending' },
+        include: [{
+          model: User,
+          as: 'Receiver',
+          attributes: ['id', 'username', 'firstName', 'lastName', 'avatar']
+        }],
+        order: [['createdAt', 'DESC']]
+      });
+    } else {
+      requests = await FriendRequest.findAll({
+        where: { receiverId: userId, status: 'pending' },
+        include: [{
+          model: User,
+          as: 'Sender',
+          attributes: ['id', 'username', 'firstName', 'lastName', 'avatar']
+        }],
+        order: [['createdAt', 'DESC']]
+      });
+    }
+
+    res.json(requests);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch friend requests' });
+  }
+});
+
+// Accept friend request
+app.post('/friends/request/:requestId/accept', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { requestId } = req.params;
+
+    const friendRequest = await FriendRequest.findByPk(requestId);
+    if (!friendRequest) {
+      return res.status(404).json({ error: 'Friend request not found' });
+    }
+
+    if (friendRequest.receiverId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to accept this request' });
+    }
+
+    if (friendRequest.status !== 'pending') {
+      return res.status(400).json({ error: 'Request already processed' });
+    }
+
+    // Update request status
+    friendRequest.status = 'accepted';
+    await friendRequest.save();
+
+    // Create friendship (bidirectional - just one record)
+    await Friend.create({
+      userId: friendRequest.senderId,
+      friendId: friendRequest.receiverId
+    });
+
+    // Create notification for sender
+    await Notification.create({
+      userId: friendRequest.senderId,
+      type: 'friend_request',
+      title: 'Friend Request Accepted',
+      message: `Your friend request was accepted`,
+      actionUrl: `/profile/${userId}`,
+      metadata: { actorId: userId }
+    });
+
+    res.json({ message: 'Friend request accepted', friendship: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to accept friend request' });
+  }
+});
+
+// Reject friend request
+app.post('/friends/request/:requestId/reject', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { requestId } = req.params;
+
+    const friendRequest = await FriendRequest.findByPk(requestId);
+    if (!friendRequest) {
+      return res.status(404).json({ error: 'Friend request not found' });
+    }
+
+    if (friendRequest.receiverId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to reject this request' });
+    }
+
+    if (friendRequest.status !== 'pending') {
+      return res.status(400).json({ error: 'Request already processed' });
+    }
+
+    // Update request status
+    friendRequest.status = 'rejected';
+    await friendRequest.save();
+
+    res.json({ message: 'Friend request rejected' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to reject friend request' });
+  }
+});
+
+// Cancel friend request
+app.delete('/friends/request/:requestId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { requestId } = req.params;
+
+    const friendRequest = await FriendRequest.findByPk(requestId);
+    if (!friendRequest) {
+      return res.status(404).json({ error: 'Friend request not found' });
+    }
+
+    if (friendRequest.senderId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to cancel this request' });
+    }
+
+    if (friendRequest.status !== 'pending') {
+      return res.status(400).json({ error: 'Can only cancel pending requests' });
+    }
+
+    // Update request status
+    friendRequest.status = 'cancelled';
+    await friendRequest.save();
+
+    res.json({ message: 'Friend request cancelled' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to cancel friend request' });
+  }
+});
+
+// Get friends list
+app.get('/friends', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { search, limit = 50, offset = 0 } = req.query;
+
+    // Get all friendships where user is involved
+    const friendships = await Friend.findAll({
+      where: {
+        [Op.or]: [
+          { userId },
+          { friendId: userId }
+        ],
+        status: 'active'
+      }
+    });
+
+    // Extract friend IDs
+    const friendIds = friendships.map(f => 
+      f.userId === userId ? f.friendId : f.userId
+    );
+
+    if (friendIds.length === 0) {
+      return res.json({ friends: [], total: 0 });
+    }
+
+    // Build query for friends
+    const whereClause = { id: { [Op.in]: friendIds } };
+    if (search) {
+      whereClause[Op.or] = [
+        { username: { [Op.iLike]: `%${search}%` } },
+        { firstName: { [Op.iLike]: `%${search}%` } },
+        { lastName: { [Op.iLike]: `%${search}%` } }
+      ];
+    }
+
+    const friends = await User.findAndCountAll({
+      where: whereClause,
+      attributes: ['id', 'username', 'firstName', 'lastName', 'avatar', 'bio'],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['firstName', 'ASC'], ['username', 'ASC']]
+    });
+
+    res.json({ 
+      friends: friends.rows, 
+      total: friends.count 
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch friends' });
+  }
+});
+
+// Get mutual friends
+app.get('/friends/mutual/:userId', async (req, res) => {
+  try {
+    const currentUserId = req.header('x-user-id');
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { userId } = req.params;
+
+    if (currentUserId === userId) {
+      return res.status(400).json({ error: 'Cannot get mutual friends with yourself' });
+    }
+
+    // Get current user's friends
+    const currentUserFriendships = await Friend.findAll({
+      where: {
+        [Op.or]: [
+          { userId: currentUserId },
+          { friendId: currentUserId }
+        ],
+        status: 'active'
+      }
+    });
+
+    const currentUserFriendIds = currentUserFriendships.map(f =>
+      f.userId === currentUserId ? f.friendId : f.userId
+    );
+
+    // Get other user's friends
+    const otherUserFriendships = await Friend.findAll({
+      where: {
+        [Op.or]: [
+          { userId },
+          { friendId: userId }
+        ],
+        status: 'active'
+      }
+    });
+
+    const otherUserFriendIds = otherUserFriendships.map(f =>
+      f.userId === userId ? f.friendId : f.userId
+    );
+
+    // Find mutual friends
+    const mutualFriendIds = currentUserFriendIds.filter(id => 
+      otherUserFriendIds.includes(id)
+    );
+
+    if (mutualFriendIds.length === 0) {
+      return res.json({ mutualFriends: [], count: 0 });
+    }
+
+    const mutualFriends = await User.findAll({
+      where: { id: { [Op.in]: mutualFriendIds } },
+      attributes: ['id', 'username', 'firstName', 'lastName', 'avatar']
+    });
+
+    res.json({ 
+      mutualFriends, 
+      count: mutualFriends.length 
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch mutual friends' });
+  }
+});
+
+// Unfriend
+app.delete('/friends/:friendId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { friendId } = req.params;
+
+    const friendship = await Friend.findOne({
+      where: {
+        [Op.or]: [
+          { userId, friendId },
+          { userId: friendId, friendId: userId }
+        ]
+      }
+    });
+
+    if (!friendship) {
+      return res.status(404).json({ error: 'Friendship not found' });
+    }
+
+    await friendship.destroy();
+
+    res.json({ message: 'Unfriended successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to unfriend' });
+  }
+});
+
+// Get friend suggestions (users with mutual friends)
+app.get('/friends/suggestions', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { limit = 10 } = req.query;
+
+    // Get current user's friends
+    const friendships = await Friend.findAll({
+      where: {
+        [Op.or]: [
+          { userId },
+          { friendId: userId }
+        ],
+        status: 'active'
+      }
+    });
+
+    const friendIds = friendships.map(f =>
+      f.userId === userId ? f.friendId : f.userId
+    );
+
+    if (friendIds.length === 0) {
+      // No friends yet, suggest random users
+      const suggestions = await User.findAll({
+        where: {
+          id: { [Op.ne]: userId },
+          isActive: true
+        },
+        attributes: ['id', 'username', 'firstName', 'lastName', 'avatar', 'bio'],
+        limit: parseInt(limit),
+        order: sequelize.random()
+      });
+      return res.json(suggestions);
+    }
+
+    // Get friends of friends
+    const friendsOfFriends = await Friend.findAll({
+      where: {
+        [Op.or]: [
+          { userId: { [Op.in]: friendIds } },
+          { friendId: { [Op.in]: friendIds } }
+        ],
+        status: 'active'
+      }
+    });
+
+    // Extract unique potential friend IDs (excluding current user and existing friends)
+    const potentialFriendIds = [...new Set(
+      friendsOfFriends.map(f => {
+        const candidateId = f.userId;
+        const candidateFriendId = f.friendId;
+        if (friendIds.includes(candidateId)) return candidateFriendId;
+        if (friendIds.includes(candidateFriendId)) return candidateId;
+        return null;
+      }).filter(id => id && id !== userId && !friendIds.includes(id))
+    )];
+
+    if (potentialFriendIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Get pending/sent requests to exclude
+    const pendingRequests = await FriendRequest.findAll({
+      where: {
+        [Op.or]: [
+          { senderId: userId, status: 'pending' },
+          { receiverId: userId, status: 'pending' }
+        ]
+      }
+    });
+
+    const excludeIds = pendingRequests.map(r =>
+      r.senderId === userId ? r.receiverId : r.senderId
+    );
+
+    const suggestions = await User.findAll({
+      where: {
+        id: {
+          [Op.in]: potentialFriendIds,
+          [Op.notIn]: excludeIds
+        },
+        isActive: true
+      },
+      attributes: ['id', 'username', 'firstName', 'lastName', 'avatar', 'bio'],
+      limit: parseInt(limit)
+    });
+
+    res.json(suggestions);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch friend suggestions' });
+  }
+});
+
+// Check friendship status
+app.get('/friends/status/:userId', async (req, res) => {
+  try {
+    const currentUserId = req.header('x-user-id');
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { userId } = req.params;
+
+    if (currentUserId === userId) {
+      return res.json({ status: 'self' });
+    }
+
+    // Check if friends
+    const friendship = await Friend.findOne({
+      where: {
+        [Op.or]: [
+          { userId: currentUserId, friendId: userId },
+          { userId, friendId: currentUserId }
+        ],
+        status: 'active'
+      }
+    });
+
+    if (friendship) {
+      return res.json({ status: 'friends', friendship });
+    }
+
+    // Check for pending request
+    const pendingRequest = await FriendRequest.findOne({
+      where: {
+        [Op.or]: [
+          { senderId: currentUserId, receiverId: userId },
+          { senderId: userId, receiverId: currentUserId }
+        ],
+        status: 'pending'
+      }
+    });
+
+    if (pendingRequest) {
+      if (pendingRequest.senderId === currentUserId) {
+        return res.json({ status: 'request_sent', request: pendingRequest });
+      } else {
+        return res.json({ status: 'request_received', request: pendingRequest });
+      }
+    }
+
+    res.json({ status: 'none' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to check friendship status' });
+  }
+});
+
+// ==================== USER PREFERENCES APIs ====================
+
+// Get user preferences
+app.get('/preferences', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    let preferences = await UserPreferences.findOne({
+      where: { userId }
+    });
+
+    if (!preferences) {
+      // Create default preferences
+      preferences = await UserPreferences.create({
+        userId,
+        autoAcceptMutualFriendRequests: false,
+        friendRequestPrivacy: 'everyone'
+      });
+    }
+
+    res.json(preferences);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch preferences' });
+  }
+});
+
+// Update user preferences
+app.put('/preferences', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { autoAcceptMutualFriendRequests, friendRequestPrivacy } = req.body;
+
+    let preferences = await UserPreferences.findOne({
+      where: { userId }
+    });
+
+    if (!preferences) {
+      preferences = await UserPreferences.create({
+        userId,
+        autoAcceptMutualFriendRequests: autoAcceptMutualFriendRequests || false,
+        friendRequestPrivacy: friendRequestPrivacy || 'everyone'
+      });
+    } else {
+      if (autoAcceptMutualFriendRequests !== undefined) {
+        preferences.autoAcceptMutualFriendRequests = autoAcceptMutualFriendRequests;
+      }
+      if (friendRequestPrivacy !== undefined) {
+        preferences.friendRequestPrivacy = friendRequestPrivacy;
+      }
+      await preferences.save();
+    }
+
+    res.json(preferences);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update preferences' });
   }
 });
 
