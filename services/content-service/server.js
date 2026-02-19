@@ -4055,6 +4055,8 @@ app.post('/groups/:id/mute', async (req, res) => {
       return res.status(403).json({ error: 'Cannot mute group admins' });
     }
 
+    // Calculate expiration date: duration in hours converted to milliseconds
+    // duration * 60 (minutes) * 60 (seconds) * 1000 (milliseconds)
     const expiresAt = duration ? new Date(Date.now() + duration * 60 * 60 * 1000) : null;
 
     const [mute, created] = await GroupMute.findOrCreate({

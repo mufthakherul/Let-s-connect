@@ -1473,11 +1473,13 @@ app.post('/pages/:id/view', async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
 
     // Track individual page view
+    let viewCreated = false;
     if (userId) {
       const [pageView, created] = await PageView.findOrCreate({
         where: { pageId: id, userId, viewDate: today },
-        defaults: { viewCount: 0 }
+        defaults: { viewCount: 1 }
       });
+      viewCreated = created;
       if (!created) {
         await pageView.increment('viewCount');
       }
@@ -1488,20 +1490,15 @@ app.post('/pages/:id/view', async (req, res) => {
       where: { pageId: id, date: today },
       defaults: { 
         totalViews: 1,
-        uniqueViewers: userId ? 1 : 0
+        uniqueViewers: userId && viewCreated ? 1 : 0
       }
     });
 
     if (!insightCreated) {
       await insight.increment('totalViews');
-      if (userId) {
-        // Check if this is a unique viewer today
-        const existingView = await PageView.findOne({
-          where: { pageId: id, userId, viewDate: today }
-        });
-        if (!existingView || existingView.viewCount === 1) {
-          await insight.increment('uniqueViewers');
-        }
+      // Only increment unique viewers if this is a new view for this user today
+      if (userId && viewCreated) {
+        await insight.increment('uniqueViewers');
       }
     }
 

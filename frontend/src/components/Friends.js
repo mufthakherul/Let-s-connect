@@ -585,7 +585,11 @@ function Friends({ user }) {
         <DialogTitle>Confirm Unfriend</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to unfriend {confirmDialog.data?.firstName} {confirmDialog.data?.lastName || confirmDialog.data?.username}?
+            Are you sure you want to unfriend {
+              confirmDialog.data?.firstName && confirmDialog.data?.lastName
+                ? `${confirmDialog.data.firstName} ${confirmDialog.data.lastName}`
+                : (confirmDialog.data?.firstName || confirmDialog.data?.username || 'this user')
+            }?
           </Typography>
         </DialogContent>
         <DialogActions>
