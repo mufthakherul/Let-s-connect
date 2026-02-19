@@ -1,11 +1,20 @@
 # Archived Features Documentation
 
-This document catalogs features that have been archived from Let's Connect platform. These features were determined to be either duplicate, overengineered, or not core to a social media platform.
+**IMPORTANT UPDATE (February 19, 2026)**: Several features have been restored based on user requirements. See [FEATURE_RESTORATION.md](./FEATURE_RESTORATION.md) for details.
+
+## Features Restored from Archive:
+1. ✅ **Radio & TV Streaming** - Unique feature essential for independent media access, especially in Bangladesh
+2. ✅ **Pages** - Core social media feature like Facebook Pages
+3. ✅ **Debate Mode** - Platform for debating clubs, popular in Bangladesh
+
+---
+
+This document catalogs features that remain archived from Let's Connect platform. These features were determined to be either duplicate, overengineered, or not core to a social media platform.
 
 ## Archive Date
 February 19, 2026
 
-## Archived Features
+## Features That Remain Archived
 
 ### 1. Discord Admin Panel
 **Location**: `archive_code/frontend/DiscordAdmin.js`  
@@ -71,24 +80,22 @@ February 19, 2026
 
 ---
 
-### 4. Pages Feature
-**Location**: `archive_code/frontend/Pages.js`  
-**Routes Removed**: `/pages`  
-**Backend**: Pages service endpoints
+### 4. ~~Pages Feature~~ **✅ RESTORED**
+**Location**: ~~`archive_code/frontend/Pages.js`~~ → Restored to `frontend/src/components/`  
+**Routes**: `/pages` - **NOW ACTIVE**  
+**Backend**: Pages service endpoints - **ACTIVE**
 
-**Reason**: Content duplication - Pages overlapped significantly with Blog, Docs, and Projects features. Blog provides sufficient content creation capabilities.
+**Original Archive Reason**: Considered content duplication with Blog, Docs, and Projects.
 
-**Features Removed**:
-- User-created pages
-- Page templates
-- Page sharing and permissions
-- Page versioning
+**Restoration Reason**: **Pages is a core social media feature** (like Facebook Pages). Every major social platform has pages for organizations, communities, and public figures. This is not a duplicate but an essential feature.
 
-**Reinstatement Guide**: If needed in future:
-1. Restore Pages component
-2. Restore backend API endpoints
-3. Restore database migrations for pages table
-4. Add navigation links
+**Status**: ✅ **FULLY RESTORED** - Being enhanced to merge concepts from Docs, Projects, and Blog into a unified content platform. See [FEATURE_RESTORATION.md](./FEATURE_RESTORATION.md) for details.
+
+**Enhanced Features**:
+- Support for multiple content types (docs, projects, blogs, theses)
+- Professional page templates
+- Page analytics and insights
+- Advanced customization options
 
 ---
 
@@ -113,30 +120,20 @@ February 19, 2026
 
 ---
 
-### 6. Radio & TV Streaming Services
+### 5. ~~Radio & TV Streaming Services~~ **✅ RESTORED**
 **Location**: 
-- `archive_code/frontend/Radio.js`
-- `archive_code/frontend/TV.js`
-- `archive_code/backend/streaming-service/`
+- ~~`archive_code/frontend/Radio.js`~~ → Restored to `frontend/src/components/`
+- ~~`archive_code/frontend/TV.js`~~ → Restored to `frontend/src/components/`
+- ~~`archive_code/backend/streaming-service/`~~ → Restored to `services/`
 
-**Routes Removed**: `/radio`, `/tv`  
-**Backend**: Entire streaming-service microservice
+**Routes**: `/radio`, `/tv` - **NOW ACTIVE**  
+**Backend**: streaming-service microservice - **NOW ACTIVE**
 
-**Reason**: This is a media aggregator service, not core social media functionality. Maintaining 8,000+ radio stations and TV channels creates massive overhead and competes with YouTube/Spotify.
+**Original Archive Reason**: Considered media aggregator, not core social media functionality.
 
-**Features Removed**:
-- Radio station browser (8,000+ stations)
-- TV/IPTV channel aggregation
-- Stream health checking
-- Recommendation engine
-- Multiple data fetchers (iptv-org, radioss, xiph)
+**Restoration Reason**: This is a **unique feature essential for independent media access**, especially relevant in Bangladesh after the July movement when the government cut off local TV cables. It provides users with access to television and radio content they otherwise wouldn't have.
 
-**Reinstatement Guide**: If needed in future:
-1. Restore frontend components
-2. Restore entire streaming-service microservice
-3. Set up stream health checking infrastructure
-4. Configure external data source integrations
-5. Update API gateway routing
+**Status**: ✅ **FULLY RESTORED** - See [FEATURE_RESTORATION.md](./FEATURE_RESTORATION.md) for enhancement roadmap.
 
 ---
 
@@ -203,49 +200,57 @@ February 19, 2026
 
 ---
 
-### 10. Specialized Meeting Modes
+### 9. ~~Specialized Meeting Modes~~ **PARTIALLY RESTORED**
 **Location**: `archive_code/frontend/meeting-modes/` (specific modes)  
-**Components Archived**:
-- DebateMode.js
-- RoundTableMode.js
-- TownHallMode.js
-- WorkshopMode.js
-- OtherModes.js (Court, Quiz)
+**Components Status**:
+- ~~DebateMode.js~~ → **✅ RESTORED** to `frontend/src/components/meeting-modes/`
+- RoundTableMode.js → Still archived
+- TownHallMode.js → Still archived
+- WorkshopMode.js → Still archived
+- OtherModes.js (Court, Quiz) → Still archived
 
-**Routes Impact**: Meeting creation UI simplified
+**Routes Impact**: Debate mode active in MeetingRoom
 
-**Reason**: Enterprise features beyond social media scope. Standard and Conference modes provide sufficient functionality.
+**Original Archive Reason**: Enterprise features beyond social media scope.
 
-**Features Removed**:
+**DebateMode Restoration Reason**: **Debating clubs are becoming popular in Bangladesh** but lack a dedicated online platform. This fills a critical market need.
+
+**Status**: 
+- ✅ **DebateMode RESTORED** - See [FEATURE_RESTORATION.md](./FEATURE_RESTORATION.md) for enhancement roadmap with features from external debate repo
+- ⏸️ Other modes remain archived (RoundTable, TownHall, Workshop, Court, Quiz)
+
+**Restored Features**:
 - Debate mode with evidence tracking
-- Round table turn management
-- Town hall Q&A system
-- Workshop ideation tools
-- Virtual court proceedings
-- Quiz/competition modes
+- Argument submission and management
+- Voting system for judges
+- Side selection (pro/con)
 
-**Reinstatement Guide**: If needed in future:
-1. Restore specific mode components
-2. Update MeetingRoom.js to include mode selection
-3. Restore collaboration-service mode-specific endpoints
-4. Update meeting creation UI
+**Planned Enhancements**:
+- Integration with external debate repo features
+- Timed speaking rounds
+- Enhanced scoring system
+- Real-time notifications
+- Professional UI improvements
 
 ---
 
 ## Features KEPT (Core Social Platform)
 
-The following features remain active:
+The following features remain active (including recently restored features):
 
 ### Social & Content
 - Feed (social posts)
 - Groups (communities)
+- **Pages** ✅ (restored - for organizations, communities, public figures)
 - Blog (content creation)
 - Videos (user uploads)
 - Profile & Public Profiles
 
-### Communication
+### Communication & Media
 - Chat (real-time messaging)
-- Meetings (Standard mode only)
+- Meetings (Standard mode + **Debate mode** ✅ restored)
+- **Radio** ✅ (restored - internet radio streaming)
+- **TV** ✅ (restored - live TV/IPTV channels)
 
 ### Commerce & Utility
 - Shop (e-commerce)
@@ -268,32 +273,44 @@ The following features remain active:
 
 ## Impact Summary
 
-**Frontend Components Archived**: 15+ components  
-**Backend Services Archived**: 1 complete service (streaming-service)  
-**Routes Removed**: 12+ routes  
-**Estimated Codebase Reduction**: 30-35%  
-**Maintenance Burden Reduction**: ~40%
+**Original Archive (February 19, 2026)**:
+- Frontend Components Archived: 24 components  
+- Backend Services Archived: 1 complete service (streaming-service)
+- Routes Removed: 20+ routes
+
+**After Restoration (February 19, 2026)**:
+- Frontend Components Restored: 4 (Radio, TV, Pages, DebateMode)
+- Backend Services Restored: 1 (streaming-service)
+- Routes Restored: 3 (/radio, /tv, /pages)
+- **Net Archived**: 17 frontend components, 12 routes
+
+**Current Status**:
+- ✅ Restored: Radio, TV, Pages, DebateMode
+- ⏸️ Still Archived: Discord Admin, Database Views, Elasticsearch Search, WebRTC Calls, Folder Browser, Wiki Diff, 4 other meeting modes
+- 📊 Codebase Reduction: ~20% (adjusted from initial 35%)
+- 🎯 Focus: Core social features + culturally relevant features (streaming for BD, debates, pages)
 
 ---
 
 ## Restoration Priority
 
-If features need to be restored, recommended priority:
+**Recently Restored** ✅:
+1. Radio & TV Streaming - **RESTORED** (unique feature, culturally relevant)
+2. Pages - **RESTORED** (core social media feature)
+3. DebateMode - **RESTORED** (fills market need in BD)
 
-**High Priority** (Could be valuable):
-1. Projects (if project management becomes core)
-2. WebRTC Calls (if standalone calling needed)
-
-**Medium Priority** (Specialized use cases):
-3. Folder Browser (if file organization crucial)
-4. Wiki Diff Viewer (if version control essential)
-5. Elasticsearch Search (if scale demands it)
+**Remaining Archive - Restoration Priority**:
 
 **Low Priority** (Not recommended):
-6. Radio/TV Streaming (too complex)
-7. Discord Admin (wrong platform identity)
-8. Database Views (overengineered)
-9. Specialized Meeting Modes (enterprise only)
+1. Discord Admin - Wrong platform identity
+2. Database Views - Overengineered for social platform
+3. Elasticsearch Search - Basic search is sufficient
+4. WebRTC Calls - Functionality covered by Meetings
+5. Folder Browser - Not essential
+6. Wiki Diff Viewer - Over-specialized
+7. Other Meeting Modes (RoundTable, TownHall, Workshop, Court, Quiz) - Enterprise features
+
+**Note**: Projects feature is being merged into Pages rather than restored separately.
 
 ---
 
