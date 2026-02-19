@@ -49,10 +49,19 @@ function TabPanel({ children, value, index }) {
   );
 }
 
-const PostHistoryViewer = ({ postId, open, onClose }) => {
+/**
+ * Universal Content History Viewer
+ * Supports: posts, blogs, videos, wikis, docs, projects, pages, images, comments
+ */
+const ContentHistoryViewer = ({ 
+  contentType = 'posts', // posts, blogs, videos, wikis, docs, projects, pages, images
+  contentId, 
+  open, 
+  onClose 
+}) => {
   const [loading, setLoading] = useState(false);
   const [versions, setVersions] = useState([]);
-  const [currentPost, setCurrentPost] = useState(null);
+  const [currentContent, setCurrentContent] = useState(null);
   const [selectedVersion, setSelectedVersion] = useState(null);
   const [compareMode, setCompareMode] = useState(false);
   const [compareVersions, setCompareVersions] = useState([null, null]);
@@ -60,19 +69,34 @@ const PostHistoryViewer = ({ postId, open, onClose }) => {
   const [tabValue, setTabValue] = useState(0);
   const [error, setError] = useState('');
 
+  // Friendly names for content types
+  const contentTypeNames = {
+    posts: 'Post',
+    blogs: 'Blog',
+    videos: 'Video',
+    wikis: 'Wiki',
+    docs: 'Document',
+    projects: 'Project',
+    pages: 'Page',
+    images: 'Image',
+    comments: 'Comment'
+  };
+
+  const contentTypeName = contentTypeNames[contentType] || 'Content';
+
   useEffect(() => {
-    if (open && postId) {
+    if (open && contentId) {
       loadVersionHistory();
     }
-  }, [open, postId]);
+  }, [open, contentId, contentType]);
 
   const loadVersionHistory = async () => {
     setLoading(true);
     setError('');
     try {
-      const response = await api.get(`/content/posts/${postId}/versions`);
+      const response = await api.get(`/content/${contentType}/${contentId}/versions`);
       setVersions(response.data.versions || []);
-      setCurrentPost(response.data.post);
+      setCurrentContent(response.data.content);
     } catch (error) {
       console.error('Failed to load version history:', error);
       setError(error.response?.data?.error || 'Failed to load version history');
@@ -84,7 +108,7 @@ const PostHistoryViewer = ({ postId, open, onClose }) => {
 
   const handleViewVersion = async (versionNumber) => {
     try {
-      const response = await api.get(`/content/posts/${postId}/versions/${versionNumber}`);
+      const response = await api.get(`/content/${contentType}/${contentId}/versions/${versionNumber}`);
       setSelectedVersion(response.data);
       setTabValue(1);
     } catch (error) {
@@ -101,7 +125,7 @@ const PostHistoryViewer = ({ postId, open, onClose }) => {
 
     try {
       const response = await api.get(
-        `/content/posts/${postId}/versions/compare/${compareVersions[0]}/${compareVersions[1]}`
+        `/content/${contentType}/${contentId}/versions/compare/${compareVersions[0]}/${compareVersions[1]}`
       );
       setDiff(response.data);
       setTabValue(2);
@@ -117,7 +141,7 @@ const PostHistoryViewer = ({ postId, open, onClose }) => {
     }
 
     try {
-      await api.post(`/content/posts/${postId}/versions/${versionNumber}/restore`);
+      await api.post(`/content/${contentType}/${contentId}/versions/${versionNumber}/restore`);
       toast.success('Version restored successfully!');
       loadVersionHistory();
       onClose();
@@ -139,7 +163,7 @@ const PostHistoryViewer = ({ postId, open, onClose }) => {
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <History />
-            <Typography variant="h6">Post Edit History</Typography>
+            <Typography variant="h6">{contentTypeName} Edit History</Typography>
           </Box>
           <IconButton onClick={onClose} size="small">
             <Close />
@@ -177,7 +201,7 @@ const PostHistoryViewer = ({ postId, open, onClose }) => {
               ) : (
                 <Timeline>
                   {/* Current Version */}
-                  {currentPost && (
+                  {currentContent && (
                     <TimelineItem>
                       <TimelineOppositeContent color="text.secondary">
                         <Typography variant="caption">Current</Typography>
@@ -193,7 +217,7 @@ const PostHistoryViewer = ({ postId, open, onClose }) => {
                               <Chip label="Latest" color="primary" size="small" />
                             </Stack>
                             <Typography variant="body2" noWrap>
-                              {currentPost.currentContent?.substring(0, 100)}...
+                              {currentContent.currentContent?.substring(0, 100)}...
                             </Typography>
                           </CardContent>
                         </Card>
@@ -438,4 +462,4 @@ const PostHistoryViewer = ({ postId, open, onClose }) => {
   );
 };
 
-export default PostHistoryViewer;
+export default ContentHistoryViewer;
