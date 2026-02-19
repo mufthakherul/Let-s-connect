@@ -87,18 +87,11 @@ const ShopGuide = lazy(() => import('./components/helpcenter/guides/ShopGuide'))
 const BlogGuide = lazy(() => import('./components/helpcenter/guides/BlogGuide'));
 const DocsGuide = lazy(() => import('./components/helpcenter/guides/DocsGuide'));
 const GroupsGuide = lazy(() => import('./components/helpcenter/guides/GroupsGuide'));
-const PagesGuide = lazy(() => import('./components/helpcenter/guides/PagesGuide'));
-const ProjectsGuide = lazy(() => import('./components/helpcenter/guides/ProjectsGuide'));
 const CartGuide = lazy(() => import('./components/helpcenter/guides/CartGuide'));
 const BookmarksGuide = lazy(() => import('./components/helpcenter/guides/BookmarksGuide'));
-const CallsGuide = lazy(() => import('./components/helpcenter/guides/CallsGuide'));
-const FoldersGuide = lazy(() => import('./components/helpcenter/guides/FoldersGuide'));
-const WikiDiffGuide = lazy(() => import('./components/helpcenter/guides/WikiDiffGuide'));
-const DatabaseViewsGuide = lazy(() => import('./components/helpcenter/guides/DatabaseViewsGuide'));
 const ProfileGuide = lazy(() => import('./components/helpcenter/guides/ProfileGuide'));
 const EmailSettingsGuide = lazy(() => import('./components/helpcenter/guides/EmailSettingsGuide'));
 const SearchGuide = lazy(() => import('./components/helpcenter/guides/SearchGuide'));
-const AdvancedSearchGuide = lazy(() => import('./components/helpcenter/guides/AdvancedSearchGuide'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -1146,10 +1139,8 @@ function AppContent() {
                   <Route path="/helpcenter/manuals/getting-started" element={<GettingStartedGuide />} />
                   <Route path="/helpcenter/manuals/profile" element={<ProfileGuide />} />
                   <Route path="/helpcenter/manuals/search" element={<SearchGuide />} />
-                  <Route path="/helpcenter/manuals/advanced-search" element={<AdvancedSearchGuide />} />
                   <Route path="/helpcenter/manuals/social" element={<SocialFeaturesGuide />} />
                   <Route path="/helpcenter/manuals/groups" element={<GroupsGuide />} />
-                  <Route path="/helpcenter/manuals/pages" element={<PagesGuide />} />
                   <Route path="/helpcenter/manuals/bookmarks" element={<BookmarksGuide />} />
                   <Route path="/helpcenter/manuals/messaging" element={<MessagingGuide />} />
                   <Route path="/helpcenter/manuals/videos" element={<VideosGuide />} />
