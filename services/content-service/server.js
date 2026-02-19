@@ -7122,8 +7122,49 @@ app.get('/:contentType/:contentId/versions/stats', async (req, res) => {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch version statistics' });
   }
-});
 
+  try {
+    const { postId } = req.params;
+    const userId = req.header('x-user-id');
+
+    // Check if post exists and user has permission
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    // Check permission: owner or law-order (admin/moderator)
+    const userRole = req.header('x-user-role');
+    const hasPermission = post.userId === userId || ['admin', 'moderator'].includes(userRole);
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Not authorized to view post history' });
+    }
+
+    const versions = await PostVersion.findAll({
+      where: { postId },
+      order: [['versionNumber', 'DESC']],
+      include: [{
+        model: sequelize.models.User,
+        as: 'editor',
+        attributes: ['id', 'firstName', 'lastName']
+      }]
+    });
+
+    res.json({
+      post: {
+        id: post.id,
+        currentContent: post.content,
+        currentMediaUrls: post.mediaUrls
+      },
+      versions,
+      totalVersions: versions.length
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch version history' });
+  }
+});
 // ==================== END UNIVERSAL CONTENT VERSION CONTROL ====================
 
 startServer();
