@@ -60,14 +60,18 @@ const Search = () => {
             setLoading(true);
             setError('');
 
-            // Search content-service
-            const contentResponse = await api.get('/content-service/search', {
-                params: {
-                    query: searchQuery,
-                    type: searchType === 'all' || ['posts', 'comments', 'blogs'].includes(searchType) ? searchType : 'all',
-                    sortBy
-                }
-            });
+            // Search content-service for posts, comments, blogs
+            let contentResults = { posts: { items: [], count: 0 }, comments: { items: [], count: 0 }, blogs: { items: [], count: 0 }, hashtagPosts: { items: [], count: 0 } };
+            if (searchType === 'all' || ['posts', 'comments', 'blogs'].includes(searchType)) {
+                const contentResponse = await api.get('/content-service/search', {
+                    params: {
+                        query: searchQuery,
+                        type: searchType === 'all' ? 'all' : searchType,
+                        sortBy
+                    }
+                });
+                contentResults = contentResponse.data.results || contentResults;
+            }
 
             // Search users (friends) if type is all or users
             let users = { items: [], count: 0 };
@@ -109,7 +113,7 @@ const Search = () => {
             }
 
             setResults({
-                ...contentResponse.data.results,
+                ...contentResults,
                 users,
                 groups,
                 pages
