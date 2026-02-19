@@ -809,6 +809,8 @@ User.hasMany(Notification, { foreignKey: 'userId' });
 Notification.belongsTo(User, { foreignKey: 'userId' });
 User.hasOne(NotificationPreference, { foreignKey: 'userId' });
 NotificationPreference.belongsTo(User, { foreignKey: 'userId' });
+User.hasOne(UserPreferences, { foreignKey: 'userId' });
+UserPreferences.belongsTo(User, { foreignKey: 'userId' });
 User.hasMany(AuditLog, { as: 'AdminActions', foreignKey: 'adminId' });
 AuditLog.belongsTo(User, { as: 'Admin', foreignKey: 'adminId' });
 User.hasMany(ContentFlag, { as: 'Reports', foreignKey: 'reporterId' });

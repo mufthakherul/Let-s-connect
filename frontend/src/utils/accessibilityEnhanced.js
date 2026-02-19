@@ -60,7 +60,7 @@ export function useKeyboardNavigation(items = [], options = {}) {
     orientation = 'vertical' // vertical | horizontal
   } = options;
 
-  const [activeIndex, setActiveIndex] = React.useState(initialIndex);
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
 
   const handleKeyDown = useCallback((e) => {
     const key = e.key;
