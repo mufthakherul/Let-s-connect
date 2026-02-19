@@ -18,7 +18,7 @@ import {
   Phone as PhoneIcon, Storage as DatabaseIcon, CompareArrows as DiffIcon,
   Event as EventIcon,
   Settings as SettingsIcon, MoreHoriz as MoreHorizIcon, Apps as AppsIcon, PeopleAlt as PeopleIcon, SwapHoriz as SwapHorizIcon, Close as CloseIcon,
-  AccessibilityNew, ExpandLess, ExpandMore, Radio as RadioIcon, Tv as TvIcon, Security, VerifiedUser,
+  AccessibilityNew, ExpandLess, ExpandMore, Radio as RadioIcon, Tv as TvIcon, Security, VerifiedUser, Palette,
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -73,6 +73,7 @@ const MeetingLobby = lazy(() => import('./components/MeetingLobby'));
 const Radio = lazy(() => import('./components/Radio'));
 const TV = lazy(() => import('./components/TV'));
 const Pages = lazy(() => import('./components/Pages'));
+const AppearanceSettings = lazy(() => import('./components/AppearanceSettings'));
 const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./components/TermsOfService'));
 const CookiePolicy = lazy(() => import('./components/CookiePolicy'));
@@ -445,6 +446,7 @@ function AppContent() {
       submenu: [
         { label: 'Theme Settings', path: '/settings/theme', icon: <SettingsIcon /> },
         { label: 'Accessibility', path: '/settings/accessibility', icon: <AccessibilityNew /> },
+        { label: 'Appearance', path: '/settings/appearance', icon: <Palette /> },
       ]
     },
     { label: 'Admin', path: '/admin', icon: <DashboardIcon />, public: false, adminOnly: true },
@@ -1158,6 +1160,8 @@ function AppContent() {
                   <Route path="/settings/theme" element={<ThemeSettings />} />
                   {/* Phase 5 Features - Accessibility Settings */}
                   <Route path="/settings/accessibility" element={<AccessibilitySettings />} />
+                  {/* Advanced Appearance Settings */}
+                  <Route path="/settings/appearance" element={<AppearanceSettings />} />
 
                   {/* Legal & policies */}
                   <Route path="/privacy" element={<PrivacyPolicy />} />
