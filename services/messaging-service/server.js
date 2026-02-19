@@ -413,6 +413,94 @@ const Call = sequelize.define('Call', {
   ]
 });
 
+// Message Search and Scheduling Models
+const ScheduledMessage = sequelize.define('ScheduledMessage', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  conversationId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  senderId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  type: {
+    type: DataTypes.ENUM('text', 'image', 'video', 'file'),
+    defaultValue: 'text'
+  },
+  attachments: DataTypes.ARRAY(DataTypes.STRING),
+  scheduledFor: {
+    type: DataTypes.DATE,
+    allowNull: false
+  },
+  status: {
+    type: DataTypes.ENUM('pending', 'sent', 'cancelled', 'failed'),
+    defaultValue: 'pending'
+  },
+  sentAt: DataTypes.DATE,
+  messageId: {
+    type: DataTypes.UUID,
+    comment: 'ID of the sent message after scheduling completes'
+  }
+}, {
+  indexes: [
+    { fields: ['conversationId'] },
+    { fields: ['senderId'] },
+    { fields: ['status', 'scheduledFor'] }
+  ]
+});
+
+const ConversationSettings = sequelize.define('ConversationSettings', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  conversationId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  muteNotifications: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  muteUntil: {
+    type: DataTypes.DATE,
+    comment: 'Null for indefinite mute'
+  },
+  customNickname: {
+    type: DataTypes.STRING,
+    comment: 'Custom nickname for the conversation'
+  },
+  theme: {
+    type: DataTypes.STRING,
+    comment: 'Custom theme color or emoji'
+  },
+  pinned: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['conversationId', 'userId']
+    }
+  ]
+});
+
 // Phase 6: Notification System
 const Notification = sequelize.define('Notification', {
   id: {
