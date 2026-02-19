@@ -3741,9 +3741,9 @@ app.get('/groups/:id/analytics', async (req, res) => {
 
     // Verify user has permission to view analytics
     const membership = await GroupMember.findOne({
-      where: { 
-        groupId: id, 
-        userId, 
+      where: {
+        groupId: id,
+        userId,
         role: { [Op.in]: ['admin', 'moderator'] },
         status: 'active'
       }
@@ -3839,9 +3839,9 @@ app.post('/groups/:id/rules', async (req, res) => {
 
     // Verify user is admin/moderator
     const membership = await GroupMember.findOne({
-      where: { 
-        groupId: id, 
-        userId, 
+      where: {
+        groupId: id,
+        userId,
         role: { [Op.in]: ['admin', 'moderator'] },
         status: 'active'
       }
@@ -3924,9 +3924,9 @@ app.get('/groups/:id/reports', async (req, res) => {
 
     // Verify user is admin/moderator
     const membership = await GroupMember.findOne({
-      where: { 
-        groupId: id, 
-        userId, 
+      where: {
+        groupId: id,
+        userId,
         role: { [Op.in]: ['admin', 'moderator'] },
         status: 'active'
       }
@@ -3942,7 +3942,7 @@ app.get('/groups/:id/reports', async (req, res) => {
     }
 
     const reports = await GroupReport.findAll({
-      where: { 
+      where: {
         groupId: id,
         status
       },
@@ -3973,9 +3973,9 @@ app.put('/groups/:id/reports/:reportId', async (req, res) => {
 
     // Verify user is admin/moderator
     const membership = await GroupMember.findOne({
-      where: { 
-        groupId: id, 
-        userId, 
+      where: {
+        groupId: id,
+        userId,
         role: { [Op.in]: ['admin', 'moderator'] },
         status: 'active'
       }
@@ -4025,9 +4025,9 @@ app.post('/groups/:id/mute', async (req, res) => {
 
     // Verify user is admin/moderator
     const membership = await GroupMember.findOne({
-      where: { 
-        groupId: id, 
-        userId, 
+      where: {
+        groupId: id,
+        userId,
         role: { [Op.in]: ['admin', 'moderator'] },
         status: 'active'
       }
@@ -4095,9 +4095,9 @@ app.delete('/groups/:id/mute/:targetUserId', async (req, res) => {
 
     // Verify user is admin/moderator
     const membership = await GroupMember.findOne({
-      where: { 
-        groupId: id, 
-        userId, 
+      where: {
+        groupId: id,
+        userId,
         role: { [Op.in]: ['admin', 'moderator'] },
         status: 'active'
       }
@@ -6721,12 +6721,12 @@ async function getContentByType(contentType, contentId) {
     video: Video,
     // Add other content types as needed
   };
-  
+
   const model = models[contentType];
   if (!model) {
     return null;
   }
-  
+
   return await model.findByPk(contentId);
 }
 
@@ -6755,7 +6755,7 @@ async function createVersionSnapshot(contentType, content, editedBy, editedByNam
   // Add type-specific fields
   if (content.title) versionData.title = content.title;
   if (content.mediaUrls) versionData.mediaUrls = content.mediaUrls;
-  
+
   // Store additional metadata
   const metadata = {};
   if (content.visibility) metadata.visibility = content.visibility;
@@ -6800,7 +6800,7 @@ app.get('/:contentType/:contentId/versions', async (req, res) => {
       order: [['versionNumber', 'DESC']]
     });
 
-    res.json({ 
+    res.json({
       content: {
         id: content.id,
         type: normalizedType,
@@ -6809,7 +6809,7 @@ app.get('/:contentType/:contentId/versions', async (req, res) => {
         currentMediaUrls: content.mediaUrls
       },
       versions,
-      totalVersions: versions.length 
+      totalVersions: versions.length
     });
   } catch (error) {
     console.error(error);
@@ -6838,10 +6838,10 @@ app.get('/:contentType/:contentId/versions/:versionNumber', async (req, res) => 
     }
 
     const version = await ContentVersion.findOne({
-      where: { 
-        contentType: normalizedType, 
-        contentId, 
-        versionNumber: parseInt(versionNumber) 
+      where: {
+        contentType: normalizedType,
+        contentId,
+        versionNumber: parseInt(versionNumber)
       }
     });
 
@@ -7039,7 +7039,7 @@ app.put('/:contentType/:contentId', async (req, res) => {
 
     await contentItem.update(updateData);
 
-    res.json({ 
+    res.json({
       content: contentItem,
       versionCreated: version.versionNumber,
       message: `${contentType} updated successfully`
@@ -7076,7 +7076,7 @@ app.get('/:contentType/:contentId/versions/stats', async (req, res) => {
     });
 
     if (versions.length === 0) {
-      return res.json({ 
+      return res.json({
         totalVersions: 0,
         message: 'No edit history available'
       });
@@ -7102,7 +7102,7 @@ app.get('/:contentType/:contentId/versions/stats', async (req, res) => {
       const date = new Date(v.createdAt);
       const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const day = date.toISOString().split('T')[0];
-      
+
       stats.editsByMonth[month] = (stats.editsByMonth[month] || 0) + 1;
       stats.editsByDay[day] = (stats.editsByDay[day] || 0) + 1;
     });
