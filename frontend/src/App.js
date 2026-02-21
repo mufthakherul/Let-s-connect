@@ -145,6 +145,15 @@ const PageLoader = () => (
 function AppContent() {
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Reset scroll position whenever the user navigates between routes.
+  // Without this the browser will retain the previous scroll offset which
+  // can leave the landing page blank if you navigated from a long doc/video
+  // page.  The unregistered user was seeing this "empty" view and assuming
+  // the app was broken. A global hook handles it for all routes.
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname]);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -236,7 +245,11 @@ function AppContent() {
       const defaultTextPrimary = mode === 'dark' ? '#ffffff' : 'rgba(0, 0, 0, 0.87)';
       const defaultTextSecondary = mode === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)';
 
-      const palette = {
+      // use a different name than the imported `Palette` icon so that
+      // minification doesn't accidentally collide; older builds renamed
+      // `palette` to `Palette` and then used it before declaration, causing
+      // runtime ReferenceErrors in production.
+      const myPalette = {
         mode,
         primary: {
           main: primaryColor,
@@ -295,17 +308,17 @@ function AppContent() {
         },
       };
 
-      palette.primary = ensurePaletteEntry(palette.primary, '#1976d2');
-      palette.secondary = ensurePaletteEntry(palette.secondary, '#dc004e');
-      palette.success = ensurePaletteEntry(palette.success, '#2e7d32');
-      palette.info = ensurePaletteEntry(palette.info, '#0288d1');
-      palette.warning = ensurePaletteEntry(palette.warning, '#ed6c02');
-      palette.error = ensurePaletteEntry(palette.error, '#d32f2f');
-      palette.default = ensurePaletteEntry(palette.default, defaultMain);
-      palette.inherit = ensurePaletteEntry(palette.inherit, palette.text?.primary || '#000000');
+      myPalette.primary = ensurePaletteEntry(myPalette.primary, '#1976d2');
+      myPalette.secondary = ensurePaletteEntry(myPalette.secondary, '#dc004e');
+      myPalette.success = ensurePaletteEntry(myPalette.success, '#2e7d32');
+      myPalette.info = ensurePaletteEntry(myPalette.info, '#0288d1');
+      myPalette.warning = ensurePaletteEntry(myPalette.warning, '#ed6c02');
+      myPalette.error = ensurePaletteEntry(myPalette.error, '#d32f2f');
+      myPalette.default = ensurePaletteEntry(myPalette.default, defaultMain);
+      myPalette.inherit = ensurePaletteEntry(myPalette.inherit, myPalette.text?.primary || '#000000');
 
       return createTheme({
-        palette,
+        palette: myPalette,
         typography: {
           fontFamily: fontFamilyMap[fontFamily] || fontFamilyMap.default,
           fontSize: largeText ? 16 * textScale : 14 * textScale,
@@ -447,9 +460,9 @@ function AppContent() {
       icon: <SettingsIcon />,
       public: true,
       submenu: [
-        { label: 'Theme Settings', path: '/settings/theme', icon: <SettingsIcon /> },
+        { label: 'Theme', path: '/settings/theme', icon: <SettingsIcon />, public: true },
         { label: 'Accessibility', path: '/settings/accessibility', icon: <AccessibilityNew /> },
-        { label: 'Appearance', path: '/settings/appearance', icon: <Palette /> },
+        { label: 'Appearance', path: '/settings/appearance', icon: <Palette />, public: false },
       ]
     },
     { label: 'Admin', path: '/admin', icon: <DashboardIcon />, public: false, adminOnly: true },
@@ -493,7 +506,9 @@ function AppContent() {
                 </ListItem>
                 <Collapse in={settingsMenuOpen} timeout="auto" unmountOnExit>
                   <List component="div" disablePadding>
-                    {item.submenu.map((subItem) => (
+                    {item.submenu
+                      .filter(subItem => subItem.public || internalUser)
+                      .map((subItem) => (
                       <ListItem
                         button
                         component={Link}
