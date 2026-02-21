@@ -145,6 +145,15 @@ const PageLoader = () => (
 function AppContent() {
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Reset scroll position whenever the user navigates between routes.
+  // Without this the browser will retain the previous scroll offset which
+  // can leave the landing page blank if you navigated from a long doc/video
+  // page.  The unregistered user was seeing this "empty" view and assuming
+  // the app was broken. A global hook handles it for all routes.
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname]);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
