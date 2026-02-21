@@ -293,6 +293,11 @@ app.post('/api/channels/rate', (req, res) => {
 /**
  * Get similar channels
  * GET /api/channels/:channelId/similar?limit=10
+ *
+ *  Notes for clients:
+ *  - if the specified channel ID is unknown the service will return 200 with
+ *    `similar: []`.  some proxies or gateways may reply with 404 instead; the
+ *    frontend helper wraps 404 responses and converts them to an empty array.
  */
 app.get('/api/channels/:channelId/similar', (req, res) => {
     try {
@@ -310,6 +315,14 @@ app.get('/api/channels/:channelId/similar', (req, res) => {
  * GET /api/recommendations/stats/:userId
  */
 app.get('/api/recommendations/stats/:userId', (req, res) => {
+
+/**
+ * Stream proxy support
+ * The frontend calls `/api/streaming/proxy?url=...` when an HLS/RTMP source is
+ * insecure (http://) on an https page.  Any basic-auth credentials embedded
+ * in the URL (user:pass@host) are automatically forwarded.  You can also send
+ * an explicit `auth` query parameter (e.g. `&auth=Basic+...`) if needed.
+ */
     try {
         const stats = recommender.getUserStats(req.params.userId);
         res.json({ success: true, stats });

@@ -14,6 +14,7 @@ import {
 import { streamingService } from '../utils/streamingService';
 import { getApiBaseUrl } from '../utils/api';
 import toast from 'react-hot-toast';
+import { makePlaceholder } from '../utils/placeholder';
 
 const Radio = () => {
     const [stations, setStations] = useState([]);
@@ -299,7 +300,7 @@ const Radio = () => {
                     <CardMedia
                         component="img"
                         height="140"
-                        image={safeImageUrl(station.logoUrl) || 'https://via.placeholder.com/300x140?text=Radio'}
+                        image={safeImageUrl(station.logoUrl) || defaultPlaceholder}
                         alt={station.name}
                         sx={{ objectFit: 'cover' }}
                     />

@@ -422,6 +422,22 @@ app.get('/proxy', async (req, res) => {
         headers.range = req.headers.range;
     }
 
+    // if the client included basic auth credentials in the original URL (e.g.
+    // http://user:pass@host/path), the URL parser will expose them in
+    // target.username/target.password.  We need to synthesize an Authorization
+    // header for the proxied request; otherwise the upstream will return 401.
+    if (target.username || target.password) {
+        const buf = Buffer.from(`${target.username}:${target.password}`);
+        headers['Authorization'] = `Basic ${buf.toString('base64')}`;
+    }
+
+    // also allow callers to supply an explicit Authorization value via query
+    // (some clients cannot embed credentials in the URL).  e.g.
+    // /proxy?url=...&auth=Basic+xxxx
+    if (req.query.auth) {
+        headers['Authorization'] = req.query.auth;
+    }
+
     const isPlaylist = target.pathname.toLowerCase().endsWith('.m3u8');
 
     try {
