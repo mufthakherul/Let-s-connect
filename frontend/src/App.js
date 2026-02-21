@@ -245,7 +245,11 @@ function AppContent() {
       const defaultTextPrimary = mode === 'dark' ? '#ffffff' : 'rgba(0, 0, 0, 0.87)';
       const defaultTextSecondary = mode === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)';
 
-      const palette = {
+      // use a different name than the imported `Palette` icon so that
+      // minification doesn't accidentally collide; older builds renamed
+      // `palette` to `Palette` and then used it before declaration, causing
+      // runtime ReferenceErrors in production.
+      const myPalette = {
         mode,
         primary: {
           main: primaryColor,
@@ -304,17 +308,17 @@ function AppContent() {
         },
       };
 
-      palette.primary = ensurePaletteEntry(palette.primary, '#1976d2');
-      palette.secondary = ensurePaletteEntry(palette.secondary, '#dc004e');
-      palette.success = ensurePaletteEntry(palette.success, '#2e7d32');
-      palette.info = ensurePaletteEntry(palette.info, '#0288d1');
-      palette.warning = ensurePaletteEntry(palette.warning, '#ed6c02');
-      palette.error = ensurePaletteEntry(palette.error, '#d32f2f');
-      palette.default = ensurePaletteEntry(palette.default, defaultMain);
-      palette.inherit = ensurePaletteEntry(palette.inherit, palette.text?.primary || '#000000');
+      myPalette.primary = ensurePaletteEntry(myPalette.primary, '#1976d2');
+      myPalette.secondary = ensurePaletteEntry(myPalette.secondary, '#dc004e');
+      myPalette.success = ensurePaletteEntry(myPalette.success, '#2e7d32');
+      myPalette.info = ensurePaletteEntry(myPalette.info, '#0288d1');
+      myPalette.warning = ensurePaletteEntry(myPalette.warning, '#ed6c02');
+      myPalette.error = ensurePaletteEntry(myPalette.error, '#d32f2f');
+      myPalette.default = ensurePaletteEntry(myPalette.default, defaultMain);
+      myPalette.inherit = ensurePaletteEntry(myPalette.inherit, myPalette.text?.primary || '#000000');
 
       return createTheme({
-        palette,
+        palette: myPalette,
         typography: {
           fontFamily: fontFamilyMap[fontFamily] || fontFamilyMap.default,
           fontSize: largeText ? 16 * textScale : 14 * textScale,
