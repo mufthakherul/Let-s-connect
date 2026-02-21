@@ -4,8 +4,11 @@ import { Link } from 'react-router-dom';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PaletteIcon from '@mui/icons-material/Palette';
 import AccessibilityNewIcon from '@mui/icons-material/AccessibilityNew';
+import { useAuthStore } from '../store/authStore';
 
 export default function SettingsHub() {
+    const { user } = useAuthStore();
+
     return (
         <Box sx={{ mt: 4, px: 2, maxWidth: 980, mx: 'auto' }}>
             <Typography variant="h4" sx={{ mb: 3, fontWeight: 700 }}>Settings</Typography>
@@ -22,6 +25,7 @@ export default function SettingsHub() {
                     </Paper>
                 </Grid>
 
+                {user && (
                 <Grid item xs={12} sm={6} md={4}>
                     <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }} elevation={1}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -32,6 +36,7 @@ export default function SettingsHub() {
                         <Button component={Link} to="/settings/appearance" variant="outlined">Customize</Button>
                     </Paper>
                 </Grid>
+                )}
 
                 <Grid item xs={12} sm={6} md={4}>
                     <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }} elevation={1}>
