@@ -297,9 +297,18 @@ export const streamingService = {
 
     // Get similar channels
     getSimilarChannels: async (channelId, limit = 10) => {
-        const response = await axios.get(`${API_URL}/api/channels/${channelId}/similar`, { params: { limit }, headers: getAuthHeader() });
-        return response.data;
+        try {
+            const response = await axios.get(`${API_URL}/api/channels/${channelId}/similar`, { params: { limit }, headers: getAuthHeader() });
+            return response.data;
+        } catch (error) {
+            // treat "not found" as an empty list rather than bubbling up
+            if (error.response && error.response.status === 404) {
+                return { success: false, similar: [] };
+            }
+            throw error;
+        }
     },
+
 
     // Recommendation stats
     getRecommendationStats: async (userId) => {

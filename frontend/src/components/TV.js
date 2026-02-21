@@ -16,6 +16,7 @@ import { getApiBaseUrl } from '../utils/api';
 import toast from 'react-hot-toast';
 import shaka from 'shaka-player/dist/shaka-player.ui';
 import 'shaka-player/dist/controls.css';
+import { makePlaceholder } from '../utils/placeholder';
 
 const TV = () => {
     const [channels, setChannels] = useState([]);
@@ -90,6 +91,9 @@ const TV = () => {
         // otherwise treat as invalid so placeholder is used instead
         return null;
     };
+
+    // default placeholder if the channel has no logo or the logo URL is invalid
+    const defaultPlaceholder = makePlaceholder('TV');
 
     const isYouTubeChannel = (channel) => {
         if (!channel) return false;
@@ -238,7 +242,14 @@ const TV = () => {
                 shakaPlayerRef.current = null;
             }
 
-            const player = new shaka.Player(videoRef.current);
+                        /*
+             * Shaka Player introduced a breaking change in v5; initializing with
+             * a mediaElement is deprecated and triggers a warning in the console.
+             * The new pattern is to construct the player first and then call
+             * `attach(videoElement)` so we use that here to keep the logs clean.
+             */
+            const player = new shaka.Player();
+            player.attach(videoRef.current);
             const ui = new shaka.ui.Overlay(player, playerRef.current, videoRef.current);
 
             shakaPlayerRef.current = player;
@@ -270,7 +281,11 @@ const TV = () => {
             player.addEventListener('error', (event) => {
                 const error = event?.detail || event;
                 if (!canceled) {
-                    setPlayerError(error?.message || 'Playback error');
+                    const msg = error?.message || 'Playback error';
+                    setPlayerError(msg);
+                    if (msg.includes('401') || msg.toLowerCase().includes('unauthorized')) {
+                        toast.error('Playback error: upstream stream returned 401 (unauthorized)');
+                    }
                     // Attempt a fallback when Shaka reports an error during playback
                     const attempt = streamAttemptRef.current[currentChannel?.id] || 0;
                     const alts = currentChannel?.metadata?.alternativeUrls || [];
@@ -317,6 +332,12 @@ const TV = () => {
                     const attempt = streamAttemptRef.current[currentChannel.id] || 0;
                     const alts = currentChannel.metadata?.alternativeUrls || [];
 
+                    // surface more descriptive message when unauthorized
+                    const msg = error?.message || '';
+                    if (msg.includes('401') || msg.toLowerCase().includes('unauthorized')) {
+                        toast.error('Playback failed: stream requires authentication (401)');
+                    }
+
                     // If there is an alternative URL available, try next one
                     if (attempt < (alts.length)) {
                         streamAttemptRef.current[currentChannel.id] = attempt + 1;
@@ -341,9 +362,9 @@ const TV = () => {
                     }
 
                     if (!canceled) {
-                        const msg = error?.message || 'Failed to load stream';
-                        setPlayerError(msg);
-                        toast.error(`Playback failed: ${msg}`);
+                        const msg2 = error?.message || 'Failed to load stream';
+                        setPlayerError(msg2);
+                        toast.error(`Playback failed: ${msg2}`);
                         setIsPlaying(false);
                     }
                 }
@@ -438,7 +459,7 @@ const TV = () => {
                     <CardMedia
                         component="img"
                         height="140"
-                        image={safeImageUrl(channel.logoUrl) || 'https://via.placeholder.com/300x140?text=TV'}
+                        image={safeImageUrl(channel.logoUrl) || defaultPlaceholder}
                         alt={channel.name}
                         sx={{ objectFit: 'cover' }}
                     />
