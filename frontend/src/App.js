@@ -447,7 +447,7 @@ function AppContent() {
       icon: <SettingsIcon />,
       public: true,
       submenu: [
-        { label: 'Theme', path: '/settings/theme', icon: <SettingsIcon /> },
+        { label: 'Theme', path: '/settings/theme', icon: <SettingsIcon />, public: true },
         { label: 'Accessibility', path: '/settings/accessibility', icon: <AccessibilityNew /> },
         { label: 'Appearance', path: '/settings/appearance', icon: <Palette />, public: false },
       ]
