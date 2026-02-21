@@ -28,8 +28,8 @@ export default function SettingsHub() {
                             <PaletteIcon sx={{ fontSize: 28 }} />
                             <Typography variant="h6">Appearance</Typography>
                         </Box>
-                        <Typography variant="body2" color="text.secondary">Theme, accent color and display preferences.</Typography>
-                        <Button component={Link} to="/settings/theme" variant="outlined">Customize</Button>
+                        <Typography variant="body2" color="text.secondary">Theme, accents, layout and other visual options.</Typography>
+                        <Button component={Link} to="/settings/appearance" variant="outlined">Customize</Button>
                     </Paper>
                 </Grid>
 
