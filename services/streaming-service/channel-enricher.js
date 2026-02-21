@@ -204,10 +204,19 @@ class ChannelEnricher {
     /**
      * Generate fallback logo URL
      */
+    // helper used both here and in the frontend; kept simple so it works on server
+    _makePlaceholderDataUri(text = '') {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="140">
+            <rect width="300" height="140" fill="#ccc"/>
+            <text x="150" y="70" font-size="20" text-anchor="middle" fill="#333">${text}</text>
+        </svg>`;
+        return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+    }
+
     generateFallbackLogo(channel) {
         const name = (channel.name || 'TV').slice(0, 50);
-
-        // Use different sources in priority order
+        // Use different sources in priority order.  The first three are
+        // external services; if they fail we fall back to our inline SVG.
         const options = [
             // UI Avatars - very reliable
             `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&rounded=true`,
@@ -218,11 +227,11 @@ class ChannelEnricher {
             // LetterAvatar
             `https://www.gravatar.com/avatar/${this._md5(name)}?d=identicon&s=256`,
 
-            // Simple gradient background
-            `https://via.placeholder.com/300x140?text=${encodeURIComponent(name.slice(0, 20))}`
+            // Inline data URI fallback (avoids DNS lookups entirely)
+            this._makePlaceholderDataUri(name.slice(0, 20))
         ];
 
-        // Return first option or randomize
+        // Return first option (these URLs are only used as hints to the client)
         return options[0];
     }
 
