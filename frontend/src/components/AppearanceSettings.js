@@ -68,8 +68,10 @@ const AppearanceSettings = () => {
   useEffect(() => {
     const user = localStorage.getItem('user');
     if (!user) {
-      toast.error('Please login to customize appearance settings');
-      navigate('/login');
+      // guests shouldn't see the full appearance customizer; send them to the
+      // simpler theme page where they can still pick light/dark and accent
+      toast('You can change the theme here', { icon: 'ℹ️' });
+      navigate('/settings/theme');
     }
   }, [navigate]);
   
