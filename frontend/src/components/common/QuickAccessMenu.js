@@ -60,12 +60,12 @@ const getCommands = (user, toggleTheme, mode) => {
       keywords: ['theme', 'dark', 'light', 'mode', 'appearance']
     },
     { id: 'nav-settings', label: 'Settings', icon: <SettingsIcon />, action: '/settings', type: 'navigation', keywords: ['settings', 'preferences', 'account', 'appearance'] },
-    { id: 'nav-theme-settings', label: 'Theme Settings', icon: <SettingsIcon />, action: '/settings/theme', type: 'navigation', keywords: ['theme', 'settings', 'colors', 'appearance', 'customize'] },
+    { id: 'nav-theme-settings', label: 'Theme', icon: <SettingsIcon />, action: '/settings/theme', type: 'navigation', keywords: ['theme', 'settings', 'colors', 'appearance', 'customize'] },
   ];
 
   // Add authenticated user commands
-  if (user) {
-    commands.push(
+  if (user) {      // appearance settings should only be accessible by logged-in users
+      commands.push({ id: 'nav-appearance', label: 'Appearance', icon: <Palette />, action: '/settings/appearance', type: 'navigation', keywords: ['appearance', 'theme', 'customize'] });    commands.push(
       { id: 'nav-feed', label: 'Go to Feed', icon: <FeedIcon />, action: '/feed', type: 'navigation', keywords: ['feed', 'timeline', 'updates'] },
       { id: 'nav-groups', label: 'Go to Groups', icon: <GroupIcon />, action: '/groups', type: 'navigation', keywords: ['groups', 'communities', 'teams'] },
       { id: 'nav-pages', label: 'Go to Pages', icon: <PagesIcon />, action: '/pages', type: 'navigation', keywords: ['pages', 'content'] },

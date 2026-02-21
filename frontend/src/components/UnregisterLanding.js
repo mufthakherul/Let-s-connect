@@ -174,8 +174,10 @@ function UnregisterLanding() {
                     overflow: 'visible', 
                     zIndex: 1,
                     // Ensure content is always visible regardless of theme
-                    isolation: 'isolate',
-                }}
+                    isolation: 'isolate',                    // make sure the landing page always extends at least to the
+                    // bottom of the viewport so returning visitors don't see a
+                    // blank gap when the scroll position is preserved
+                    minHeight: '100vh',                }}
             >
                 {/* Decorative background shapes (subtle, non-distracting) */}
                 {!prefersReducedMotion && (
