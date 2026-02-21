@@ -559,7 +559,13 @@ const UserPreferences = sequelize.define('UserPreferences', {
   friendRequestPrivacy: {
     type: DataTypes.ENUM('everyone', 'friends_of_friends', 'no_one'),
     defaultValue: 'everyone',
-    comment: 'Who can send you friend requests'
+    // comment intentionally omitted; Sequelize generated ALTER SQL that
+    // appended a `USING` clause to the COMMENT statement which
+    // Postgres 13+ rejects (syntax error).  This caused the database
+    // sync to fail repeatedly in development and resulted in 500 errors
+    // on all endpoints.  Removing the comment avoids the bad SQL. If a
+    // comment is still desired it can be applied manually via a
+    // migration script outside of sync().
   }
 }, {
   indexes: [
