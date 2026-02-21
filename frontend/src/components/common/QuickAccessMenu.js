@@ -60,7 +60,7 @@ const getCommands = (user, toggleTheme, mode) => {
       keywords: ['theme', 'dark', 'light', 'mode', 'appearance']
     },
     { id: 'nav-settings', label: 'Settings', icon: <SettingsIcon />, action: '/settings', type: 'navigation', keywords: ['settings', 'preferences', 'account', 'appearance'] },
-    { id: 'nav-theme-settings', label: 'Theme Settings', icon: <SettingsIcon />, action: '/settings/theme', type: 'navigation', keywords: ['theme', 'settings', 'colors', 'appearance', 'customize'] },
+    { id: 'nav-theme-settings', label: 'Theme', icon: <SettingsIcon />, action: '/settings/theme', type: 'navigation', keywords: ['theme', 'settings', 'colors', 'appearance', 'customize'] },
   ];
 
   // Add authenticated user commands
