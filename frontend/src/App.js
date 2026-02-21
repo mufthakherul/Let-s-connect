@@ -449,7 +449,7 @@ function AppContent() {
       submenu: [
         { label: 'Theme', path: '/settings/theme', icon: <SettingsIcon /> },
         { label: 'Accessibility', path: '/settings/accessibility', icon: <AccessibilityNew /> },
-        { label: 'Appearance', path: '/settings/appearance', icon: <Palette /> },
+        { label: 'Appearance', path: '/settings/appearance', icon: <Palette />, public: false },
       ]
     },
     { label: 'Admin', path: '/admin', icon: <DashboardIcon />, public: false, adminOnly: true },
@@ -493,7 +493,9 @@ function AppContent() {
                 </ListItem>
                 <Collapse in={settingsMenuOpen} timeout="auto" unmountOnExit>
                   <List component="div" disablePadding>
-                    {item.submenu.map((subItem) => (
+                    {item.submenu
+                      .filter(subItem => subItem.public || internalUser)
+                      .map((subItem) => (
                       <ListItem
                         button
                         component={Link}

@@ -64,8 +64,8 @@ const getCommands = (user, toggleTheme, mode) => {
   ];
 
   // Add authenticated user commands
-  if (user) {
-    commands.push(
+  if (user) {      // appearance settings should only be accessible by logged-in users
+      commands.push({ id: 'nav-appearance', label: 'Appearance', icon: <Palette />, action: '/settings/appearance', type: 'navigation', keywords: ['appearance', 'theme', 'customize'] });    commands.push(
       { id: 'nav-feed', label: 'Go to Feed', icon: <FeedIcon />, action: '/feed', type: 'navigation', keywords: ['feed', 'timeline', 'updates'] },
       { id: 'nav-groups', label: 'Go to Groups', icon: <GroupIcon />, action: '/groups', type: 'navigation', keywords: ['groups', 'communities', 'teams'] },
       { id: 'nav-pages', label: 'Go to Pages', icon: <PagesIcon />, action: '/pages', type: 'navigation', keywords: ['pages', 'content'] },
