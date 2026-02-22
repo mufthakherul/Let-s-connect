@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { Box, Button } from '@mui/material';
 
 /**
@@ -208,6 +208,185 @@ export const checkColorContrast = (foreground, background, largeText = false) =>
   return true;
 };
 
+/**
+ * Keyboard navigation for lists (arrow keys, Home/End, Enter/Space selection)
+ */
+export const useKeyboardNavigation = (items = [], options = {}) => {
+  const {
+    onSelect,
+    initialIndex = -1,
+    orientation = 'vertical',
+  } = options;
+
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+
+  const handleKeyDown = useCallback((e) => {
+    const key = e.key;
+    const isVertical = orientation === 'vertical';
+    const nextKey = isVertical ? 'ArrowDown' : 'ArrowRight';
+    const prevKey = isVertical ? 'ArrowUp' : 'ArrowLeft';
+
+    if (key === nextKey) {
+      e.preventDefault();
+      setActiveIndex((prev) => {
+        const next = prev + 1;
+        return next >= items.length ? 0 : next;
+      });
+    } else if (key === prevKey) {
+      e.preventDefault();
+      setActiveIndex((prev) => {
+        const next = prev - 1;
+        return next < 0 ? items.length - 1 : next;
+      });
+    } else if (key === 'Home') {
+      e.preventDefault();
+      setActiveIndex(0);
+    } else if (key === 'End') {
+      e.preventDefault();
+      setActiveIndex(items.length - 1);
+    } else if (key === 'Enter' || key === ' ') {
+      e.preventDefault();
+      if (activeIndex >= 0 && activeIndex < items.length && onSelect) {
+        onSelect(items[activeIndex], activeIndex);
+      }
+    }
+  }, [items, activeIndex, orientation, onSelect]);
+
+  return {
+    activeIndex,
+    setActiveIndex,
+    handleKeyDown,
+    getItemProps: (index) => ({
+      tabIndex: index === activeIndex ? 0 : -1,
+      'aria-selected': index === activeIndex,
+      onFocus: () => setActiveIndex(index),
+    }),
+  };
+};
+
+/**
+ * Hook that returns an announce function backed by a live region element
+ */
+export const useAnnouncer = () => {
+  const announcerRef = useRef(null);
+
+  useEffect(() => {
+    if (!announcerRef.current) {
+      const el = document.createElement('div');
+      el.setAttribute('role', 'status');
+      el.setAttribute('aria-live', 'polite');
+      el.setAttribute('aria-atomic', 'true');
+      el.style.cssText = 'position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden';
+      document.body.appendChild(el);
+      announcerRef.current = el;
+    }
+    return () => {
+      if (announcerRef.current) {
+        document.body.removeChild(announcerRef.current);
+        announcerRef.current = null;
+      }
+    };
+  }, []);
+
+  return useCallback((message, priority = 'polite') => {
+    if (!announcerRef.current) return;
+    announcerRef.current.setAttribute('aria-live', priority);
+    announcerRef.current.textContent = message;
+    setTimeout(() => {
+      if (announcerRef.current) announcerRef.current.textContent = '';
+    }, 1000);
+  }, []);
+};
+
+/**
+ * Consistent ARIA label constants for common UI patterns
+ */
+export const ariaLabels = {
+  button: {
+    close: 'Close', menu: 'Open menu', more: 'More options',
+    edit: 'Edit', delete: 'Delete', save: 'Save',
+    cancel: 'Cancel', submit: 'Submit', search: 'Search',
+  },
+  form: {
+    required: (label) => `${label} (required)`,
+    invalid: (label, error) => `${label}, ${error}`,
+    valid: (label) => `${label}, valid`,
+  },
+  status: {
+    loading: 'Loading…', error: 'Error occurred',
+    success: 'Success', empty: 'No items to display',
+  },
+  navigation: {
+    main: 'Main navigation', breadcrumb: 'Breadcrumb',
+    pagination: 'Pagination', tabs: 'Tab navigation',
+  },
+};
+
+/**
+ * Generate ARIA props object for common interactive element types
+ */
+export const getAriaProps = (type, options = {}) => {
+  switch (type) {
+    case 'button':
+      return {
+        role: 'button',
+        tabIndex: options.disabled ? -1 : 0,
+        'aria-disabled': options.disabled || undefined,
+        'aria-label': options.label,
+        'aria-pressed': options.pressed,
+        'aria-expanded': options.expanded,
+      };
+    case 'link':
+      return {
+        role: 'link',
+        tabIndex: options.disabled ? -1 : 0,
+        'aria-disabled': options.disabled || undefined,
+        'aria-label': options.label,
+        'aria-current': options.current ? 'page' : undefined,
+      };
+    case 'input':
+      return {
+        'aria-label': options.label,
+        'aria-required': options.required || undefined,
+        'aria-invalid': options.invalid || undefined,
+        'aria-describedby': options.describedBy,
+      };
+    case 'dialog':
+      return {
+        role: 'dialog',
+        'aria-modal': true,
+        'aria-labelledby': options.titleId,
+        'aria-describedby': options.descriptionId,
+      };
+    case 'menu':
+      return {
+        role: 'menu',
+        'aria-orientation': options.orientation || 'vertical',
+        'aria-label': options.label,
+      };
+    case 'menuitem':
+      return {
+        role: 'menuitem',
+        tabIndex: options.focused ? 0 : -1,
+        'aria-disabled': options.disabled || undefined,
+      };
+    default:
+      return {};
+  }
+};
+
+/**
+ * Focus a specific element by id when a dependency value changes
+ */
+export const useFocusManagement = (dependency, focusElementId) => {
+  useEffect(() => {
+    if (focusElementId) {
+      const element = document.getElementById(focusElementId);
+      if (element) element.focus();
+    }
+  }, [dependency, focusElementId]);
+};
+
 export default {
   SkipLink,
   useFocusTrap,
@@ -215,8 +394,13 @@ export default {
   VisuallyHidden,
   focusVisibleStyles,
   useKeyboardShortcut,
+  useKeyboardNavigation,
+  useAnnouncer,
   announce,
+  ariaLabels,
   getAriaLabel,
   getAriaDescribedBy,
+  getAriaProps,
+  useFocusManagement,
   checkColorContrast,
 };
