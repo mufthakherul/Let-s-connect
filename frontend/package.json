@@ -32,11 +32,13 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "postinstall": "sed -i '/sourceMappingURL/d' ./node_modules/shaka-player/dist/shaka-player.ui.js || true"
+    "postinstall": "node -e \"const fs=require('fs');const p='./node_modules/shaka-player/dist/shaka-player.ui.js';try{if(fs.existsSync(p)){const c=fs.readFileSync(p,'utf8').replace(/\\n?# sourceMappingURL=.*$/gm,'');fs.writeFileSync(p,c,'utf8');}}catch(_){process.exit(0);}\""
   },
   "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-keywords": "^5.1.0",
     "eslint-plugin-react-hooks": "^7.0.1",
-    "react-scripts": "^0.0.0"
+    "react-scripts": "^5.0.1"
   },
   "browserslist": {
     "production": [

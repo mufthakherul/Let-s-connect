@@ -17,7 +17,7 @@ COPY package*.json ./
 
 # Always install all dependencies (including devDependencies) during build
 # The NODE_ENV variable will be used at runtime to decide dev vs prod mode
-RUN NODE_ENV= npm install
+RUN NODE_ENV= npm install --legacy-peer-deps
 
 COPY . .
 
@@ -31,7 +31,8 @@ COPY nginx.conf /etc/nginx/http.d/default.conf
 
 # Copy entrypoint script and make it executable
 COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh && \
+RUN sed -i 's/\r$//' /docker-entrypoint.sh && \
+    chmod +x /docker-entrypoint.sh && \
     # Verify script exists and is executable
     ls -la /docker-entrypoint.sh
 

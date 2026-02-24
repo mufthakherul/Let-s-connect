@@ -15,6 +15,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 REFRESH_INTERVAL=2  # seconds
+REDIS_CID=""
 
 # Function to clear screen
 clear_screen() {
@@ -23,7 +24,7 @@ clear_screen() {
 
 # Function to get Redis info
 get_redis_info() {
-  docker exec redis redis-cli INFO "$1" 2>/dev/null || echo "ERROR"
+  docker exec "$REDIS_CID" redis-cli INFO "$1" 2>/dev/null || echo "ERROR"
 }
 
 # Function to get specific stat
@@ -147,7 +148,7 @@ display_top_keys() {
   echo -e "${YELLOW}Cache Keys by Namespace:${NC}"
   
   # Get all keys and count by namespace
-  local keys=$(docker exec redis redis-cli KEYS "*" 2>/dev/null)
+  local keys=$(docker exec "$REDIS_CID" redis-cli KEYS "*" 2>/dev/null)
   
   if [ -z "$keys" ] || [ "$keys" = "(empty array)" ]; then
     echo -e "  ${YELLOW}No keys in cache${NC}"
@@ -180,8 +181,10 @@ display_recent_operations() {
 
 # Main monitoring loop
 main() {
+  REDIS_CID=$(docker compose ps -q redis 2>/dev/null || true)
+
   # Check if Redis is running
-  if ! docker ps | grep -q redis; then
+  if [ -z "$REDIS_CID" ]; then
     echo -e "${RED}Error: Redis container is not running${NC}"
     echo -e "Start Redis with: ${YELLOW}docker-compose up -d redis${NC}"
     exit 1
