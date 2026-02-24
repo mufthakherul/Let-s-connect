@@ -35,8 +35,8 @@
     "postinstall": "sed -i '/sourceMappingURL/d' ./node_modules/shaka-player/dist/shaka-player.ui.js || true"
   },
   "devDependencies": {
-    "react-scripts": "^5.0.1",
-    "eslint-plugin-react-hooks": "^7.0.1"
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "react-scripts": "^0.0.0"
   },
   "browserslist": {
     "production": [
