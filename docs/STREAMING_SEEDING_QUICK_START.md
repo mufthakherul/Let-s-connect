@@ -1,5 +1,14 @@
 # Quick Start: Streaming Service Database Seeding
 
+## Canonical Mode Contract
+
+- `skip` → skip seeding
+- `minimal` → run `seed-fast.js` (static subset)
+- `full` → run `seed.js` (dynamic + enrichment/validation)
+- `fast` → run `seed.js` (dynamic broad collection with heavy checks reduced)
+
+Backward compatibility: if `SEED_MODE` is unset and `USE_FULL_SEED=true`, mode resolves to `full`; otherwise default is `minimal`.
+
 ## One-Command Deployment
 
 ```bash
@@ -8,9 +17,8 @@ docker-compose up --build -d
 ```
 
 **What happens**:
-- Automatically seeds 16 radio stations
-- Automatically seeds 20 TV channels
-- ~2 seconds to complete
+- Automatically seeds minimal static subset by default (`SEED_MODE=minimal`)
+- Fast startup for development
 - Ready to use immediately
 
 ## Verify It Worked
@@ -38,12 +46,36 @@ curl http://localhost:8000/api/streaming/tv/channels
 ## Manual Seeding (if needed)
 
 ```bash
-# If already running
-docker-compose exec streaming-service npm run seed
+# Minimal static subset (default dev)
+docker-compose exec streaming-service npm run seed:minimal
+
+# Full dynamic seed (most complete)
+docker-compose exec streaming-service npm run seed:full
+
+# Fast dynamic seed (broad + optimized)
+docker-compose exec streaming-service npm run seed:fast
 
 # Or if rebuilding
 docker-compose up --build -d streaming-service
 docker-compose logs -f streaming-service
+```
+
+## Environment Variables (Most Used)
+
+```bash
+# Canonical mode
+SEED_MODE=minimal
+
+# Minimal mode limits
+SEED_MINIMAL_RADIO_LIMIT=50
+SEED_MINIMAL_TV_LIMIT=50
+
+# Fast mode toggles (used when SEED_MODE=fast)
+SEED_FAST_DISABLE_STREAM_VALIDATION=true
+SEED_FAST_DISABLE_LOGO_NETWORK=true
+SEED_FAST_DISABLE_YOUTUBE_ENRICHMENT=true
+SEED_FAST_DISABLE_DELAYS=true
+SEED_FAST_SKIP_PER_ITEM_PRECHECK=true
 ```
 
 ## What Gets Added
@@ -61,7 +93,7 @@ Check logs:
 docker-compose logs streaming-service
 ```
 
-See [STREAMING_SEEDING_IMPLEMENTATION.md](STREAMING_SEEDING_IMPLEMENTATION.md) for full troubleshooting guide.
+See [STREAMING_SEEDING_OPTIMIZATION.md](STREAMING_SEEDING_OPTIMIZATION.md) for mode and optimization details.
 
 ---
 

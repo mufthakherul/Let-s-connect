@@ -12,6 +12,81 @@ const YouTubeEnricher = require('./youtube-enricher');
 const IPTVOrgAPI = require('./iptv-org-api');
 const ChannelEnricher = require('./channel-enricher');
 
+// ==================== MODE CONFIGURATION ====================
+
+const CANONICAL_SEED_MODES = new Set(['skip', 'minimal', 'full', 'fast']);
+
+function parseBoolean(value, fallback = false) {
+    if (value === undefined || value === null || value === '') return fallback;
+    return String(value).toLowerCase() === 'true';
+}
+
+function parseNumber(value, fallback) {
+    const n = parseInt(value, 10);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeSeedMode(raw) {
+    const candidate = String(raw || '').toLowerCase().trim();
+    if (CANONICAL_SEED_MODES.has(candidate)) return candidate;
+
+    // Legacy aliases/backward compatibility
+    if (candidate === 'none') return 'skip';
+    if (candidate === 'quick' || candidate === 'lite') return 'minimal';
+    if (candidate === 'complete') return 'full';
+
+    // Backward compatibility requirement: if SEED_MODE is unset and USE_FULL_SEED=true => full
+    if (!candidate) {
+        return parseBoolean(process.env.USE_FULL_SEED, false) ? 'full' : 'minimal';
+    }
+
+    console.log(`⚠️  Unknown SEED_MODE='${raw}'. Falling back to 'minimal'`);
+    return 'minimal';
+}
+
+const RAW_SEED_MODE = process.env.SEED_MODE;
+const SEED_MODE = normalizeSeedMode(RAW_SEED_MODE);
+
+const IS_SKIP_MODE = SEED_MODE === 'skip';
+const IS_MINIMAL_MODE = SEED_MODE === 'minimal';
+const IS_FULL_MODE = SEED_MODE === 'full';
+const IS_FAST_MODE = SEED_MODE === 'fast';
+
+const SEED_MINIMAL_RADIO_LIMIT = parseNumber(process.env.SEED_MINIMAL_RADIO_LIMIT, 50);
+const SEED_MINIMAL_TV_LIMIT = parseNumber(process.env.SEED_MINIMAL_TV_LIMIT, 50);
+
+// Fast-mode optimization toggles (with sane defaults for fast)
+const FAST_DISABLE_STREAM_VALIDATION = parseBoolean(
+    process.env.SEED_FAST_DISABLE_STREAM_VALIDATION,
+    IS_FAST_MODE
+);
+const FAST_DISABLE_LOGO_NETWORK = parseBoolean(
+    process.env.SEED_FAST_DISABLE_LOGO_NETWORK,
+    IS_FAST_MODE
+);
+const FAST_DISABLE_YOUTUBE_ENRICHMENT = parseBoolean(
+    process.env.SEED_FAST_DISABLE_YOUTUBE_ENRICHMENT,
+    IS_FAST_MODE
+);
+const FAST_DISABLE_DELAYS = parseBoolean(
+    process.env.SEED_FAST_DISABLE_DELAYS,
+    IS_FAST_MODE
+);
+const FAST_SKIP_PER_ITEM_PRECHECK = parseBoolean(
+    process.env.SEED_FAST_SKIP_PER_ITEM_PRECHECK,
+    IS_FAST_MODE
+);
+
+const CHUNK_DELAY_MS = parseNumber(
+    process.env.SEED_CHUNK_DELAY_MS,
+    FAST_DISABLE_DELAYS ? 0 : 250
+);
+
+const CHANNEL_ENRICH_MAX_CONCURRENT = parseNumber(
+    process.env.SEED_CHANNEL_ENRICH_MAX_CONCURRENT,
+    IS_FAST_MODE ? 20 : 5
+);
+
 // Database connection
 const sequelize = new Sequelize(
     process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/streaming',
@@ -99,6 +174,25 @@ const TVChannel = sequelize.define('TVChannel', {
 
 // ==================== FETCHER FUNCTIONS ====================
 
+function readJson(filePath, fallback = []) {
+    try {
+        return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch (error) {
+        console.log(`⚠️  Failed to read JSON from ${filePath}: ${error.message}`);
+        return fallback;
+    }
+}
+
+function deduplicateByStreamUrl(items = []) {
+    const map = new Map();
+    for (const item of items) {
+        const key = (item?.streamUrl || '').toLowerCase().trim();
+        if (!key) continue;
+        if (!map.has(key)) map.set(key, item);
+    }
+    return Array.from(map.values());
+}
+
 /**
  * Fetch radio stations from online sources with fallback to static data
  */
@@ -115,8 +209,8 @@ async function fetchRadioStations() {
 
     try {
         const fetcher = new RadioBrowserFetcher({
-            timeout: 15000,
-            retries: 3,
+            timeout: IS_FAST_MODE ? 10000 : 15000,
+            retries: IS_FAST_MODE ? 1 : 3,
             fetchWorldwide: true
         });
 
@@ -207,7 +301,10 @@ async function fetchRadioStations() {
 async function fetchIPTVOrgChannels() {
     console.log('🌐 Fetching channels from IPTV-ORG API...');
     try {
-        const iptvAPI = new IPTVOrgAPI({ timeout: 30000, retries: 3 });
+        const iptvAPI = new IPTVOrgAPI({
+            timeout: IS_FAST_MODE ? 12000 : 30000,
+            retries: IS_FAST_MODE ? 1 : 3
+        });
         const channels = await iptvAPI.fetchChannels();
 
         if (channels && channels.length > 0) {
@@ -239,7 +336,36 @@ async function fetchYouTubeChannels() {
         const youtubeRaw = JSON.parse(fs.readFileSync(youtubeDataPath, 'utf8'));
         if (!Array.isArray(youtubeRaw)) return [];
 
-        const enricher = new YouTubeEnricher({ timeout: 5000, retries: 1 });
+        if (IS_FAST_MODE && FAST_DISABLE_YOUTUBE_ENRICHMENT) {
+            console.log('⚡ Fast mode: loading YouTube channels without enrichment/checks');
+            const channels = youtubeRaw
+                .filter(ch => ch && ch.liveUrl)
+                .map(ch => ({
+                    name: ch.name || 'YouTube Live',
+                    description: ch.categoryFull || ch.category || '',
+                    streamUrl: ch.liveUrl,
+                    epgUrl: '',
+                    category: ch.category || 'Mixed',
+                    country: ch.country || 'Worldwide',
+                    language: 'Unknown',
+                    logoUrl: ch.logoUrl || '',
+                    resolution: 'Unknown',
+                    isActive: true,
+                    source: 'youtube',
+                    metadata: {
+                        platform: ch.platform || 'YouTube',
+                        handle: ch.handle || ''
+                    }
+                }));
+
+            console.log(`✅ Loaded ${channels.length} YouTube channels (no enrichment)`);
+            return channels;
+        }
+
+        const enricher = new YouTubeEnricher({
+            timeout: IS_FAST_MODE ? 3000 : 5000,
+            retries: IS_FAST_MODE ? 0 : 1
+        });
 
         console.log('🔧 Enriching YouTube channels with metadata and logos...');
         const enriched = await enricher.enrichChannels(youtubeRaw);
@@ -263,8 +389,8 @@ async function fetchTVChannels() {
 
     try {
         const fetcher = new TVPlaylistFetcher({
-            timeout: 15000,
-            retries: 2
+            timeout: IS_FAST_MODE ? 10000 : 15000,
+            retries: IS_FAST_MODE ? 1 : 2
         });
 
         const channels = await fetcher.fetchAllSources();
@@ -318,7 +444,24 @@ function sanitizeString(value, max = 1024) {
 const seed = async () => {
     try {
         console.log('🌱 Starting streaming database seeding...\n');
+        console.log(`📋 Seed mode (raw): ${RAW_SEED_MODE || '(unset)'}`);
+        console.log(`📋 Seed mode (normalized): ${SEED_MODE}\n`);
+
+        if (IS_FAST_MODE) {
+            console.log('⚡ Fast mode optimizations:');
+            console.log(`  - Stream validation disabled: ${FAST_DISABLE_STREAM_VALIDATION}`);
+            console.log(`  - Logo fetch/verify disabled: ${FAST_DISABLE_LOGO_NETWORK}`);
+            console.log(`  - YouTube enrichment disabled: ${FAST_DISABLE_YOUTUBE_ENRICHMENT}`);
+            console.log(`  - Chunk delays disabled: ${FAST_DISABLE_DELAYS}`);
+            console.log(`  - Per-item duplicate prechecks minimized: ${FAST_SKIP_PER_ITEM_PRECHECK}\n`);
+        }
+
         console.log('═══════════════════════════════════════════\n');
+
+        if (IS_SKIP_MODE) {
+            console.log('⏭️  Seeding skipped (SEED_MODE=skip)\n');
+            process.exit(0);
+        }
 
         // Sync database
         console.log('🔧 Synchronizing database models...');
@@ -330,31 +473,34 @@ const seed = async () => {
         console.log('📻 RADIO STATIONS SEEDING');
         console.log('═══════════════════════════════════════════\n');
 
-        // Fetch radio data with fallback
-        let radioStations = [];
-        try {
-            radioStations = await fetchRadioStations();
-        } catch (error) {
-            console.error('❌ Critical error fetching radio stations:', error.message);
-            console.error('Please check internet connection and API availability');
-            process.exit(1);
-        }
-
-        if (!radioStations || radioStations.length === 0) {
-            console.error('❌ No radio station data available');
-            process.exit(1);
-        }
-
-        // Get static data for comparison
         const staticRadioPath = path.join(__dirname, 'seed-data', 'radio-stations.json');
-        const staticRadioData = JSON.parse(fs.readFileSync(staticRadioPath, 'utf8'));
+        const staticRadioData = readJson(staticRadioPath, []);
 
-        // Merge data
-        const mergedRadio = mergeData(radioStations, staticRadioData, 'radio');
-        console.log(`📊 Merged Data: ${mergedRadio.length} unique radio stations`);
-        console.log(`  - Online sources: ${radioStations.length}`);
-        console.log(`  - Static fallback: ${staticRadioData.length}`);
-        console.log(`  - Total unique: ${mergedRadio.length}\n`);
+        let mergedRadio = [];
+        if (IS_MINIMAL_MODE) {
+            mergedRadio = staticRadioData.slice(0, SEED_MINIMAL_RADIO_LIMIT);
+            console.log(`📦 Minimal mode: using static radio subset (${mergedRadio.length}/${staticRadioData.length})\n`);
+        } else {
+            let radioStations = [];
+            try {
+                radioStations = await fetchRadioStations();
+            } catch (error) {
+                console.error('❌ Critical error fetching radio stations:', error.message);
+                console.error('Please check internet connection and API availability');
+                process.exit(1);
+            }
+
+            if (!radioStations || radioStations.length === 0) {
+                console.error('❌ No radio station data available');
+                process.exit(1);
+            }
+
+            mergedRadio = mergeData(radioStations, staticRadioData, 'radio');
+            console.log(`📊 Merged Data: ${mergedRadio.length} unique radio stations`);
+            console.log(`  - Online sources: ${radioStations.length}`);
+            console.log(`  - Static fallback: ${staticRadioData.length}`);
+            console.log(`  - Total unique: ${mergedRadio.length}\n`);
+        }
 
         console.log(`🔄 Seeding ${mergedRadio.length} radio stations to database...\n`);
 
@@ -369,8 +515,9 @@ const seed = async () => {
         for (const station of mergedRadio) {
             try {
                 // Try to find existing by streamUrl OR by strong name+country match
-                const existing = await RadioStation.findOne({
-                    where: {
+                const where = (IS_FAST_MODE && FAST_SKIP_PER_ITEM_PRECHECK)
+                    ? { streamUrl: station.streamUrl }
+                    : {
                         [Op.or]: [
                             { streamUrl: station.streamUrl },
                             {
@@ -378,8 +525,9 @@ const seed = async () => {
                                 country: station.country || null
                             }
                         ]
-                    }
-                });
+                    };
+
+                const existing = await RadioStation.findOne({ where });
 
                 if (existing) {
                     const incomingUrl = (station.streamUrl || '').trim();
@@ -456,99 +604,107 @@ const seed = async () => {
         console.log('📺 TV CHANNELS SEEDING');
         console.log('═══════════════════════════════════════════\n');
 
-        // Fetch TV data with fallback
-        let tvChannels = [];
-        try {
-            tvChannels = await fetchTVChannels();
-        } catch (error) {
-            console.error('❌ Critical error fetching TV channels:', error.message);
-            console.error('Please check internet connection and playlist availability');
-            process.exit(1);
-        }
-
-        if (!tvChannels || tvChannels.length === 0) {
-            console.error('❌ No TV channel data available');
-            process.exit(1);
-        }
-
-        // Get static data for comparison
         const staticTVPath = path.join(__dirname, 'seed-data', 'tv-channels.json');
-        const staticTVData = JSON.parse(fs.readFileSync(staticTVPath, 'utf8'));
+        const staticTVData = readJson(staticTVPath, []);
 
-        // ========== FETCH ADDITIONAL SOURCES ==========
-        console.log('\n📡 Fetching TV channels from additional sources (IPTV-ORG, YouTube)...\n');
-
-        // Detect whether TVPlaylistFetcher already included IPTV-ORG / YouTube entries
-        const youtubeLocalCount = tvChannels.filter(ch => (ch.source === 'youtube') || (ch.playlistSource && String(ch.playlistSource).toLowerCase().includes('youtube'))).length;
-        const iptvOrgLocalCount = tvChannels.filter(ch => ch.source && String(ch.source).toLowerCase().includes('iptv-org')).length;
-
-        // Always fetch IPTV-ORG data — use it to enrich existing channels and supply missing logos/metadata
+        let mergedTV = [];
+        let tvChannels = [];
         let iptvOrgChannels = [];
-        try {
-            iptvOrgChannels = await fetchIPTVOrgChannels();
-            console.log(`ℹ️ Fetched ${iptvOrgChannels.length} IPTV-ORG channels (will be used to enrich/merge)`);
-        } catch (err) {
-            console.log(`⚠️ IPTV-ORG fetch failed: ${err.message}`);
-            iptvOrgChannels = [];
-        }
+        let youtubeChannels = [];
 
-        // If TVPlaylistFetcher already included IPTV-ORG entries, merge IPTV-ORG metadata (logos, tvg ids)
-        if (iptvOrgChannels.length > 0 && tvChannels.length > 0) {
-            const iptvMapByStream = new Map();
-            const iptvMapById = new Map();
-            for (const iptv of iptvOrgChannels) {
-                if (iptv.streamUrl) iptvMapByStream.set((iptv.streamUrl || '').toLowerCase().trim(), iptv);
-                if (iptv.metadata?.channelId) iptvMapById.set(iptv.metadata.channelId, iptv);
-                if (iptv.metadata?.tvgId) iptvMapById.set(iptv.metadata.tvgId, iptv);
+        if (IS_MINIMAL_MODE) {
+            mergedTV = staticTVData.slice(0, SEED_MINIMAL_TV_LIMIT);
+            console.log(`📦 Minimal mode: using static TV subset (${mergedTV.length}/${staticTVData.length})\n`);
+        } else {
+            // Fetch TV data with fallback
+            try {
+                tvChannels = await fetchTVChannels();
+            } catch (error) {
+                console.error('❌ Critical error fetching TV channels:', error.message);
+                console.error('Please check internet connection and playlist availability');
+                process.exit(1);
             }
 
-            for (const ch of tvChannels) {
-                const key = (ch.streamUrl || '').toLowerCase().trim();
-                const match = iptvMapByStream.get(key) || (ch.metadata && iptvMapById.get(ch.metadata.channelId || ch.metadata.tvgId));
-                if (match) {
-                    // prefer IPTV-ORG logo when missing
-                    if (!ch.logoUrl && (match.logo || match.logoUrl)) {
-                        ch.logoUrl = match.logo || match.logoUrl;
+            if (!tvChannels || tvChannels.length === 0) {
+                console.error('❌ No TV channel data available');
+                process.exit(1);
+            }
+
+            console.log('\n📡 Fetching TV channels from additional sources (IPTV-ORG, YouTube)...\n');
+
+            const youtubeLocalCount = tvChannels.filter(ch =>
+                (ch.source === 'youtube') ||
+                (ch.playlistSource && String(ch.playlistSource).toLowerCase().includes('youtube'))
+            ).length;
+
+            try {
+                iptvOrgChannels = await fetchIPTVOrgChannels();
+                console.log(`ℹ️ Fetched ${iptvOrgChannels.length} IPTV-ORG channels (used for merge/enrichment)`);
+            } catch (err) {
+                console.log(`⚠️ IPTV-ORG fetch failed: ${err.message}`);
+                iptvOrgChannels = [];
+            }
+
+            if (iptvOrgChannels.length > 0 && tvChannels.length > 0) {
+                const iptvMapByStream = new Map();
+                const iptvMapById = new Map();
+                for (const iptv of iptvOrgChannels) {
+                    if (iptv.streamUrl) iptvMapByStream.set((iptv.streamUrl || '').toLowerCase().trim(), iptv);
+                    if (iptv.metadata?.channelId) iptvMapById.set(iptv.metadata.channelId, iptv);
+                    if (iptv.metadata?.tvgId) iptvMapById.set(iptv.metadata.tvgId, iptv);
+                }
+
+                for (const ch of tvChannels) {
+                    const key = (ch.streamUrl || '').toLowerCase().trim();
+                    const match = iptvMapByStream.get(key) || (ch.metadata && iptvMapById.get(ch.metadata.channelId || ch.metadata.tvgId));
+                    if (match) {
+                        if (!ch.logoUrl && (match.logo || match.logoUrl)) ch.logoUrl = match.logo || match.logoUrl;
+                        ch.metadata = Object.assign({}, match.metadata || {}, ch.metadata || {});
                     }
-                    // merge useful metadata fields without overwriting existing values
-                    ch.metadata = Object.assign({}, match.metadata || {}, ch.metadata || {});
                 }
             }
+
+            if (youtubeLocalCount > 0) {
+                console.log(`ℹ️ Detected ${youtubeLocalCount} YouTube channels already loaded by TVPlaylistFetcher — skipping separate YouTube fetch.`);
+            } else if (IS_FAST_MODE && FAST_DISABLE_YOUTUBE_ENRICHMENT) {
+                console.log('⚡ Fast mode: skipping optional YouTube enrichment/checks');
+            } else {
+                youtubeChannels = await fetchYouTubeChannels();
+            }
+
+            const allChannels = [...tvChannels, ...iptvOrgChannels, ...youtubeChannels, ...staticTVData];
+            console.log(`\n📊 Combined sources: ${allChannels.length} total channels (before deduplication)`);
+            console.log(`  - Playlist channels: ${tvChannels.length}`);
+            console.log(`  - IPTV-ORG channels: ${iptvOrgChannels.length}`);
+            console.log(`  - YouTube channels: ${youtubeChannels.length}`);
+            console.log(`  - Static fallback: ${staticTVData.length}\n`);
+
+            if (IS_FAST_MODE && FAST_DISABLE_STREAM_VALIDATION && FAST_DISABLE_LOGO_NETWORK) {
+                console.log('⚡ Fast mode: skipping stream validation + logo network checks');
+                mergedTV = deduplicateByStreamUrl(allChannels);
+            } else {
+                console.log('🔧 Enriching channels with validation/logo checks...\n');
+                const enricher = new ChannelEnricher({
+                    validateStreams: !FAST_DISABLE_STREAM_VALIDATION,
+                    maxConcurrent: CHANNEL_ENRICH_MAX_CONCURRENT
+                });
+
+                if (IS_FAST_MODE && FAST_DISABLE_LOGO_NETWORK) {
+                    enricher.findBestLogo = async () => null;
+                    enricher.verifyImageUrl = async () => false;
+                    enricher.fetchYouTubeLogo = async () => null;
+                    enricher.fetchOGImage = async () => null;
+                    enricher.fetchWebLogo = async () => null;
+                }
+
+                const enrichedChannels = await enricher.enrichChannels(allChannels, {
+                    skipInvalid: false,
+                    validateStreams: !FAST_DISABLE_STREAM_VALIDATION
+                });
+
+                mergedTV = enricher.deduplicateChannels(enrichedChannels);
+            }
         }
-
-        console.log('');
-
-        // Fetch and enrich YouTube channels only when not already loaded by TVPlaylistFetcher
-        let youtubeChannels = [];
-        if (youtubeLocalCount > 0) {
-            console.log(`ℹ️ Detected ${youtubeLocalCount} YouTube channels already loaded by TVPlaylistFetcher — skipping separate YouTube enrichment.`);
-        } else {
-            youtubeChannels = await fetchYouTubeChannels();
-        }
-        console.log('');
-
-        // ========== ENRICH AND DEDUPLICATE ==========
-        console.log('🔧 Enriching all channels with logos and metadata...\n');
-
-        const enricher = new ChannelEnricher({
-            validateStreams: true,
-            maxConcurrent: 5
-        });
-
-        // Combine all sources
-        let allChannels = [...tvChannels, ...iptvOrgChannels, ...youtubeChannels, ...staticTVData];
-        console.log(`📊 Combined sources: ${allChannels.length} total channels (before deduplication)`);
-        console.log(`  - Playlist channels: ${tvChannels.length}`);
-        console.log(`  - IPTV-ORG channels: ${iptvOrgChannels.length}`);
-        console.log(`  - YouTube channels: ${youtubeChannels.length}`);
-        console.log(`  - Static fallback: ${staticTVData.length}\n`);
-
-        // Enrich channels
-        const enrichedChannels = await enricher.enrichChannels(allChannels, { skipInvalid: false });
-        console.log('');
-
-        // Deduplicate
-        const mergedTV = enricher.deduplicateChannels(enrichedChannels);
 
         // Report statistics
         const iptvCount = mergedTV.filter(ch => ch.source === 'iptv-org').length;
@@ -581,8 +737,9 @@ const seed = async () => {
             for (const channel of chunk) {
                 try {
                     // Try to find existing by streamUrl OR by name+country
-                    const existing = await TVChannel.findOne({
-                        where: {
+                    const where = (IS_FAST_MODE && FAST_SKIP_PER_ITEM_PRECHECK)
+                        ? { streamUrl: channel.streamUrl }
+                        : {
                             [Op.or]: [
                                 { streamUrl: channel.streamUrl },
                                 {
@@ -590,8 +747,9 @@ const seed = async () => {
                                     country: channel.country || null
                                 }
                             ]
-                        }
-                    });
+                        };
+
+                    const existing = await TVChannel.findOne({ where });
 
                     if (existing) {
                         const incomingUrl = (channel.streamUrl || '').trim();
@@ -638,8 +796,9 @@ const seed = async () => {
             }
 
             console.log(`  ⏳ Seeded ${Math.min(i + chunkSize, mergedTV.length)}/${mergedTV.length} TV channels...`);
-            // small pause between chunks to relieve DB and network
-            await new Promise(resolve => setTimeout(resolve, 250));
+            if (CHUNK_DELAY_MS > 0) {
+                await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY_MS));
+            }
         }
 
         console.log(`\n📊 TV Channels Final Report:`);
@@ -676,6 +835,7 @@ const seed = async () => {
         console.log(`📻 Radio Stations: ${totalRadio}`);
         console.log(`📺 TV Channels: ${totalTV}`);
         console.log(`🎬 Total Streaming Content: ${totalContent}`);
+        console.log(`⚙️  Mode completed: ${SEED_MODE}`);
         console.log(`\n✨ Database seeding completed successfully!\n`);
 
         process.exit(0);

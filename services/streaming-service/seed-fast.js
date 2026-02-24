@@ -6,7 +6,25 @@ require('dotenv').config();
 // Fetchers/enrichers are lazy-loaded only when needed for full mode
 
 // Configuration from environment
-const SEED_MODE = process.env.SEED_MODE || 'minimal'; // full, minimal, skip
+const CANONICAL_SEED_MODES = new Set(['skip', 'minimal', 'full', 'fast']);
+
+function parseBoolean(value, fallback = false) {
+    if (value === undefined || value === null || value === '') return fallback;
+    return String(value).toLowerCase() === 'true';
+}
+
+function normalizeSeedMode(raw) {
+    const candidate = String(raw || '').toLowerCase().trim();
+    if (CANONICAL_SEED_MODES.has(candidate)) return candidate;
+    if (!candidate) return parseBoolean(process.env.USE_FULL_SEED, false) ? 'full' : 'minimal';
+    if (candidate === 'none') return 'skip';
+    if (candidate === 'quick' || candidate === 'lite') return 'minimal';
+    if (candidate === 'complete') return 'full';
+    return 'minimal';
+}
+
+const RAW_SEED_MODE = process.env.SEED_MODE;
+const SEED_MODE = normalizeSeedMode(RAW_SEED_MODE);
 const SEED_MINIMAL_RADIO_LIMIT = parseInt(process.env.SEED_MINIMAL_RADIO_LIMIT || '50', 10);
 const SEED_MINIMAL_TV_LIMIT = parseInt(process.env.SEED_MINIMAL_TV_LIMIT || '50', 10);
 const SEED_SKIP_ONLINE_FETCH = process.env.SEED_SKIP_ONLINE_FETCH === 'true';
@@ -113,16 +131,16 @@ function normalizeStreamUrl(url) {
 
 async function bulkUpsertRadioStations(stations) {
     const result = { created: 0, updated: 0, skipped: 0 };
-    
+
     // Normalize all URLs upfront
     const stationsWithNormalizedUrls = stations.map(s => ({
         ...s,
         normalizedUrl: normalizeStreamUrl(s.streamUrl)
     })).filter(s => s.normalizedUrl); // Filter out stations with no valid URL
-    
+
     for (let i = 0; i < stationsWithNormalizedUrls.length; i += SEED_BATCH_SIZE) {
         const batch = stationsWithNormalizedUrls.slice(i, i + SEED_BATCH_SIZE);
-        
+
         // Batch query for existing stations
         const normalizedUrls = batch.map(s => s.normalizedUrl);
         const existingStations = await RadioStation.findAll({
@@ -133,11 +151,11 @@ async function bulkUpsertRadioStations(stations) {
             },
             attributes: ['streamUrl']
         });
-        
+
         const existingUrlSet = new Set(
             existingStations.map(s => s.streamUrl.toLowerCase().trim())
         );
-        
+
         // Prepare stations to insert
         const stationsToCreate = batch
             .filter(station => !existingUrlSet.has(station.normalizedUrl))
@@ -155,7 +173,7 @@ async function bulkUpsertRadioStations(stations) {
                 source: sanitizeString(station.source || 'static', 64),
                 metadata: station.metadata || {}
             }));
-        
+
         if (stationsToCreate.length > 0) {
             try {
                 await RadioStation.bulkCreate(stationsToCreate, {
@@ -175,29 +193,29 @@ async function bulkUpsertRadioStations(stations) {
                 }
             }
         }
-        
+
         result.skipped += batch.length - stationsToCreate.length;
-        
+
         if (i + SEED_BATCH_SIZE < stationsWithNormalizedUrls.length) {
             console.log(`  ⏳ Progress: ${Math.min(i + SEED_BATCH_SIZE, stationsWithNormalizedUrls.length)}/${stationsWithNormalizedUrls.length}...`);
         }
     }
-    
+
     return result;
 }
 
 async function bulkUpsertTVChannels(channels) {
     const result = { created: 0, updated: 0, skipped: 0 };
-    
+
     // Normalize all URLs upfront
     const channelsWithNormalizedUrls = channels.map(c => ({
         ...c,
         normalizedUrl: normalizeStreamUrl(c.streamUrl)
     })).filter(c => c.normalizedUrl); // Filter out channels with no valid URL
-    
+
     for (let i = 0; i < channelsWithNormalizedUrls.length; i += SEED_BATCH_SIZE) {
         const batch = channelsWithNormalizedUrls.slice(i, i + SEED_BATCH_SIZE);
-        
+
         // Batch query for existing channels
         const normalizedUrls = batch.map(c => c.normalizedUrl);
         const existingChannels = await TVChannel.findAll({
@@ -208,11 +226,11 @@ async function bulkUpsertTVChannels(channels) {
             },
             attributes: ['streamUrl']
         });
-        
+
         const existingUrlSet = new Set(
             existingChannels.map(c => c.streamUrl.toLowerCase().trim())
         );
-        
+
         // Prepare channels to insert
         const channelsToCreate = batch
             .filter(channel => !existingUrlSet.has(channel.normalizedUrl))
@@ -230,7 +248,7 @@ async function bulkUpsertTVChannels(channels) {
                 source: sanitizeString(channel.source || 'static', 64),
                 metadata: channel.metadata || {}
             }));
-        
+
         if (channelsToCreate.length > 0) {
             try {
                 await TVChannel.bulkCreate(channelsToCreate, {
@@ -250,14 +268,14 @@ async function bulkUpsertTVChannels(channels) {
                 }
             }
         }
-        
+
         result.skipped += batch.length - channelsToCreate.length;
-        
+
         if (i + SEED_BATCH_SIZE < channelsWithNormalizedUrls.length) {
             console.log(`  ⏳ Progress: ${Math.min(i + SEED_BATCH_SIZE, channelsWithNormalizedUrls.length)}/${channelsWithNormalizedUrls.length}...`);
         }
     }
-    
+
     return result;
 }
 
@@ -266,12 +284,20 @@ async function bulkUpsertTVChannels(channels) {
 const seed = async () => {
     try {
         console.log('🌱 Starting streaming database seeding...');
-        console.log(`📋 Seed Mode: ${SEED_MODE.toUpperCase()}\n`);
+        console.log(`📋 Seed mode (raw): ${RAW_SEED_MODE || '(unset)'}`);
+        console.log(`📋 Seed mode (normalized): ${SEED_MODE.toUpperCase()}\n`);
+
+        if (SEED_MODE === 'full' || SEED_MODE === 'fast') {
+            console.log(`ℹ️  This script is optimized for minimal static seeding.`);
+            console.log(`ℹ️  Canonical routing is full|fast -> seed.js, minimal -> seed-fast.js.`);
+            console.log(`ℹ️  Continuing in minimal-compatible static mode for safety.\n`);
+        }
+
         console.log('═══════════════════════════════════════════\n');
 
         if (SEED_MODE === 'skip') {
             console.log('⏭️  Seeding skipped (SEED_MODE=skip)');
-            console.log('✨ Use SEED_MODE=minimal for fast dev seeding or SEED_MODE=full for production\n');
+            console.log('✨ Use SEED_MODE=minimal for fast static seeding or run seed.js for full/fast dynamic seeding\n');
             process.exit(0);
         }
 
@@ -279,7 +305,7 @@ const seed = async () => {
         console.log('🔧 Synchronizing database models...');
         const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
         const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
-        
+
         if (shouldForceSchema) {
             await sequelize.sync({ force: true });
             console.log('✅ Database models synced with force\n');
@@ -303,25 +329,20 @@ const seed = async () => {
         if (SEED_MODE === 'minimal') {
             console.log(`📦 Using static data (minimal mode, limit: ${SEED_MINIMAL_RADIO_LIMIT})`);
             radioStations = staticRadioData.slice(0, SEED_MINIMAL_RADIO_LIMIT);
-        } else if (SEED_MODE === 'full') {
-            console.log('🌐 Full mode enabled...');
+        } else {
+            console.log('📦 Using static data (minimal-compatible mode in seed-fast.js)');
             if (SEED_SKIP_ONLINE_FETCH) {
-                console.log('⚠️  SEED_SKIP_ONLINE_FETCH=true: Using static data instead of online fetch');
-                console.log('💡 Set SEED_SKIP_ONLINE_FETCH=false for production deployment with online sources');
+                console.log('ℹ️  SEED_SKIP_ONLINE_FETCH=true (static data path retained)');
                 radioStations = staticRadioData;
             } else {
-                console.log('📡 For true online fetching in full mode, use the original seed.js script');
-                console.log('💡 Run: USE_FULL_SEED=true or npm run seed (uses seed.js)');
-                console.log('📦 Using static data for now');
+                console.log('ℹ️  For dynamic online fetching, use seed.js with SEED_MODE=full or SEED_MODE=fast');
                 radioStations = staticRadioData;
             }
-        } else {
-            radioStations = staticRadioData;
         }
 
         console.log(`🔄 Seeding ${radioStations.length} radio stations...\n`);
         const radioResult = await bulkUpsertRadioStations(radioStations);
-        
+
         console.log(`\n📊 Radio Stations Report:`);
         console.log(`  ✅ Created: ${radioResult.created}`);
         console.log(`  ⏭️  Skipped (duplicates): ${radioResult.skipped}`);
@@ -339,25 +360,20 @@ const seed = async () => {
         if (SEED_MODE === 'minimal') {
             console.log(`📦 Using static data (minimal mode, limit: ${SEED_MINIMAL_TV_LIMIT})`);
             tvChannels = staticTVData.slice(0, SEED_MINIMAL_TV_LIMIT);
-        } else if (SEED_MODE === 'full') {
-            console.log('🌐 Full mode enabled...');
+        } else {
+            console.log('📦 Using static data (minimal-compatible mode in seed-fast.js)');
             if (SEED_SKIP_ONLINE_FETCH) {
-                console.log('⚠️  SEED_SKIP_ONLINE_FETCH=true: Using static data instead of online fetch');
-                console.log('💡 Set SEED_SKIP_ONLINE_FETCH=false for production deployment with online sources');
+                console.log('ℹ️  SEED_SKIP_ONLINE_FETCH=true (static data path retained)');
                 tvChannels = staticTVData;
             } else {
-                console.log('📡 For true online fetching in full mode, use the original seed.js script');
-                console.log('💡 Run: USE_FULL_SEED=true or npm run seed (uses seed.js)');
-                console.log('📦 Using static data for now');
+                console.log('ℹ️  For dynamic online fetching, use seed.js with SEED_MODE=full or SEED_MODE=fast');
                 tvChannels = staticTVData;
             }
-        } else {
-            tvChannels = staticTVData;
         }
 
         console.log(`🔄 Seeding ${tvChannels.length} TV channels...\n`);
         const tvResult = await bulkUpsertTVChannels(tvChannels);
-        
+
         console.log(`\n📊 TV Channels Report:`);
         console.log(`  ✅ Created: ${tvResult.created}`);
         console.log(`  ⏭️  Skipped (duplicates): ${tvResult.skipped}`);
@@ -375,7 +391,7 @@ const seed = async () => {
         console.log(`📻 Radio Stations: ${totalRadio}`);
         console.log(`📺 TV Channels: ${totalTV}`);
         console.log(`🎬 Total Streaming Content: ${totalContent}`);
-        
+
         const endTime = Date.now();
         console.log(`\n✨ Database seeding completed successfully!`);
         console.log(`⏱️  Seed Mode: ${SEED_MODE}`);

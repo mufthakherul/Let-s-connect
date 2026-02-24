@@ -16,11 +16,11 @@ This long startup time was particularly problematic during development when you 
 
 ## Solution
 
-We've implemented a **fast seeding mode** that uses static data and bulk operations to reduce startup time from minutes to seconds.
+We've implemented a **canonical multi-mode seeding contract** so development and production startup paths are explicit, predictable, and faster.
 
 ## Seeding Modes
 
-The streaming service now supports three seeding modes:
+The streaming service now supports four canonical seeding modes:
 
 ### 1. **minimal** (Default - Recommended for Development)
 - Uses static seed data only
@@ -35,10 +35,27 @@ The streaming service now supports three seeding modes:
 - **Startup time: 5-10 minutes**
 - Use for production deployments
 
-### 3. **skip**
+### 3. **fast** (Dynamic + Optimized)
+- Uses dynamic online collection like full mode
+- Disables/reduces heavy checks for speed (stream validation/logo checks/optional YouTube enrichment/delays)
+- Preserves safe DB writes and deduplication behavior
+- **Startup time: faster than full (environment/network dependent)**
+- Use for broad data in development/staging where full validation is unnecessary
+
+### 4. **skip**
 - Skips seeding entirely
 - **Startup time: ~1 second**
 - Use when you already have data in the database
+
+## Script Routing Contract
+
+- `minimal` → `seed-fast.js`
+- `full` and `fast` → `seed.js`
+- `skip` → no seeding
+
+`RUN_SEED=false` always hard-skips seeding regardless of mode.
+
+Backward compatibility: when `SEED_MODE` is unset, `USE_FULL_SEED=true` resolves to `full`; otherwise it resolves to `minimal`.
 
 ## Configuration
 
@@ -47,8 +64,11 @@ The streaming service now supports three seeding modes:
 Add these to your `.env` file or docker-compose.yml:
 
 ```bash
-# Seeding mode: minimal (fast), full (complete), or skip (none)
+# Seeding mode: skip|minimal|full|fast
 SEED_MODE=minimal
+
+# Backward compatibility only: if SEED_MODE is unset, USE_FULL_SEED=true => full
+USE_FULL_SEED=false
 
 # For minimal mode: how many records to seed
 SEED_MINIMAL_RADIO_LIMIT=50
@@ -60,8 +80,14 @@ SEED_SKIP_VALIDATION=true     # Skip stream validation
 SEED_SKIP_ENRICHMENT=true     # Skip metadata enrichment
 SEED_BATCH_SIZE=100           # Batch size for bulk operations
 
-# Use full seed script (original behavior)
-USE_FULL_SEED=false
+# Fast-mode tuning (used in seed.js when SEED_MODE=fast)
+SEED_FAST_DISABLE_STREAM_VALIDATION=true
+SEED_FAST_DISABLE_LOGO_NETWORK=true
+SEED_FAST_DISABLE_YOUTUBE_ENRICHMENT=true
+SEED_FAST_DISABLE_DELAYS=true
+SEED_FAST_SKIP_PER_ITEM_PRECHECK=true
+SEED_CHUNK_DELAY_MS=0
+SEED_CHANNEL_ENRICH_MAX_CONCURRENT=20
 ```
 
 ### Docker Compose Quick Setup
@@ -79,7 +105,14 @@ For **production** (complete data):
 streaming-service:
   environment:
     - SEED_MODE=full
-    - USE_FULL_SEED=true
+    - RUN_SEED=true
+```
+
+For **dynamic but faster than full**:
+```yaml
+streaming-service:
+  environment:
+    - SEED_MODE=fast
     - RUN_SEED=true
 ```
 
@@ -109,7 +142,6 @@ docker-compose up
 ```bash
 # In your .env file
 SEED_MODE=full
-USE_FULL_SEED=true
 
 # Deploy
 docker-compose up -d
@@ -136,7 +168,7 @@ You can also run seeding manually:
 ### Fast Seeding
 ```bash
 cd services/streaming-service
-SEED_MODE=minimal node seed-fast.js
+SEED_MODE=fast node seed.js
 ```
 
 ### Full Seeding (Original)
@@ -157,12 +189,13 @@ SEED_MODE=minimal SEED_MINIMAL_RADIO_LIMIT=100 SEED_MINIMAL_TV_LIMIT=100 node se
 |------|-------------|----------------|-------------|----------|
 | skip | ~1 second | 0 | 0 | Database already populated |
 | minimal | ~5-10 seconds | 50 | 50 | Development & Testing |
+| fast | faster than full | broad dynamic | broad dynamic | Staging / dynamic dev |
 | full | ~5-10 minutes | 1000+ | 1000+ | Production Deployment |
 
 ## Files
 
-- `seed-fast.js` - Optimized seeding script (new)
-- `seed.js` - Original comprehensive seeding script
+- `seed-fast.js` - Minimal static seeding script
+- `seed.js` - Full/Fast dynamic seeding script
 - `.env.example` - Example environment configuration
 - `docker-entrypoint.sh` - Updated to use optimized seeding by default
 
@@ -171,13 +204,12 @@ SEED_MODE=minimal SEED_MINIMAL_RADIO_LIMIT=100 SEED_MINIMAL_TV_LIMIT=100 node se
 ### From Old Setup to New
 
 1. **No changes required!** The new system is backward compatible.
-   - By default, it uses `seed-fast.js` with `SEED_MODE=minimal`
-   - Set `USE_FULL_SEED=true` to use the original `seed.js`
+  - Default mode remains `SEED_MODE=minimal`
+  - If `SEED_MODE` is unset, `USE_FULL_SEED=true` maps to `full`
 
 2. **For production deployments**, update your `.env`:
    ```bash
    SEED_MODE=full
-   USE_FULL_SEED=true
    ```
 
 3. **For development**, the defaults work great:
@@ -199,7 +231,6 @@ SEED_MINIMAL_TV_LIMIT=200
 Or use full mode:
 ```bash
 SEED_MODE=full
-USE_FULL_SEED=true
 ```
 
 ### "Seeding takes too long in development"
@@ -207,7 +238,6 @@ USE_FULL_SEED=true
 Make sure you're using minimal mode:
 ```bash
 SEED_MODE=minimal
-USE_FULL_SEED=false
 ```
 
 ### "Want to skip seeding on every restart"
@@ -220,8 +250,16 @@ RUN_SEED=false
 
 ```bash
 SEED_MODE=full
-USE_FULL_SEED=true
 SEED_SKIP_ONLINE_FETCH=false
+```
+
+### "Need dynamic data but faster startup"
+
+```bash
+SEED_MODE=fast
+SEED_FAST_DISABLE_STREAM_VALIDATION=true
+SEED_FAST_DISABLE_LOGO_NETWORK=true
+SEED_FAST_DISABLE_YOUTUBE_ENRICHMENT=true
 ```
 
 ## Technical Details
@@ -238,8 +276,9 @@ The optimization works by:
 
 1. **Development**: Use `SEED_MODE=minimal` for quick iterations
 2. **CI/CD**: Use `RUN_SEED=false` if database is pre-populated
-3. **Production**: Use `SEED_MODE=full` and `USE_FULL_SEED=true` for first deployment
-4. **Updates**: Re-run full seed periodically to refresh channel lists
+3. **Production**: Use `SEED_MODE=full` for first deployment
+4. **Fast dynamic**: Use `SEED_MODE=fast` when broad collection is needed quickly
+5. **Updates**: Re-run full seed periodically to refresh channel lists
 
 ## Future Improvements
 

@@ -15,32 +15,75 @@ done
 
 echo "✅ PostgreSQL is ready"
 
-# Determine which seed script to use based on SEED_MODE
-SEED_MODE=${SEED_MODE:-minimal}
-SEED_SCRIPT="seed-fast.js"
+# Determine canonical seeding mode with backward compatibility
+# Canonical modes: skip | minimal | full | fast
+RAW_SEED_MODE="$SEED_MODE"
 
-# Use original seed.js only if explicitly requested
-if [ "$USE_FULL_SEED" = "true" ]; then
-  SEED_SCRIPT="seed.js"
-  echo "ℹ️  Using full seed script (seed.js) - this may take several minutes"
+if [ -z "$RAW_SEED_MODE" ]; then
+  if [ "$USE_FULL_SEED" = "true" ]; then
+    RAW_SEED_MODE="full"
+  else
+    RAW_SEED_MODE="minimal"
+  fi
 fi
 
+case "$(echo "$RAW_SEED_MODE" | tr '[:upper:]' '[:lower:]')" in
+  skip)
+    NORMALIZED_SEED_MODE="skip"
+    ;;
+  minimal)
+    NORMALIZED_SEED_MODE="minimal"
+    ;;
+  full)
+    NORMALIZED_SEED_MODE="full"
+    ;;
+  fast)
+    NORMALIZED_SEED_MODE="fast"
+    ;;
+  *)
+    echo "⚠️  Unknown SEED_MODE='$RAW_SEED_MODE'. Falling back to 'minimal'"
+    NORMALIZED_SEED_MODE="minimal"
+    ;;
+esac
+
+SEED_SCRIPT=""
+case "$NORMALIZED_SEED_MODE" in
+  skip)
+    SEED_SCRIPT="(none)"
+    ;;
+  minimal)
+    SEED_SCRIPT="seed-fast.js"
+    ;;
+  full|fast)
+    SEED_SCRIPT="seed.js"
+    ;;
+esac
+
+export SEED_MODE="$NORMALIZED_SEED_MODE"
+
+echo "ℹ️  Seeding mode (raw): ${RAW_SEED_MODE}"
+echo "ℹ️  Seeding mode (normalized): ${SEED_MODE}"
+echo "ℹ️  Seeding script selected: ${SEED_SCRIPT}"
+
 # Check if seed should be run
-if [ "$RUN_SEED" = "true" ]; then
+if [ "$RUN_SEED" = "false" ]; then
+  echo "⏭️  Seed explicitly skipped (RUN_SEED=false)"
+elif [ "$SEED_MODE" = "skip" ]; then
+  echo "⏭️  Seed skipped (SEED_MODE=skip)"
+elif [ "$RUN_SEED" = "true" ]; then
   echo "🌾 Running database seed (mode: $SEED_MODE, script: $SEED_SCRIPT)..."
   cd /app
   node $SEED_SCRIPT
   echo "✅ Seed completed"
-elif [ "$RUN_SEED" = "false" ]; then
-  echo "⏭️  Seed explicitly skipped (RUN_SEED=false)"
 else
-  # Default behavior: run fast seed in minimal mode for quick startup
-  echo "🚀 Running quick seed (default behavior)..."
+  # Default behavior: run canonical mode with selected script
+  echo "🚀 Running database seed (default behavior)..."
   echo "   Set RUN_SEED=false to skip entirely"
-  echo "   Set USE_FULL_SEED=true for production seeding"
+  echo "   Canonical SEED_MODE values: skip|minimal|full|fast"
+  echo "   Backward compat: USE_FULL_SEED=true only applies when SEED_MODE is unset"
   cd /app
   node $SEED_SCRIPT
-  echo "✅ Quick seed completed"
+  echo "✅ Seed completed"
 fi
 
 echo "✨ Database initialization completed"
