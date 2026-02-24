@@ -2,6 +2,17 @@
 
 This directory contains **fallback seed data** for the streaming service database.
 
+## Canonical Seeding Modes
+
+- `skip` → skip seeding entirely
+- `minimal` → static subset using `seed-fast.js`
+- `full` → dynamic broad seeding via `seed.js` with full checks
+- `fast` → dynamic broad seeding via `seed.js` with heavy checks reduced
+
+`RUN_SEED=false` always hard-skips seeding regardless of mode.
+
+Backward compatibility: if `SEED_MODE` is unset and `USE_FULL_SEED=true`, mode resolves to `full`; otherwise default is `minimal`.
+
 ## 🌟 Dynamic + Fallback System
 
 The streaming service uses a **intelligent hybrid approach**:
@@ -86,14 +97,21 @@ Logs will show:
 - Online sources fetched ✅
 - Or fallback used ⚠️
 - Final statistics 📊
+- Normalized mode + selected script path ℹ️
 
 ### Manual Seeding
 
 If you need to re-seed:
 
 ```bash
-# While service is running
-docker-compose exec streaming-service npm run seed
+# Minimal static subset
+docker-compose exec streaming-service npm run seed:minimal
+
+# Full dynamic mode
+docker-compose exec streaming-service npm run seed:full
+
+# Fast dynamic mode
+docker-compose exec streaming-service npm run seed:fast
 
 # Or rebuild and seed
 docker-compose up --build -d streaming-service

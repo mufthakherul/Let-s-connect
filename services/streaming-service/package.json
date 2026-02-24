@@ -6,10 +6,10 @@
     "scripts": {
         "start": "node server.js",
         "dev": "nodemon server.js",
-        "seed": "node seed.js",
-        "seed:fast": "node seed-fast.js",
+        "seed": "SEED_MODE=full node seed.js",
+        "seed:fast": "SEED_MODE=fast node seed.js",
         "seed:minimal": "SEED_MODE=minimal node seed-fast.js",
-        "seed:full": "USE_FULL_SEED=true node seed.js",
+        "seed:full": "SEED_MODE=full node seed.js",
         "seed:skip": "SEED_MODE=skip node seed-fast.js"
     },
     "dependencies": {
