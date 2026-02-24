@@ -3745,10 +3745,10 @@ app.get('/oauth/google/authorize', (req, res) => {
   }
 });
 
-// Google OAuth callback
-app.post('/oauth/google/callback', async (req, res) => {
+// Google OAuth callback (accept both provider redirect GET and API POST)
+app.all('/oauth/google/callback', async (req, res) => {
   try {
-    const { code } = req.body;
+    const code = req.body?.code || req.query?.code;
 
     if (!code) {
       return res.status(400).json({ error: 'Authorization code required' });
@@ -3792,10 +3792,10 @@ app.post('/oauth/google/callback', async (req, res) => {
   }
 });
 
-// GitHub OAuth callback
-app.post('/oauth/github/callback', async (req, res) => {
+// GitHub OAuth callback (accept both provider redirect GET and API POST)
+app.all('/oauth/github/callback', async (req, res) => {
   try {
-    const { code } = req.body;
+    const code = req.body?.code || req.query?.code;
 
     if (!code) {
       return res.status(400).json({ error: 'Authorization code required' });
