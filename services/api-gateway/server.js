@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const RedisStore = require('rate-limit-redis');
+const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger-config');
@@ -63,7 +63,9 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+// Express 5 + path-to-regexp is stricter with string wildcards.
+// Use a RegExp matcher for global preflight handling.
+app.options(/.*/, cors(corsOptions));
 app.use(express.json());
 
 // Phase 7: Reduced Data Mode for mobile optimization
@@ -421,6 +423,10 @@ const versionMiddleware = (req, res, next) => {
 
     req.apiVersion = requestedVersion;
 
+    // Strip version segment from URL so existing /api/* proxy mounts work
+    // for both /api/* and /vN/api/* forms.
+    req.url = req.url.replace(/^\/v\d+(?=\/)/, '');
+
     // Add deprecation warning for old versions
     if (requestedVersion === 'v1') {
       res.setHeader('X-API-Deprecation', 'v1 API will be deprecated on 2026-12-31. Please migrate to v2.');
@@ -674,8 +680,14 @@ app.get('/api/auth/oauth/google/authorize', (req, res, next) => {
 // Google OAuth callback endpoint
 app.get('/api/auth/oauth/google/callback', (req, res, next) => {
   proxy(services.user, {
+    proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
+      // user-service callback accepts POST body code/query code. Keep GET query path.
+      return proxyReqOpts;
+    },
     proxyReqPathResolver: function (req) {
-      return `/oauth/google/callback${req.url.substring(req.url.indexOf('?'))}`;;
+      const qIndex = req.url.indexOf('?');
+      const query = qIndex >= 0 ? req.url.substring(qIndex) : '';
+      return `/oauth/google/callback${query}`;
     }
   })(req, res, next);
 });
@@ -694,7 +706,9 @@ app.get('/api/auth/oauth/github/authorize', (req, res, next) => {
 app.get('/api/auth/oauth/github/callback', (req, res, next) => {
   proxy(services.user, {
     proxyReqPathResolver: function (req) {
-      return `/oauth/github/callback${req.url.substring(req.url.indexOf('?'))}`;;
+      const qIndex = req.url.indexOf('?');
+      const query = qIndex >= 0 ? req.url.substring(qIndex) : '';
+      return `/oauth/github/callback${query}`;
     }
   })(req, res, next);
 });
