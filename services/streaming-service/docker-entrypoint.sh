@@ -1,5 +1,4 @@
 #!/bin/sh
-#/bin/bash
 
 # Database initialization script for streaming service
 # This runs automatically when the streaming-service container starts

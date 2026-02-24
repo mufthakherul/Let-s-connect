@@ -16,12 +16,16 @@ NC='\033[0m' # No Color
 API_GATEWAY="http://localhost:8000"
 USER_SERVICE="http://localhost:8001"
 CONTENT_SERVICE="http://localhost:8002"
-SHOP_SERVICE="http://localhost:8005"
+SHOP_SERVICE="http://localhost:8006"
 
 # Test user credentials (update these)
 TEST_USERNAME="testuser"
 TEST_PASSWORD="testpass123"
 AUTH_TOKEN=""
+
+# Resolve compose-managed container IDs (works with non-default project names)
+POSTGRES_CID=$(docker compose ps -q postgres 2>/dev/null || true)
+REDIS_CID=$(docker compose ps -q redis 2>/dev/null || true)
 
 # Results
 declare -A results
@@ -141,17 +145,17 @@ test_database_queries() {
   
   # Test user lookup by username (should use idx_users_username)
   echo -e "${YELLOW}Testing: User lookup by username${NC}"
-  docker exec postgres psql -U postgres -d users -c "EXPLAIN ANALYZE SELECT * FROM \"Users\" WHERE username = '$TEST_USERNAME';" | grep "Execution Time"
+  docker exec "$POSTGRES_CID" psql -U postgres -d users -c "EXPLAIN ANALYZE SELECT * FROM \"Users\" WHERE username = '$TEST_USERNAME';" | grep "Execution Time"
   echo ""
   
   # Test posts by author (should use idx_posts_author_id)
   echo -e "${YELLOW}Testing: Posts by author${NC}"
-  docker exec postgres psql -U postgres -d content -c "EXPLAIN ANALYZE SELECT * FROM \"Posts\" WHERE \"authorId\" IS NOT NULL LIMIT 10;" | grep "Execution Time"
+  docker exec "$POSTGRES_CID" psql -U postgres -d content -c "EXPLAIN ANALYZE SELECT * FROM \"Posts\" WHERE \"authorId\" IS NOT NULL LIMIT 10;" | grep "Execution Time"
   echo ""
   
   # Test comments by post (should use idx_comments_post_id)
   echo -e "${YELLOW}Testing: Comments by post${NC}"
-  docker exec postgres psql -U postgres -d content -c "EXPLAIN ANALYZE SELECT * FROM \"Comments\" WHERE \"postId\" IS NOT NULL LIMIT 10;" | grep "Execution Time"
+  docker exec "$POSTGRES_CID" psql -U postgres -d content -c "EXPLAIN ANALYZE SELECT * FROM \"Comments\" WHERE \"postId\" IS NOT NULL LIMIT 10;" | grep "Execution Time"
   echo ""
 }
 
@@ -163,7 +167,7 @@ test_cache_hit_rate() {
   echo ""
   
   # Get Redis stats
-  stats=$(docker exec redis redis-cli INFO stats | grep -E "keyspace_hits|keyspace_misses")
+  stats=$(docker exec "$REDIS_CID" redis-cli INFO stats | grep -E "keyspace_hits|keyspace_misses")
   
   hits=$(echo "$stats" | grep "keyspace_hits" | cut -d: -f2 | tr -d '\r')
   misses=$(echo "$stats" | grep "keyspace_misses" | cut -d: -f2 | tr -d '\r')
@@ -186,11 +190,11 @@ test_cache_hit_rate() {
   echo ""
   
   # Show cached keys
-  key_count=$(docker exec redis redis-cli DBSIZE | grep -oE '[0-9]+')
+  key_count=$(docker exec "$REDIS_CID" redis-cli DBSIZE | grep -oE '[0-9]+')
   echo -e "  Cached Keys:      ${GREEN}$key_count${NC}"
   
   # Show memory usage
-  memory=$(docker exec redis redis-cli INFO memory | grep "used_memory_human" | cut -d: -f2 | tr -d '\r')
+  memory=$(docker exec "$REDIS_CID" redis-cli INFO memory | grep "used_memory_human" | cut -d: -f2 | tr -d '\r')
   echo -e "  Memory Used:      ${BLUE}$memory${NC}"
   
   echo ""
@@ -198,6 +202,11 @@ test_cache_hit_rate() {
 
 # Main test execution
 main() {
+  if [ -z "$POSTGRES_CID" ] || [ -z "$REDIS_CID" ]; then
+    echo -e "${RED}✗ Could not resolve postgres/redis containers via docker compose${NC}"
+    exit 1
+  fi
+
   # Get authentication token
   get_auth_token
   
