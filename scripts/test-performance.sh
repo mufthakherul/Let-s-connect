@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Phase 4: Performance Testing Utility
 # Tests API response times before and after caching implementation

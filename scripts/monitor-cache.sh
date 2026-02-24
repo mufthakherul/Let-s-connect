@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Phase 4: Redis Cache Monitor
 # Real-time monitoring of Redis cache performance

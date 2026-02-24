@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 set -e
 
 # Create multiple databases in PostgreSQL (idempotent)
