@@ -24,6 +24,7 @@ if [ "$NODE_ENV" = "development" ]; then
 else
   echo ""
   echo "[Frontend] 📦 Starting in PRODUCTION mode"
+  echo "[Frontend] GENERATE_SOURCEMAP forced to false for production build"
   echo "[Frontend] Building optimized bundle..."
   if npm run build; then
     echo "[Frontend] ✓ Build complete"

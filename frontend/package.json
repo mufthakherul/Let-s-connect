@@ -32,7 +32,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "postinstall": "node -e \"const fs=require('fs');const p='./node_modules/shaka-player/dist/shaka-player.ui.js';try{if(fs.existsSync(p)){const c=fs.readFileSync(p,'utf8').replace(/\\n?# sourceMappingURL=.*$/gm,'');fs.writeFileSync(p,c,'utf8');}}catch(_){process.exit(0);}\""
+    "postinstall": "node -e \"const fs=require('fs');const p='./node_modules/shaka-player/dist/shaka-player.ui.js';try{if(fs.existsSync(p)){let c=fs.readFileSync(p,'utf8');c=c.replace(/(^|\\n)\\/\\/# sourceMappingURL=.*$/gm,'');c=c.replace(/\\/\\*# sourceMappingURL=[^*]*\\*\\//gm,'');fs.writeFileSync(p,c,'utf8');}}catch(_){process.exit(0);}\""
   },
   "devDependencies": {
     "ajv": "^8.17.1",

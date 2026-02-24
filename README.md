@@ -171,6 +171,26 @@ docker-compose up --build
 - API Gateway: http://localhost:8000
 - MinIO Console: http://localhost:9001 (admin/admin)
 
+### Cross-platform script runner (Windows/Linux/macOS/Termux)
+
+Shebang headers (`#!/...`) are read by the OS before a script starts, so they cannot be changed dynamically at runtime.
+
+Use the portable launcher below to auto-detect the current environment and run scripts consistently:
+
+```bash
+node scripts/run-portable.js test-performance
+node scripts/run-portable.js monitor-cache
+node scripts/run-portable.js init-databases
+```
+
+Notes:
+- On Windows, this launcher uses `bash` (Git Bash or WSL bash in PATH).
+- On Linux/macOS/Termux, it runs scripts directly with `bash`.
+- If Windows does not have bash, it automatically falls back to native PowerShell for:
+	- `test-performance`
+	- `monitor-cache`
+- `init-databases` remains shell-only (it is intended for container init context).
+
 ## 🔒 Security
 
 - **JWT Authentication** with secure token-based auth

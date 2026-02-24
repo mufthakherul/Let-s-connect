@@ -1,0 +1,3 @@
+# Normalize line endings for shell scripts to avoid /bin/*^M failures in containers
+*.sh text eol=lf
+*.bash text eol=lf
