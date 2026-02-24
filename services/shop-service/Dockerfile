@@ -4,7 +4,8 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install --production
+# ensure peer dependency conflicts don't abort the build
+RUN npm install --production --legacy-peer-deps
 
 COPY . .
 

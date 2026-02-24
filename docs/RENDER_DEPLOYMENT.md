@@ -254,7 +254,8 @@ For EACH service below, repeat these steps:
 
 2. **Build & Start Commands:**
    ```
-   Build Command: npm install --production
+   # ensure peer dependencies don't cause failures
+   Build Command: npm install --production --legacy-peer-deps
    Start Command: node server.js
    ```
 
