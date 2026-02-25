@@ -17,22 +17,6 @@ function UnregisterLanding() {
     const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
     const [expandedIndex, setExpandedIndex] = useState(null);
 
-    // Diagnostic mount log (helps investigate intermittent render failures)
-    React.useEffect(() => {
-        try {
-            // keep a lightweight counter useful during debugging
-            window.__unregisterLandingMounts = (window.__unregisterLandingMounts || 0) + 1;
-            // show a debug message in the browser console (won't crash the UI)
-            // eslint-disable-next-line no-console
-            console.debug('[UnregisterLanding] mounted', { count: window.__unregisterLandingMounts });
-        } catch (e) {
-            // swallow errors from instrumentation
-        }
-        return () => {
-            try { window.__unregisterLandingMounts = Math.max((window.__unregisterLandingMounts || 1) - 1, 0); } catch (e) { }
-        };
-    }, []);
-
     // Brand gradient: purple in dark mode, indigo/cyan in light mode
     const brandGradient = theme?.palette?.mode === 'dark'
         ? 'linear-gradient(45deg, #b388ff, #7c3aed)'
@@ -169,15 +153,18 @@ function UnregisterLanding() {
                 initial="hidden"
                 animate="visible"
                 exit={{ opacity: 0, y: -10 }}
-                sx={{ 
-                    position: 'relative', 
-                    overflow: 'visible', 
+                sx={{
+                    position: 'relative',
+                    overflow: 'hidden',
                     zIndex: 1,
                     // Ensure content is always visible regardless of theme
-                    isolation: 'isolate',                    // make sure the landing page always extends at least to the
+                    isolation: 'isolate',
+                    // make sure the landing page always extends at least to the
                     // bottom of the viewport so returning visitors don't see a
                     // blank gap when the scroll position is preserved
-                    minHeight: '100vh',                }}
+                    minHeight: '100vh',
+                    pb: 2,
+                }}
             >
                 {/* Decorative background shapes (subtle, non-distracting) */}
                 {!prefersReducedMotion && (
@@ -252,7 +239,16 @@ function UnregisterLanding() {
                         A comprehensive platform bringing together social networking, real-time collaboration, video sharing and e-commerce — simple, secure, and designed for modern communities.
                     </Typography>
 
-                    <Stack component={motion.div} variants={fadeInUp} direction="row" spacing={2} justifyContent="center" sx={{ mb: 4 }}>
+                    <Stack
+                        component={motion.div}
+                        variants={fadeInUp}
+                        direction="row"
+                        spacing={1.25}
+                        justifyContent="center"
+                        useFlexGap
+                        flexWrap="wrap"
+                        sx={{ mb: 4, px: 1 }}
+                    >
                         {highlights.map((item, i) => (
                             <Box key={i} component={motion.div} whileHover={!prefersReducedMotion ? { scale: 1.03 } : {}} sx={{ display: 'inline-block' }}>
                                 <Chip
@@ -260,13 +256,24 @@ function UnregisterLanding() {
                                     label={item.text}
                                     color="primary"
                                     variant="outlined"
-                                    sx={{ py: 1.1, px: 1.5, fontWeight: 600 }}
+                                    sx={{ py: 1.1, px: 1.25, fontWeight: 600 }}
                                 />
                             </Box>
                         ))}
                     </Stack>
 
-                    <Box sx={{ mt: 4, display: 'inline-flex', gap: 12 }} component={motion.div} variants={fadeInUp}>
+                    <Box
+                        sx={{
+                            mt: 4,
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: { xs: 1.5, sm: 2 },
+                        }}
+                        component={motion.div}
+                        variants={fadeInUp}
+                    >
                         <Box sx={{ position: 'relative', display: 'inline-flex' }}>
                             {!prefersReducedMotion && (
                                 <Box
@@ -294,7 +301,7 @@ function UnregisterLanding() {
                                     size="large"
                                     component={Link}
                                     to="/register"
-                                    sx={{ mr: 2, px: 4, py: 1.5, boxShadow: 4, position: 'relative', zIndex: 1 }}
+                                    sx={{ px: 4, py: 1.5, boxShadow: 4, position: 'relative', zIndex: 1 }}
                                 >
                                     Get Started Free
                                 </Button>
@@ -340,12 +347,21 @@ function UnregisterLanding() {
                                     aria-expanded={expandedIndex === index}
                                     sx={{
                                         height: '100%',
+                                        minHeight: 250,
                                         cursor: 'pointer',
                                         transition: 'transform 0.2s, box-shadow 0.2s',
-                                        outline: expandedIndex === index ? `2px solid ${theme.palette.primary.light}` : 'none'
+                                        outline: expandedIndex === index ? `2px solid ${theme.palette.primary.light}` : 'none',
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                        borderRadius: 3,
+                                        boxShadow: theme.palette.mode === 'dark' ? '0 6px 24px rgba(0,0,0,0.35)' : '0 8px 22px rgba(15, 23, 42, 0.07)',
+                                        backdropFilter: 'saturate(140%) blur(2px)',
+                                        '&:hover': {
+                                            borderColor: 'primary.light',
+                                        }
                                     }}
                                 >
-                                    <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                                    <CardContent sx={{ textAlign: 'center', py: 4, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 250 }}>
                                         <Box component={motion.div} variants={floatIcon} animate="animate" whileTap={!prefersReducedMotion ? { scale: 0.98 } : {}} sx={{ mb: 2 }}>
                                             {feature.icon}
                                         </Box>
@@ -355,11 +371,11 @@ function UnregisterLanding() {
                                                 {feature.title}
                                             </Typography>
                                             {feature.requiresLogin && (
-                                                <Chip 
-                                                    icon={<Lock sx={{ fontSize: 14 }} />} 
-                                                    label="Login" 
-                                                    size="small" 
-                                                    color="primary" 
+                                                <Chip
+                                                    icon={<Lock sx={{ fontSize: 14 }} />}
+                                                    label="Login"
+                                                    size="small"
+                                                    color="primary"
                                                     variant="outlined"
                                                     sx={{ height: 20, fontSize: '0.7rem' }}
                                                 />
