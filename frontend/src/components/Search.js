@@ -6,8 +6,8 @@ import {
     CircularProgress, Alert, Card, CardContent, Divider,
     Avatar, ListItemAvatar
 } from '@mui/material';
-import { 
-    Search as SearchIcon, 
+import {
+    Search as SearchIcon,
     Schedule,
     Person as PersonIcon,
     Group as GroupIcon,
@@ -15,6 +15,7 @@ import {
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
+import { buildProfilePath } from '../utils/profileRoutes';
 
 const Search = () => {
     const location = useLocation();
@@ -151,10 +152,10 @@ const Search = () => {
             <List>
                 {items.map((item, index) => (
                     <React.Fragment key={item.id || index}>
-                        <ListItem 
+                        <ListItem
                             sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', cursor: 'pointer' }}
                             onClick={() => {
-                                if (type === 'users') navigate(`/profile/${item.id}`);
+                                if (type === 'users') navigate(buildProfilePath(item.username, item.id));
                                 else if (type === 'groups') navigate(`/groups/${item.id}`);
                                 else if (type === 'pages') navigate(`/pages/${item.id}`);
                             }}
@@ -188,8 +189,8 @@ const Search = () => {
                             )}
                             <ListItemText
                                 primary={
-                                    type !== 'users' && type !== 'groups' && type !== 'pages' 
-                                        ? (item.title || item.content?.substring(0, 100) + '...') 
+                                    type !== 'users' && type !== 'groups' && type !== 'pages'
+                                        ? (item.title || item.content?.substring(0, 100) + '...')
                                         : (item.description || item.bio)
                                 }
                                 secondary={

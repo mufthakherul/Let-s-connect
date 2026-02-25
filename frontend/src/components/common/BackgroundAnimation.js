@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Box } from '@mui/material';
 
@@ -109,75 +109,6 @@ const GradientWaves = () => {
     );
 };
 
-// CursorTrail: light, accessible cursor-follow effect (respects reduced motion)
-const CursorTrail = ({ reducedMotion }) => {
-    if (reducedMotion) return null;
-    const dots = 4;
-    const posRef = useRef({ x: -9999, y: -9999 });
-    const [, setTick] = useState(0);
-
-    useEffect(() => {
-        const onMove = (e) => {
-            posRef.current = { x: e.clientX, y: e.clientY };
-        };
-        window.addEventListener('mousemove', onMove);
-        let rafId = 0;
-        const loop = () => {
-            setTick(t => (t + 1) % 1000000);
-            rafId = requestAnimationFrame(loop);
-        };
-        rafId = requestAnimationFrame(loop);
-        return () => {
-            window.removeEventListener('mousemove', onMove);
-            cancelAnimationFrame(rafId);
-        };
-    }, []);
-
-    const particles = Array.from({ length: dots }).map((_, i) => ({ i }));
-
-    return (
-        <Box
-            sx={{
-                position: 'fixed',
-                inset: 0,
-                pointerEvents: 'none',
-                zIndex: -1,
-                overflow: 'visible'
-            }}
-        >
-            {particles.map((p, idx) => (
-                <motion.div
-                    key={idx}
-                    animate={{
-                        x: posRef.current.x,
-                        y: posRef.current.y,
-                        opacity: posRef.current.x < 0 ? 0 : 1,
-                        scale: 1 - idx * 0.12
-                    }}
-                    transition={{
-                        type: 'spring',
-                        stiffness: Math.max(120 - idx * 20, 40),
-                        damping: 18 + idx * 6
-                    }}
-                    style={{
-                        position: 'absolute',
-                        left: 0,
-                        top: 0,
-                        width: 10 - idx * 2,
-                        height: 10 - idx * 2,
-                        borderRadius: '50%',
-                        background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), rgba(255,255,255,0.18))',
-                        transform: 'translate(-50%,-50%)',
-                        mixBlendMode: 'screen',
-                        opacity: 0.6 - idx * 0.12,
-                        pointerEvents: 'none'
-                    }}
-                />
-            ))}
-        </Box>
-    );
-};
-
 const BackgroundAnimation = ({ variant = 'auto', isLoggedIn, reducedMotion }) => {
     // Disable animations when reduced motion is enabled for accessibility
     if (reducedMotion || variant === 'none') return null;
@@ -188,12 +119,7 @@ const BackgroundAnimation = ({ variant = 'auto', isLoggedIn, reducedMotion }) =>
             return <FloatingParticles />;
         case 'landing':
         case 'gradient':
-            return (
-                <>
-                    <GradientWaves />
-                    <CursorTrail reducedMotion={reducedMotion} />
-                </>
-            );
+            return <GradientWaves />;
         case 'subtle':
             // subtle is a very light gradient (smaller visual footprint)
             return (
@@ -213,12 +139,7 @@ const BackgroundAnimation = ({ variant = 'auto', isLoggedIn, reducedMotion }) =>
             );
         case 'auto':
         default:
-            return isLoggedIn ? <FloatingParticles /> : (
-                <>
-                    <GradientWaves />
-                    <CursorTrail reducedMotion={reducedMotion} />
-                </>
-            );
+            return isLoggedIn ? <FloatingParticles /> : <GradientWaves />;
     }
 };
 

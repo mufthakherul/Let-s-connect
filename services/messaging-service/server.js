@@ -13,6 +13,8 @@ const io = socketIo(server, {
 });
 
 const PORT = process.env.PORT || 8003;
+const BOT_SYSTEM_USER_ID = process.env.BOT_SYSTEM_USER_ID || '00000000-0000-0000-0000-000000000001';
+const TELEGRAM_BOT_WEBHOOK_TOKEN = process.env.TELEGRAM_BOT_WEBHOOK_TOKEN || '';
 
 app.use(express.json());
 
@@ -1614,6 +1616,135 @@ app.delete('/webhooks/:webhookId', async (req, res) => {
 });
 
 // ========== PHASE 2: MESSAGE REACTIONS (WhatsApp/Telegram-inspired) ==========
+
+async function persistExternalMessage({ conversationId, senderId, content, type = 'text', attachments = [] }) {
+  const message = await Message.create({
+    conversationId,
+    senderId,
+    content,
+    type,
+    attachments
+  });
+
+  await Conversation.update(
+    { lastMessage: content, lastMessageAt: new Date() },
+    { where: { id: conversationId } }
+  );
+
+  io.to(conversationId).emit('new-message', message);
+  redis.publish('messages', JSON.stringify(message));
+  return message;
+}
+
+// Discord-style incoming webhook execution (public/tokenized URL)
+app.post('/webhooks/:webhookId/:token', async (req, res) => {
+  try {
+    const { webhookId, token } = req.params;
+    const { content, embeds, channelId } = req.body || {};
+
+    if (!content && !Array.isArray(embeds)) {
+      return res.status(400).json({ error: 'content or embeds is required' });
+    }
+
+    const webhook = await Webhook.findByPk(webhookId);
+    if (!webhook || webhook.token !== token) {
+      return res.status(401).json({ error: 'Invalid webhook token' });
+    }
+
+    // Resolve target conversation/channel
+    let conversation = null;
+    if (channelId) {
+      conversation = await Conversation.findByPk(channelId);
+    }
+    if (!conversation && webhook.channelId) {
+      conversation = await Conversation.findByPk(webhook.channelId);
+    }
+    if (!conversation) {
+      // fallback: first channel on server, else create one
+      conversation = await Conversation.findOne({ where: { serverId: webhook.serverId } });
+      if (!conversation) {
+        conversation = await Conversation.create({
+          serverId: webhook.serverId,
+          name: `${webhook.name || 'Webhook'} Channel`,
+          type: 'channel',
+          participants: []
+        });
+      }
+    }
+
+    const embedText = Array.isArray(embeds)
+      ? embeds.slice(0, 3).map(e => e?.title || e?.description).filter(Boolean).join(' | ')
+      : '';
+
+    const normalized = String(content || embedText || '').trim();
+    if (!normalized) {
+      return res.status(400).json({ error: 'message content is empty' });
+    }
+    if (normalized.length > 4000) {
+      return res.status(400).json({ error: 'message content too long' });
+    }
+
+    const message = await persistExternalMessage({
+      conversationId: conversation.id,
+      senderId: webhook.createdBy || BOT_SYSTEM_USER_ID,
+      content: normalized,
+      type: 'text'
+    });
+
+    return res.status(200).json({ id: message.id, conversationId: conversation.id, delivered: true });
+  } catch (error) {
+    console.error('Discord webhook execution failed:', error);
+    return res.status(500).json({ error: 'Failed to execute webhook' });
+  }
+});
+
+// Telegram-style bot webhook receiver (public/tokenized URL)
+app.post('/bots/telegram/webhook/:botToken', async (req, res) => {
+  try {
+    const { botToken } = req.params;
+    if (!TELEGRAM_BOT_WEBHOOK_TOKEN || botToken !== TELEGRAM_BOT_WEBHOOK_TOKEN) {
+      return res.status(401).json({ error: 'Invalid bot token' });
+    }
+
+    const update = req.body || {};
+    const messageUpdate = update.message || update.edited_message || null;
+    if (!messageUpdate) {
+      return res.status(200).json({ ok: true, ignored: true });
+    }
+
+    const chatId = String(messageUpdate?.chat?.id || '').trim();
+    const text = String(messageUpdate?.text || messageUpdate?.caption || '').trim();
+    if (!chatId || !text) {
+      return res.status(400).json({ error: 'chat.id and text are required in update payload' });
+    }
+    if (text.length > 4000) {
+      return res.status(400).json({ error: 'message text too long' });
+    }
+
+    // Unified persistence target: chat-specific conversation
+    const conversationName = `tg:${chatId}`;
+    let conversation = await Conversation.findOne({ where: { name: conversationName, type: 'group' } });
+    if (!conversation) {
+      conversation = await Conversation.create({
+        name: conversationName,
+        type: 'group',
+        participants: [BOT_SYSTEM_USER_ID]
+      });
+    }
+
+    const persisted = await persistExternalMessage({
+      conversationId: conversation.id,
+      senderId: BOT_SYSTEM_USER_ID,
+      content: text,
+      type: 'text'
+    });
+
+    return res.status(200).json({ ok: true, messageId: persisted.id, conversationId: conversation.id });
+  } catch (error) {
+    console.error('Telegram webhook ingestion failed:', error);
+    return res.status(500).json({ error: 'Failed to process telegram webhook payload' });
+  }
+});
 
 // Add or update reaction to a message
 app.post('/messages/:messageId/reactions', async (req, res) => {

@@ -17,6 +17,7 @@ import api from '../utils/api';
 
 function PublicProfile({ user }) {
     const { id } = useParams();
+    const profileKey = id;
     const navigate = useNavigate();
     const token = localStorage.getItem('token');
     const headers = useMemo(() => (token ? { Authorization: `Bearer ${token}` } : {}), [token]);
@@ -28,11 +29,11 @@ function PublicProfile({ user }) {
     useEffect(() => {
         fetchProfile();
         fetchFollowing();
-    }, [id]);
+    }, [profileKey]);
 
     const fetchProfile = async () => {
         try {
-            const response = await axios.get(`/api/user/profile/${id}`, { headers });
+            const response = await axios.get(`/api/user/profile/${profileKey}`, { headers });
             setProfileUser(response.data || null);
         } catch (error) {
             console.error('Failed to load profile:', error);

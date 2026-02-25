@@ -1241,10 +1241,23 @@ app.post('/password-reset', handleResetPassword);
 // Get user profile
 app.get('/profile/:userId', cacheUserProfile, async (req, res) => {
   try {
-    const user = await User.findByPk(req.params.userId, {
+    const key = String(req.params.userId || '').trim();
+    let user = null;
+
+    // Backward compatible lookup: try primary key first.
+    user = await User.findByPk(key, {
       include: [Profile],
       attributes: { exclude: ['password'] }
     });
+
+    // Username-first public profile support (unique username index).
+    if (!user) {
+      user = await User.findOne({
+        where: { username: key },
+        include: [Profile],
+        attributes: { exclude: ['password'] }
+      });
+    }
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
