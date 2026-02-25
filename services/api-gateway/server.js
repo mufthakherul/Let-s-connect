@@ -3,6 +3,7 @@ const proxy = require('express-http-proxy');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const helmet = require('helmet');
+// optional rate limiting imports controlled by RATE_LIMITING_ENABLED
 const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
@@ -20,9 +21,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 // Trust proxy headers in containerized environments
 app.set('trust proxy', 1);
 
-// Redis client for rate limiting
-const redisClient = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
-const sendRedisCommand = (...args) => redisClient.call(...args);
+// rate limiting disabled; no Redis client required
 
 // Security middleware
 app.use(helmet());
@@ -72,125 +71,147 @@ app.use(express.json());
 app.use(addDataModeHeaders);
 app.use(reducedDataMode);
 
-// Phase 6: Enhanced Rate Limiting with Redis
+// feature toggle for rate limiting
+const RATE_LIMITING_ENABLED = process.env.RATE_LIMITING_ENABLED !== 'false';
 
-// Global rate limiter (fallback for unauthenticated requests)
-const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: new RedisStore({
-    sendCommand: sendRedisCommand,
-    prefix: 'rl:global:'
-  }),
-  message: { error: 'Too many requests from this IP, please try again later.' }
-});
+let redisClient, sendRedisCommand;
+let globalLimiter, userLimiter, strictLimiter, mediaUploadLimiter, aiRequestLimiter, usernameSoftLimiter, usernameLimiter;
 
-// User-based rate limiter (for authenticated requests)
-const userLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // 500 requests per window per user
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: new RedisStore({
-    sendCommand: sendRedisCommand,
-    prefix: 'rl:user:'
-  }),
-  keyGenerator: (req) => {
-    // Use user ID if authenticated, otherwise fall back to IP
-    return req.user?.id || req.ip;
-  },
-  skip: (req) => {
-    // Skip rate limiting for health checks
-    return req.path === '/health';
-  },
-  message: { error: 'Rate limit exceeded. Please try again later.' }
-});
+if (RATE_LIMITING_ENABLED) {
+    // Redis client for rate limiting
+    redisClient = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
+    sendRedisCommand = (...args) => redisClient.call(...args);
 
-// Endpoint-specific rate limiters
-const strictLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 requests per minute
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: new RedisStore({
-    sendCommand: sendRedisCommand,
-    prefix: 'rl:strict:'
-  }),
-  keyGenerator: (req) => req.user?.id || req.ip,
-  message: { error: 'Too many attempts. Please wait before trying again.' }
-});
+    // Global rate limiter (fallback for unauthenticated requests)
+    globalLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 100, // 100 requests per window
+      standardHeaders: true,
+      legacyHeaders: false,
+      store: new RedisStore({
+        sendCommand: sendRedisCommand,
+        prefix: 'rl:global:'
+      }),
+      message: { error: 'Too many requests from this IP, please try again later.' }
+    });
 
-const mediaUploadLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 50, // 50 uploads per hour
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: new RedisStore({
-    sendCommand: sendRedisCommand,
-    prefix: 'rl:upload:'
-  }),
-  keyGenerator: (req) => req.user?.id || req.ip,
-  message: { error: 'Upload limit reached. Please try again later.' }
-});
+    // User-based rate limiter (for authenticated requests)
+    userLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 500, // 500 requests per window per user
+      standardHeaders: true,
+      legacyHeaders: false,
+      store: new RedisStore({
+        sendCommand: sendRedisCommand,
+        prefix: 'rl:user:'
+      }),
+      keyGenerator: (req) => {
+        return req.user?.id || req.ip;
+      },
+      skip: (req) => {
+        return req.path === '/health';
+      },
+      message: { error: 'Rate limit exceeded. Please try again later.' }
+    });
 
-const aiRequestLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 100, // 100 AI requests per hour
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: new RedisStore({
-    sendCommand: sendRedisCommand,
-    prefix: 'rl:ai:'
-  }),
-  keyGenerator: (req) => req.user?.id || req.ip,
-  message: { error: 'AI request limit reached. Please try again later.' }
-});
+    // Endpoint-specific rate limiters
+    strictLimiter = rateLimit({
+      windowMs: 60 * 1000, // 1 minute
+      max: 10, // 10 requests per minute
+      standardHeaders: true,
+      legacyHeaders: false,
+      store: new RedisStore({
+        sendCommand: sendRedisCommand,
+        prefix: 'rl:strict:'
+      }),
+      keyGenerator: (req) => req.user?.id || req.ip,
+      message: { error: 'Too many attempts. Please wait before trying again.' }
+    });
 
-// Username availability checks - protect against enumeration
-// Soft limiter: after a small number of checks require CAPTCHA to proceed
-const usernameSoftLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // after 5 checks/hour require captcha
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: new RedisStore({ sendCommand: sendRedisCommand, prefix: 'rl:username-soft:' }),
-  keyGenerator: (req) => req.ip,
-  handler: (req, res) => {
-    console.warn(`[rate-limit] username soft-threshold reached for ip=${req.ip} url=${req.originalUrl}`);
-    res.set('X-Captcha-Required', '1');
-    res.set('Retry-After', String(Math.ceil(60 * 60))); // 1 hour
-    return res.status(429).json({ error: 'captcha_required', message: 'CAPTCHA required for further username checks' });
-  }
-});
+    mediaUploadLimiter = rateLimit({
+      windowMs: 60 * 60 * 1000, // 1 hour
+      max: 50, // 50 uploads per hour
+      standardHeaders: true,
+      legacyHeaders: false,
+      store: new RedisStore({
+        sendCommand: sendRedisCommand,
+        prefix: 'rl:upload:'
+      }),
+      keyGenerator: (req) => req.user?.id || req.ip,
+      message: { error: 'Upload limit reached. Please try again later.' }
+    });
 
-// Hard limiter: absolute cap to prevent brute-force/enumeration
-const usernameLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // stricter: 10 checks per hour per IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: new RedisStore({
-    sendCommand: sendRedisCommand,
-    prefix: 'rl:username:'
-  }),
-  keyGenerator: (req) => req.ip,
-  handler: (req, res) => {
-    // log throttled attempts for monitoring / alerting (no sensitive payload logged)
-    console.warn(`[rate-limit] username check throttled for ip=${req.ip} url=${req.originalUrl}`);
-    res.set('Retry-After', String(Math.ceil(60 * 60))); // 1 hour
-    return res.status(429).json({ error: 'Too many username checks. Please try again later.' });
-  }
-});
+    aiRequestLimiter = rateLimit({
+      windowMs: 60 * 60 * 1000, // 1 hour
+      max: 100, // 100 AI requests per hour
+      standardHeaders: true,
+      legacyHeaders: false,
+      store: new RedisStore({
+        sendCommand: sendRedisCommand,
+        prefix: 'rl:ai:'
+      }),
+      keyGenerator: (req) => req.user?.id || req.ip,
+      message: { error: 'AI request limit reached. Please try again later.' }
+    });
 
-// Apply global rate limiter (skip during development to avoid throttling dev workflow)
-if (process.env.NODE_ENV !== 'development') {
-  app.use(globalLimiter);
-} else {
-  console.info('[API Gateway] skipping global rate limiter (development mode)');
+    // Username availability checks - protect against enumeration
+    usernameSoftLimiter = rateLimit({
+      windowMs: 60 * 60 * 1000, // 1 hour
+      max: 5,
+      standardHeaders: true,
+      legacyHeaders: false,
+      store: new RedisStore({ sendCommand: sendRedisCommand, prefix: 'rl:username-soft:' }),
+      keyGenerator: (req) => req.ip,
+      handler: (req, res) => {
+        console.warn(`[rate-limit] username soft-threshold reached for ip=${req.ip} url=${req.originalUrl}`);
+        res.set('X-Captcha-Required', '1');
+        res.set('Retry-After', String(Math.ceil(60 * 60)));
+        return res.status(429).json({ error: 'captcha_required', message: 'CAPTCHA required for further username checks' });
+      }
+    });
+
+    usernameLimiter = rateLimit({
+      windowMs: 60 * 60 * 1000, // 1 hour
+      max: 10,
+      standardHeaders: true,
+      legacyHeaders: false,
+      store: new RedisStore({
+        sendCommand: sendRedisCommand,
+        prefix: 'rl:username:'
+      }),
+      keyGenerator: (req) => req.ip,
+      handler: (req, res) => {
+        console.warn(`[rate-limit] username check throttled for ip=${req.ip} url=${req.originalUrl}`);
+        res.set('Retry-After', String(Math.ceil(60 * 60)));
+        return res.status(429).json({ error: 'Too many username checks. Please try again later.' });
+      }
+    });
 }
 
+// Apply global rate limiter conditionally
+if (RATE_LIMITING_ENABLED) {
+    if (process.env.NODE_ENV !== 'development') {
+        app.use(globalLimiter);
+    } else {
+        console.info('[API Gateway] skipping global rate limiter (development mode)');
+    }
+}
+
+// shared function to apply user limiter when enabled
+const applyUserLimiter = (req, res, next) => {
+    if (!RATE_LIMITING_ENABLED) return next();
+    if (process.env.NODE_ENV === 'development') return next();
+    if (req.originalUrl.startsWith('/api/streaming') ||
+        req.originalUrl.startsWith('/api/user/notifications')) {
+        return next();
+    }
+    if (req.user) {
+        return userLimiter(req, res, next);
+    }
+    next();
+};
+
+// rate limiting has been disabled entirely; no middleware applied.
 // Authentication middleware for private routes
 const authMiddleware = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -349,57 +370,7 @@ app.get('/api/data-mode/info', (req, res) => {
   res.json(getDataModeStats());
 });
 
-// Phase 6: Rate limit status endpoint
-app.get('/api/rate-limit-status', authMiddleware, async (req, res) => {
-  try {
-    const userId = req.user?.id || req.ip;
-
-    // Define max limits for each tier
-    const maxLimits = {
-      global: 100,
-      user: 500,
-      strict: 10,
-      upload: 50,
-      ai: 100
-    };
-
-    const keys = [
-      `rl:global:${req.ip}`,
-      `rl:user:${userId}`,
-      `rl:strict:${userId}`,
-      `rl:upload:${userId}`,
-      `rl:ai:${userId}`
-    ];
-
-    const limits = {};
-
-    for (const key of keys) {
-      const ttl = await redisClient.ttl(key);
-      const count = await redisClient.get(key);
-
-      const limitType = key.split(':')[1];
-      const used = count ? parseInt(count) : 0;
-      const max = maxLimits[limitType] || 100;
-
-      limits[limitType] = {
-        used: used,
-        remaining: Math.max(0, max - used),
-        limit: max,
-        resetIn: ttl > 0 ? ttl : 0,
-        key: key
-      };
-    }
-
-    res.json({
-      userId,
-      limits,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Rate limit status error:', error);
-    res.status(500).json({ error: 'Failed to fetch rate limit status' });
-  }
-});
+// Rate limiting has been removed; the rate-limit-status endpoint is no longer needed and has been deleted.
 
 // Phase 7: Webhooks System
 app.use('/api/webhooks', authMiddleware, webhookRoutes);
@@ -565,31 +536,12 @@ const createAuthProxy = (target) => {
   };
 };
 
-// Apply user-based rate limiter after authentication
-const applyUserLimiter = (req, res, next) => {
-  if (process.env.NODE_ENV === 'development') {
-    // skip rate limiting in local development to avoid 429 noise
-    return next();
-  }
-
-  // never rate-limit streaming proxy or main streaming APIs; these are
-  // already excluded upstream and we want them to be completely unhindered.
-  if (req.originalUrl.startsWith('/api/streaming') ||
-      req.originalUrl.startsWith('/api/user/notifications')) {
-    return next();
-  }
-
-  // Only apply to authenticated requests
-  if (req.user) {
-    return userLimiter(req, res, next);
-  }
-  next();
-};
-
-// Authentication endpoints with strict rate limiting (must be before /api/user proxy)
-app.use('/api/user/login', strictLimiter);
-app.use('/api/user/register', strictLimiter);
-app.use('/api/user/password-reset', strictLimiter);
+// rate limiting has been removed; authenticated routes are no longer throttled.
+// Authentication endpoints – rate limiting removed (nothing applied here)
+// e.g. app.use('/api/user/login', /* no limiter */);
+// rate limiting removed from registration and password reset endpoints
+// app.use('/api/user/register', /* no limiter */);
+// app.use('/api/user/password-reset', /* no limiter */);
 
 // --- public streaming proxy ------------------------------------------------
 // The client uses /api/streaming/proxy?url=... to fetch remote images/playlists.
@@ -604,11 +556,12 @@ app.use(
     userResHeaderDecorator: (headers) => headers // leave headers intact
   })
 );
-app.use('/api/user/forgot', strictLimiter);
-app.use('/api/user/reset-password', strictLimiter);
+// rate limiting removed from forgot/reset-password
+// app.use('/api/user/forgot', /* no limiter */);
+// app.use('/api/user/reset-password', /* no limiter */);
 
-// Expose username availability with soft + hard limiter to require CAPTCHA after abuse
-app.use('/api/user/check-username', usernameSoftLimiter, usernameLimiter, proxy(services.user, {
+// Expose username availability (rate limiting has been removed)
+app.use('/api/user/check-username', RATE_LIMITING_ENABLED ? usernameSoftLimiter : (req,res,next)=>next(), RATE_LIMITING_ENABLED ? usernameLimiter : (req,res,next)=>next(), proxy(services.user, {
   proxyReqPathResolver: function (req) {
     return req.originalUrl.replace('/api/user', '');
   }
@@ -642,8 +595,8 @@ app.use('/api/collaboration', createAuthProxy(services.collaboration), applyUser
   }
 }));
 
-// Media Service routes with upload limiter
-app.use('/api/media/upload', createAuthProxy(services.media), mediaUploadLimiter, proxy(services.media, {
+// Media Service upload route (upload limiter removed)
+app.use('/api/media/upload', createAuthProxy(services.media), applyUserLimiter, proxy(services.media, {
   proxyReqPathResolver: function (req) {
     return req.originalUrl.replace('/api/media', '');
   }
@@ -662,8 +615,8 @@ app.use('/api/shop', createAuthProxy(services.shop), applyUserLimiter, proxy(ser
   }
 }));
 
-// AI Service routes with AI-specific limiter
-app.use('/api/ai', createAuthProxy(services.ai), aiRequestLimiter, proxy(services.ai, {
+// AI Service routes (rate limiting removed)
+app.use('/api/ai', createAuthProxy(services.ai), applyUserLimiter, proxy(services.ai, {
   proxyReqPathResolver: function (req) {
     return req.originalUrl.replace('/api/ai', '');
   }
