@@ -117,7 +117,9 @@ const Post = sequelize.define('Post', {
     type: DataTypes.BOOLEAN,
     defaultValue: true
   },
-  flairId: DataTypes.UUID // Reddit-inspired: posts can have flairs
+  flairId: DataTypes.UUID, // Reddit-inspired: posts can have flairs
+  // optional link to original post when a user reposts someone else's content
+  repostOf: DataTypes.UUID
 });
 
 // Follow model for feed filtering (who a user follows)
@@ -790,7 +792,7 @@ const PostAward = sequelize.define('PostAward', {
   ]
 });
 
-// NEW: Twitter-inspired: Quote Tweets/Retweets
+// NEW: Twitter-inspired: Quote Tweets and Reposts (model still called Retweet for legacy)
 const Retweet = sequelize.define('Retweet', {
   id: {
     type: DataTypes.UUID,
@@ -1684,6 +1686,11 @@ app.post('/posts', async (req, res) => {
       anonIdentityId: anonIdentity ? anonIdentity.id : null
     });
 
+    // invalidate feed cache so users see the new post immediately
+    if (cacheEnabled) {
+      await invalidatePostCaches(post.id);
+    }
+
     // Extract and save hashtags (deduplicate first)
     const tags = [...new Set(extractHashtags(content))];
     for (const tag of tags) {
@@ -1963,9 +1970,12 @@ app.post('/posts/:postId/reactions', async (req, res) => {
       if (existing.type === type) {
         // Remove reaction if same type
         await existing.destroy();
+        // decrement post like count
+        if (post.likes > 0) await post.decrement('likes');
+        if (cacheEnabled) await invalidatePostCaches(postId);
         return res.json({ message: 'Reaction removed' });
       } else {
-        // Update reaction type
+        // Update reaction type (count unchanged)
         existing.type = type;
         await existing.save();
         return res.json(existing);
@@ -1974,6 +1984,9 @@ app.post('/posts/:postId/reactions', async (req, res) => {
 
     // Create new reaction
     const reaction = await Reaction.create({ postId, userId, type });
+    // increment like count on post
+    await post.increment('likes');
+    if (cacheEnabled) await invalidatePostCaches(postId);
     res.status(201).json(reaction);
   } catch (error) {
     console.error(error);
@@ -3139,7 +3152,7 @@ app.get('/posts/:postId/awards', async (req, res) => {
   }
 });
 
-// ========== RETWEET/QUOTE ENDPOINTS (Twitter-inspired) ==========
+// ========== REPOST/QUOTE ENDPOINTS (Twitter-inspired) ==========
 
 // Helper shared code for retweet/quote to avoid duplication
 async function performRetweet({ postId, userId, comment, visibility }, res) {
@@ -3151,27 +3164,43 @@ async function performRetweet({ postId, userId, comment, visibility }, res) {
 
     let retweet;
     await sequelize.transaction(async (transaction) => {
-      let quotedPostId = null;
+      let newPostId = null;
 
-      // If there's a comment (quote tweet), create a new post
+      // Always create a new post representing the repost (or quote)
       if (comment) {
+        // quote/repost with comment
         const quotePost = await Post.create(
           {
             userId,
             content: comment,
             type: post.type,
-            visibility: visibility || post.visibility || 'public'
+            visibility: visibility || post.visibility || 'public',
+            repostOf: postId
           },
           { transaction }
         );
-        quotedPostId = quotePost.id;
+        newPostId = quotePost.id;
+      } else {
+        // plain repost: duplicate original content
+        const repost = await Post.create(
+          {
+            userId,
+            content: post.content,
+            type: post.type,
+            mediaUrls: post.mediaUrls,
+            visibility: post.visibility,
+            repostOf: postId
+          },
+          { transaction }
+        );
+        newPostId = repost.id;
       }
 
       retweet = await Retweet.create(
         {
           userId,
           originalPostId: postId,
-          quotedPostId,
+          quotedPostId: newPostId,
           comment
         },
         { transaction }
@@ -3179,6 +3208,11 @@ async function performRetweet({ postId, userId, comment, visibility }, res) {
 
       await post.increment('shares', { transaction });
     });
+
+    // invalidate caches for feed
+    if (cacheEnabled) {
+      await invalidatePostCaches(postId);
+    }
 
     res.json(retweet);
   } catch (error) {
@@ -3190,7 +3224,7 @@ async function performRetweet({ postId, userId, comment, visibility }, res) {
   }
 }
 
-// Retweet a post
+// Repost a post (formerly retweet)
 app.post('/posts/:postId/retweet', async (req, res) => {
   const userId = req.header('x-user-id');
   if (!userId) {
@@ -3215,7 +3249,7 @@ app.post('/posts/:postId/quote', async (req, res) => {
   return performRetweet({ postId, userId, comment: content, visibility }, res);
 });
 
-// Undo retweet
+// Undo repost
 app.delete('/posts/:postId/retweet', async (req, res) => {
   try {
     const userId = req.header('x-user-id');
