@@ -156,12 +156,20 @@ const TV = () => {
                 videoRef.current.pause();
             }
             setIsPlaying(false);
-            await streamingService.stopWatching(channel.id, 'tv');
+            try {
+                await streamingService.stopWatching(channel.id, 'tv');
+            } catch (err) {
+                console.warn('stopWatching failed', err);
+            }
         } else {
             // Stop previous channel if playing
             if (currentChannel && videoRef.current) {
                 videoRef.current.pause();
-                await streamingService.stopWatching(currentChannel.id, 'tv');
+                try {
+                    await streamingService.stopWatching(currentChannel.id, 'tv');
+                } catch (err) {
+                    console.warn('stopWatching previous channel failed', err);
+                }
             }
 
             // Play new channel

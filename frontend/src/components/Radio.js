@@ -21,6 +21,9 @@ const Radio = () => {
     const [favorites, setFavorites] = useState([]);
     const [history, setHistory] = useState([]);
     const [genres, setGenres] = useState([]);
+
+    // default placeholder graphic for stations without a valid logo URL
+    const defaultPlaceholder = makePlaceholder('Radio');
     const [loading, setLoading] = useState(true);
     const [currentStation, setCurrentStation] = useState(null);
     const [isPlaying, setIsPlaying] = useState(false);
