@@ -1,6 +1,8 @@
-import axios from 'axios';
+import api, { getApiUrl } from './api';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// Use the shared `api` instance which already applies the runtime base-url logic
+// (relative `/api` path in development, production origin, proxy support in
+// Codespaces, etc.).  We still export getApiUrl for any raw URL construction.
 
 const getAuthHeader = () => {
     const token = localStorage.getItem('token');
@@ -12,7 +14,7 @@ const getAuthHeader = () => {
 export const streamingService = {
     // Get all radio stations
     getRadioStations: async (params = {}) => {
-        const response = await axios.get(`${API_URL}/api/streaming/radio/stations`, {
+        const response = await api.get(`/streaming/radio/stations`, {
             params,
             headers: getAuthHeader()
         });
@@ -21,7 +23,7 @@ export const streamingService = {
 
     // Get single radio station
     getRadioStation: async (id) => {
-        const response = await axios.get(`${API_URL}/api/streaming/radio/stations/${id}`, {
+        const response = await api.get(`/streaming/radio/stations/${id}`, {
             headers: getAuthHeader()
         });
         return response.data;
@@ -29,7 +31,7 @@ export const streamingService = {
 
     // Add new radio station
     addRadioStation: async (stationData) => {
-        const response = await axios.post(`${API_URL}/api/streaming/radio/stations`, stationData, {
+        const response = await api.post(`/streaming/radio/stations`, stationData, {
             headers: getAuthHeader()
         });
         return response.data;
@@ -37,7 +39,7 @@ export const streamingService = {
 
     // Update radio station
     updateRadioStation: async (id, stationData) => {
-        const response = await axios.put(`${API_URL}/api/streaming/radio/stations/${id}`, stationData, {
+        const response = await api.put(`/streaming/radio/stations/${id}`, stationData, {
             headers: getAuthHeader()
         });
         return response.data;
@@ -45,7 +47,7 @@ export const streamingService = {
 
     // Delete radio station
     deleteRadioStation: async (id) => {
-        const response = await axios.delete(`${API_URL}/api/streaming/radio/stations/${id}`, {
+        const response = await api.delete(`/streaming/radio/stations/${id}`, {
             headers: getAuthHeader()
         });
         return response.data;
@@ -53,8 +55,8 @@ export const streamingService = {
 
     // Start listening to a radio station
     startListening: async (id, type = 'radio') => {
-        const response = await axios.post(
-            `${API_URL}/api/streaming/${type}/stations/${id}/listen`,
+        const response = await api.post(
+            `/streaming/${type}/stations/${id}/listen`,
             {},
             { headers: getAuthHeader() }
         );
@@ -63,8 +65,8 @@ export const streamingService = {
 
     // Stop listening to a radio station
     stopListening: async (id, type = 'radio') => {
-        const response = await axios.post(
-            `${API_URL}/api/streaming/${type}/stations/${id}/stop`,
+        const response = await api.post(
+            `/streaming/${type}/stations/${id}/stop`,
             {},
             { headers: getAuthHeader() }
         );
@@ -73,7 +75,7 @@ export const streamingService = {
 
     // Get popular radio stations
     getPopularRadioStations: async (limit = 20) => {
-        const response = await axios.get(`${API_URL}/api/streaming/radio/popular`, {
+        const response = await api.get(`/streaming/radio/popular`, {
             params: { limit },
             headers: getAuthHeader()
         });
@@ -82,7 +84,7 @@ export const streamingService = {
 
     // Get available radio genres
     getRadioGenres: async () => {
-        const response = await axios.get(`${API_URL}/api/streaming/radio/genres`, {
+        const response = await api.get(`/streaming/radio/genres`, {
             headers: getAuthHeader()
         });
         return response.data;
@@ -92,7 +94,7 @@ export const streamingService = {
 
     // Get all TV channels
     getTVChannels: async (params = {}) => {
-        const response = await axios.get(`${API_URL}/api/streaming/tv/channels`, {
+        const response = await api.get(`/streaming/tv/channels`, {
             params,
             headers: getAuthHeader()
         });
@@ -101,7 +103,7 @@ export const streamingService = {
 
     // Get single TV channel
     getTVChannel: async (id) => {
-        const response = await axios.get(`${API_URL}/api/streaming/tv/channels/${id}`, {
+        const response = await api.get(`/streaming/tv/channels/${id}`, {
             headers: getAuthHeader()
         });
         return response.data;
@@ -109,7 +111,7 @@ export const streamingService = {
 
     // Add new TV channel
     addTVChannel: async (channelData) => {
-        const response = await axios.post(`${API_URL}/api/streaming/tv/channels`, channelData, {
+        const response = await api.post(`/streaming/tv/channels`, channelData, {
             headers: getAuthHeader()
         });
         return response.data;
@@ -117,7 +119,7 @@ export const streamingService = {
 
     // Update TV channel
     updateTVChannel: async (id, channelData) => {
-        const response = await axios.put(`${API_URL}/api/streaming/tv/channels/${id}`, channelData, {
+        const response = await api.put(`/streaming/tv/channels/${id}`, channelData, {
             headers: getAuthHeader()
         });
         return response.data;
@@ -125,7 +127,7 @@ export const streamingService = {
 
     // Delete TV channel
     deleteTVChannel: async (id) => {
-        const response = await axios.delete(`${API_URL}/api/streaming/tv/channels/${id}`, {
+        const response = await api.delete(`/streaming/tv/channels/${id}`, {
             headers: getAuthHeader()
         });
         return response.data;
@@ -133,8 +135,8 @@ export const streamingService = {
 
     // Start watching a TV channel
     startWatching: async (id, type = 'tv') => {
-        const response = await axios.post(
-            `${API_URL}/api/streaming/${type}/channels/${id}/watch`,
+        const response = await api.post(
+            `/streaming/${type}/channels/${id}/watch`,
             {},
             { headers: getAuthHeader() }
         );
@@ -143,8 +145,8 @@ export const streamingService = {
 
     // Stop watching a TV channel
     stopWatching: async (id, type = 'tv') => {
-        const response = await axios.post(
-            `${API_URL}/api/streaming/${type}/channels/${id}/stop`,
+        const response = await api.post(
+            `/streaming/${type}/channels/${id}/stop`,
             {},
             { headers: getAuthHeader() }
         );
@@ -153,7 +155,7 @@ export const streamingService = {
 
     // Get popular TV channels
     getPopularTVChannels: async (limit = 20) => {
-        const response = await axios.get(`${API_URL}/api/streaming/tv/popular`, {
+        const response = await api.get(`/streaming/tv/popular`, {
             params: { limit },
             headers: getAuthHeader()
         });
@@ -162,7 +164,7 @@ export const streamingService = {
 
     // Get available TV categories
     getTVCategories: async (params = {}) => {
-        const response = await axios.get(`${API_URL}/api/streaming/tv/categories`, {
+        const response = await api.get(`/streaming/tv/categories`, {
             params,
             headers: getAuthHeader()
         });
@@ -171,8 +173,8 @@ export const streamingService = {
 
     // Import custom TV playlist (M3U/M3U8)
     importTVPlaylist: async ({ url, content, name }) => {
-        const response = await axios.post(
-            `${API_URL}/api/streaming/tv/import`,
+        const response = await api.post(
+            `/streaming/tv/import`,
             { url, content, name },
             { headers: getAuthHeader() }
         );
@@ -183,7 +185,7 @@ export const streamingService = {
 
     // Get user favorites
     getFavorites: async (type = null) => {
-        const response = await axios.get(`${API_URL}/api/streaming/favorites`, {
+        const response = await api.get(`/streaming/favorites`, {
             params: type ? { type } : {},
             headers: getAuthHeader()
         });
@@ -192,8 +194,8 @@ export const streamingService = {
 
     // Add to favorites
     addFavorite: async (itemId, itemType) => {
-        const response = await axios.post(
-            `${API_URL}/api/streaming/favorites`,
+        const response = await api.post(
+            `/streaming/favorites`,
             { itemId, itemType },
             { headers: getAuthHeader() }
         );
@@ -202,7 +204,7 @@ export const streamingService = {
 
     // Remove from favorites
     removeFavorite: async (id) => {
-        const response = await axios.delete(`${API_URL}/api/streaming/favorites/${id}`, {
+        const response = await api.delete(`/streaming/favorites/${id}`, {
             headers: getAuthHeader()
         });
         return response.data;
@@ -212,7 +214,7 @@ export const streamingService = {
 
     // Get user playlists
     getPlaylists: async () => {
-        const response = await axios.get(`${API_URL}/api/streaming/playlists`, {
+        const response = await api.get(`/streaming/playlists`, {
             headers: getAuthHeader()
         });
         return response.data;
@@ -220,7 +222,7 @@ export const streamingService = {
 
     // Create playlist
     createPlaylist: async (playlistData) => {
-        const response = await axios.post(`${API_URL}/api/streaming/playlists`, playlistData, {
+        const response = await api.post(`/streaming/playlists`, playlistData, {
             headers: getAuthHeader()
         });
         return response.data;
@@ -228,8 +230,8 @@ export const streamingService = {
 
     // Import M3U playlist
     importM3UPlaylist: async (name, content, type) => {
-        const response = await axios.post(
-            `${API_URL}/api/streaming/playlists/import`,
+        const response = await api.post(
+            `/streaming/playlists/import`,
             { name, content, type },
             { headers: getAuthHeader() }
         );
@@ -238,7 +240,7 @@ export const streamingService = {
 
     // Export playlist as M3U
     exportPlaylist: async (id) => {
-        const response = await axios.get(`${API_URL}/api/streaming/playlists/${id}/export`, {
+        const response = await api.get(`/streaming/playlists/${id}/export`, {
             headers: getAuthHeader(),
             responseType: 'blob'
         });
@@ -249,7 +251,7 @@ export const streamingService = {
 
     // Get user playback history
     getHistory: async (type = null, limit = 50) => {
-        const response = await axios.get(`${API_URL}/api/streaming/history`, {
+        const response = await api.get(`/streaming/history`, {
             params: { type, limit },
             headers: getAuthHeader()
         });
@@ -261,44 +263,44 @@ export const streamingService = {
     // Full-text channel search
     searchChannels: async (q = '', options = {}) => {
         const params = { q, ...options };
-        const response = await axios.get(`${API_URL}/api/channels/search`, { params, headers: getAuthHeader() });
+        const response = await api.get(`/channels/search`, { params, headers: getAuthHeader() });
         return response.data;
     },
 
     // Search suggestions
     getSearchSuggestions: async (q = '', limit = 10) => {
-        const response = await axios.get(`${API_URL}/api/channels/search/suggestions`, { params: { q, limit }, headers: getAuthHeader() });
+        const response = await api.get(`/channels/search/suggestions`, { params: { q, limit }, headers: getAuthHeader() });
         return response.data;
     },
 
     // Search filters (categories/countries/languages)
     getSearchFilters: async () => {
-        const response = await axios.get(`${API_URL}/api/channels/search/filters`, { headers: getAuthHeader() });
+        const response = await api.get(`/channels/search/filters`, { headers: getAuthHeader() });
         return response.data;
     },
 
     // Get personalized recommendations
     getRecommendations: async (params = {}) => {
-        const response = await axios.get(`${API_URL}/api/recommendations`, { params, headers: getAuthHeader() });
+        const response = await api.get(`/recommendations`, { params, headers: getAuthHeader() });
         return response.data;
     },
 
     // Track a channel view for recommendations
     trackChannelView: async (payload = {}) => {
-        const response = await axios.post(`${API_URL}/api/channels/view`, payload, { headers: getAuthHeader() });
+        const response = await api.post(`/channels/view`, payload, { headers: getAuthHeader() });
         return response.data;
     },
 
     // Rate a channel
     rateChannel: async (payload = {}) => {
-        const response = await axios.post(`${API_URL}/api/channels/rate`, payload, { headers: getAuthHeader() });
+        const response = await api.post(`/channels/rate`, payload, { headers: getAuthHeader() });
         return response.data;
     },
 
     // Get similar channels
     getSimilarChannels: async (channelId, limit = 10) => {
         try {
-            const response = await axios.get(`${API_URL}/api/channels/${channelId}/similar`, { params: { limit }, headers: getAuthHeader() });
+            const response = await api.get(`/channels/${channelId}/similar`, { params: { limit }, headers: getAuthHeader() });
             return response.data;
         } catch (error) {
             // treat "not found" as an empty list rather than bubbling up
@@ -312,12 +314,12 @@ export const streamingService = {
 
     // Recommendation stats
     getRecommendationStats: async (userId) => {
-        const response = await axios.get(`${API_URL}/api/recommendations/stats/${userId}`, { headers: getAuthHeader() });
+        const response = await api.get(`/recommendations/stats/${userId}`, { headers: getAuthHeader() });
         return response.data;
     },
 
     getSystemRecommendationStats: async () => {
-        const response = await axios.get(`${API_URL}/api/recommendations/system-stats`, { headers: getAuthHeader() });
+        const response = await api.get(`/recommendations/system-stats`, { headers: getAuthHeader() });
         return response.data;
     },
 
@@ -325,19 +327,19 @@ export const streamingService = {
 
     // Report fallback usage from the client
     reportFallbackEvent: async (payload = {}) => {
-        const response = await axios.post(`${API_URL}/api/streaming/telemetry/fallbacks`, payload, { headers: getAuthHeader() });
+        const response = await api.post(`/streaming/telemetry/fallbacks`, payload, { headers: getAuthHeader() });
         return response.data;
     },
 
     // Query fallback events
     getFallbackEvents: async (params = {}) => {
-        const response = await axios.get(`${API_URL}/api/streaming/telemetry/fallbacks`, { params, headers: getAuthHeader() });
+        const response = await api.get(`/streaming/telemetry/fallbacks`, { params, headers: getAuthHeader() });
         return response.data;
     },
 
     // Aggregated fallback report
     getFallbackReport: async (params = {}) => {
-        const response = await axios.get(`${API_URL}/api/streaming/telemetry/fallbacks/report`, { params, headers: getAuthHeader() });
+        const response = await api.get(`/streaming/telemetry/fallbacks/report`, { params, headers: getAuthHeader() });
         return response.data;
     },
 
@@ -345,7 +347,7 @@ export const streamingService = {
 
     // Health check
     getHealth: async () => {
-        const response = await axios.get(`${API_URL}/api/streaming/health`);
+        const response = await api.get(`/streaming/health`);
         return response.data;
     }
 };

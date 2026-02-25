@@ -31,7 +31,8 @@
 ### Frontend stability/noise reduction
 - Updated `frontend/docker-entrypoint.sh`:
   - Force `GENERATE_SOURCEMAP=false` in production mode before `npm run build`.
-- Updated `frontend/package.json` postinstall patching for `shaka-player` source map comment cleanup (line + block forms).
+- Updated `frontend/package.json` postinstall patching for `shaka-player` source map comment cleanup (now covers both `shaka-player.ui.js` and `controls.css` to remove stray sourceMappingURL lines).
+- Refactored `frontend/src/utils/streamingService.js` to use the shared `api` axios instance and avoid hard-coded `localhost:8000`, ensuring requests traverse the development proxy and reducing network errors in remote dev environments.
 
 ## Validation performed
 
