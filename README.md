@@ -45,7 +45,7 @@ A comprehensive enterprise-grade social collaboration platform combining feature
 - **Audit Logging** - Comprehensive audit trail for compliance
 - **GDPR Compliance** - Data retention policies and right to be forgotten
 - **Security Headers** - CSP, HSTS, X-Frame-Options, and more
-- **Advanced Rate Limiting** - Distributed rate limiting with Redis
+- **Rate Limiting** - configurable via `RATE_LIMITING_ENABLED` environment variable (defaults to enabled); can be turned off for development or testing
 
 ## ✨ What's New in v1.1
 

@@ -52,26 +52,7 @@
  *                   example: v2
  */
 
-/**
- * @swagger
- * /api/rate-limit-status:
- *   get:
- *     summary: Get current rate limit status
- *     description: Check remaining requests in current rate limit window
- *     tags: [System]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Rate limit status
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/RateLimitStatus'
- *       429:
- *         $ref: '#/components/responses/RateLimited'
- */
-
+// Rate limiting removed; documentation for /api/rate-limit-status has been deleted.
 /**
  * @swagger
  * /api/user/login:
