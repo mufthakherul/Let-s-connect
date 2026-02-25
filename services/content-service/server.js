@@ -1950,6 +1950,12 @@ app.post('/posts/:postId/reactions', async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
+    // ensure the target post exists (avoid FK error)
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
     // Check if user already reacted
     const existing = await Reaction.findOne({ where: { postId, userId } });
 
@@ -1978,6 +1984,12 @@ app.post('/posts/:postId/reactions', async (req, res) => {
 // Get reactions for post
 app.get('/posts/:postId/reactions', async (req, res) => {
   try {
+    // verify post exists for clarity
+    const post = await Post.findByPk(req.params.postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
     const reactions = await Reaction.findAll({
       where: { postId: req.params.postId }
     });
@@ -1993,6 +2005,16 @@ app.get('/posts/:postId/reactions', async (req, res) => {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch reactions' });
   }
+});
+
+// ========== FACEBOOK-FRIENDS STUBS ==========
+// The friends endpoints normally live in the user-service, but during
+// local development the gateway may route requests to whichever service
+// responds.  We provide minimal handlers here to avoid confusing 404s and
+// give the client a clear explanation.
+
+app.get('/friends', (req, res) => {
+  res.status(404).json({ error: 'Friends service not available; please start user-service or configure gateway correctly' });
 });
 
 // ========== TWITTER-INSPIRED: HASHTAGS ==========
@@ -3117,37 +3139,28 @@ app.get('/posts/:postId/awards', async (req, res) => {
   }
 });
 
-// ========== RETWEET ENDPOINTS (Twitter-inspired) ==========
+// ========== RETWEET/QUOTE ENDPOINTS (Twitter-inspired) ==========
 
-// Retweet a post
-app.post('/posts/:postId/retweet', async (req, res) => {
+// Helper shared code for retweet/quote to avoid duplication
+async function performRetweet({ postId, userId, comment, visibility }, res) {
   try {
-    const userId = req.header('x-user-id');
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { postId } = req.params;
-    const { comment } = req.body;
-
     const post = await Post.findByPk(postId);
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
     let retweet;
-
     await sequelize.transaction(async (transaction) => {
       let quotedPostId = null;
 
-      // If there's a comment, create a quote tweet (new post)
+      // If there's a comment (quote tweet), create a new post
       if (comment) {
         const quotePost = await Post.create(
           {
             userId,
             content: comment,
             type: post.type,
-            visibility: 'public'
+            visibility: visibility || post.visibility || 'public'
           },
           { transaction }
         );
@@ -3175,6 +3188,31 @@ app.post('/posts/:postId/retweet', async (req, res) => {
     }
     res.status(500).json({ error: 'Failed to retweet' });
   }
+}
+
+// Retweet a post
+app.post('/posts/:postId/retweet', async (req, res) => {
+  const userId = req.header('x-user-id');
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { postId } = req.params;
+  const { comment } = req.body;
+  return performRetweet({ postId, userId, comment }, res);
+});
+
+// Quote a post (frontend helper route)
+app.post('/posts/:postId/quote', async (req, res) => {
+  const userId = req.header('x-user-id');
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { postId } = req.params;
+  // frontend sends `content` and optional `visibility`
+  const { content, visibility } = req.body;
+  return performRetweet({ postId, userId, comment: content, visibility }, res);
 });
 
 // Undo retweet
