@@ -42,7 +42,8 @@ import {
   Repeat,
   AutoAwesome,
   Forum,
-  Tag
+  Tag,
+  MailOutline
 } from '@mui/icons-material';
 import { useInView } from 'react-intersection-observer';
 import { useNavigate } from 'react-router-dom';
@@ -78,8 +79,8 @@ function Feed({ user }) {
   const [threadTweets, setThreadTweets] = useState(['']);
   const [reactionAnchor, setReactionAnchor] = useState(null);
   const [reactionTarget, setReactionTarget] = useState(null);
-  const [retweetAnchor, setRetweetAnchor] = useState(null);
-  const [retweetTarget, setRetweetTarget] = useState(null);
+  const [repostAnchor, setRepostAnchor] = useState(null);
+  const [repostTarget, setRepostTarget] = useState(null);
   const [quoteDialogOpen, setQuoteDialogOpen] = useState(false);
   const [quoteText, setQuoteText] = useState('');
   const [threadDialogOpen, setThreadDialogOpen] = useState(false);
@@ -155,6 +156,7 @@ function Feed({ user }) {
 
       setPosts([response.data, ...posts]);
       resetComposer();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       toast.success('Post created successfully!');
     } catch (err) {
       console.error('Failed to create post:', err);
@@ -199,7 +201,8 @@ function Feed({ user }) {
             ? {
               ...p,
               reactionSummary: summary.data.summary,
-              reactionCount: summary.data.total
+              reactionCount: summary.data.total,
+              likes: summary.data.total // keep likes in sync for fallback
             }
             : p
         )
@@ -213,57 +216,57 @@ function Feed({ user }) {
     }
   };
 
-  const handleRetweetMenu = (event, post) => {
-    setRetweetAnchor(event.currentTarget);
-    setRetweetTarget(post);
+  const handleRepostMenu = (event, post) => {
+    setRepostAnchor(event.currentTarget);
+    setRepostTarget(post);
   };
 
-  const handleRetweet = async () => {
-    if (!retweetTarget) return;
+  const handleRepost = async () => {
+    if (!repostTarget) return;
     try {
-      await api.post(`/content/posts/${retweetTarget.id}/retweet`, {});
-      toast.success('Retweeted');
+      await api.post(`/content/posts/${repostTarget.id}/retweet`, {});
+      toast.success('Reposted');
     } catch (err) {
-      console.error('Failed to retweet:', err);
-      toast.error(err.response?.data?.error || 'Failed to retweet');
+      console.error('Failed to repost:', err);
+      toast.error(err.response?.data?.error || 'Failed to repost');
     } finally {
-      setRetweetAnchor(null);
-      setRetweetTarget(null);
+      setRepostAnchor(null);
+      setRepostTarget(null);
     }
   };
 
-  const handleUndoRetweet = async () => {
-    if (!retweetTarget) return;
+  const handleUndoRepost = async () => {
+    if (!repostTarget) return;
     try {
-      await api.delete(`/content/posts/${retweetTarget.id}/retweet`);
-      toast.success('Retweet removed');
+      await api.delete(`/content/posts/${repostTarget.id}/retweet`);
+      toast.success('Repost removed');
     } catch (err) {
-      console.error('Failed to undo retweet:', err);
-      toast.error(err.response?.data?.error || 'Failed to remove retweet');
+      console.error('Failed to undo repost:', err);
+      toast.error(err.response?.data?.error || 'Failed to remove repost');
     } finally {
-      setRetweetAnchor(null);
-      setRetweetTarget(null);
+      setRepostAnchor(null);
+      setRepostTarget(null);
     }
   };
 
   const openQuoteDialog = () => {
     setQuoteText('');
     setQuoteDialogOpen(true);
-    setRetweetAnchor(null);
+    setRepostAnchor(null);
   };
 
   const submitQuote = async () => {
-    if (!retweetTarget) return;
+    if (!repostTarget) return;
     if (!quoteText.trim()) {
       toast.error('Add a comment for your quote');
       return;
     }
 
     try {
-      await api.post(`/content/posts/${retweetTarget.id}/retweet`, { comment: quoteText });
+      await api.post(`/content/posts/${repostTarget.id}/retweet`, { comment: quoteText });
       toast.success('Quote posted');
       setQuoteDialogOpen(false);
-      setRetweetTarget(null);
+      setRepostTarget(null);
       setQuoteText('');
     } catch (err) {
       console.error('Failed to quote post:', err);
@@ -698,13 +701,13 @@ function Feed({ user }) {
       </Menu>
 
       <Menu
-        anchorEl={retweetAnchor}
-        open={Boolean(retweetAnchor)}
-        onClose={() => setRetweetAnchor(null)}
+        anchorEl={repostAnchor}
+        open={Boolean(repostAnchor)}
+        onClose={() => setRepostAnchor(null)}
       >
-        <MenuItem onClick={handleRetweet}>Retweet</MenuItem>
+        <MenuItem onClick={handleRepost}>Repost</MenuItem>
         <MenuItem onClick={openQuoteDialog}>Quote with comment</MenuItem>
-        <MenuItem onClick={handleUndoRetweet}>Undo retweet</MenuItem>
+        <MenuItem onClick={handleUndoRepost}>Undo repost</MenuItem>
       </Menu>
 
       <Dialog open={quoteDialogOpen} onClose={() => setQuoteDialogOpen(false)} maxWidth="sm" fullWidth>
