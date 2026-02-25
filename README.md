@@ -45,7 +45,7 @@ A comprehensive enterprise-grade social collaboration platform combining feature
 - **Audit Logging** - Comprehensive audit trail for compliance
 - **GDPR Compliance** - Data retention policies and right to be forgotten
 - **Security Headers** - CSP, HSTS, X-Frame-Options, and more
-- **Advanced Rate Limiting** - Distributed rate limiting with Redis
+- **Rate Limiting** - configurable via `RATE_LIMITING_ENABLED` environment variable (defaults to enabled); can be turned off for development or testing
 
 ## ✨ What's New in v1.1
 
@@ -60,8 +60,8 @@ A comprehensive enterprise-grade social collaboration platform combining feature
 ### 🚀 New Features
 - **Groups** - Facebook-style groups with privacy settings (public, private, secret)
 - **Bookmarks** - Save posts, videos, and content for later (Twitter/X-style)
-- **Threads & Retweets UI** - Full Twitter/X-style thread and quote flow
-- **Awards UI** - Reddit-style awards on posts
+- **Threads & Reposts UI** - Full Twitter/X-style thread and quote flow (reposts replace retweets)
+- **Awards UI** - Reddit-style awards on posts (currently only available for posts inside groups or communities)
 - **Channel Feed & Playlists UI** - YouTube-style channel browsing and playlists
 - **Server Discovery UI** - Discord-style public server discovery
 - **Project Board & Milestones UI** - GitHub-style boards with card movement
@@ -85,7 +85,7 @@ A comprehensive enterprise-grade social collaboration platform combining feature
 - 🛒 **Shop** - Browse products and marketplace with reviews
 
 ### Private Access (Authentication Required)
-- 📱 **Social Feed** - Posts, images, hashtags, reactions, threads, retweets, awards
+- 📱 **Social Feed** - Posts, images, hashtags, reactions, threads, reposts, awards
 - 👥 **Groups** - Create and join groups with privacy controls (NEW)
 - 🔖 **Bookmarks** - Save and organize content (NEW)
 - 💬 **Real-time Chat** - Instant messaging with Discord-style servers, roles, and discovery

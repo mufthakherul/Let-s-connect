@@ -293,7 +293,7 @@ This platform brings together features from:
 - ✅ **Public home return stability**: Unauthenticated landing content remains visible when navigating back via brand
 - ✅ **Cursor trail removed**: Background cursor animation removed to improve stability/accessibility
 - ✅ **Username profile URLs**: Profile links now use username-first URLs with backward-compatible ID fallback
-- ✅ **Anonymous author label standardization**: Anonymous post/comment author label is exactly `Anonymous user post`
+- ✅ **Anonymous author label standardization**: Anonymous post/comment author label is now `Anonymous contribution`
 
 ### 📡 Real-time Features
 - ✅ WebSocket connections

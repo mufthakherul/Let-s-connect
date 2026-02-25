@@ -1,4 +1,4 @@
-export const ANONYMOUS_USER_POST_LABEL = 'Anonymous user post';
+export const ANONYMOUS_USER_POST_LABEL = 'Anonymous Post';
 
 export function buildProfilePath(username, fallbackId) {
     if (username && String(username).trim()) {

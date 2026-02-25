@@ -13,7 +13,8 @@ import { Link } from 'react-router-dom';
 
 function UnregisterLanding() {
     const theme = useTheme();
-    const MotionCard = motion(Card);
+    // use the new API (motion.create) so we avoid the deprecated call
+    const MotionCard = motion.create ? motion.create(Card) : motion(Card);
     const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
     const [expandedIndex, setExpandedIndex] = useState(null);
 
