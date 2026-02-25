@@ -7,6 +7,15 @@ const resolveRuntimeApiBase = () => {
 
   const origin = window.location.origin;
 
+  // In development we prefer to rely on a relative path; a proxy configured in
+  // `setupProxy.js` will forward requests to the backend.  This avoids CORS
+  // problems in Codespaces or other remote dev environments.  If someone has
+  // explicitly set REACT_APP_API_URL we still respect that, but the default
+  // dev behaviour is to return an empty string so axios uses `/api`.
+  if (process.env.NODE_ENV === 'development') {
+    return '';
+  }
+
   if (process.env.NODE_ENV === 'production') {
     return origin;
   }
@@ -28,7 +37,13 @@ const resolveRuntimeApiBase = () => {
   return origin;
 };
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || resolveRuntimeApiBase();
+let API_BASE_URL = process.env.REACT_APP_API_URL || resolveRuntimeApiBase();
+// in development we don't want to use an absolute URL even if someone set
+// REACT_APP_API_URL (the template often does).  stick with relative paths and
+// rely on the proxy we configured above.
+if (process.env.NODE_ENV === 'development') {
+  API_BASE_URL = '';
+}
 const NORMALIZED_API_BASE_URL = API_BASE_URL.replace(/\/+$/, '');
 const API_BASE_PATH = NORMALIZED_API_BASE_URL.endsWith('/api')
   ? NORMALIZED_API_BASE_URL

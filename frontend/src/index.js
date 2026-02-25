@@ -45,9 +45,21 @@ if (shouldRegisterSW) {
 }
 
 // Global error hook to surface uncaught errors (helps in production debugging)
+// filter out noisy websocket handshake failures produced by the development
+// server when running in Codespaces (404 responses on /ws).  those are
+// harmless and just clutter the console.
 window.addEventListener('error', (e) => {
-  console.error('[Global Error]', e.error || e.message, e);
+  const msg = e.message || '';
+  if (msg.includes('WebSocket connection to') && msg.includes('Unexpected response code: 404')) {
+    // ignore dev-server websocket handshake noise
+    return;
+  }
+  console.error('[Global Error]', e.error || msg, e);
 });
 window.addEventListener('unhandledrejection', (e) => {
+  const msg = e.reason && e.reason.message ? e.reason.message : '';
+  if (msg.includes('WebSocket connection to') && msg.includes('Unexpected response code: 404')) {
+    return;
+  }
   console.error('[Unhandled Rejection]', e.reason || e);
 });
