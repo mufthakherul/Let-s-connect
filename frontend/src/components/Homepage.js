@@ -51,6 +51,7 @@ import {
 import { useInView } from 'react-intersection-observer';
 import { useNavigate } from 'react-router-dom';
 import { formatRelativeTime, formatApproximateTime, formatNumber, getInitials } from '../utils/helpers';
+import { ANONYMOUS_USER_POST_LABEL, buildProfilePath, getPostAuthorLabel } from '../utils/profileRoutes';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 import { motion } from 'framer-motion';
@@ -483,6 +484,8 @@ function Homepage({ user }) {
     const renderPostCard = (post, index) => {
         const isBookmarked = Boolean(bookmarks[post.id]);
         const isFollowing = followingIds.includes(post.userId);
+        const profilePath = buildProfilePath(post?.author?.username || post?.userName || post?.username, post?.userId);
+        const authorLabel = getPostAuthorLabel(post);
         const mediaUrls = post.mediaUrls || [];
         const mediaPreview = post.featuredImage || mediaUrls[0];
         const isVideo = post.type === 'video';
@@ -494,24 +497,24 @@ function Homepage({ user }) {
                         <Tooltip title={post.isAnonymous ? 'Anonymous' : 'View profile'} arrow>
                             <Avatar
                                 sx={{ cursor: post.isAnonymous ? 'default' : 'pointer' }}
-                                onClick={() => { if (!post.isAnonymous) navigate(`/profile/${post.userId}`); }}
+                                onClick={() => { if (!post.isAnonymous) navigate(profilePath); }}
                             >
-                                {post.isAnonymous ? (post.anonHandle ? getInitials(post.anonHandle) : 'A') : getInitials(`${post.author?.firstName || ''} ${post.author?.lastName || ''}`)}
+                                {post.isAnonymous ? 'A' : getInitials(authorLabel)}
                             </Avatar>
                         </Tooltip>
                     }
                     title={
                         post.isAnonymous ? (
                             <Typography component="span" sx={{ fontWeight: 'bold' }}>
-                                {post.anonHandle || 'Anonymous'}
+                                {ANONYMOUS_USER_POST_LABEL}
                             </Typography>
                         ) : (
                             <MuiLink
                                 component="span"
-                                onClick={() => navigate(`/profile/${post.userId}`)}
+                                onClick={() => navigate(profilePath)}
                                 sx={{ cursor: 'pointer', fontWeight: 'bold' }}
                             >
-                                {post.author?.firstName} {post.author?.lastName}
+                                {authorLabel}
                             </MuiLink>
                         )
                     }

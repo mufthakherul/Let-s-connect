@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import UnregisterLanding from './UnregisterLanding';
 import AlreadyMemberDialog from './common/AlreadyMemberDialog';
 import Homepage from './Homepage';
@@ -13,18 +13,23 @@ import Homepage from './Homepage';
 function Home({ user }) {
   // If user is logged in, redirect to homepage
   const navigate = useNavigate();
-  const [showAlreadyDialog, setShowAlreadyDialog] = useState(window.location.pathname === '/unregister');
+  const location = useLocation();
+  const [showAlreadyDialog, setShowAlreadyDialog] = useState(location.pathname === '/unregister');
+
+  useEffect(() => {
+    setShowAlreadyDialog(location.pathname === '/unregister');
+  }, [location.pathname]);
 
   if (user) {
     // If logged-in user landed on /unregister, show the homepage with a modal overlay
-    if (window.location.pathname === '/unregister') {
+    if (location.pathname === '/unregister') {
       return (
         <>
           <Homepage user={user} />
           <AlreadyMemberDialog
             open={showAlreadyDialog}
             onClose={() => setShowAlreadyDialog(false)}
-            onContinue={() => { window.location.href = '/'; }}
+            onContinue={() => navigate('/', { replace: true })}
           />
         </>
       );

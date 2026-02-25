@@ -38,6 +38,7 @@ import {
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 import { useNavigate } from 'react-router-dom';
+import { buildProfilePath } from '../utils/profileRoutes';
 
 function Friends({ user }) {
   const navigate = useNavigate();
@@ -243,15 +244,15 @@ function Friends({ user }) {
                     <Avatar
                       src={friend.avatar}
                       sx={{ width: 60, height: 60, mr: 2, cursor: 'pointer' }}
-                      onClick={() => navigate(`/profile/${friend.id}`)}
+                      onClick={() => navigate(buildProfilePath(friend.username, friend.id))}
                     >
                       {friend.firstName?.[0] || friend.username?.[0]}
                     </Avatar>
                     <Box sx={{ flexGrow: 1 }}>
-                      <Typography 
-                        variant="h6" 
+                      <Typography
+                        variant="h6"
                         sx={{ cursor: 'pointer' }}
-                        onClick={() => navigate(`/profile/${friend.id}`)}
+                        onClick={() => navigate(buildProfilePath(friend.username, friend.id))}
                       >
                         {friend.firstName && friend.lastName
                           ? `${friend.firstName} ${friend.lastName}`
@@ -271,7 +272,7 @@ function Friends({ user }) {
                     <Button
                       fullWidth
                       variant="outlined"
-                      onClick={() => navigate(`/profile/${friend.id}`)}
+                      onClick={() => navigate(buildProfilePath(friend.username, friend.id))}
                     >
                       View Profile
                     </Button>
@@ -319,7 +320,7 @@ function Friends({ user }) {
                   <Avatar
                     src={request.Sender?.avatar}
                     sx={{ cursor: 'pointer' }}
-                    onClick={() => navigate(`/profile/${request.Sender?.id}`)}
+                    onClick={() => navigate(buildProfilePath(request.Sender?.username, request.Sender?.id))}
                   >
                     {request.Sender?.firstName?.[0] || request.Sender?.username?.[0]}
                   </Avatar>
@@ -328,7 +329,7 @@ function Friends({ user }) {
                   primary={
                     <Typography
                       sx={{ cursor: 'pointer' }}
-                      onClick={() => navigate(`/profile/${request.Sender?.id}`)}
+                      onClick={() => navigate(buildProfilePath(request.Sender?.username, request.Sender?.id))}
                     >
                       {request.Sender?.firstName && request.Sender?.lastName
                         ? `${request.Sender.firstName} ${request.Sender.lastName}`
@@ -404,7 +405,7 @@ function Friends({ user }) {
                   <Avatar
                     src={request.Receiver?.avatar}
                     sx={{ cursor: 'pointer' }}
-                    onClick={() => navigate(`/profile/${request.Receiver?.id}`)}
+                    onClick={() => navigate(buildProfilePath(request.Receiver?.username, request.Receiver?.id))}
                   >
                     {request.Receiver?.firstName?.[0] || request.Receiver?.username?.[0]}
                   </Avatar>
@@ -413,7 +414,7 @@ function Friends({ user }) {
                   primary={
                     <Typography
                       sx={{ cursor: 'pointer' }}
-                      onClick={() => navigate(`/profile/${request.Receiver?.id}`)}
+                      onClick={() => navigate(buildProfilePath(request.Receiver?.username, request.Receiver?.id))}
                     >
                       {request.Receiver?.firstName && request.Receiver?.lastName
                         ? `${request.Receiver.firstName} ${request.Receiver.lastName}`
@@ -479,15 +480,15 @@ function Friends({ user }) {
                     <Avatar
                       src={suggestion.avatar}
                       sx={{ width: 60, height: 60, mr: 2, cursor: 'pointer' }}
-                      onClick={() => navigate(`/profile/${suggestion.id}`)}
+                      onClick={() => navigate(buildProfilePath(suggestion.username, suggestion.id))}
                     >
                       {suggestion.firstName?.[0] || suggestion.username?.[0]}
                     </Avatar>
                     <Box sx={{ flexGrow: 1 }}>
-                      <Typography 
-                        variant="h6" 
+                      <Typography
+                        variant="h6"
                         sx={{ cursor: 'pointer' }}
-                        onClick={() => navigate(`/profile/${suggestion.id}`)}
+                        onClick={() => navigate(buildProfilePath(suggestion.username, suggestion.id))}
                       >
                         {suggestion.firstName && suggestion.lastName
                           ? `${suggestion.firstName} ${suggestion.lastName}`
@@ -514,7 +515,7 @@ function Friends({ user }) {
                     </Button>
                     <Button
                       variant="outlined"
-                      onClick={() => navigate(`/profile/${suggestion.id}`)}
+                      onClick={() => navigate(buildProfilePath(suggestion.username, suggestion.id))}
                     >
                       View
                     </Button>
@@ -545,28 +546,28 @@ function Friends({ user }) {
           indicatorColor="primary"
           textColor="primary"
         >
-          <Tab 
-            icon={<PeopleIcon />} 
-            label={`Friends (${friends.length})`} 
+          <Tab
+            icon={<PeopleIcon />}
+            label={`Friends (${friends.length})`}
             iconPosition="start"
           />
-          <Tab 
+          <Tab
             icon={
               <Badge badgeContent={friendRequests.length} color="error">
                 <HowToRegIcon />
               </Badge>
-            } 
-            label="Requests" 
+            }
+            label="Requests"
             iconPosition="start"
           />
-          <Tab 
-            icon={<PersonAddIcon />} 
-            label={`Sent (${sentRequests.length})`} 
+          <Tab
+            icon={<PersonAddIcon />}
+            label={`Sent (${sentRequests.length})`}
             iconPosition="start"
           />
-          <Tab 
-            icon={<SearchIcon />} 
-            label="Suggestions" 
+          <Tab
+            icon={<SearchIcon />}
+            label="Suggestions"
             iconPosition="start"
           />
         </Tabs>

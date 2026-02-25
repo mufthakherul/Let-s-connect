@@ -541,7 +541,9 @@ const publicRoutes = [
   '/api/auth/oauth/google/authorize',
   '/api/auth/oauth/google/callback',
   '/api/auth/oauth/github/authorize',
-  '/api/auth/oauth/github/callback'
+  '/api/auth/oauth/github/callback',
+  '/api/messaging/webhooks/',
+  '/api/messaging/bots/telegram/webhook/'
 ];
 
 // Check if route is public

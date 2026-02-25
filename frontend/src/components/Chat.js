@@ -19,16 +19,20 @@ import {
   Menu,
   MenuItem,
   Tooltip,
-  Divider
+  Divider,
+  ToggleButtonGroup,
+  ToggleButton
 } from '@mui/material';
-import { 
-  ContentCopy, 
-  ThumbUp, 
-  Favorite, 
-  EmojiEmotions, 
-  Reply, 
-  Forward, 
-  MoreVert 
+import {
+  ContentCopy,
+  ThumbUp,
+  Favorite,
+  EmojiEmotions,
+  Reply,
+  Forward,
+  MoreVert,
+  Person,
+  Groups
 } from '@mui/icons-material';
 import io from 'socket.io-client';
 import toast from 'react-hot-toast';
@@ -49,13 +53,14 @@ function Chat({ user }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [inviteCode, setInviteCode] = useState('');
-  
+
   // Phase 2: Message reactions, reply, forward
   const [replyingTo, setReplyingTo] = useState(null);
   const [messageMenuAnchor, setMessageMenuAnchor] = useState(null);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [reactionPickerAnchor, setReactionPickerAnchor] = useState(null);
   const [forwardDialogOpen, setForwardDialogOpen] = useState(false);
+  const [chatMode, setChatMode] = useState('all');
 
   useEffect(() => {
     fetchConversations();
@@ -89,6 +94,16 @@ function Chat({ user }) {
     setSelectedConversation(conversation);
     fetchMessages(conversation.id);
   };
+
+  const getConversationType = (conv) => {
+    if (conv?.type === 'group' || conv?.type === 'channel') return 'u2g';
+    return 'u2u';
+  };
+
+  const visibleConversations = conversations.filter((conv) => {
+    if (chatMode === 'all') return true;
+    return getConversationType(conv) === chatMode;
+  });
 
   const handleSendMessage = () => {
     if (!newMessage.trim() || !selectedConversation || !socket) return;
@@ -165,7 +180,7 @@ function Chat({ user }) {
   };
 
   // ========== PHASE 2: Message Reactions, Reply, Forward ==========
-  
+
   const handleAddReaction = async (messageId, reactionType) => {
     try {
       await api.post(`/messaging/messages/${messageId}/reactions`, { reactionType });
@@ -280,26 +295,75 @@ function Chat({ user }) {
       </Tabs>
 
       {tab === 0 && (
-        <Box sx={{ display: 'flex', height: '70vh' }}>
-          <Box sx={{ width: '30%', borderRight: 1, borderColor: 'divider', overflowY: 'auto' }}>
-            <Typography variant="h6" sx={{ p: 2 }}>
-              Conversations
-            </Typography>
+        <Box sx={{ display: 'flex', height: '70vh', flexDirection: { xs: 'column', md: 'row' } }}>
+          <Box sx={{ width: { xs: '100%', md: '34%' }, borderRight: { xs: 0, md: 1 }, borderBottom: { xs: 1, md: 0 }, borderColor: 'divider', overflowY: 'auto' }}>
+            <Box sx={{ p: 2 }}>
+              <Typography variant="h6">Conversations</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Switch between direct (U2U) and group/channel (U2G) flows.
+              </Typography>
+              <ToggleButtonGroup
+                color="primary"
+                value={chatMode}
+                exclusive
+                onChange={(_, next) => { if (next) setChatMode(next); }}
+                size="small"
+                sx={{ mt: 1.5, flexWrap: 'wrap' }}
+              >
+                <ToggleButton value="all">All</ToggleButton>
+                <ToggleButton value="u2u"><Person sx={{ mr: 0.5, fontSize: 16 }} />U2U</ToggleButton>
+                <ToggleButton value="u2g"><Groups sx={{ mr: 0.5, fontSize: 16 }} />U2G</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
             <List>
-              {conversations.map((conv) => (
+              {visibleConversations.map((conv) => (
                 <ListItem
                   button
                   key={conv.id}
                   selected={selectedConversation?.id === conv.id}
                   onClick={() => handleSelectConversation(conv)}
                 >
-                  <ListItemText primary={conv.name || 'Chat'} secondary={conv.lastMessage} />
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{conv.name || 'Chat'}</Typography>
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          icon={getConversationType(conv) === 'u2g' ? <Groups fontSize="small" /> : <Person fontSize="small" />}
+                          label={getConversationType(conv) === 'u2g' ? 'U2G' : 'U2U'}
+                        />
+                      </Box>
+                    }
+                    secondary={conv.lastMessage}
+                  />
                 </ListItem>
               ))}
+              {!visibleConversations.length && (
+                <ListItem>
+                  <ListItemText primary="No conversations in this mode" secondary="Try another mode or start a new chat." />
+                </ListItem>
+              )}
             </List>
           </Box>
 
-          <Box sx={{ width: '70%', display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ width: { xs: '100%', md: '66%' }, display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ px: 2, py: 1.25, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  {selectedConversation?.name || 'Select a conversation'}
+                </Typography>
+                {selectedConversation && (
+                  <Chip
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                    icon={getConversationType(selectedConversation) === 'u2g' ? <Groups fontSize="small" /> : <Person fontSize="small" />}
+                    label={getConversationType(selectedConversation) === 'u2g' ? 'Group / Channel' : 'Direct chat'}
+                  />
+                )}
+              </Stack>
+            </Box>
             <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}>
               {messages.map((message) => (
                 <Card
@@ -315,11 +379,11 @@ function Chat({ user }) {
                   <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
                     {/* Phase 2: Show reply context */}
                     {message.replyTo && (
-                      <Box 
-                        sx={{ 
-                          mb: 1, 
-                          p: 0.5, 
-                          bgcolor: 'action.hover', 
+                      <Box
+                        sx={{
+                          mb: 1,
+                          p: 0.5,
+                          bgcolor: 'action.hover',
                           borderRadius: 1,
                           borderLeft: 3,
                           borderColor: 'primary.main'
@@ -333,12 +397,12 @@ function Chat({ user }) {
                         </Typography>
                       </Box>
                     )}
-                    
+
                     {/* Phase 2: Show forwarded context */}
                     {message.forwardedFrom && (
-                      <Chip 
-                        label="Forwarded" 
-                        size="small" 
+                      <Chip
+                        label="Forwarded"
+                        size="small"
                         sx={{ mb: 0.5 }}
                         icon={<Forward fontSize="small" />}
                       />
@@ -346,8 +410,8 @@ function Chat({ user }) {
 
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                       <Typography variant="body2">{message.content}</Typography>
-                      <IconButton 
-                        size="small" 
+                      <IconButton
+                        size="small"
                         onClick={(e) => handleMessageMenuOpen(e, message)}
                         sx={{ ml: 1 }}
                       >
@@ -386,16 +450,16 @@ function Chat({ user }) {
                     {/* Phase 2: Quick reaction button */}
                     <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5 }}>
                       <Tooltip title="Add reaction">
-                        <IconButton 
-                          size="small" 
+                        <IconButton
+                          size="small"
                           onClick={(e) => handleReactionPickerOpen(e, message)}
                         >
                           <EmojiEmotions fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Reply">
-                        <IconButton 
-                          size="small" 
+                        <IconButton
+                          size="small"
                           onClick={() => handleReplyToMessage(message)}
                         >
                           <Reply fontSize="small" />
@@ -410,11 +474,11 @@ function Chat({ user }) {
             <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
               {/* Phase 2: Show replying indicator */}
               {replyingTo && (
-                <Box 
-                  sx={{ 
-                    mb: 1, 
-                    p: 1, 
-                    bgcolor: 'action.hover', 
+                <Box
+                  sx={{
+                    mb: 1,
+                    p: 1,
+                    bgcolor: 'action.hover',
                     borderRadius: 1,
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -434,17 +498,18 @@ function Chat({ user }) {
                   </IconButton>
                 </Box>
               )}
-              
+
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <TextField
                   fullWidth
                   size="small"
-                  placeholder="Type a message..."
+                  placeholder={selectedConversation ? `Message in ${getConversationType(selectedConversation) === 'u2g' ? 'group/channel' : 'direct chat'}...` : 'Select a conversation first...'}
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  disabled={!selectedConversation}
                 />
-                <Button variant="contained" onClick={handleSendMessage}>
+                <Button variant="contained" onClick={handleSendMessage} disabled={!selectedConversation}>
                   Send
                 </Button>
               </Box>
@@ -651,7 +716,7 @@ function Chat({ user }) {
         onClose={handleReactionPickerClose}
       >
         {['👍', '❤️', '😂', '😮', '😢', '😡', '🎉', '🔥'].map((emoji) => (
-          <MenuItem 
+          <MenuItem
             key={emoji}
             onClick={() => {
               handleAddReaction(selectedMessage?.id, emoji);
@@ -662,7 +727,7 @@ function Chat({ user }) {
           </MenuItem>
         ))}
         <Divider />
-        <MenuItem 
+        <MenuItem
           onClick={() => {
             handleRemoveReaction(selectedMessage?.id);
             handleReactionPickerClose();

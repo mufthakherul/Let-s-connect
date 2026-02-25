@@ -47,6 +47,7 @@ import {
 import { useInView } from 'react-intersection-observer';
 import { useNavigate } from 'react-router-dom';
 import { formatRelativeTime, formatApproximateTime, formatNumber, getInitials } from '../utils/helpers';
+import { ANONYMOUS_USER_POST_LABEL, getPostAuthorLabel } from '../utils/profileRoutes';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 
@@ -590,7 +591,7 @@ function Feed({ user }) {
             <CardHeader
               avatar={
                 <Avatar sx={{ bgcolor: 'primary.main' }}>
-                  {post.isAnonymous ? (post.anonHandle ? getInitials(post.anonHandle) : 'A') : (post.userName ? getInitials(post.userName) : 'U')}
+                  {post.isAnonymous ? 'A' : getInitials(getPostAuthorLabel(post))}
                 </Avatar>
               }
               action={
@@ -600,7 +601,7 @@ function Feed({ user }) {
               }
               title={
                 <Typography variant="subtitle1" fontWeight="600">
-                  {post.isAnonymous ? (post.anonHandle || 'Anonymous') : (post.userName || `User ${post.userId ? post.userId.substring(0, 8) : ''}`)}
+                  {post.isAnonymous ? ANONYMOUS_USER_POST_LABEL : getPostAuthorLabel(post)}
                 </Typography>
               }
               subheader={

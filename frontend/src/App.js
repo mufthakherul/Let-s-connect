@@ -169,6 +169,7 @@ function AppContent() {
     : 'linear-gradient(45deg, #f21970, #e209f6)';
   const { user, logout } = useAuthStore();
   const isMobile = useMediaQuery('(max-width:900px)');
+  const isTablet = useMediaQuery('(min-width:901px) and (max-width:1200px)');
   const [internalUser, setInternalUser] = useState(user);
 
   useEffect(() => {
@@ -509,20 +510,20 @@ function AppContent() {
                     {item.submenu
                       .filter(subItem => subItem.public || internalUser)
                       .map((subItem) => (
-                      <ListItem
-                        button
-                        component={Link}
-                        to={subItem.path}
-                        key={subItem.path}
-                        sx={{ pl: 4 }}
-                        onClick={() => setDrawerOpen(false)}
-                      >
-                        <ListItemIcon sx={{ minWidth: 40 }}>
-                          {subItem.icon}
-                        </ListItemIcon>
-                        <ListItemText primary={subItem.label} />
-                      </ListItem>
-                    ))}
+                        <ListItem
+                          button
+                          component={Link}
+                          to={subItem.path}
+                          key={subItem.path}
+                          sx={{ pl: 4 }}
+                          onClick={() => setDrawerOpen(false)}
+                        >
+                          <ListItemIcon sx={{ minWidth: 40 }}>
+                            {subItem.icon}
+                          </ListItemIcon>
+                          <ListItemText primary={subItem.label} />
+                        </ListItem>
+                      ))}
                   </List>
                 </Collapse>
               </React.Fragment>
@@ -891,7 +892,7 @@ function AppContent() {
                           <SettingsIcon fontSize="small" />
                         </ListItemIcon>
                         <ListItemText>Settings</ListItemText>
-                      </MenuItem>"
+                      </MenuItem>
                       <MenuItem onClick={() => { setProfileMenuAnchor(null); handleLogout(); }}>
                         <ListItemIcon>
                           <ExitToApp fontSize="small" />
@@ -918,6 +919,7 @@ function AppContent() {
                 <Typography
                   variant="h6"
                   component={Link}
+                  //to="/unregister" // Consider directing to a dedicated landing page for unregistered users in the future, but for now let's keep it simple and direct
                   to="/"
                   sx={{
                     textDecoration: 'none',
@@ -1067,7 +1069,7 @@ function AppContent() {
                 Toggle theme
               </Button>
 
-              <Button fullWidth component={Link} to="/settings" onClick={() => setSettingsDialogOpen(false)}>"
+              <Button fullWidth component={Link} to="/settings" onClick={() => setSettingsDialogOpen(false)}>
                 Theme settings
               </Button>
 
@@ -1081,7 +1083,13 @@ function AppContent() {
           </DialogActions>
         </Dialog>
 
-        <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+        <Drawer
+          anchor="left"
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          keepMounted
+          PaperProps={{ sx: { width: isMobile ? '85vw' : isTablet ? 320 : 280, maxWidth: 360 } }}
+        >
           {drawer}
         </Drawer>
 
@@ -1160,6 +1168,14 @@ function AppContent() {
                     element={internalUser ? <PublicProfile user={internalUser} /> : <Navigate to="/login" />}
                   />
                   <Route
+                    path="/profile/u/:id"
+                    element={internalUser ? <PublicProfile user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  <Route
+                    path="/:id"
+                    element={internalUser ? <PublicProfile user={internalUser} /> : <Navigate to="/login" />}
+                  />
+                  <Route
                     path="/admin"
                     element={internalUser && (internalUser.role === 'admin' || internalUser.role === 'moderator') ? <AdminDashboard /> : <Navigate to="/login" />}
                   />
@@ -1185,7 +1201,7 @@ function AppContent() {
                   {/* Phase 5 Features - Accessibility Settings */}
                   <Route path="/settings/accessibility" element={<AccessibilitySettings />} />
                   {/* Advanced Appearance Settings */}
-                  <Route path="/settings/appearance" element={<AppearanceSettings />} />"
+                  <Route path="/settings/appearance" element={<AppearanceSettings />} />
 
                   {/* Legal & policies */}
                   <Route path="/privacy" element={<PrivacyPolicy />} />

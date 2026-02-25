@@ -1581,6 +1581,7 @@ function extractHashtags(content) {
 // --- Anonymous identity helpers ---
 const ANON_HMAC_SECRET = process.env.ANON_HMAC_SECRET || 'anon-hmac-secret-change-me';
 const ANON_KEY = process.env.ANON_KEY || process.env.JWT_SECRET || 'anon-key-change-me';
+const ANONYMOUS_USER_POST_LABEL = 'Anonymous user post';
 
 function mappingHashFor(userId, scope) {
   const h = crypto.createHmac('sha256', ANON_HMAC_SECRET);
@@ -1635,8 +1636,8 @@ async function sanitizePostsForResponse(posts) {
     return {
       ...p,
       userId: null, // hide author id in public API
-      author: { firstName: 'Anonymous', lastName: '' },
-      anonHandle: anon ? anon.handle : 'Anonymous',
+      author: { firstName: ANONYMOUS_USER_POST_LABEL, lastName: '' },
+      anonHandle: ANONYMOUS_USER_POST_LABEL,
       anonAvatar: anon ? anon.avatarUrl : null
     };
   });
@@ -1699,8 +1700,8 @@ app.post('/posts', async (req, res) => {
     if (responsePost.isAnonymous && responsePost.anonIdentityId) {
       const anon = await AnonIdentity.findByPk(responsePost.anonIdentityId);
       responsePost.userId = null; // hide author id
-      responsePost.author = { firstName: 'Anonymous', lastName: '' };
-      responsePost.anonHandle = anon ? anon.handle : 'Anonymous';
+      responsePost.author = { firstName: ANONYMOUS_USER_POST_LABEL, lastName: '' };
+      responsePost.anonHandle = ANONYMOUS_USER_POST_LABEL;
       responsePost.anonAvatar = anon ? anon.avatarUrl : null;
     }
 
@@ -1889,8 +1890,8 @@ app.post('/posts/:postId/comments', async (req, res) => {
     if (resp.isAnonymous && resp.anonIdentityId) {
       const ai = await AnonIdentity.findByPk(resp.anonIdentityId);
       resp.userId = null;
-      resp.author = { firstName: 'Anonymous', lastName: '' };
-      resp.anonHandle = ai ? ai.handle : 'Anonymous';
+      resp.author = { firstName: ANONYMOUS_USER_POST_LABEL, lastName: '' };
+      resp.anonHandle = ANONYMOUS_USER_POST_LABEL;
     }
 
     res.status(201).json(resp);
@@ -1908,7 +1909,27 @@ app.get('/posts/:postId/comments', cacheComments, async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    res.json(comments);
+    const plain = comments.map((comment) => (typeof comment.toJSON === 'function' ? comment.toJSON() : comment));
+    const anonIds = [...new Set(plain.filter(c => c.isAnonymous && c.anonIdentityId).map(c => c.anonIdentityId))];
+    const anonMap = {};
+    if (anonIds.length) {
+      const anonRows = await AnonIdentity.findAll({ where: { id: { [Op.in]: anonIds } } });
+      for (const row of anonRows) anonMap[row.id] = row;
+    }
+
+    const sanitized = plain.map((c) => {
+      if (!c.isAnonymous) return c;
+      const ai = c.anonIdentityId ? anonMap[c.anonIdentityId] : null;
+      return {
+        ...c,
+        userId: null,
+        author: { firstName: ANONYMOUS_USER_POST_LABEL, lastName: '' },
+        anonHandle: ANONYMOUS_USER_POST_LABEL,
+        anonAvatar: ai ? ai.avatarUrl : null
+      };
+    });
+
+    res.json(sanitized);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch comments' });
@@ -2762,8 +2783,8 @@ app.post('/posts/:postId/reply', async (req, res) => {
     if (resp.isAnonymous && resp.anonIdentityId) {
       const ai = await AnonIdentity.findByPk(resp.anonIdentityId);
       resp.userId = null;
-      resp.author = { firstName: 'Anonymous', lastName: '' };
-      resp.anonHandle = ai ? ai.handle : 'Anonymous';
+      resp.author = { firstName: ANONYMOUS_USER_POST_LABEL, lastName: '' };
+      resp.anonHandle = ANONYMOUS_USER_POST_LABEL;
     }
 
     res.json(resp);

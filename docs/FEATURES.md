@@ -101,6 +101,7 @@ This platform brings together features from:
 - ✅ Direct messaging
 - ✅ Group conversations
 - ✅ Channel support
+- ✅ **U2U/U2G Chat Modes**: Explicit direct (user-to-user) and group/channel (user-to-group) layout modes
 - ✅ **Discord-style Servers**: Create and join servers
 - ✅ **Server Roles**: Role-based permissions
 - ✅ **Server Channels**: Multiple channels per server
@@ -113,6 +114,12 @@ This platform brings together features from:
 - ✅ Conversation management
 - ✅ Socket.IO integration
 - ✅ Redis pub/sub for scaling
+
+### 🤖 Bot & API Messaging Integrations ✨ NEW
+- ✅ **Discord-style Webhook Execute API**: Tokenized incoming webhook execution endpoint that persists messages to target channels
+- ✅ **Telegram-style Bot Webhook API**: Bot webhook endpoint for Telegram update payload ingestion
+- ✅ **Unified External Message Persistence**: Webhook/bot payloads are normalized and stored as regular conversation messages
+- ✅ **Webhook Guardrails**: Token validation, minimal input checks, content length validation
 
 ### 📝 Collaboration Tools
 - ✅ Create documents
@@ -282,6 +289,11 @@ This platform brings together features from:
 - ✅ Badge notifications in navbar
 - ✅ Avatar display
 - ✅ Responsive navigation
+- ✅ **Advanced responsive navbar**: Improved mobile/tablet/desktop behavior with adaptive drawer sizing
+- ✅ **Public home return stability**: Unauthenticated landing content remains visible when navigating back via brand
+- ✅ **Cursor trail removed**: Background cursor animation removed to improve stability/accessibility
+- ✅ **Username profile URLs**: Profile links now use username-first URLs with backward-compatible ID fallback
+- ✅ **Anonymous author label standardization**: Anonymous post/comment author label is exactly `Anonymous user post`
 
 ### 📡 Real-time Features
 - ✅ WebSocket connections
