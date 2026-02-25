@@ -18,7 +18,7 @@ import {
   Phone as PhoneIcon, Storage as DatabaseIcon, CompareArrows as DiffIcon,
   Event as EventIcon,
   Settings as SettingsIcon, MoreHoriz as MoreHorizIcon, Apps as AppsIcon, PeopleAlt as PeopleIcon, SwapHoriz as SwapHorizIcon, Close as CloseIcon,
-  AccessibilityNew, ExpandLess, ExpandMore, Radio as RadioIcon, Tv as TvIcon, Security, VerifiedUser, Palette,
+  AccessibilityNew, ExpandLess, ExpandMore, Radio as RadioIcon, Tv as TvIcon, Security, VerifiedUser, Palette as PaletteIcon,
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -463,7 +463,7 @@ function AppContent() {
       submenu: [
         { label: 'Theme', path: '/settings/theme', icon: <SettingsIcon />, public: true },
         { label: 'Accessibility', path: '/settings/accessibility', icon: <AccessibilityNew /> },
-        { label: 'Appearance', path: '/settings/appearance', icon: <Palette />, public: false },
+        { label: 'Appearance', path: '/settings/appearance', icon: <PaletteIcon />, public: false },
       ]
     },
     { label: 'Admin', path: '/admin', icon: <DashboardIcon />, public: false, adminOnly: true },
