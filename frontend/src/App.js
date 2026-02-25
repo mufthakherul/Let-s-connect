@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } f
 import {
   AppBar, Toolbar, Typography, Button, Container, Box, IconButton,
   CssBaseline, ThemeProvider, createTheme, Drawer, List,
-  ListItem, ListItemIcon, ListItemText, useMediaQuery, Divider, Avatar,
+  ListItem, ListItemButton, ListItemIcon, ListItemText, useMediaQuery, Divider, Avatar,
   CircularProgress, Collapse, Menu, MenuItem, Tooltip, ListItemAvatar, Badge,
   Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
@@ -493,35 +493,35 @@ function AppContent() {
           if (item.submenu) {
             return (
               <React.Fragment key={item.label}>
-                <ListItem
-                  button
-                  onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
-                  sx={{
-                    '&:hover': { backgroundColor: 'action.hover' },
-                    backgroundColor: settingsMenuOpen ? 'action.selected' : 'transparent'
-                  }}
-                >
-                  <ListItemIcon>{item.icon}</ListItemIcon>
-                  <ListItemText primary={item.label} />
-                  {settingsMenuOpen ? <ExpandLess /> : <ExpandMore />}
+                <ListItem disablePadding>
+                  <ListItemButton
+                    onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
+                    sx={{
+                      '&:hover': { backgroundColor: 'action.hover' },
+                      backgroundColor: settingsMenuOpen ? 'action.selected' : 'transparent'
+                    }}
+                  >
+                    <ListItemIcon>{item.icon}</ListItemIcon>
+                    <ListItemText primary={item.label} />
+                    {settingsMenuOpen ? <ExpandLess /> : <ExpandMore />}
+                  </ListItemButton>
                 </ListItem>
                 <Collapse in={settingsMenuOpen} timeout="auto" unmountOnExit>
                   <List component="div" disablePadding>
                     {item.submenu
                       .filter(subItem => subItem.public || internalUser)
                       .map((subItem) => (
-                        <ListItem
-                          button
-                          component={Link}
-                          to={subItem.path}
-                          key={subItem.path}
-                          sx={{ pl: 4 }}
-                          onClick={() => setDrawerOpen(false)}
-                        >
-                          <ListItemIcon sx={{ minWidth: 40 }}>
-                            {subItem.icon}
-                          </ListItemIcon>
-                          <ListItemText primary={subItem.label} />
+                        <ListItem disablePadding key={subItem.path} sx={{ pl: 4 }}>
+                          <ListItemButton
+                            component={Link}
+                            to={subItem.path}
+                            onClick={() => setDrawerOpen(false)}
+                          >
+                            <ListItemIcon sx={{ minWidth: 40 }}>
+                              {subItem.icon}
+                            </ListItemIcon>
+                            <ListItemText primary={subItem.label} />
+                          </ListItemButton>
                         </ListItem>
                       ))}
                   </List>
@@ -531,9 +531,11 @@ function AppContent() {
           }
 
           return (
-            <ListItem button component={Link} to={item.path} key={item.path} onClick={() => setDrawerOpen(false)}>
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.label} />
+            <ListItem disablePadding key={item.path}>
+              <ListItemButton component={Link} to={item.path} onClick={() => setDrawerOpen(false)}>
+                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemText primary={item.label} />
+              </ListItemButton>
             </ListItem>
           );
         })}
@@ -541,19 +543,25 @@ function AppContent() {
       <Divider />
       <List>
         {internalUser ? (
-          <ListItem button onClick={() => { handleLogout(); setDrawerOpen(false); }}>
-            <ListItemIcon><ExitToApp /></ListItemIcon>
-            <ListItemText primary="Logout" />
+          <ListItem disablePadding>
+            <ListItemButton onClick={() => { handleLogout(); setDrawerOpen(false); }}>
+              <ListItemIcon><ExitToApp /></ListItemIcon>
+              <ListItemText primary="Logout" />
+            </ListItemButton>
           </ListItem>
         ) : (
           <>
-            <ListItem button component={Link} to="/login" onClick={() => setDrawerOpen(false)}>
-              <ListItemIcon><LoginIcon /></ListItemIcon>
-              <ListItemText primary="Login" />
+            <ListItem disablePadding>
+              <ListItemButton component={Link} to="/login" onClick={() => setDrawerOpen(false)}>
+                <ListItemIcon><LoginIcon /></ListItemIcon>
+                <ListItemText primary="Login" />
+              </ListItemButton>
             </ListItem>
-            <ListItem button component={Link} to="/register" onClick={() => setDrawerOpen(false)}>
-              <ListItemIcon><PersonAdd /></ListItemIcon>
-              <ListItemText primary="Register" />
+            <ListItem disablePadding>
+              <ListItemButton component={Link} to="/register" onClick={() => setDrawerOpen(false)}>
+                <ListItemIcon><PersonAdd /></ListItemIcon>
+                <ListItemText primary="Register" />
+              </ListItemButton>
             </ListItem>
           </>
         )}

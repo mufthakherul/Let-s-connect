@@ -33,6 +33,21 @@ openssl rand -hex 32
 echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
 ```
 
+> **Dev tip:** when running in Codespaces or another remote container, avoid
+> setting `REACT_APP_API_URL` in `.env` – the frontend now uses a relative path
+> with a development-time proxy to reach the backend.  An absolute URL will
+> trigger CORS errors.  You can also disable the fast‑refresh websocket with
+> `FAST_REFRESH=false` (already present in the sample `.env`) to silence the
+> 404 handshake messages that show up in browser consoles.
+
+```bash
+# Generate a secure secret
+openssl rand -hex 32
+
+# Or use this simple method
+echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
+```
+
 ### 3. Start All Services
 
 ```bash

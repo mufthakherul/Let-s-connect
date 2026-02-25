@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from '../utils/api';
 
 // Centralized API configuration — prefer runtime-resolved base when available
+// Centralized API configuration — prefer runtime-resolved base when available
 const RUNTIME_API = (typeof window !== 'undefined' && getApiBaseUrl()) || undefined;
 const API_BASE_URL = process.env.REACT_APP_API_URL || RUNTIME_API || 'http://localhost:8000';
 const MESSAGING_SERVICE_URL = process.env.REACT_APP_MESSAGING_URL || API_BASE_URL.replace(/:8000(\/.*)?$/, ':8003');
