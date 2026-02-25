@@ -21,7 +21,12 @@ function makeSVGText(text) {
 }
 
 export default function CaptchaField({ onSolve, onClear, variant = 'auto', label = 'Verification' }) {
-  const siteKey = process.env.REACT_APP_HCAPTCHA_SITEKEY || process.env.REACT_APP_RECAPTCHA_SITEKEY || null;
+  // load site key but treat the common placeholder value as "not set" so we
+  // don't try to render hCaptcha during development where the key is just the
+  // templated string.  this avoids needless network errors and the console
+  // warning about rendering before the API is ready.
+  const rawKey = process.env.REACT_APP_HCAPTCHA_SITEKEY || process.env.REACT_APP_RECAPTCHA_SITEKEY || '';
+  const siteKey = rawKey && !rawKey.startsWith('your-') ? rawKey : null;
   const prefer = variant; // 'math'|'image'|'auto'
 
   const chooseMode = useMemo(() => {
@@ -68,6 +73,7 @@ export default function CaptchaField({ onSolve, onClear, variant = 'auto', label
 
   // Render hCaptcha widget when siteKey is present and mode === 'hcaptcha'
   useEffect(() => {
+    // if there's no valid site key or we're not rendering hcaptcha leave early.
     if (mode !== 'hcaptcha' || !siteKey || typeof window === 'undefined') return;
 
     const renderWidget = () => {
