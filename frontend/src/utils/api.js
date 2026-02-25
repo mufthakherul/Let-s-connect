@@ -93,19 +93,14 @@ api.interceptors.response.use(
       console.debug(`[API] response error (${status}) for ${reqId}`, error?.response?.data || error.message);
     }
 
-    // If the request explicitly opted-out of automatic auth-redirects, skip redirect behavior
-    try {
-      const cfg = error.config || {};
-      const skipFlag = cfg.skipAuthRedirect; // opt-out flag only (no custom header)
-      if (skipFlag) {
-        if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
-          console.debug('[API] skipping automatic auth-redirect for request (skipAuthRedirect flag)');
-        }
-        return Promise.reject(error);
-      }
-    } catch (ex) {
-      // swallow
+    // Provide a hint for rate-limit errors so the UI can handle gracefully or
+    // developers aren't surprised by uncaught rejections.
+    if (status === 429) {
+      // eslint-disable-next-line no-console
+      console.warn('[API] rate limit hit for', reqId);
+      // we still reject so calling code can catch it, but it won't spam the
+      // console as an error; our global handler already prints `console.error`
+      // so we preemptively log at warning level.
     }
 
     // Allow a short grace period after login/register where a transient 401

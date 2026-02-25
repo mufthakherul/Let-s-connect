@@ -126,8 +126,8 @@ function Homepage({ user }) {
     const [postMenuAnchor, setPostMenuAnchor] = useState(null);
     const [postMenuTarget, setPostMenuTarget] = useState(null);
     const [postAnonymous, setPostAnonymous] = useState(false); // composer anonymous toggle
-    const [retweetAnchor, setRetweetAnchor] = useState(null);
-    const [retweetTarget, setRetweetTarget] = useState(null);
+    const [repostAnchor, setRepostAnchor] = useState(null);
+    const [repostTarget, setRepostTarget] = useState(null);
     const [quoteDialogOpen, setQuoteDialogOpen] = useState(false);
     const [quoteText, setQuoteText] = useState('');
     const [quoteTarget, setQuoteTarget] = useState(null);
@@ -279,6 +279,7 @@ function Homepage({ user }) {
             setNewPost('');
             setMediaAttachments([]);
             setMediaUrlInput('');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
             toast.success('Post created successfully');
         } catch (error) {
             console.error('Error creating post:', error);
@@ -389,7 +390,9 @@ function Homepage({ user }) {
                 if (post.id === postId) {
                     return {
                         ...post,
-                        reactions: [...(post.reactions || []), { userId: user.id, reaction }]
+                        reactions: [...(post.reactions || []), { userId: user.id, reaction }],
+                        likes: (post.likes || 0) + 1,
+                        reactionCount: (post.reactionCount || post.likes || 0) + 1
                     };
                 }
                 return post;
@@ -403,7 +406,7 @@ function Homepage({ user }) {
         }
     };
 
-    const handleRetweet = async (postId) => {
+    const handleRepost = async (postId) => {
         try {
             await api.post(`/content/posts/${postId}/retweet`, {
                 userId: user.id
@@ -419,11 +422,11 @@ function Homepage({ user }) {
                 return post;
             }));
 
-            setRetweetAnchor(null);
-            toast.success('Retweeted!');
+            setRepostAnchor(null);
+            toast.success('Reposted!');
         } catch (error) {
-            console.error('Error retweeting:', error);
-            toast.error('Failed to retweet');
+            console.error('Error reposting:', error);
+            toast.error('Failed to repost');
         }
     };
 
@@ -580,7 +583,7 @@ function Homepage({ user }) {
                         >
                             <ThumbUpOutlined fontSize="small" />
                             <Typography variant="caption" sx={{ ml: 0.5 }}>
-                                {formatNumber(post.reactions?.length || 0)}
+                                {formatNumber(post.reactionCount || post.likes || 0)}
                             </Typography>
                         </IconButton>
                     </Tooltip>
@@ -600,26 +603,47 @@ function Homepage({ user }) {
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Repost" arrow>
-                        <IconButton size="small" onClick={() => handleRetweet(post.id)} sx={softActionSx}>
+                        <IconButton size="small" onClick={() => handleRepost(post.id)} sx={softActionSx}>
                             <Repeat fontSize="small" />
                             <Typography variant="caption" sx={{ ml: 0.5 }}>
                                 {formatNumber(post.retweets?.length || 0)}
                             </Typography>
                         </IconButton>
                     </Tooltip>
-                    <Tooltip title="Quote" arrow>
+                    <Tooltip title="Comment" arrow>
                         <IconButton
                             size="small"
                             onClick={() => {
-                                setQuoteTarget(post.id);
-                                setQuoteText('');
-                                setQuoteDialogOpen(true);
+                                setThreadView(post);
+                                setThreadDialogOpen(true);
                             }}
                             sx={softActionSx}
                         >
                             <Forum fontSize="small" />
                         </IconButton>
                     </Tooltip>
+                    <Tooltip title="Message" arrow>
+                        <IconButton
+                            size="small"
+                            onClick={() => {
+                                if (post.isAnonymous) {
+                                    toast.error('Cannot message anonymous author');
+                                } else {
+                                    navigate(`/messages?user=${post.userId}&ref=post&postId=${post.id}`);
+                                }
+                            }}
+                            sx={softActionSx}
+                        >
+                            <MailOutline fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    {(post.groupId || post.communityId) && (
+                        <Tooltip title="Award" arrow>
+                            <IconButton size="small" onClick={() => openAwards(post)} sx={softActionSx}>
+                                <AutoAwesome fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
                     <Tooltip title={isBookmarked ? 'Remove bookmark' : 'Save post'} arrow>
                         <IconButton size="small" onClick={() => handleToggleBookmark(post.id)} sx={softActionSx}>
                             {isBookmarked ? <Bookmark fontSize="small" /> : <BookmarkBorder fontSize="small" />}

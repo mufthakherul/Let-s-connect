@@ -121,6 +121,7 @@ const options = {
         },
         RateLimitStatus: {
           type: 'object',
+          description: 'Only present when rate limiting is enabled.',
           properties: {
             limit: { type: 'integer', description: 'Maximum requests allowed' },
             remaining: { type: 'integer', description: 'Requests remaining in current window' },
