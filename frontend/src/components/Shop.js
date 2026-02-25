@@ -16,11 +16,14 @@ import {
   Tabs,
   Tab
 } from '@mui/material';
-import { ShoppingCart, Favorite, FavoriteBorder, Close } from '@mui/icons-material';
+import { Favorite, FavoriteBorder, Close, ChatBubbleOutline } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import axios from 'axios';
 import ProductReview from './ProductReview';
 
 function Shop() {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -59,24 +62,19 @@ function Shop() {
     }
   };
 
-  const addToCart = async (productId) => {
+  const handleChatToBuy = (product) => {
     if (!user.id || !token) {
-      setError('Please log in to add items to cart');
+      setError('Please log in to contact the seller');
       return;
     }
 
-    try {
-      await axios.post(
-        '/api/shop/cart',
-        { productId, quantity: 1 },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setSuccess('Added to cart!');
-      setTimeout(() => setSuccess(''), 2000);
-    } catch (err) {
-      console.error('Failed to add to cart:', err);
-      setError('Failed to add to cart');
-    }
+    // In a real scenario, the product would have a sellerId
+    // For this implementation, we simulate routing to the chat system 
+    // with a pre-filled purchase inquiry message.
+    const sellerId = product.sellerId || 'system';
+    const encodedMessage = encodeURIComponent(`Hi! I'm interested in buying "${product.name}" for $${product.price}. Is this currently available?`);
+
+    navigate(`/chat?recipient=${sellerId}&message=${encodedMessage}`);
   };
 
   const toggleWishlist = async (productId) => {
@@ -179,17 +177,28 @@ function Shop() {
                 <Typography variant="caption" display="block" gutterBottom>
                   Stock: {product.stock}
                 </Typography>
-                
+
                 <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    startIcon={<ShoppingCart />}
-                    onClick={() => addToCart(product.id)}
-                    disabled={product.stock === 0}
-                  >
-                    Add to Cart
-                  </Button>
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} style={{ flex: 1 }}>
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      startIcon={<ChatBubbleOutline />}
+                      onClick={() => handleChatToBuy(product)}
+                      disabled={product.stock === 0}
+                      sx={{
+                        background: 'linear-gradient(45deg, #10b981, #059669)',
+                        color: 'white',
+                        fontWeight: 600,
+                        boxShadow: '0 4px 14px 0 rgba(16, 185, 129, 0.39)',
+                        '&:hover': {
+                          background: 'linear-gradient(45deg, #059669, #047857)',
+                        }
+                      }}
+                    >
+                      Chat to Buy
+                    </Button>
+                  </motion.div>
                   <Button
                     variant="outlined"
                     onClick={() => openProductDialog(product)}
@@ -240,20 +249,33 @@ function Shop() {
                   <Typography variant="body2" color="text.secondary" paragraph>
                     Stock Available: {selectedProduct.stock}
                   </Typography>
-                  
+
                   <Box sx={{ display: 'flex', gap: 1, mt: 3 }}>
-                    <Button
-                      variant="contained"
-                      fullWidth
-                      startIcon={<ShoppingCart />}
-                      onClick={() => {
-                        addToCart(selectedProduct.id);
-                        closeDialog();
-                      }}
-                      disabled={selectedProduct.stock === 0}
-                    >
-                      Add to Cart
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} style={{ flex: 1 }}>
+                      <Button
+                        variant="contained"
+                        fullWidth
+                        size="large"
+                        startIcon={<ChatBubbleOutline />}
+                        onClick={() => {
+                          handleChatToBuy(selectedProduct);
+                          closeDialog();
+                        }}
+                        disabled={selectedProduct.stock === 0}
+                        sx={{
+                          background: 'linear-gradient(45deg, #10b981, #059669)',
+                          color: 'white',
+                          fontWeight: 700,
+                          borderRadius: 2,
+                          boxShadow: '0 4px 14px 0 rgba(16, 185, 129, 0.39)',
+                          '&:hover': {
+                            background: 'linear-gradient(45deg, #059669, #047857)',
+                          }
+                        }}
+                      >
+                        Chat to Buy
+                      </Button>
+                    </motion.div>
                     <IconButton
                       onClick={() => toggleWishlist(selectedProduct.id)}
                       color={wishlist.includes(selectedProduct.id) ? 'error' : 'default'}

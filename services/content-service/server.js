@@ -445,6 +445,66 @@ const Vote = sequelize.define('Vote', {
 });
 
 // NEW: Facebook-inspired Groups Model (different from Communities)
+// Health checks and metrics end ----------------------
+
+// --- Forum Hub APIs ---
+app.get('/forum/posts', async (req, res) => {
+  try {
+    const posts = await ForumPost.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 20
+    });
+    res.json(posts);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch forum posts' });
+  }
+});
+
+// --- Transparency Hub APIs ---
+app.get('/transparency/reports', async (req, res) => {
+  try {
+    // Return some mock transparency data
+    res.json([
+      { id: 1, title: 'Annual Security Audit 2025', date: '2025-12-31', status: 'Completed', pdfUrl: '/reports/security-2025.pdf' },
+      { id: 2, title: 'Quarterly Diversity Report Q4', date: '2025-11-15', status: 'Published', pdfUrl: '/reports/diversity-q4.pdf' },
+      { id: 3, title: 'Content Moderation Transparency', date: '2026-01-10', status: 'Draft', pdfUrl: null }
+    ]);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch transparency reports' });
+  }
+});
+
+// --- Creator Hub APIs ---
+app.get('/creator/analytics/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    // Mock analytics data
+    res.json({
+      totalViews: 12500,
+      subscribers: 450,
+      revenue: 1250.75,
+      recentPerformance: [
+        { date: '2026-02-01', views: 300 },
+        { date: '2026-02-02', views: 450 },
+        { date: '2026-02-03', views: 200 }
+      ]
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch creator analytics' });
+  }
+});
+
+// --- Developer Portal APIs ---
+app.post('/developer/keys', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const apiKey = `lc_live_${crypto.randomBytes(16).toString('hex')}`;
+    res.json({ apiKey, label: 'Default Production Key', createdAt: new Date() });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to generate API key' });
+  }
+});
+
 const Group = sequelize.define('Group', {
   id: {
     type: DataTypes.UUID,
@@ -808,7 +868,12 @@ const Retweet = sequelize.define('Retweet', {
     allowNull: false
   },
   quotedPostId: DataTypes.UUID, // If this is a quote tweet, this is the new post ID
-  comment: DataTypes.TEXT // Quote comment
+  comment: DataTypes.TEXT, // Quote comment
+  quoteText: DataTypes.TEXT, // The user's added commentary
+  isAnonymous: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
 }, {
   indexes: [
     {
@@ -816,6 +881,71 @@ const Retweet = sequelize.define('Retweet', {
       fields: ['userId', 'originalPostId']
     }
   ]
+});
+
+// NEW: Community Forum Models (For side hubs)
+const ForumPost = sequelize.define('ForumPost', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  category: {
+    type: DataTypes.ENUM('Discussion', 'Bug Report', 'Feature Request', 'General'),
+    defaultValue: 'Discussion'
+  },
+  votes: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  isSolved: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  views: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
+});
+
+const ForumReply = sequelize.define('ForumReply', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  forumPostId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  isAcceptedSolution: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  votes: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  }
 });
 
 // NEW: Phase 1 - Group Files and Media Model
@@ -1600,6 +1730,17 @@ function encryptMapping(plaintext) {
   return Buffer.concat([iv, tag, encrypted]).toString('base64');
 }
 
+function decryptMapping(ciphertext) {
+  const key = crypto.createHash('sha256').update(ANON_KEY).digest();
+  const data = Buffer.from(ciphertext, 'base64');
+  const iv = data.slice(0, 12);
+  const tag = data.slice(12, 28);
+  const encrypted = data.slice(28);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
+}
+
 function generateAnonHandle() {
   return `Anon•${crypto.randomBytes(3).toString('hex')}`.slice(0, 12);
 }
@@ -2297,6 +2438,106 @@ app.post('/communities/:name/join', async (req, res) => {
     res.status(500).json({ error: 'Failed to join community' });
   }
 });
+
+// ========== NEW: COMMUNITY FORUM HUBS ==========
+
+// Get all forum posts
+app.get('/forum/posts', async (req, res) => {
+  try {
+    const { category, sort = 'new', page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    let whereClause = {};
+    if (category && category !== 'All') {
+      whereClause.category = category;
+    }
+
+    let orderClause = [['createdAt', 'DESC']]; // default 'new'
+    if (sort === 'top') {
+      orderClause = [['votes', 'DESC'], ['createdAt', 'DESC']];
+    } else if (sort === 'hot') {
+      orderClause = [['views', 'DESC'], ['createdAt', 'DESC']];
+    }
+
+    const posts = await ForumPost.findAll({
+      where: whereClause,
+      order: orderClause,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      // In a real app we'd include the user model to get names/avatars
+    });
+
+    res.json(posts);
+  } catch (err) {
+    console.error('Failed to fetch forum posts:', err);
+    res.status(500).json({ error: 'Failed to fetch forum posts' });
+  }
+});
+
+// Create forum post
+app.post('/forum/posts', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id') || req.body.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { title, content, category } = req.body;
+
+    const post = await ForumPost.create({
+      userId,
+      title,
+      content,
+      category: category || 'Discussion'
+    });
+
+    res.status(201).json(post);
+  } catch (err) {
+    console.error('Failed to create forum post:', err);
+    res.status(500).json({ error: 'Failed to create forum post' });
+  }
+});
+
+// Vote on a forum post
+app.post('/forum/posts/:id/vote', async (req, res) => {
+  try {
+    const { value } = req.body; // 1 or -1
+    const post = await ForumPost.findByPk(req.params.id);
+
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    // Simplistic voting (in a real app, track User <-> Vote to prevent double voting)
+    post.votes += value > 0 ? 1 : -1;
+    await post.save();
+
+    res.json(post);
+  } catch (err) {
+    console.error('Failed to vote on forum post:', err);
+    res.status(500).json({ error: 'Failed to vote' });
+  }
+});
+
+// Add a reply
+app.post('/forum/posts/:id/replies', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id') || req.body.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const post = await ForumPost.findByPk(req.params.id);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    const reply = await ForumReply.create({
+      forumPostId: post.id,
+      userId,
+      content: req.body.content
+    });
+
+    res.status(201).json(reply);
+  } catch (err) {
+    console.error('Failed to reply:', err);
+    res.status(500).json({ error: 'Failed to add reply' });
+  }
+});
+
+// Sync database and start server
 
 // ========== REDDIT-INSPIRED: VOTING ==========
 

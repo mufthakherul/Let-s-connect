@@ -13,7 +13,7 @@ root.render(
 // Determine if we should register service worker
 const isCodespaces = window.location.origin.includes('.app.github.dev');
 const isDevelopment = process.env.NODE_ENV !== 'production';
-const shouldRegisterSW = !isCodespaces && !isDevelopment;
+const shouldRegisterSW = true; // Enabled for testing push notifications
 
 console.info('[PWA] Config:', {
   origin: window.location.origin,
@@ -65,17 +65,17 @@ window.addEventListener('unhandledrejection', (e) => {
 });
 
 // Intercept console warnings/errors to suppress known deprecations and noise
-(function() {
+(function () {
   const origWarn = console.warn;
   console.warn = (...args) => {
     const msg = args[0] || '';
     if (typeof msg === 'string') {
       if (msg.includes('motion() is deprecated') ||
-          msg.includes('MUI Grid: The `item` prop has been removed') ||
-          msg.includes('MUI Grid: The `xs` prop has been removed') ||
-          msg.includes('MUI Grid: The `sm` prop has been removed') ||
-          msg.includes('MUI Grid: The `md` prop has been removed') ||
-          msg.includes('MUI Grid: The `lg` prop has been removed')) {
+        msg.includes('MUI Grid: The `item` prop has been removed') ||
+        msg.includes('MUI Grid: The `xs` prop has been removed') ||
+        msg.includes('MUI Grid: The `sm` prop has been removed') ||
+        msg.includes('MUI Grid: The `md` prop has been removed') ||
+        msg.includes('MUI Grid: The `lg` prop has been removed')) {
         return;
       }
     }

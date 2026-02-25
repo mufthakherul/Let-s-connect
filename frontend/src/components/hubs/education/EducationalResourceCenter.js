@@ -11,35 +11,46 @@ import {
     Security as SecurityIcon,
     Search as ResearchIcon,
     MenuBook as TutorialIcon,
+    MenuBook as TutorialIcon,
     PlayCircleFilled as PlayIcon
 } from '@mui/icons-material';
+import axios from 'axios';
 
-const courses = [
-    {
-        title: 'Spotting Phishing Attempts',
-        category: 'Security Basics',
-        duration: '10 mins',
-        progress: 100,
-        icon: <SecurityIcon sx={{ fontSize: 40, color: '#ef4444' }} />
-    },
-    {
-        title: 'Fact vs. Fiction Online',
-        category: 'Digital Literacy',
-        duration: '15 mins',
-        progress: 30,
-        icon: <ResearchIcon sx={{ fontSize: 40, color: '#3b82f6' }} />
-    },
-    {
-        title: 'Intro to Open Source Philosophy',
-        category: 'Community Contribution',
-        duration: '25 mins',
-        progress: 0,
-        icon: <TutorialIcon sx={{ fontSize: 40, color: '#10b981' }} />
-    }
-];
+// Helper component since icons can't be purely serialized from DB simply
+const getIconForCourse = (title) => {
+    const titleLower = title.toLowerCase();
+    if (titleLower.includes('phishing') || titleLower.includes('security')) return <SecurityIcon sx={{ fontSize: 40, color: '#ef4444' }} />;
+    if (titleLower.includes('fact')) return <ResearchIcon sx={{ fontSize: 40, color: '#3b82f6' }} />;
+    if (titleLower.includes('source') || titleLower.includes('code')) return <TutorialIcon sx={{ fontSize: 40, color: '#10b981' }} />;
+    return <EducationIcon sx={{ fontSize: 40, color: '#6366f1' }} />; // Default
+};
 
 export default function EducationalResourceCenter() {
     const theme = useTheme();
+    const [progressData, setProgressData] = React.useState(null);
+    const [loading, setLoading] = React.useState(true);
+
+    const mockUserId = '123e4567-e89b-12d3-a456-426614174000';
+
+    React.useEffect(() => {
+        const fetchProgress = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await axios.get(`http://localhost:8001/users/${mockUserId}/education/progress`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                setProgressData(response.data);
+            } catch (error) {
+                console.error('Failed to fetch education progress:', error);
+                // Fallback demo data
+                setProgressData({ enrolledCourses: [] });
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchProgress();
+    }, []);
 
     return (
         <Container maxWidth="lg" sx={{ py: 8 }}>
@@ -78,53 +89,58 @@ export default function EducationalResourceCenter() {
             </Box>
 
             <Typography variant="h5" fontWeight={700} gutterBottom sx={{ mb: 4 }}>
-                Featured Mini-Courses
+                Your Active Courses
             </Typography>
 
-            <Grid container spacing={4}>
-                {courses.map((course, i) => (
-                    <Grid item xs={12} md={4} key={i}>
-                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-                            <Card
-                                sx={{
-                                    height: '100%',
-                                    borderRadius: 4,
-                                    border: `1px solid ${theme.palette.divider}`,
-                                    boxShadow: 'none',
-                                    '&:hover': { boxShadow: `0 8px 32px ${alpha('#6366f1', 0.15)}`, transform: 'translateY(-4px)' },
-                                    transition: 'all 0.3s'
-                                }}
-                            >
-                                <CardActionArea sx={{ height: '100%', p: 3, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                                    <Box sx={{ mb: 3 }}>{course.icon}</Box>
-                                    <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-                                        <Chip label={course.category} size="small" sx={{ fontWeight: 600 }} />
-                                        <Chip label={course.duration} size="small" variant="outlined" />
-                                    </Box>
-                                    <Typography variant="h6" fontWeight={700} gutterBottom sx={{ mt: 1 }}>
-                                        {course.title}
-                                    </Typography>
-
-                                    <Box sx={{ mt: 'auto', width: '100%', pt: 4 }}>
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                            <Typography variant="caption" fontWeight={600}>
-                                                {course.progress === 100 ? 'Completed 🎉' : 'Progress'}
-                                            </Typography>
-                                            <Typography variant="caption">{course.progress}%</Typography>
+            {loading ? (
+                <Typography>Loading courses...</Typography>
+            ) : progressData && progressData.enrolledCourses.length > 0 ? (
+                <Grid container spacing={4}>
+                    {progressData.enrolledCourses.map((course, i) => (
+                        <Grid item xs={12} md={4} key={course.id || i}>
+                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
+                                <Card
+                                    sx={{
+                                        height: '100%',
+                                        borderRadius: 4,
+                                        border: `1px solid ${theme.palette.divider}`,
+                                        boxShadow: 'none',
+                                        '&:hover': { boxShadow: `0 8px 32px ${alpha('#6366f1', 0.15)}`, transform: 'translateY(-4px)' },
+                                        transition: 'all 0.3s'
+                                    }}
+                                >
+                                    <CardActionArea sx={{ height: '100%', p: 3, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                                        <Box sx={{ mb: 3 }}>{getIconForCourse(course.title)}</Box>
+                                        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                                            <Chip label={`${course.totalModules} Modules`} size="small" sx={{ fontWeight: 600 }} />
                                         </Box>
-                                        <LinearProgress
-                                            variant="determinate"
-                                            value={course.progress}
-                                            color={course.progress === 100 ? 'success' : 'primary'}
-                                            sx={{ height: 6, borderRadius: 3 }}
-                                        />
-                                    </Box>
-                                </CardActionArea>
-                            </Card>
-                        </motion.div>
-                    </Grid>
-                ))}
-            </Grid>
+                                        <Typography variant="h6" fontWeight={700} gutterBottom sx={{ mt: 1 }}>
+                                            {course.title}
+                                        </Typography>
+
+                                        <Box sx={{ mt: 'auto', width: '100%', pt: 4 }}>
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                                <Typography variant="caption" fontWeight={600}>
+                                                    {course.progress === 100 ? 'Completed 🎉' : 'Progress'}
+                                                </Typography>
+                                                <Typography variant="caption">{course.progress}%</Typography>
+                                            </Box>
+                                            <LinearProgress
+                                                variant="determinate"
+                                                value={course.progress}
+                                                color={course.progress === 100 ? 'success' : 'primary'}
+                                                sx={{ height: 6, borderRadius: 3 }}
+                                            />
+                                        </Box>
+                                    </CardActionArea>
+                                </Card>
+                            </motion.div>
+                        </Grid>
+                    ))}
+                </Grid>
+            ) : (
+                <Typography color="text.secondary">You are not enrolled in any courses yet.</Typography>
+            )}
 
             <Box sx={{ mt: 8, p: 4, borderRadius: 6, bgcolor: theme.palette.mode === 'dark' ? alpha('#10b981', 0.1) : alpha('#10b981', 0.05), border: `1px solid ${alpha('#10b981', 0.2)}`, display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
                 <Box sx={{ flexGrow: 1 }}>

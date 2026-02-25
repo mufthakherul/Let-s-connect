@@ -10,6 +10,16 @@ const app = express();
 const PORT = process.env.PORT || 8005;
 
 app.use(express.json());
+const path = require('path');
+
+// Ensure uploads directory exists
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// Serve uploads as static assets
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Phase 4: Image optimization integration
 let imageOptimizationEnabled = false;
@@ -28,15 +38,7 @@ try {
   processMultipleImages = async (files) => files.map(f => ({ original: f }));
 }
 
-// S3 Configuration (MinIO compatible)
-const s3 = new AWS.S3({
-  endpoint: process.env.S3_ENDPOINT || 'http://minio:9000',
-  accessKeyId: process.env.S3_ACCESS_KEY || 'minioadmin',
-  secretAccessKey: process.env.S3_SECRET_KEY || 'minioadmin',
-  s3ForcePathStyle: true,
-  signatureVersion: 'v4'
-});
-
+// S3 is deprecated in favor of local storage for this implementation
 const BUCKET_NAME = process.env.S3_BUCKET || 'lets-connect-media';
 
 const ALLOWED_MIME_TYPES = [
@@ -99,9 +101,19 @@ const MediaFile = sequelize.define('MediaFile', {
 const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
 const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
 
-// Multer configuration
+// Multer configuration for local disk storage
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: storage,
   limits: { fileSize: 100 * 1024 * 1024 } // 100MB
 });
 
@@ -180,34 +192,30 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
     const { userId, visibility } = req.body;
     const file = req.file;
-    const filename = `${Date.now()}-${file.originalname}`;
 
     if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      // Clean up the file if it's not allowed
+      await fsPromises.unlink(file.path);
       return res.status(400).json({ error: 'Unsupported file type' });
     }
 
     if (file.mimetype.startsWith('image/') && file.size > MAX_IMAGE_BYTES) {
+      await fsPromises.unlink(file.path);
       return res.status(400).json({ error: 'Image exceeds 10MB limit' });
     }
 
     if (file.mimetype.startsWith('video/') && file.size > MAX_VIDEO_BYTES) {
+      await fsPromises.unlink(file.path);
       return res.status(400).json({ error: 'Video exceeds 50MB limit' });
     }
 
     if (file.mimetype === 'application/pdf' && file.size > MAX_DOCUMENT_BYTES) {
+      await fsPromises.unlink(file.path);
       return res.status(400).json({ error: 'Document exceeds 15MB limit' });
     }
 
-    // Upload to S3/MinIO
-    const uploadParams = {
-      Bucket: BUCKET_NAME,
-      Key: filename,
-      Body: file.buffer,
-      ContentType: file.mimetype,
-      ACL: visibility === 'public' ? 'public-read' : 'private'
-    };
-
-    const s3Result = await s3.upload(uploadParams).promise();
+    // Use local URL instead of S3
+    const fileUrl = `http://localhost:${PORT}/uploads/${file.filename}`;
 
     // Determine file type
     let type = 'other';
@@ -280,11 +288,11 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     // Save metadata to database
     const mediaFile = await MediaFile.create({
       userId,
-      filename,
+      filename: file.filename,
       originalName: file.originalname,
       mimeType: file.mimetype,
       size: file.size,
-      url: s3Result.Location,
+      url: fileUrl,
       type,
       visibility,
       ...optimizationData
@@ -335,11 +343,11 @@ app.delete('/files/:fileId', async (req, res) => {
       return res.status(404).json({ error: 'File not found' });
     }
 
-    // Delete from S3/MinIO
-    await s3.deleteObject({
-      Bucket: BUCKET_NAME,
-      Key: file.filename
-    }).promise();
+    // Delete from local storage
+    const filePath = path.join(UPLOADS_DIR, file.filename);
+    if (fs.existsSync(filePath)) {
+      await fsPromises.unlink(filePath);
+    }
 
     await file.destroy();
 

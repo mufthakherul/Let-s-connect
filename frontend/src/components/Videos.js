@@ -24,6 +24,8 @@ import {
 import { ContentCopy, PlaylistAdd, Share, Subscriptions } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
+import axios from 'axios';
+import config from '../config/api';
 
 function Videos({ user }) {
   const [tab, setTab] = useState(0);
@@ -37,8 +39,11 @@ function Videos({ user }) {
   const [playlists, setPlaylists] = useState([]);
   const [playlistForm, setPlaylistForm] = useState({ name: '', description: '', visibility: 'public' });
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
-  const [playlistDialogOpen, setPlaylistDialogOpen] = useState(false);
   const [playlistVideoId, setPlaylistVideoId] = useState('');
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [videoMetadata, setVideoMetadata] = useState({ title: '', description: '', category: '' });
 
   useEffect(() => {
     fetchVideos();
@@ -227,6 +232,51 @@ function Videos({ user }) {
     }
   };
 
+  const handleVideoUpload = async () => {
+    if (!selectedFile) {
+      toast.error('Please select a video file');
+      return;
+    }
+    if (!videoMetadata.title.trim()) {
+      toast.error('Title is required');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('userId', user?.id || 'anonymous');
+      formData.append('visibility', 'public');
+
+      // Upload to media-service via Gateway
+      const response = await api.post('/media/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      // Notify content-service about the new video (demo)
+      await api.post('/content/videos', {
+        title: videoMetadata.title,
+        description: videoMetadata.description,
+        category: videoMetadata.category,
+        videoUrl: response.data.url,
+        thumbnailUrl: response.data.thumbnailUrl,
+        userId: user?.id
+      });
+
+      toast.success('Video uploaded successfully');
+      setUploadDialogOpen(false);
+      setSelectedFile(null);
+      setVideoMetadata({ title: '', description: '', category: '' });
+      fetchVideos();
+    } catch (err) {
+      console.error('Upload failed:', err);
+      toast.error('Failed to upload video');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
@@ -240,6 +290,7 @@ function Videos({ user }) {
         <Tab label="Explore" />
         <Tab label="Channels" />
         <Tab label="Playlists" />
+        <Tab label="Upload" disabled={!user?.id} />
       </Tabs>
 
       {tab === 0 && (
@@ -585,6 +636,110 @@ function Videos({ user }) {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Upload Video Tab Content */}
+      {tab === 3 && (
+        <Box sx={{ p: 3, textAlign: 'center' }}>
+          <Card sx={{ maxWidth: 600, mx: 'auto', p: 4, position: 'relative', overflow: 'hidden' }}>
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: 4,
+                backgroundColor: 'primary.main',
+                opacity: uploading ? 1 : 0,
+                transition: 'opacity 0.3s'
+              }}
+            />
+            <Typography variant="h5" gutterBottom sx={{ fontWeight: 800 }}>
+              Share Your Journey
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+              Upload your videos to the community. Please ensure content follows our guidelines.
+            </Typography>
+
+            <Stack spacing={3}>
+              <Box
+                sx={{
+                  border: '2px dashed',
+                  borderColor: selectedFile ? 'success.main' : 'divider',
+                  borderRadius: 2,
+                  p: 4,
+                  bgcolor: 'action.hover',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  '&:hover': { bgcolor: 'action.selected' }
+                }}
+                onClick={() => document.getElementById('video-input').click()}
+              >
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  {selectedFile ? selectedFile.name : 'Click to select video'}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  MP4, WebM or OGG (Max 100MB)
+                </Typography>
+                <input
+                  id="video-input"
+                  type="file"
+                  accept="video/*"
+                  hidden
+                  onChange={(e) => setSelectedFile(e.target.files[0])}
+                />
+              </Box>
+
+              <TextField
+                label="Video Title"
+                variant="outlined"
+                fullWidth
+                value={videoMetadata.title}
+                onChange={(e) => setVideoMetadata({ ...videoMetadata, title: e.target.value })}
+              />
+
+              <TextField
+                label="Description"
+                variant="outlined"
+                fullWidth
+                multiline
+                rows={3}
+                value={videoMetadata.description}
+                onChange={(e) => setVideoMetadata({ ...videoMetadata, description: e.target.value })}
+              />
+
+              <FormControl fullWidth>
+                <Select
+                  value={videoMetadata.category}
+                  displayEmpty
+                  onChange={(e) => setVideoMetadata({ ...videoMetadata, category: e.target.value })}
+                >
+                  <MenuItem value="" disabled>Select Category</MenuItem>
+                  <MenuItem value="Education">Education</MenuItem>
+                  <MenuItem value="Entertainment">Entertainment</MenuItem>
+                  <MenuItem value="Gaming">Gaming</MenuItem>
+                  <MenuItem value="Vlog">Vlog</MenuItem>
+                </Select>
+              </FormControl>
+
+              <Button
+                variant="contained"
+                size="large"
+                fullWidth
+                onClick={handleVideoUpload}
+                disabled={uploading || !selectedFile}
+                sx={{
+                  py: 1.5,
+                  borderRadius: 2,
+                  fontWeight: 800,
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.1)'
+                }}
+              >
+                {uploading ? <CircularProgress size={24} color="inherit" /> : 'Start Upload'}
+              </Button>
+            </Stack>
+          </Card>
+        </Box>
+      )}
     </Box>
   );
 }

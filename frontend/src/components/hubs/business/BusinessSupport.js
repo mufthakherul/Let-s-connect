@@ -11,11 +11,34 @@ import {
     Campaign as CampaignIcon,
     TrendingUp as TrendingUpIcon,
     Handshake as HandshakeIcon,
-    Star as StarIcon
+    Star as StarIcon,
+    Assessment as AssessmentIcon
 } from '@mui/icons-material';
+import axios from 'axios';
 
 export default function BusinessSupport() {
     const theme = useTheme();
+    const [metrics, setMetrics] = React.useState(null);
+    const [loading, setLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        const fetchMetrics = async () => {
+            try {
+                const mockUserId = '123e4567-e89b-12d3-a456-426614174000';
+                const token = localStorage.getItem('token');
+                const response = await axios.get(`http://localhost:8001/users/${mockUserId}/business/campaigns`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                setMetrics(response.data);
+            } catch (error) {
+                console.error('Failed to fetch business metrics:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchMetrics();
+    }, []);
 
     return (
         <Container maxWidth="lg" sx={{ py: 8 }}>
@@ -114,6 +137,85 @@ export default function BusinessSupport() {
                     </motion.div>
                 </Grid>
             </Grid>
+
+            {/* Dynamic Campaign Dashboard Area */}
+            {metrics && (
+                <Box sx={{ mt: 8 }}>
+                    <Typography variant="h4" fontWeight={800} gutterBottom>
+                        Your Active Campaigns
+                    </Typography>
+
+                    <Grid container spacing={4} sx={{ mb: 4 }}>
+                        <Grid item xs={12} sm={4}>
+                            <Card sx={{ borderRadius: 4, border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
+                                <CardContent>
+                                    <Typography variant="body2" color="text.secondary" gutterBottom>Total Ad Spend</Typography>
+                                    <Typography variant="h3" fontWeight={700}>${metrics.totalSpend.toLocaleString()}</Typography>
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                            <Card sx={{ borderRadius: 4, border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
+                                <CardContent>
+                                    <Typography variant="body2" color="text.secondary" gutterBottom>Total Impressions</Typography>
+                                    <Typography variant="h3" fontWeight={700}>{metrics.totalImpressions.toLocaleString()}</Typography>
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                            <Card sx={{ borderRadius: 4, border: `1px solid ${theme.palette.divider}`, boxShadow: 'none', bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                                <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <Box>
+                                        <Typography variant="body2" color="primary" fontWeight={700} gutterBottom>Active Campaigns</Typography>
+                                        <Typography variant="h3" fontWeight={700} color="primary">{metrics.activeCampaigns}</Typography>
+                                    </Box>
+                                    <AssessmentIcon sx={{ fontSize: 48, color: theme.palette.primary.main, opacity: 0.5 }} />
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                    </Grid>
+
+                    <Card sx={{ borderRadius: 4, border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
+                        <List disablePadding>
+                            {metrics.campaigns.map((camp, idx) => (
+                                <React.Fragment key={camp.id}>
+                                    <ListItem alignItems="flex-start" sx={{ p: 3 }}>
+                                        <ListItemIcon>
+                                            <Avatar sx={{ bgcolor: camp.status === 'Active' ? 'success.main' : 'text.disabled' }}>
+                                                <CampaignIcon />
+                                            </Avatar>
+                                        </ListItemIcon>
+                                        <ListItemText
+                                            primary={<Typography variant="h6" fontWeight={700}>{camp.name}</Typography>}
+                                            secondary={
+                                                <Grid container spacing={2} sx={{ mt: 1 }}>
+                                                    <Grid item xs={6} sm={3}>
+                                                        <Typography variant="caption" display="block">Status</Typography>
+                                                        <Typography variant="body2" fontWeight={600} color={camp.status === 'Active' ? 'success.main' : 'text.primary'}>{camp.status}</Typography>
+                                                    </Grid>
+                                                    <Grid item xs={6} sm={3}>
+                                                        <Typography variant="caption" display="block">Budget Spent</Typography>
+                                                        <Typography variant="body2" fontWeight={600}>${camp.spend} / ${camp.budget}</Typography>
+                                                    </Grid>
+                                                    <Grid item xs={6} sm={3}>
+                                                        <Typography variant="caption" display="block">CTR</Typography>
+                                                        <Typography variant="body2" fontWeight={600}>{camp.ctr}%</Typography>
+                                                    </Grid>
+                                                    <Grid item xs={6} sm={3}>
+                                                        <Typography variant="caption" display="block">Cost per Click</Typography>
+                                                        <Typography variant="body2" fontWeight={600}>${camp.cpc}</Typography>
+                                                    </Grid>
+                                                </Grid>
+                                            }
+                                        />
+                                    </ListItem>
+                                    {idx < metrics.campaigns.length - 1 && <Divider />}
+                                </React.Fragment>
+                            ))}
+                        </List>
+                    </Card>
+                </Box>
+            )}
 
             {/* Sustainability Pledges Section */}
             <Box sx={{ mt: 8, p: 6, borderRadius: 6, bgcolor: theme.palette.mode === 'dark' ? alpha('#3b82f6', 0.1) : alpha('#3b82f6', 0.05) }}>

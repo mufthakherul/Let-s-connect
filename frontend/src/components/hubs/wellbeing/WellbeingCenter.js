@@ -13,9 +13,59 @@ import {
     Favorite as HealthIcon,
     Shield as ShieldIcon
 } from '@mui/icons-material';
+import axios from 'axios';
 
 export default function WellbeingCenter() {
     const theme = useTheme();
+    const [settings, setSettings] = React.useState(null);
+    const [usage, setUsage] = React.useState(0);
+    const [loading, setLoading] = React.useState(true);
+
+    const mockUserId = '123e4567-e89b-12d3-a456-426614174000';
+
+    React.useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await axios.get(`http://localhost:8001/users/${mockUserId}/wellbeing/settings`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                setSettings(response.data.settings);
+                setUsage(response.data.currentDailyUsage);
+            } catch (error) {
+                console.error('Failed to fetch wellbeing settings:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchSettings();
+    }, []);
+
+    const handleToggleSetting = async (key, value) => {
+        // Optimistic UI update
+        const updatedSettings = { ...settings, [key]: value };
+        setSettings(updatedSettings);
+
+        try {
+            const token = localStorage.getItem('token');
+            await axios.put(`http://localhost:8001/users/${mockUserId}/wellbeing/settings`, { [key]: value }, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+        } catch (error) {
+            console.error('Failed to update setting:', error);
+            // Revert on failure
+            setSettings({ ...settings, [key]: !value });
+        }
+    };
+
+    if (loading || !settings) {
+        return (
+            <Container maxWidth="lg" sx={{ py: 8, textAlign: 'center' }}>
+                <Typography>Loading Wellbeing Center...</Typography>
+            </Container>
+        );
+    }
 
     return (
         <Container maxWidth="lg" sx={{ py: 8 }}>
@@ -67,12 +117,21 @@ export default function WellbeingCenter() {
                                 </Typography>
                                 <Box sx={{ p: 3, bgcolor: theme.palette.mode === 'dark' ? alpha('#84cc16', 0.1) : alpha('#84cc16', 0.05), borderRadius: 3, mt: 4 }}>
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                        <Typography variant="body2" fontWeight={700}>Daily Limit (1 Hour)</Typography>
-                                        <FormControlLabel control={<Switch defaultChecked color="success" />} label="Enabled" />
+                                        <Typography variant="body2" fontWeight={700}>Daily Limit ({settings.dailyScreenTimeLimit / 60} Hour{settings.dailyScreenTimeLimit >= 120 ? 's' : ''})</Typography>
+                                        <FormControlLabel
+                                            control={
+                                                <Switch
+                                                    checked={settings.breakReminders}
+                                                    onChange={(e) => handleToggleSetting('breakReminders', e.target.checked)}
+                                                    color="success"
+                                                />
+                                            }
+                                            label="Enabled"
+                                        />
                                     </Box>
                                     <Divider sx={{ my: 2 }} />
                                     <Typography variant="body2" color="text.secondary">
-                                        You have spent <strong>42m</strong> out of 1h today.
+                                        You have spent <strong>{usage}m</strong> out of {settings.dailyScreenTimeLimit / 60}h today.
                                     </Typography>
                                 </Box>
                             </CardContent>
@@ -93,10 +152,21 @@ export default function WellbeingCenter() {
                                 </Typography>
                                 <Box sx={{ p: 3, bgcolor: theme.palette.mode === 'dark' ? alpha('#8b5cf6', 0.1) : alpha('#8b5cf6', 0.05), borderRadius: 3, mt: 4 }}>
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                        <Typography variant="body2" fontWeight={700}>10:00 PM - 07:00 AM</Typography>
+                                        <Typography variant="body2" fontWeight={700}>
+                                            {settings.quietHoursStart} - {settings.quietHoursEnd}
+                                        </Typography>
                                         <Button size="small" variant="outlined" color="secondary" sx={{ borderRadius: 4 }}>Edit</Button>
                                     </Box>
-                                    <FormControlLabel control={<Switch defaultChecked color="secondary" />} label="Mute notifications overnight" />
+                                    <FormControlLabel
+                                        control={
+                                            <Switch
+                                                checked={settings.quietHoursEnabled}
+                                                onChange={(e) => handleToggleSetting('quietHoursEnabled', e.target.checked)}
+                                                color="secondary"
+                                            />
+                                        }
+                                        label="Mute notifications overnight"
+                                    />
                                 </Box>
                             </CardContent>
                         </Card>

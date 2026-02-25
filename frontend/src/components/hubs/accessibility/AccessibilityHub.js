@@ -11,11 +11,44 @@ import {
     Visibility as VisibilityIcon,
     Hearing as HearingIcon,
     Keyboard as KeyboardIcon,
-    ExpandMore as ExpandMoreIcon
+    ExpandMore as ExpandMoreIcon,
+    SettingsSuggest as SettingsIcon
 } from '@mui/icons-material';
+import axios from 'axios';
 
 export default function AccessibilityHub() {
-    const theme = useTheme();
+    React.useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await axios.get(`http://localhost:8001/users/${mockUserId}/accessibility/settings`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                setSettings(response.data);
+            } catch (error) {
+                console.error('Failed to fetch accessibility settings:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchSettings();
+    }, []);
+
+    const toggleSetting = async (key, value) => {
+        const updatedSettings = { ...settings, [key]: value };
+        setSettings(updatedSettings);
+
+        try {
+            const token = localStorage.getItem('token');
+            await axios.put(`http://localhost:8001/users/${mockUserId}/accessibility/settings`, { [key]: value }, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+        } catch (error) {
+            console.error('Failed to update setting:', error);
+            setSettings({ ...settings, [key]: !value }); // Revert
+        }
+    };
 
     return (
         <Container maxWidth="lg" sx={{ py: 8 }}>
@@ -59,58 +92,85 @@ export default function AccessibilityHub() {
             </Box>
 
             {/* Feature Grid */}
-            <Grid container spacing={4} sx={{ mb: 8 }}>
-                <Grid item xs={12} md={4}>
-                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                        <Card sx={{ height: '100%', borderRadius: 4, border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
-                            <CardContent sx={{ p: 4, textAlign: 'center' }}>
-                                <VisibilityIcon sx={{ fontSize: 40, color: '#14b8a6', mb: 2 }} />
-                                <Typography variant="h5" fontWeight={700} gutterBottom>
-                                    Visual Adjustments
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" paragraph>
-                                    Guides on enabling high contrast modes, large text scaling, and optimized color palettes for color blindness.
-                                </Typography>
-                                <Button size="small" sx={{ color: '#14b8a6' }}>View Guide</Button>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
-                </Grid>
+            {loading ? (
+                <Box textAlign="center" py={4}>
+                    <Typography>Loading preferences...</Typography>
+                </Box>
+            ) : settings && (
+                <Grid container spacing={4} sx={{ mb: 8 }}>
+                    <Grid item xs={12} md={4}>
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                            <Card sx={{ height: '100%', borderRadius: 4, border: `1px solid ${settings.highContrast ? theme.palette.success.main : theme.palette.divider}`, boxShadow: 'none' }}>
+                                <CardContent sx={{ p: 4, textAlign: 'center' }}>
+                                    <VisibilityIcon sx={{ fontSize: 40, color: '#14b8a6', mb: 2 }} />
+                                    <Typography variant="h5" fontWeight={700} gutterBottom>
+                                        Visual Adjustments
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" paragraph>
+                                        Guides on enabling high contrast modes, large text scaling, and optimized color palettes for color blindness.
+                                    </Typography>
+                                    <Button
+                                        variant={settings.highContrast ? "contained" : "outlined"}
+                                        color={settings.highContrast ? "success" : "inherit"}
+                                        onClick={() => toggleSetting('highContrast', !settings.highContrast)}
+                                        sx={{ mt: 2, borderRadius: 8 }}
+                                    >
+                                        {settings.highContrast ? 'High Contrast: ON' : 'Enable High Contrast'}
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    </Grid>
 
-                <Grid item xs={12} md={4}>
-                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                        <Card sx={{ height: '100%', borderRadius: 4, border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
-                            <CardContent sx={{ p: 4, textAlign: 'center' }}>
-                                <HearingIcon sx={{ fontSize: 40, color: '#8b5cf6', mb: 2 }} />
-                                <Typography variant="h5" fontWeight={700} gutterBottom>
-                                    Audio & Captions
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" paragraph>
-                                    Learn how to enforce auto-captions on Live TV/Video streams and enable screen-reader optimized elements.
-                                </Typography>
-                                <Button size="small" sx={{ color: '#8b5cf6' }}>View Guide</Button>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
-                </Grid>
+                    <Grid item xs={12} md={4}>
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                            <Card sx={{ height: '100%', borderRadius: 4, border: `1px solid ${settings.autoCaptions ? theme.palette.success.main : theme.palette.divider}`, boxShadow: 'none' }}>
+                                <CardContent sx={{ p: 4, textAlign: 'center' }}>
+                                    <HearingIcon sx={{ fontSize: 40, color: '#8b5cf6', mb: 2 }} />
+                                    <Typography variant="h5" fontWeight={700} gutterBottom>
+                                        Audio & Captions
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" paragraph>
+                                        Learn how to enforce auto-captions on Live TV/Video streams and enable screen-reader optimized elements.
+                                    </Typography>
+                                    <Button
+                                        variant={settings.autoCaptions ? "contained" : "outlined"}
+                                        color={settings.autoCaptions ? "success" : "inherit"}
+                                        onClick={() => toggleSetting('autoCaptions', !settings.autoCaptions)}
+                                        sx={{ mt: 2, borderRadius: 8 }}
+                                    >
+                                        {settings.autoCaptions ? 'Auto-Captions: ON' : 'Enable Auto-Captions'}
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    </Grid>
 
-                <Grid item xs={12} md={4}>
-                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                        <Card sx={{ height: '100%', borderRadius: 4, border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
-                            <CardContent sx={{ p: 4, textAlign: 'center' }}>
-                                <KeyboardIcon sx={{ fontSize: 40, color: '#ef4444', mb: 2 }} />
-                                <Typography variant="h5" fontWeight={700} gutterBottom>
-                                    Keyboard Navigation
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" paragraph>
-                                    Master the platform without a mouse. A complete list of global shortcuts to navigate the Feed, Chat, and Rooms.
-                                </Typography>
-                                <Button size="small" sx={{ color: '#ef4444' }}>Shortcuts List</Button>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
+                    <Grid item xs={12} md={4}>
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                            <Card sx={{ height: '100%', borderRadius: 4, border: `1px solid ${settings.reduceMotion ? theme.palette.success.main : theme.palette.divider}`, boxShadow: 'none' }}>
+                                <CardContent sx={{ p: 4, textAlign: 'center' }}>
+                                    <KeyboardIcon sx={{ fontSize: 40, color: '#ef4444', mb: 2 }} />
+                                    <Typography variant="h5" fontWeight={700} gutterBottom>
+                                        Motion & Layout
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" paragraph>
+                                        Reduce animations to prevent motion sickness and switch to list layouts instead of grid views for easier navigation.
+                                    </Typography>
+                                    <Button
+                                        variant={settings.reduceMotion ? "contained" : "outlined"}
+                                        color={settings.reduceMotion ? "success" : "inherit"}
+                                        onClick={() => toggleSetting('reduceMotion', !settings.reduceMotion)}
+                                        sx={{ mt: 2, borderRadius: 8 }}
+                                    >
+                                        {settings.reduceMotion ? 'Reduced Motion: ON' : 'Enable Reduced Motion'}
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    </Grid>
                 </Grid>
-            </Grid>
+            )}
 
             {/* Developer API & Inclusive Posting Guidelines inside Accordions */}
             <Box sx={{ maxWidth: '800px', mx: 'auto' }}>
