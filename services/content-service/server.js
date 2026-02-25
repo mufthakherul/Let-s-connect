@@ -1581,7 +1581,7 @@ function extractHashtags(content) {
 // --- Anonymous identity helpers ---
 const ANON_HMAC_SECRET = process.env.ANON_HMAC_SECRET || 'anon-hmac-secret-change-me';
 const ANON_KEY = process.env.ANON_KEY || process.env.JWT_SECRET || 'anon-key-change-me';
-const ANONYMOUS_USER_POST_LABEL = 'Anonymous user post';
+const ANONYMOUS_USER_POST_LABEL = 'Anonymous post';
 
 function mappingHashFor(userId, scope) {
   const h = crypto.createHmac('sha256', ANON_HMAC_SECRET);
