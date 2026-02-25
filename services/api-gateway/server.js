@@ -103,15 +103,7 @@ const userLimiter = rateLimit({
   },
   skip: (req) => {
     // Skip rate limiting for health checks
-    if (req.path === '/health') return true;
-
-    // Allow unlimited calls to the streaming subsystem (radio/TV) since the
-    // user explicitly chooses channels and such requests are lightweight.  This
-    // prevents artificial 429s when someone rapidly browses or starts/stops
-    // streams.  Only non-streaming endpoints remain protected by the user limiter.
-    if (req.path.startsWith('/api/streaming')) return true;
-
-    return false;
+    return req.path === '/health';
   },
   message: { error: 'Rate limit exceeded. Please try again later.' }
 });
@@ -577,6 +569,13 @@ const createAuthProxy = (target) => {
 const applyUserLimiter = (req, res, next) => {
   if (process.env.NODE_ENV === 'development') {
     // skip rate limiting in local development to avoid 429 noise
+    return next();
+  }
+
+  // never rate-limit streaming proxy or main streaming APIs; these are
+  // already excluded upstream and we want them to be completely unhindered.
+  if (req.originalUrl.startsWith('/api/streaming') ||
+      req.originalUrl.startsWith('/api/user/notifications')) {
     return next();
   }
 
