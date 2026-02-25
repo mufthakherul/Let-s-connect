@@ -1,6 +1,7 @@
 /* eslint-disable no-restricted-globals */
 
-const CACHE_VERSION = 'v4.0.1';
+// generate a new cache version on each build/refresh by using timestamp
+const CACHE_VERSION = `v${Date.now()}`;
 const CACHE_NAME = `lets-connect-${CACHE_VERSION}`;
 
 // Assets to cache on install
