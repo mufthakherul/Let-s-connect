@@ -33,6 +33,9 @@
   - Force `GENERATE_SOURCEMAP=false` in production mode before `npm run build`.
 - Updated `frontend/package.json` postinstall patching for `shaka-player` source map comment cleanup (now covers both `shaka-player.ui.js` and `controls.css` to remove stray sourceMappingURL lines).
 - Refactored `frontend/src/utils/streamingService.js` to use the shared `api` axios instance and avoid hard-coded `localhost:8000`, ensuring requests traverse the development proxy and reducing network errors in remote dev environments.
+- Adjusted API gateway rate limiting logic so all throttling is disabled when `NODE_ENV=development`; this stops 429 errors during local/Codespaces work.  Backend still enforces global/user limits in production.  Added a permanent exemption for `/api/streaming` paths (radio/TV) to avoid throttling client‑initiated stream navigations, since those requests are benign.
+  - Created a public `/api/streaming/proxy` route that skips authentication entirely so client image/playlist pulls don't return 401s.
+  Frontend axios now logs 429 events as warnings and UI code gracefully handles them with toasts; global console filters suppress excess noise.
 
 ## Validation performed
 

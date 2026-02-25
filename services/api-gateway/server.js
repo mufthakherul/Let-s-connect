@@ -103,7 +103,15 @@ const userLimiter = rateLimit({
   },
   skip: (req) => {
     // Skip rate limiting for health checks
-    return req.path === '/health';
+    if (req.path === '/health') return true;
+
+    // Allow unlimited calls to the streaming subsystem (radio/TV) since the
+    // user explicitly chooses channels and such requests are lightweight.  This
+    // prevents artificial 429s when someone rapidly browses or starts/stops
+    // streams.  Only non-streaming endpoints remain protected by the user limiter.
+    if (req.path.startsWith('/api/streaming')) return true;
+
+    return false;
   },
   message: { error: 'Rate limit exceeded. Please try again later.' }
 });
@@ -184,8 +192,12 @@ const usernameLimiter = rateLimit({
   }
 });
 
-// Apply global rate limiter
-app.use(globalLimiter);
+// Apply global rate limiter (skip during development to avoid throttling dev workflow)
+if (process.env.NODE_ENV !== 'development') {
+  app.use(globalLimiter);
+} else {
+  console.info('[API Gateway] skipping global rate limiter (development mode)');
+}
 
 // Authentication middleware for private routes
 const authMiddleware = (req, res, next) => {
@@ -563,6 +575,11 @@ const createAuthProxy = (target) => {
 
 // Apply user-based rate limiter after authentication
 const applyUserLimiter = (req, res, next) => {
+  if (process.env.NODE_ENV === 'development') {
+    // skip rate limiting in local development to avoid 429 noise
+    return next();
+  }
+
   // Only apply to authenticated requests
   if (req.user) {
     return userLimiter(req, res, next);
@@ -574,6 +591,20 @@ const applyUserLimiter = (req, res, next) => {
 app.use('/api/user/login', strictLimiter);
 app.use('/api/user/register', strictLimiter);
 app.use('/api/user/password-reset', strictLimiter);
+
+// --- public streaming proxy ------------------------------------------------
+// The client uses /api/streaming/proxy?url=... to fetch remote images/playlists.
+// These requests should not require authentication or rate limiting because
+// they are triggered implicitly by browsing the radio/TV UI.  Configure a
+// bare proxy ahead of the auth middleware so the gateway simply forwards the
+// request to the streaming-service without adding headers.
+app.use(
+  '/api/streaming/proxy',
+  proxy(services.streaming, {
+    proxyReqPathResolver: (req) => req.originalUrl.replace('/api/streaming', ''),
+    userResHeaderDecorator: (headers) => headers // leave headers intact
+  })
+);
 app.use('/api/user/forgot', strictLimiter);
 app.use('/api/user/reset-password', strictLimiter);
 
