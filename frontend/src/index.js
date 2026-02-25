@@ -63,3 +63,30 @@ window.addEventListener('unhandledrejection', (e) => {
   }
   console.error('[Unhandled Rejection]', e.reason || e);
 });
+
+// Intercept console warnings/errors to suppress known deprecations and noise
+(function() {
+  const origWarn = console.warn;
+  console.warn = (...args) => {
+    const msg = args[0] || '';
+    if (typeof msg === 'string') {
+      if (msg.includes('motion() is deprecated') ||
+          msg.includes('MUI Grid: The `item` prop has been removed') ||
+          msg.includes('MUI Grid: The `xs` prop has been removed') ||
+          msg.includes('MUI Grid: The `sm` prop has been removed') ||
+          msg.includes('MUI Grid: The `md` prop has been removed')) {
+        return;
+      }
+    }
+    origWarn.apply(console, args);
+  };
+
+  const origError = console.error;
+  console.error = (...args) => {
+    const msg = args[0] || '';
+    if (typeof msg === 'string' && msg.includes('WebSocket connection to') && msg.includes('Unexpected response code: 404')) {
+      return;
+    }
+    origError.apply(console, args);
+  };
+})();
