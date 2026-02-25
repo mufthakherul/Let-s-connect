@@ -37,6 +37,9 @@ import Breadcrumbs from './components/common/Breadcrumbs';
 import QuickAccessMenu from './components/common/QuickAccessMenu';
 import Onboarding from './components/common/Onboarding';
 import BackgroundAnimation from './components/common/BackgroundAnimation';
+import { subscribeToPushNotifications } from './utils/pwa';
+import axios from 'axios';
+import config from './config/api';
 
 // Eager load critical components (needed for initial render)
 import Home from './components/Home';
@@ -111,6 +114,9 @@ const WellbeingCenter = lazy(() => import('./components/hubs/wellbeing/Wellbeing
 const EducationalResourceCenter = lazy(() => import('./components/hubs/education/EducationalResourceCenter'));
 const AccessibilityHub = lazy(() => import('./components/hubs/accessibility/AccessibilityHub'));
 const DonationHub = lazy(() => import('./components/hubs/donation/DonationHub'));
+
+// We keep the internal component file named Cart.js for compatibility with existing routes,
+// but it is now conceptually a "Saved Items" view.
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -191,6 +197,30 @@ function AppContent() {
     const cleanup = initSystemThemeListener();
     return cleanup;
   }, [initSystemThemeListener]);
+
+  // Pillar 4: Push Notifications - Subscribe on login
+  useEffect(() => {
+    const handlePushSubscription = async () => {
+      if (internalUser && 'serviceWorker' in navigator) {
+        try {
+          const subscription = await subscribeToPushNotifications();
+          if (subscription) {
+            console.log('[Push] Subscription obtained:', subscription);
+            // Send to messaging-service
+            await axios.post(`${config.MESSAGING_SERVICE_URL}/push/subscribe`, {
+              userId: internalUser.id,
+              subscription
+            });
+            console.log('[Push] Subscription synced with backend');
+          }
+        } catch (err) {
+          console.error('[Push] Failed to handle subscription:', err);
+        }
+      }
+    };
+
+    handlePushSubscription();
+  }, [internalUser]);
 
   const theme = useMemo(
     () => {
@@ -461,7 +491,7 @@ function AppContent() {
     { label: 'Pages', path: '/pages', icon: <PagesIcon />, public: false },
     { label: 'Radio', path: '/radio', icon: <RadioIcon />, public: false },
     { label: 'TV', path: '/tv', icon: <TvIcon />, public: false },
-    { label: 'Cart', path: '/cart', icon: <ShoppingCartOutlined />, public: false },
+    { label: 'Saved Items', path: '/cart', icon: <Bookmark />, public: false },
     { label: 'Bookmarks', path: '/bookmarks', icon: <Bookmark />, public: false },
     { label: 'Chat', path: '/chat', icon: <ChatIcon />, public: false },
     { label: 'Profile', path: '/profile', icon: <Person />, public: false },
@@ -737,7 +767,15 @@ function AppContent() {
                   >
                     <PeopleIcon sx={{ fontSize: '1.5rem' }} />
                   </IconButton>
-
+                  <Tooltip title="Saved Items">
+                    <IconButton
+                      component={Link}
+                      to="/cart"
+                      sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', ml: 1 }}
+                    >
+                      <Bookmark />
+                    </IconButton>
+                  </Tooltip>
                   <IconButton
                     component={Link}
                     to="/videos"

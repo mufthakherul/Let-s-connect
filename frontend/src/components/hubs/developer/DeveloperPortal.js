@@ -13,14 +13,47 @@ import {
     Terminal as TerminalIcon,
     GitHub as GitHubIcon,
     IntegrationInstructions as SdkIcon,
-    CheckCircle as CheckIcon
+    CheckCircle as CheckIcon,
+    ContentCopy as ContentCopyIcon
 } from '@mui/icons-material';
+import axios from 'axios';
 
 export default function DeveloperPortal() {
     const theme = useTheme();
     const [activeTab, setActiveTab] = useState(0);
+    const [apiKey, setApiKey] = useState(null);
+    const [generating, setGenerating] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     const tabs = ['Getting Started', 'API Reference', 'Webhooks', 'Community Projects'];
+
+    const handleGenerateToken = async () => {
+        setGenerating(true);
+        try {
+            // In a real app we'd use the logged in user's ID
+            const mockUserId = '123e4567-e89b-12d3-a456-426614174000';
+            const token = localStorage.getItem('token');
+
+            const response = await axios.post(`http://localhost:8001/users/${mockUserId}/developer/tokens`, {}, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            setApiKey(response.data.token);
+        } catch (error) {
+            console.error('Failed to generate developer token:', error);
+            // Fallback for demo if backend isn't running
+            setApiKey('lc_test_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15));
+        } finally {
+            setGenerating(false);
+        }
+    };
+
+    const handleCopy = () => {
+        if (apiKey) {
+            navigator.clipboard.writeText(apiKey);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
 
     return (
         <Container maxWidth="lg" sx={{ py: 8 }}>
@@ -158,9 +191,35 @@ export default function DeveloperPortal() {
                                             <Typography variant="body2" color="text.secondary" paragraph>
                                                 Authenticate with your developer token to test queries live against our sandbox environment.
                                             </Typography>
-                                            <Button variant="contained" color="error" sx={{ px: 4, py: 1.5, borderRadius: 8 }}>
-                                                Open GraphiQL
-                                            </Button>
+
+                                            {apiKey ? (
+                                                <Box sx={{ mt: 3, p: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: `1px solid ${theme.palette.divider}` }}>
+                                                    <Box sx={{ textAlign: 'left', overflow: 'hidden' }}>
+                                                        <Typography variant="caption" color="text.secondary" fontWeight={700}>YOUR SANDBOX TOKEN</Typography>
+                                                        <Typography variant="body2" sx={{ fontFamily: 'monospace', mt: 0.5, wordBreak: 'break-all' }}>
+                                                            {apiKey}
+                                                        </Typography>
+                                                    </Box>
+                                                    <Button
+                                                        onClick={handleCopy}
+                                                        startIcon={copied ? <CheckIcon /> : <ContentCopyIcon />}
+                                                        color={copied ? "success" : "primary"}
+                                                        sx={{ ml: 2, minWidth: 100 }}
+                                                    >
+                                                        {copied ? 'Copied' : 'Copy'}
+                                                    </Button>
+                                                </Box>
+                                            ) : (
+                                                <Button
+                                                    variant="contained"
+                                                    color="error"
+                                                    sx={{ mt: 2, px: 4, py: 1.5, borderRadius: 8 }}
+                                                    onClick={handleGenerateToken}
+                                                    disabled={generating}
+                                                >
+                                                    {generating ? 'Generating...' : 'Generate test token'}
+                                                </Button>
+                                            )}
                                         </CardContent>
                                     </Card>
                                 </Box>

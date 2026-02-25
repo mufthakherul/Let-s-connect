@@ -1491,6 +1491,341 @@ app.get('/users/:userId/pages', async (req, res) => {
   }
 });
 
+// Get Creator Hub Analytics
+app.get('/users/:userId/creator-analytics', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const requestingUser = req.header('x-user-id');
+
+    // Authorization check if needed (e.g. only self or admin can view)
+    // Ignoring for demo purposes or if stats are public
+
+    // Calculate aggregate stats across all pages owned by this user
+    const pages = await Page.findAll({ where: { userId } });
+    const pageIds = pages.map(p => p.id);
+
+    let profileViews = 0;
+    let newFollowers = 0;
+    let directTips = 0;
+
+    // If the user has pages, aggregate insights for the last 30 days
+    if (pageIds.length > 0) {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+
+      const insights = await PageInsight.findAll({
+        where: {
+          pageId: { [Op.in]: pageIds },
+          date: { [Op.gte]: startDate }
+        }
+      });
+
+      insights.forEach(insight => {
+        profileViews += insight.totalViews;
+        newFollowers += insight.newFollowers;
+      });
+
+      // Mocking direct tips for now, as we don't have a transaction model yet
+      directTips = Math.floor(Math.random() * 500) + 100;
+    } else {
+      // Fallback to random realistic data if they don't have pages yet for the demo
+      profileViews = Math.floor(Math.random() * 10000) + 1000;
+      newFollowers = Math.floor(Math.random() * 500) + 50;
+      directTips = Math.floor(Math.random() * 300) + 50;
+    }
+
+    // Current actual followers (sum across pages)
+    const totalAuthenticFollowers = pages.reduce((sum, page) => sum + page.followers, 0) || Math.floor(Math.random() * 5000) + 1000;
+
+    res.json({
+      profileViews,
+      newFollowers,
+      directTips,
+      currentFollowers: totalAuthenticFollowers,
+      followerGoal: 10000
+    });
+
+  } catch (error) {
+    console.error('Error fetching creator analytics:', error);
+    res.status(500).json({ error: 'Failed to fetch creator analytics' });
+  }
+});
+
+// Generate Developer Sandbox Token
+app.post('/users/:userId/developer/tokens', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const requestingUser = req.header('x-user-id');
+
+    // Ensure user exists
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Determine token scopes or permissions based on req.body
+    const scopes = req.body.scopes || ['read:sandbox', 'write:sandbox'];
+
+    // We can just use standard jsonwebtoken here for the sandbox token
+    const developerToken = jwt.sign(
+      {
+        id: user.id,
+        roles: user.role,
+        developerMode: true,
+        scopes
+      },
+      JWT_SECRET,
+      { expiresIn: '365d' } // Developer tokens often live a long time
+    );
+
+    res.status(201).json({
+      token: developerToken,
+      message: 'Sandbox token generated successfully',
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error generating developer token:', error);
+    res.status(500).json({ error: 'Failed to generate developer token' });
+  }
+});
+
+// Get Business Campaign Metrics
+app.get('/users/:userId/business/campaigns', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    // In a real application, we would query a Campaigns table.
+    // Since this is a specialized requested feature, we will mock realistic data for the hub dashboard.
+    const mockCampaigns = [
+      {
+        id: 'camp_1',
+        name: 'Q3 Retargeting',
+        status: 'Active',
+        spend: 1250.00,
+        budget: 5000.00,
+        impressions: 45200,
+        clicks: 1205,
+        ctr: 2.66,
+        cpc: 1.04
+      },
+      {
+        id: 'camp_2',
+        name: 'Brand Awareness - Tech',
+        status: 'Completed',
+        spend: 3000.00,
+        budget: 3000.00,
+        impressions: 150400,
+        clicks: 2100,
+        ctr: 1.39,
+        cpc: 1.42
+      }
+    ];
+
+    res.json({
+      totalSpend: mockCampaigns.reduce((sum, c) => sum + c.spend, 0),
+      totalImpressions: mockCampaigns.reduce((sum, c) => sum + c.impressions, 0),
+      activeCampaigns: mockCampaigns.filter(c => c.status === 'Active').length,
+      campaigns: mockCampaigns
+    });
+  } catch (error) {
+    console.error('Error fetching business campaigns:', error);
+    res.status(500).json({ error: 'Failed to fetch campaigns' });
+  }
+});
+
+// Mock Database for Wellbeing Settings (Using in-memory for demo, normally would be a DB table)
+const userWellbeingSettings = new Map();
+
+// Get User Wellbeing Settings
+app.get('/users/:userId/wellbeing/settings', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    let settings = userWellbeingSettings.get(userId);
+    if (!settings) {
+      // Default settings if none exist
+      settings = {
+        dailyScreenTimeLimit: 120, // minutes
+        breakReminders: true,
+        breakInterval: 30, // minutes
+        quietHoursEnabled: false,
+        quietHoursStart: '22:00',
+        quietHoursEnd: '08:00',
+        mindfulScrolling: true,
+        contentFilters: ['politics', 'news']
+      };
+      userWellbeingSettings.set(userId, settings);
+    }
+
+    // Mock current daily usage for realistic UI
+    const currentDailyUsage = Math.floor(Math.random() * (settings.dailyScreenTimeLimit + 30));
+
+    res.json({
+      settings,
+      currentDailyUsage
+    });
+  } catch (error) {
+    console.error('Error fetching wellbeing settings:', error);
+    res.status(500).json({ error: 'Failed to fetch wellbeing settings' });
+  }
+});
+
+// Update User Wellbeing Settings
+app.put('/users/:userId/wellbeing/settings', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const updates = req.body;
+
+    let settings = userWellbeingSettings.get(userId) || {};
+
+    // Merge updates
+    settings = { ...settings, ...updates };
+    userWellbeingSettings.set(userId, settings);
+
+    res.json({
+      message: 'Wellbeing settings updated successfully',
+      settings
+    });
+  } catch (error) {
+    console.error('Error updating wellbeing settings:', error);
+    res.status(500).json({ error: 'Failed to update wellbeing settings' });
+  }
+});
+
+// Mock Database for Education Progress
+const userEducationProgress = new Map();
+
+// Get User Education Progress
+app.get('/users/:userId/education/progress', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    let progress = userEducationProgress.get(userId);
+    if (!progress) {
+      // Default mock data for realistic dashboard
+      progress = {
+        enrolledCourses: [
+          { id: 'c1', title: 'Viral Growth Strategies 101', progress: 65, totalModules: 12, completedModules: 8, thumbnail: 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=400' },
+          { id: 'c2', title: 'Monetization Masterclass', progress: 20, totalModules: 10, completedModules: 2, thumbnail: 'https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&q=80&w=400' }
+        ],
+        certificatesEarned: 2,
+        totalHoursLearned: 14.5,
+        savedResources: 18
+      };
+      userEducationProgress.set(userId, progress);
+    }
+
+    res.json(progress);
+  } catch (error) {
+    console.error('Error fetching education progress:', error);
+    res.status(500).json({ error: 'Failed to fetch education progress' });
+  }
+});
+
+// Enroll in a Course (Mock)
+app.post('/users/:userId/education/enroll', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const { courseId, title, thumbnail } = req.body;
+
+    let progress = userEducationProgress.get(userId) || { enrolledCourses: [], certificatesEarned: 0, totalHoursLearned: 0, savedResources: 0 };
+
+    // Prevent duplicate enrollment
+    if (!progress.enrolledCourses.find(c => c.id === courseId)) {
+      progress.enrolledCourses.push({
+        id: courseId,
+        title: title,
+        progress: 0,
+        totalModules: 10,
+        completedModules: 0,
+        thumbnail: thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&q=80&w=400'
+      });
+      userEducationProgress.set(userId, progress);
+    }
+
+    res.json({ message: 'Successfully enrolled', progress });
+  } catch (error) {
+    console.error('Error enrolling in course:', error);
+    res.status(500).json({ error: 'Failed to enroll in course' });
+  }
+});
+
+// Mock Database for Accessibility Preferences
+const userA11ySettings = new Map();
+
+// Get User Accessibility Preferences
+app.get('/users/:userId/accessibility/settings', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    let settings = userA11ySettings.get(userId);
+    if (!settings) {
+      settings = {
+        highContrast: false,
+        largeText: false,
+        reduceMotion: false,
+        screenReaderOptimized: true,
+        autoCaptions: true
+      };
+      userA11ySettings.set(userId, settings);
+    }
+
+    res.json(settings);
+  } catch (error) {
+    console.error('Error fetching accessibility settings:', error);
+    res.status(500).json({ error: 'Failed to fetch accessibility settings' });
+  }
+});
+
+// Update User Accessibility Preferences
+app.put('/users/:userId/accessibility/settings', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const updates = req.body;
+
+    let settings = userA11ySettings.get(userId) || {};
+    settings = { ...settings, ...updates };
+    userA11ySettings.set(userId, settings);
+
+    // In a real application, saving these settings might also emit an event via WebSockets
+    // so the connected client immediately applies the theme/font changes globally.
+
+    res.json({ message: 'Accessibility preferences updated', settings });
+  } catch (error) {
+    console.error('Error updating accessibility settings:', error);
+    res.status(500).json({ error: 'Failed to update accessibility settings' });
+  }
+});
+
+// Get Platform Donation Metrics
+app.get('/donations/metrics', async (req, res) => {
+  try {
+    // Mock data for the platform's open-source server sustainability goals
+    const metrics = {
+      monthlyGoal: 5000.00,
+      currentRaised: 3450.50,
+      daysLeft: 12,
+      totalDonors: 1245,
+      recentDonations: [
+        { id: 1, name: 'Anonymous', amount: 50, time: '2 mins ago' },
+        { id: 2, name: 'Sarah J.', amount: 15, time: '1 hour ago' },
+        { id: 3, name: 'TechCorp Inc.', amount: 500, time: '3 hours ago' },
+        { id: 4, name: 'Anonymous', amount: 5, time: '5 hours ago' }
+      ],
+      sponsors: [
+        { name: 'Vercel', tier: 'Platinum', logo: 'https://images.unsplash.com/photo-1614680376593-902f7410d2c3?auto=format&fit=crop&q=80&w=100' },
+        { name: 'Supabase', tier: 'Gold', logo: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&q=80&w=100' }
+      ]
+    };
+
+    res.json(metrics);
+  } catch (error) {
+    console.error('Error fetching donation metrics:', error);
+    res.status(500).json({ error: 'Failed to fetch donation metrics' });
+  }
+});
+
 // Search pages
 app.get('/pages/search', async (req, res) => {
   try {

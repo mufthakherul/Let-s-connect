@@ -4,6 +4,7 @@ const socketIo = require('socket.io');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const Redis = require('ioredis');
 const crypto = require('crypto');
+const webpush = require('web-push');
 require('dotenv').config();
 
 const app = express();
@@ -17,6 +18,17 @@ const BOT_SYSTEM_USER_ID = process.env.BOT_SYSTEM_USER_ID || '00000000-0000-0000
 const TELEGRAM_BOT_WEBHOOK_TOKEN = process.env.TELEGRAM_BOT_WEBHOOK_TOKEN || '';
 
 app.use(express.json());
+
+// VAPID keys should be generated once and kept in .env
+// For demo, we use placeholders if not present
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BC-mD3p_H2I_y9lY-Yt_M8-Z8E8_M8-Z8E8_M8-Z8E8_M8-Z8E8_M8-Z8E8_M8-Z8E8_M8-Z8E8';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'PLACEHOLDER_PRIVATE_KEY';
+
+webpush.setVapidDetails(
+  'mailto:support@letsconnect.com',
+  VAPID_PUBLIC_KEY,
+  VAPID_PRIVATE_KEY
+);
 
 // Database
 const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/messages', {
@@ -659,6 +671,24 @@ const NotificationPreference = sequelize.define('NotificationPreference', {
   ]
 });
 
+const Subscription = sequelize.define('Subscription', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  endpoint: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  p256dh: DataTypes.STRING,
+  auth: DataTypes.STRING
+});
+
 // Relationships
 Server.hasMany(Conversation, { foreignKey: 'serverId' });
 Server.hasMany(Role, { foreignKey: 'serverId' });
@@ -738,6 +768,41 @@ io.on('connection', (socket) => {
 
       // Publish to Redis for scaling
       redis.publish('messages', JSON.stringify(messageWithRelations));
+
+      // NEW: Trigger Push Notifications for participants not in the room
+      const conversation = await Conversation.findByPk(data.conversationId);
+      if (conversation) {
+        const recipients = conversation.participants.filter(p => p !== data.senderId);
+        for (const recipientId of recipients) {
+          // Check if user is connected via socket (simplified check)
+          // In a real app, you'd check a centralized 'online-users' Map or Redis
+
+          const subscriptions = await Subscription.findAll({ where: { userId: recipientId } });
+          for (const sub of subscriptions) {
+            try {
+              const payload = JSON.stringify({
+                title: `New message from ${data.senderId}`,
+                body: data.content,
+                url: `/chat/${data.conversationId}`
+              });
+
+              await webpush.sendNotification(
+                {
+                  endpoint: sub.endpoint,
+                  keys: { p256dh: sub.p256dh, auth: sub.auth }
+                },
+                payload
+              );
+            } catch (err) {
+              console.error('Failed to send push notification:', err);
+              if (err.statusCode === 410) {
+                // Subscription has expired or is no longer valid
+                await sub.destroy();
+              }
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error('Error sending message:', error);
     }
@@ -768,6 +833,35 @@ redisSub.on('message', (channel, message) => {
 
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', service: 'messaging-service' });
+});
+
+res.json(conversations);
+  } catch (error) {
+  console.error(error);
+  res.status(500).json({ error: 'Failed to fetch conversations' });
+}
+});
+
+// Subscribe to push notifications
+app.post('/push/subscribe', async (req, res) => {
+  try {
+    const { userId, subscription } = req.body;
+
+    // Store or update subscription
+    await Subscription.upsert({
+      userId,
+      endpoint: subscription.endpoint,
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth
+    }, {
+      where: { endpoint: subscription.endpoint }
+    });
+
+    res.status(201).json({ message: 'Subscribed to push notifications' });
+  } catch (error) {
+    console.error('Push subscribe error:', error);
+    res.status(500).json({ error: 'Failed to subscribe' });
+  }
 });
 
 // Get conversations for user

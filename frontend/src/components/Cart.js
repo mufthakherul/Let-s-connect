@@ -11,12 +11,14 @@ import {
   Alert,
   TextField
 } from '@mui/material';
-import { Delete, Add, Remove } from '@mui/icons-material';
+import { Delete, ChatBubbleOutline } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import axios from 'axios';
 
 function Cart() {
+  const navigate = useNavigate();
   const [cartItems, setCartItems] = useState([]);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -26,50 +28,33 @@ function Cart() {
 
   useEffect(() => {
     if (user.id && token) {
-      fetchCart();
+      fetchSavedItems();
     } else {
       setLoading(false);
-      setError('Please log in to view your cart');
+      setError('Please log in to view your saved items');
     }
   }, []);
 
-  const fetchCart = async () => {
+  const fetchSavedItems = async () => {
     try {
       setLoading(true);
       const response = await axios.get(`/api/shop/cart/${user.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCartItems(response.data.items || []);
-      setTotal(response.data.total || 0);
       setError('');
     } catch (err) {
-      console.error('Failed to fetch cart:', err);
-      setError('Failed to load cart');
+      console.error('Failed to fetch saved items:', err);
+      setError('Failed to load saved items');
     } finally {
       setLoading(false);
     }
   };
 
-  const updateQuantity = async (itemId, newQuantity) => {
-    try {
-      if (newQuantity <= 0) {
-        await removeItem(itemId);
-        return;
-      }
-
-      await axios.put(
-        `/api/shop/cart/${itemId}`,
-        { quantity: newQuantity },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      setSuccess('Cart updated');
-      setTimeout(() => setSuccess(''), 2000);
-      fetchCart();
-    } catch (err) {
-      console.error('Failed to update quantity:', err);
-      setError('Failed to update quantity');
-    }
+  const handleChatToBuy = (product) => {
+    const sellerId = product.sellerId || 'system';
+    const encodedMessage = encodeURIComponent(`Hi! I'm interested in buying "${product.name}" from my saved items. Is this currently available?`);
+    navigate(`/chat?recipient=${sellerId}&message=${encodedMessage}`);
   };
 
   const removeItem = async (itemId) => {
@@ -77,18 +62,18 @@ function Cart() {
       await axios.delete(`/api/shop/cart/${itemId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      setSuccess('Item removed from cart');
+
+      setSuccess('Item removed from saved list');
       setTimeout(() => setSuccess(''), 2000);
-      fetchCart();
+      fetchSavedItems();
     } catch (err) {
       console.error('Failed to remove item:', err);
       setError('Failed to remove item');
     }
   };
 
-  const clearCart = async () => {
-    if (!window.confirm('Are you sure you want to clear your cart?')) {
+  const clearSavedItems = async () => {
+    if (!window.confirm('Are you sure you want to clear your saved items?')) {
       return;
     }
 
@@ -96,20 +81,20 @@ function Cart() {
       await axios.delete(`/api/shop/cart/user/${user.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      setSuccess('Cart cleared');
+
+      setSuccess('Saved items cleared');
       setTimeout(() => setSuccess(''), 2000);
-      fetchCart();
+      fetchSavedItems();
     } catch (err) {
-      console.error('Failed to clear cart:', err);
-      setError('Failed to clear cart');
+      console.error('Failed to clear saved items:', err);
+      setError('Failed to clear saved items');
     }
   };
 
   if (loading) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography>Loading cart...</Typography>
+        <Typography>Loading saved items...</Typography>
       </Box>
     );
   }
@@ -117,7 +102,7 @@ function Cart() {
   if (!user.id || !token) {
     return (
       <Box sx={{ p: 3 }}>
-        <Alert severity="warning">Please log in to view your cart</Alert>
+        <Alert severity="warning">Please log in to view your saved items</Alert>
       </Box>
     );
   }
@@ -125,7 +110,7 @@ function Cart() {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
-        Shopping Cart
+        Saved Items
       </Typography>
 
       {error && (
@@ -144,7 +129,7 @@ function Cart() {
         <Card>
           <CardContent>
             <Typography variant="body1" color="text.secondary">
-              Your cart is empty
+              Your saved items list is empty
             </Typography>
           </CardContent>
         </Card>
@@ -164,7 +149,7 @@ function Cart() {
                           {item.Product?.description || ''}
                         </Typography>
                       </Grid>
-                      
+
                       <Grid item xs={12} md={2}>
                         <Typography variant="h6" color="primary">
                           ${parseFloat(item.Product?.price || 0).toFixed(2)}
@@ -172,35 +157,26 @@ function Cart() {
                       </Grid>
 
                       <Grid item xs={12} md={3}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <IconButton
-                            size="small"
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                          >
-                            <Remove />
-                          </IconButton>
-                          
-                          <TextField
-                            size="small"
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value);
-                              if (val >= 1) {
-                                updateQuantity(item.id, val);
+                        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                          <Button
+                            variant="contained"
+                            fullWidth
+                            startIcon={<ChatBubbleOutline />}
+                            onClick={() => handleChatToBuy(item.Product)}
+                            sx={{
+                              background: 'linear-gradient(45deg, #10b981, #059669)',
+                              color: 'white',
+                              fontWeight: 600,
+                              textTransform: 'none',
+                              boxShadow: '0 4px 14px 0 rgba(16, 185, 129, 0.39)',
+                              '&:hover': {
+                                background: 'linear-gradient(45deg, #059669, #047857)',
                               }
                             }}
-                            sx={{ width: '60px' }}
-                            inputProps={{ min: 1 }}
-                          />
-                          
-                          <IconButton
-                            size="small"
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
                           >
-                            <Add />
-                          </IconButton>
-                        </Box>
+                            Chat to Buy
+                          </Button>
+                        </motion.div>
                       </Grid>
 
                       <Grid item xs={12} md={1}>
@@ -224,23 +200,10 @@ function Cart() {
               <Button
                 variant="outlined"
                 color="error"
-                onClick={clearCart}
+                onClick={clearSavedItems}
               >
-                Clear Cart
+                Clear Saved Items
               </Button>
-              
-              <Box sx={{ textAlign: 'right' }}>
-                <Typography variant="h5" gutterBottom>
-                  Total: ${parseFloat(total || 0).toFixed(2)}
-                </Typography>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  size="large"
-                >
-                  Proceed to Checkout
-                </Button>
-              </Box>
             </Box>
           </Box>
         </>

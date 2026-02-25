@@ -29,9 +29,7 @@ import {
   Image as ImageIcon,
   Close
 } from '@mui/icons-material';
-import config from '../config/api';
-
-const API_BASE_URL = config.MEDIA_SERVICE_URL;
+import api from '../utils/api';
 
 /**
  * Media Gallery Component
@@ -58,10 +56,8 @@ function MediaGallery() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/public/files`);
-      if (!response.ok) throw new Error('Failed to fetch files');
-      const data = await response.json();
-      setFiles(data);
+      const response = await api.get('/media/public/files');
+      setFiles(response.data);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -86,15 +82,11 @@ function MediaGallery() {
       formData.append('userId', '00000000-0000-0000-0000-000000000000'); // Demo user
       formData.append('visibility', visibility);
 
-      const response = await fetch(`${API_BASE_URL}/upload`, {
-        method: 'POST',
-        body: formData
+      const response = await api.post('/media/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      if (!response.ok) throw new Error('Upload failed');
-
-      const data = await response.json();
-      setFiles([data, ...files]);
+      setFiles([response.data, ...files]);
       setUploadDialogOpen(false);
       setSelectedFile(null);
     } catch (err) {
@@ -109,12 +101,7 @@ function MediaGallery() {
     if (!window.confirm('Delete this file?')) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/files/${fileId}`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) throw new Error('Delete failed');
-
+      await api.delete(`/media/files/${fileId}`);
       setFiles(files.filter(f => f.id !== fileId));
     } catch (err) {
       setError(err.message);
@@ -126,10 +113,10 @@ function MediaGallery() {
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4" component="h1">
           Media Gallery
-          <Chip 
-            label="Phase 4: Image Optimization" 
-            color="primary" 
-            size="small" 
+          <Chip
+            label="Phase 4: Image Optimization"
+            color="primary"
+            size="small"
             sx={{ ml: 2 }}
           />
         </Typography>
@@ -172,7 +159,7 @@ function MediaGallery() {
                       alt={file.originalName}
                       sx={{
                         objectFit: 'cover',
-                        backgroundColor: file.dominantColor 
+                        backgroundColor: file.dominantColor
                           ? `rgb(${file.dominantColor.r}, ${file.dominantColor.g}, ${file.dominantColor.b})`
                           : '#f5f5f5'
                       }}
@@ -195,14 +182,14 @@ function MediaGallery() {
                     <Typography variant="caption" color="text.secondary">
                       {(file.size / 1024).toFixed(2)} KB
                     </Typography>
-                    
+
                     {/* Show optimization info if available */}
                     {file.responsiveSizes && (
                       <Box mt={1}>
-                        <Chip 
-                          label="Optimized" 
-                          size="small" 
-                          color="success" 
+                        <Chip
+                          label="Optimized"
+                          size="small"
+                          color="success"
                         />
                         {file.metadata && (
                           <Typography variant="caption" display="block" mt={0.5}>
@@ -252,7 +239,7 @@ function MediaGallery() {
             <Alert severity="info" sx={{ mb: 2 }}>
               Images will be automatically optimized with 4 responsive sizes (thumbnail, small, medium, large)
             </Alert>
-            
+
             <Button
               variant="outlined"
               component="label"
