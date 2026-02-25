@@ -79,28 +79,38 @@ const SettingsHub = lazy(() => import('./components/SettingsHub'));
 const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./components/TermsOfService'));
 const CookiePolicy = lazy(() => import('./components/CookiePolicy'));
-const HelpCenter = lazy(() => import('./components/helpcenter/HelpCenter'));
-const UserManuals = lazy(() => import('./components/helpcenter/UserManuals'));
-const FAQ = lazy(() => import('./components/helpcenter/FAQ'));
-const Feedback = lazy(() => import('./components/helpcenter/Feedback'));
-const SupportTicket = lazy(() => import('./components/helpcenter/SupportTicket'));
-const GettingStartedGuide = lazy(() => import('./components/helpcenter/guides/GettingStartedGuide'));
-const SocialFeaturesGuide = lazy(() => import('./components/helpcenter/guides/SocialFeaturesGuide'));
-const MessagingGuide = lazy(() => import('./components/helpcenter/guides/MessagingGuide'));
-const VideosGuide = lazy(() => import('./components/helpcenter/guides/VideosGuide'));
-const MeetingsGuide = lazy(() => import('./components/helpcenter/guides/MeetingsGuide'));
-const ShopGuide = lazy(() => import('./components/helpcenter/guides/ShopGuide'));
-const BlogGuide = lazy(() => import('./components/helpcenter/guides/BlogGuide'));
-const DocsGuide = lazy(() => import('./components/helpcenter/guides/DocsGuide'));
-const GroupsGuide = lazy(() => import('./components/helpcenter/guides/GroupsGuide'));
-const CartGuide = lazy(() => import('./components/helpcenter/guides/CartGuide'));
-const BookmarksGuide = lazy(() => import('./components/helpcenter/guides/BookmarksGuide'));
-const ProfileGuide = lazy(() => import('./components/helpcenter/guides/ProfileGuide'));
-const EmailSettingsGuide = lazy(() => import('./components/helpcenter/guides/EmailSettingsGuide'));
-const SearchGuide = lazy(() => import('./components/helpcenter/guides/SearchGuide'));
-const LiveRadioGuide = lazy(() => import('./components/helpcenter/guides/LiveRadioGuide'));
-const LiveTvGuide = lazy(() => import('./components/helpcenter/guides/LiveTvGuide'));
-const PagesGuide = lazy(() => import('./components/helpcenter/guides/PagesGuide'));
+const HelpCenter = lazy(() => import('./components/hubs/helpcenter/HelpCenter'));
+const UserManuals = lazy(() => import('./components/hubs/helpcenter/UserManuals'));
+const FAQ = lazy(() => import('./components/hubs/helpcenter/FAQ'));
+const Feedback = lazy(() => import('./components/hubs/helpcenter/Feedback'));
+const SupportTicket = lazy(() => import('./components/hubs/helpcenter/SupportTicket'));
+const GettingStartedGuide = lazy(() => import('./components/hubs/helpcenter/guides/GettingStartedGuide'));
+const SocialFeaturesGuide = lazy(() => import('./components/hubs/helpcenter/guides/SocialFeaturesGuide'));
+const MessagingGuide = lazy(() => import('./components/hubs/helpcenter/guides/MessagingGuide'));
+const VideosGuide = lazy(() => import('./components/hubs/helpcenter/guides/VideosGuide'));
+const MeetingsGuide = lazy(() => import('./components/hubs/helpcenter/guides/MeetingsGuide'));
+const ShopGuide = lazy(() => import('./components/hubs/helpcenter/guides/ShopGuide'));
+const BlogGuide = lazy(() => import('./components/hubs/helpcenter/guides/BlogGuide'));
+const DocsGuide = lazy(() => import('./components/hubs/helpcenter/guides/DocsGuide'));
+const GroupsGuide = lazy(() => import('./components/hubs/helpcenter/guides/GroupsGuide'));
+const CartGuide = lazy(() => import('./components/hubs/helpcenter/guides/CartGuide'));
+const BookmarksGuide = lazy(() => import('./components/hubs/helpcenter/guides/BookmarksGuide'));
+const ProfileGuide = lazy(() => import('./components/hubs/helpcenter/guides/ProfileGuide'));
+const EmailSettingsGuide = lazy(() => import('./components/hubs/helpcenter/guides/EmailSettingsGuide'));
+const SearchGuide = lazy(() => import('./components/hubs/helpcenter/guides/SearchGuide'));
+const LiveRadioGuide = lazy(() => import('./components/hubs/helpcenter/guides/LiveRadioGuide'));
+const LiveTvGuide = lazy(() => import('./components/hubs/helpcenter/guides/LiveTvGuide'));
+const PagesGuide = lazy(() => import('./components/hubs/helpcenter/guides/PagesGuide'));
+const HubsDirectory = lazy(() => import('./components/hubs/HubsDirectory'));
+const CommunityForum = lazy(() => import('./components/hubs/forum/CommunityForum'));
+const TransparencyHub = lazy(() => import('./components/hubs/transparency/TransparencyHub'));
+const DeveloperPortal = lazy(() => import('./components/hubs/developer/DeveloperPortal'));
+const CreatorHub = lazy(() => import('./components/hubs/creator/CreatorHub'));
+const BusinessSupport = lazy(() => import('./components/hubs/business/BusinessSupport'));
+const WellbeingCenter = lazy(() => import('./components/hubs/wellbeing/WellbeingCenter'));
+const EducationalResourceCenter = lazy(() => import('./components/hubs/education/EducationalResourceCenter'));
+const AccessibilityHub = lazy(() => import('./components/hubs/accessibility/AccessibilityHub'));
+const DonationHub = lazy(() => import('./components/hubs/donation/DonationHub'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -436,7 +446,7 @@ function AppContent() {
   const navigationItems = [
     { label: 'Home', path: '/', icon: <HomeIcon />, public: true },
     { label: 'Search', path: '/search', icon: <SearchIcon />, public: true },
-    { label: 'Help Center', path: '/helpcenter', icon: <ChatIcon />, public: true },
+    { label: 'Community Hubs', path: '/hubs', icon: <AppsIcon />, public: true },
     { label: 'Videos', path: '/videos', icon: <VideoLibrary />, public: true },
     { label: 'Shop', path: '/shop', icon: <ShoppingCart />, public: true },
     { label: 'Blog', path: '/blog', icon: <Article />, public: true },
@@ -1124,6 +1134,16 @@ function AppContent() {
                     element={<Home user={internalUser} />}
                   />
                   <Route path="/search" element={<Search />} />
+                  <Route path="/hubs" element={<HubsDirectory />} />
+                  <Route path="/hubs/forum" element={<CommunityForum />} />
+                  <Route path="/hubs/transparency" element={<TransparencyHub />} />
+                  <Route path="/hubs/developer" element={<DeveloperPortal />} />
+                  <Route path="/hubs/creator" element={<CreatorHub />} />
+                  <Route path="/hubs/business" element={<BusinessSupport />} />
+                  <Route path="/hubs/wellbeing" element={<WellbeingCenter />} />
+                  <Route path="/hubs/education" element={<EducationalResourceCenter />} />
+                  <Route path="/hubs/accessibility" element={<AccessibilityHub />} />
+                  <Route path="/hubs/donation" element={<DonationHub />} />
                   <Route path="/login" element={<Login setUser={setInternalUser} />} />
                   <Route path="/register" element={<Register setUser={setInternalUser} />} />
                   <Route path="/reset-password" element={<ResetRequest />} />
