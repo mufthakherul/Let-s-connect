@@ -12,6 +12,8 @@ RUN if [ -f package-lock.json ]; then npm ci --production --legacy-peer-deps; el
 
 # Copy shared utilities (needed by this service)
 COPY shared/ /services/shared/
+# install shared dependencies to ensure logger works
+RUN cd /services/shared && npm install --production --legacy-peer-deps
 
 # Copy service source
 COPY --chown=node:node media-service/ ./

@@ -1,0 +1,6 @@
+# Ignore node_modules from host to avoid overwriting layers
+node_modules
+**/node_modules
+npm-debug.log
+Dockerfile
+.dockerignore
