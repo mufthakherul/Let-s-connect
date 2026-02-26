@@ -113,6 +113,28 @@ find "$BACKUP_DIR" -name "*.rdb" -mtime +$RETENTION_DAYS -delete
 
 log "Backup cleanup completed"
 
+# Phase 10: S3 Archival
+if [ "${S3_BACKUP_ENABLED:-true}" = "true" ]; then
+    log "Archiving backups to S3/MinIO..."
+    S3_ENDPOINT="${S3_ENDPOINT:-http://minio:9000}"
+    S3_BUCKET="${S3_BACKUP_BUCKET:-backups}"
+    
+    # Check if AWS CLI is available
+    if command -v aws &> /dev/null; then
+        for file in "$BACKUP_DIR"/*${TIMESTAMP}*; do
+            filename=$(basename "$file")
+            log "Uploading $filename to s3://$S3_BUCKET/..."
+            if aws --endpoint-url "$S3_ENDPOINT" s3 cp "$file" "s3://$S3_BUCKET/database/$filename"; then
+                log "✓ $filename archived to S3"
+            else
+                warn "Failed to upload $filename to S3"
+            fi
+        done
+    else
+        warn "AWS CLI not found. Skipping S3 archival."
+    fi
+fi
+
 # Create backup summary
 SUMMARY_FILE="$BACKUP_DIR/backup_${TIMESTAMP}_summary.txt"
 cat > "$SUMMARY_FILE" <<EOF

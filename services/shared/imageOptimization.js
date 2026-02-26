@@ -86,6 +86,9 @@ class ImageOptimizer {
                 case 'webp':
                     pipeline = pipeline.webp({ quality });
                     break;
+                case 'avif':
+                    pipeline = pipeline.avif({ quality, lossless: false, speed: 5 });
+                    break;
                 case 'jpeg':
                 case 'jpg':
                     pipeline = pipeline.jpeg({ quality, progressive: true });
