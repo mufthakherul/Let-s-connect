@@ -12,8 +12,6 @@ RUN if [ -f package-lock.json ]; then npm ci --production --legacy-peer-deps || 
 
 # Copy shared utilities (needed by this service)
 COPY shared/ /services/shared/
-# install any dependencies used by shared utilities (logger, etc.)
-RUN cd /services/shared && npm install --production --legacy-peer-deps
 
 # Copy service source
 COPY --chown=node:node content-service/ ./
