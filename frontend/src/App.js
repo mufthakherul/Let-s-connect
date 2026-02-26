@@ -37,9 +37,8 @@ import Breadcrumbs from './components/common/Breadcrumbs';
 import QuickAccessMenu from './components/common/QuickAccessMenu';
 import Onboarding from './components/common/Onboarding';
 import BackgroundAnimation from './components/common/BackgroundAnimation';
-import { subscribeToPushNotifications } from './utils/pwa';
-import axios from 'axios';
-import config from './config/api';
+import { GlobalStyles } from '@mui/material';
+import { designTokens, getGlassyStyle } from './theme/designSystem';
 
 // Eager load critical components (needed for initial render)
 import Home from './components/Home';
@@ -115,9 +114,6 @@ const EducationalResourceCenter = lazy(() => import('./components/hubs/education
 const AccessibilityHub = lazy(() => import('./components/hubs/accessibility/AccessibilityHub'));
 const DonationHub = lazy(() => import('./components/hubs/donation/DonationHub'));
 
-// We keep the internal component file named Cart.js for compatibility with existing routes,
-// but it is now conceptually a "Saved Items" view.
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -179,10 +175,11 @@ function AppContent() {
   const [profileMenuAnchor, setProfileMenuAnchor] = useState(null);
   const { mode, toggleTheme, getAccentColor, initSystemThemeListener, accessibility } = useThemeStore();
 
-  // Brand gradient: purple for dark mode, indigo/cyan for light mode
-  const brandGradient = mode === 'dark'
-    ? 'linear-gradient(45deg, #b388ff, #7c3aed)'
-    : 'linear-gradient(45deg, #f21970, #e209f6)';
+  // Brand gradient: modern premium gradients from designTokens
+  const brandGradient = useMemo(() =>
+    `linear-gradient(135deg, ${designTokens.colors[mode].primary} 0%, ${designTokens.colors[mode].secondary} 100%)`,
+    [mode]
+  );
   const { user, logout } = useAuthStore();
   const isMobile = useMediaQuery('(max-width:900px)');
   const isTablet = useMediaQuery('(min-width:901px) and (max-width:1200px)');
@@ -198,37 +195,14 @@ function AppContent() {
     return cleanup;
   }, [initSystemThemeListener]);
 
-  // Pillar 4: Push Notifications - Subscribe on login
-  useEffect(() => {
-    const handlePushSubscription = async () => {
-      if (internalUser && 'serviceWorker' in navigator) {
-        try {
-          const subscription = await subscribeToPushNotifications();
-          if (subscription) {
-            console.log('[Push] Subscription obtained:', subscription);
-            // Send to messaging-service
-            await axios.post(`${config.MESSAGING_SERVICE_URL}/push/subscribe`, {
-              userId: internalUser.id,
-              subscription
-            });
-            console.log('[Push] Subscription synced with backend');
-          }
-        } catch (err) {
-          console.error('[Push] Failed to handle subscription:', err);
-        }
-      }
-    };
-
-    handlePushSubscription();
-  }, [internalUser]);
-
   const theme = useMemo(
     () => {
+      const { textScale, highContrast, largeText, reducedMotion, colorBlindSupport, magnification, glassmorphism, fontFamily } = accessibility;
+
       const accentColor = getAccentColor() || {
-        primary: '#1976d2',
-        secondary: '#dc004e',
+        primary: designTokens.colors[mode].primary,
+        secondary: designTokens.colors[mode].secondary,
       };
-      const { highContrast, largeText, textScale, colorBlindSupport, magnification, reducedMotion, fontFamily } = accessibility;
 
       const normalizeColor = (value, fallback) => {
         if (typeof value === 'string' && value.trim()) {
@@ -293,179 +267,103 @@ function AppContent() {
       const myPalette = {
         mode,
         primary: {
-          main: primaryColor,
-          light: mode === 'dark' ? '#ffffff' : '#42a5f5',
-          dark: mode === 'dark' ? '#cccccc' : '#1565c0',
-          ...(highContrast ? { contrastText: mode === 'dark' ? '#000000' : '#ffffff' } : {}),
+          main: highContrast ? (mode === 'dark' ? '#fff' : '#000') : accentColor.primary,
+          light: designTokens.colors[mode].primary + 'cc',
+          dark: designTokens.colors[mode].primary,
         },
         secondary: {
-          main: secondaryColor,
-          ...(highContrast ? { contrastText: '#000000' } : {}),
-        },
-        success: {
-          main: '#2e7d32',
-        },
-        info: {
-          main: '#0288d1',
-        },
-        warning: {
-          main: '#ed6c02',
-        },
-        error: {
-          main: '#d32f2f',
-        },
-        default: {
-          main: defaultMain,
-        },
-        inherit: {
-          main: highContrast
-            ? (mode === 'dark' ? '#ffffff' : '#000000')
-            : (mode === 'dark' ? '#ffffff' : '#000000'),
-        },
-        grey,
-        action: {
-          active: mode === 'dark' ? '#ffffff' : 'rgba(0, 0, 0, 0.54)',
-          hover: mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-          selected: mode === 'dark' ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.08)',
-          disabled: mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.26)',
-          disabledBackground: mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
-          focus: mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
+          main: highContrast ? (mode === 'dark' ? '#ff0' : '#f00') : accentColor.secondary,
         },
         background: {
-          default: highContrast
-            ? (mode === 'dark' ? '#000000' : '#ffffff')
-            : (mode === 'dark' ? '#121212' : '#fafafa'),
-          paper: highContrast
-            ? (mode === 'dark' ? '#000000' : '#ffffff')
-            : (mode === 'dark' ? '#1e1e1e' : '#ffffff'),
+          default: highContrast ? (mode === 'dark' ? '#000' : '#fff') : designTokens.colors[mode].background,
+          paper: highContrast ? (mode === 'dark' ? '#000' : '#fff') : designTokens.colors[mode].paper,
         },
         text: {
-          primary: highContrast
-            ? (mode === 'dark' ? '#ffffff' : '#000000')
-            : defaultTextPrimary,
-          secondary: highContrast
-            ? (mode === 'dark' ? '#cccccc' : '#333333')
-            : defaultTextSecondary,
+          primary: designTokens.colors[mode].text,
+          secondary: designTokens.colors[mode].textSecondary,
         },
+        divider: designTokens.colors[mode].border,
+        success: { main: '#10b981' },
       };
-
-      myPalette.primary = ensurePaletteEntry(myPalette.primary, '#1976d2');
-      myPalette.secondary = ensurePaletteEntry(myPalette.secondary, '#dc004e');
-      myPalette.success = ensurePaletteEntry(myPalette.success, '#2e7d32');
-      myPalette.info = ensurePaletteEntry(myPalette.info, '#0288d1');
-      myPalette.warning = ensurePaletteEntry(myPalette.warning, '#ed6c02');
-      myPalette.error = ensurePaletteEntry(myPalette.error, '#d32f2f');
-      myPalette.default = ensurePaletteEntry(myPalette.default, defaultMain);
-      myPalette.inherit = ensurePaletteEntry(myPalette.inherit, myPalette.text?.primary || '#000000');
 
       return createTheme({
         palette: myPalette,
         typography: {
-          fontFamily: fontFamilyMap[fontFamily] || fontFamilyMap.default,
-          fontSize: largeText ? 16 * textScale : 14 * textScale,
-          h1: { fontSize: largeText ? `${2.5 * textScale}rem` : `${2 * textScale}rem` },
-          h2: { fontSize: largeText ? `${2 * textScale}rem` : `${1.75 * textScale}rem` },
-          h3: { fontSize: largeText ? `${1.75 * textScale}rem` : `${1.5 * textScale}rem` },
-          h4: { fontSize: largeText ? `${1.5 * textScale}rem` : `${1.25 * textScale}rem` },
-          h5: { fontSize: largeText ? `${1.25 * textScale}rem` : `${1.125 * textScale}rem` },
-          h6: { fontSize: largeText ? `${1.125 * textScale}rem` : `${1 * textScale}rem` },
-          body1: { fontSize: largeText ? `${1.125 * textScale}rem` : `${1 * textScale}rem` },
-          body2: { fontSize: largeText ? `${1 * textScale}rem` : `${0.875 * textScale}rem` },
-          button: { fontSize: largeText ? `${1 * textScale}rem` : `${0.875 * textScale}rem` },
-          caption: { fontSize: largeText ? `${0.875 * textScale}rem` : `${0.75 * textScale}rem` },
+          fontFamily: designTokens.typography.fontFamily,
+          fontSize: 14 * textScale,
+          h1: { ...designTokens.typography.h1, fontSize: `${2.2 * textScale}rem` },
+          h2: { ...designTokens.typography.h2, fontSize: `${1.8 * textScale}rem` },
+          button: designTokens.typography.button,
         },
-        shape: {
-          borderRadius: 12,
-        },
-        transitions: {
-          duration: reducedMotion ? {
-            shortest: 0,
-            shorter: 0,
-            short: 0,
-            standard: 0,
-            complex: 0,
-            enteringScreen: 0,
-            leavingScreen: 0,
-          } : {
-            shortest: 150,
-            shorter: 200,
-            short: 250,
-            standard: 300,
-            complex: 375,
-            enteringScreen: 225,
-            leavingScreen: 195,
-          },
-        },
+        shape: { borderRadius: 12 },
         components: {
           MuiCssBaseline: {
             styleOverrides: {
               body: {
-                filter: colorBlindSupport ? getColorBlindFilters(colorBlindSupport) : 'none',
-                zoom: magnification !== 1.0 ? magnification : undefined,
-                transform: magnification !== 1.0 ? `scale(${magnification})` : undefined,
-                transformOrigin: magnification !== 1.0 ? 'top left' : undefined,
-              },
-            },
-          },
-          MuiButton: {
-            defaultProps: {
-              color: 'primary',
-            },
-            styleOverrides: {
-              root: {
-                textTransform: 'none',
-                fontWeight: 600,
-                minHeight: largeText ? 48 : 36,
-                padding: largeText ? '12px 24px' : '6px 16px',
-              },
-            },
-          },
-          MuiCard: {
-            styleOverrides: {
-              root: {
-                boxShadow: highContrast
-                  ? '0 0 0 2px ' + (mode === 'dark' ? '#ffffff' : '#000000')
-                  : (mode === 'dark'
-                    ? '0 2px 8px rgba(0,0,0,0.4)'
-                    : '0 2px 8px rgba(0,0,0,0.1)'),
-                transition: reducedMotion ? 'none' : 'box-shadow 0.3s ease-in-out, background-color 0.3s ease-in-out',
-              },
-            },
-          },
-          MuiPaper: {
-            styleOverrides: {
-              root: {
-                transition: reducedMotion ? 'none' : 'background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
+                scrollbarWidth: 'thin',
+                '&::-webkit-scrollbar': { width: '8px', height: '8px' },
+                '&::-webkit-scrollbar-track': { background: 'transparent' },
+                '&::-webkit-scrollbar-thumb': {
+                  background: mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                  borderRadius: '10px',
+                },
+                '&::-webkit-scrollbar-thumb:hover': {
+                  background: mode === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+                },
               },
             },
           },
           MuiAppBar: {
             styleOverrides: {
               root: {
-                transition: reducedMotion ? 'none' : 'background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
+                ...(glassmorphism ? getGlassyStyle(mode) : {}),
+                backgroundImage: 'none',
+                boxShadow: 'none',
+                borderBottom: `1px solid ${designTokens.colors[mode].border}`,
               },
             },
           },
-          MuiTextField: {
+          MuiDrawer: {
+            styleOverrides: {
+              paper: {
+                ...(glassmorphism ? getGlassyStyle(mode) : {}),
+                backgroundImage: 'none',
+                borderRight: `1px solid ${designTokens.colors[mode].border}`,
+              },
+            },
+          },
+          MuiCard: {
             styleOverrides: {
               root: {
-                '& .MuiInputBase-input': {
-                  fontSize: largeText ? `${1.125 * textScale}rem` : `${1 * textScale}rem`,
+                ...(glassmorphism ? {
+                  backgroundColor: mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.4)',
+                  backdropFilter: 'blur(8px)',
+                } : {}),
+                borderRadius: 16,
+                border: `1px solid ${designTokens.colors[mode].border}`,
+                boxShadow: mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.05)',
+                transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: mode === 'dark' ? '0 12px 30px rgba(0,0,0,0.6)' : '0 12px 30px rgba(0,0,0,0.12)',
                 },
               },
             },
           },
-          MuiTypography: {
+          MuiButton: {
             styleOverrides: {
               root: {
-                lineHeight: largeText ? 1.6 : 1.4,
+                borderRadius: 10,
+                textTransform: 'none',
+                fontWeight: 600,
+                padding: '8px 20px',
               },
             },
           },
         },
       });
     },
-    [mode, getAccentColor, accessibility]
+    [mode, accessibility, getAccentColor]
   );
 
   const handleLogout = () => {
@@ -491,7 +389,7 @@ function AppContent() {
     { label: 'Pages', path: '/pages', icon: <PagesIcon />, public: false },
     { label: 'Radio', path: '/radio', icon: <RadioIcon />, public: false },
     { label: 'TV', path: '/tv', icon: <TvIcon />, public: false },
-    { label: 'Saved Items', path: '/cart', icon: <Bookmark />, public: false },
+    { label: 'Cart', path: '/cart', icon: <ShoppingCartOutlined />, public: false },
     { label: 'Bookmarks', path: '/bookmarks', icon: <Bookmark />, public: false },
     { label: 'Chat', path: '/chat', icon: <ChatIcon />, public: false },
     { label: 'Profile', path: '/profile', icon: <Person />, public: false },
@@ -693,14 +591,20 @@ function AppContent() {
                   <Box id="registered-search" sx={{
                     display: 'flex',
                     alignItems: 'center',
-                    backgroundColor: mode === 'dark' ? '#3a3b3c' : '#f0f2f5',
-                    borderRadius: '20px',
+                    backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                    borderRadius: '12px',
                     px: 1.5,
                     py: 0.5,
                     minWidth: '260px',
-                    ml: 1
+                    ml: 1,
+                    transition: 'all 0.2s ease',
+                    border: `1px solid ${designTokens.colors[mode].border}`,
+                    '&:focus-within': {
+                      backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,1)',
+                      boxShadow: `0 0 0 2px ${designTokens.colors[mode].primary}44`,
+                    }
                   }}>
-                    <SearchIcon sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', mr: 1, fontSize: '1.2rem' }} />
+                    <SearchIcon sx={{ color: 'text.secondary', mr: 1, fontSize: '1.2rem' }} />
                     <input
                       type="text"
                       placeholder="Search people, posts, docs..."
@@ -709,16 +613,16 @@ function AppContent() {
                         border: 'none',
                         outline: 'none',
                         backgroundColor: 'transparent',
-                        color: mode === 'dark' ? '#e4e6eb' : '#000',
+                        color: 'inherit',
                         fontSize: '0.95rem',
                         width: '100%',
-                        fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI'
+                        fontFamily: 'inherit'
                       }}
                       autoFocus
                     />
                     <Tooltip title="Close search">
-                      <IconButton onClick={() => setShowRegisteredSearch(false)} sx={{ ml: 1 }} aria-label="Close search">
-                        <CloseIcon />
+                      <IconButton onClick={() => setShowRegisteredSearch(false)} sx={{ ml: 1 }} size="small">
+                        <CloseIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   </Box>
@@ -732,86 +636,136 @@ function AppContent() {
                     component={Link}
                     to="/"
                     sx={{
-                      color: mode === 'dark' ? '#a8aaad' : '#65676b',
+                      color: 'text.secondary',
                       '&:hover': {
-                        color: '#0a66c2',
-                        transform: 'scale(1.1)'
+                        color: 'primary.main',
+                        transform: 'translateY(-2px)'
                       },
-                      borderRadius: 1,
+                      borderRadius: 2,
                       px: 2,
                       py: 1,
                       position: 'relative',
-                      transition: 'all 0.2s ease-in-out'
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                     }}
                     title="Home"
                   >
-                    <HomeIcon sx={{ fontSize: '1.5rem' }} />
-                    <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: '#0a66c2', borderRadius: '2px 2px 0 0', display: window.location.pathname === '/' ? 'block' : 'none' }} />
+                    <HomeIcon sx={{ fontSize: '1.6rem' }} />
+                    {window.location.pathname === '/' && (
+                      <motion.div
+                        layoutId="nav-underline"
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: '20%',
+                          right: '20%',
+                          height: '3px',
+                          background: brandGradient,
+                          borderRadius: '4px 4px 0 0'
+                        }}
+                      />
+                    )}
                   </IconButton>
 
                   <IconButton
                     component={Link}
                     to="/friends"
                     sx={{
-                      color: mode === 'dark' ? '#a8aaad' : '#65676b',
+                      color: 'text.secondary',
                       '&:hover': {
-                        color: '#0a66c2',
-                        transform: 'scale(1.1)'
+                        color: 'primary.main',
+                        transform: 'translateY(-2px)'
                       },
-                      borderRadius: 1,
+                      borderRadius: 2,
                       px: 2,
                       py: 1,
-                      transition: 'all 0.2s ease-in-out'
+                      position: 'relative',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                     }}
                     title="Friends"
                   >
-                    <PeopleIcon sx={{ fontSize: '1.5rem' }} />
+                    <PeopleIcon sx={{ fontSize: '1.6rem' }} />
+                    {window.location.pathname === '/friends' && (
+                      <motion.div
+                        layoutId="nav-underline"
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: '20%',
+                          right: '20%',
+                          height: '3px',
+                          background: brandGradient,
+                          borderRadius: '4px 4px 0 0'
+                        }}
+                      />
+                    )}
                   </IconButton>
-                  <Tooltip title="Saved Items">
-                    <IconButton
-                      component={Link}
-                      to="/cart"
-                      sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', ml: 1 }}
-                    >
-                      <Bookmark />
-                    </IconButton>
-                  </Tooltip>
+
                   <IconButton
                     component={Link}
                     to="/videos"
                     sx={{
-                      color: mode === 'dark' ? '#a8aaad' : '#65676b',
+                      color: 'text.secondary',
                       '&:hover': {
-                        color: '#0a66c2',
-                        transform: 'scale(1.1)'
+                        color: 'primary.main',
+                        transform: 'translateY(-2px)'
                       },
-                      borderRadius: 1,
+                      borderRadius: 2,
                       px: 2,
                       py: 1,
-                      transition: 'all 0.2s ease-in-out'
+                      position: 'relative',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                     }}
                     title="Videos"
                   >
-                    <VideoLibrary sx={{ fontSize: '1.5rem' }} />
+                    <VideoLibrary sx={{ fontSize: '1.6rem' }} />
+                    {window.location.pathname === '/videos' && (
+                      <motion.div
+                        layoutId="nav-underline"
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: '20%',
+                          right: '20%',
+                          height: '3px',
+                          background: brandGradient,
+                          borderRadius: '4px 4px 0 0'
+                        }}
+                      />
+                    )}
                   </IconButton>
 
                   <IconButton
                     component={Link}
                     to="/groups"
                     sx={{
-                      color: mode === 'dark' ? '#a8aaad' : '#65676b',
+                      color: 'text.secondary',
                       '&:hover': {
-                        color: '#0a66c2',
-                        transform: 'scale(1.1)'
+                        color: 'primary.main',
+                        transform: 'translateY(-2px)'
                       },
-                      borderRadius: 1,
+                      borderRadius: 2,
                       px: 2,
                       py: 1,
-                      transition: 'all 0.2s ease-in-out'
+                      position: 'relative',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                     }}
                     title="Groups"
                   >
-                    <GroupIcon sx={{ fontSize: '1.5rem' }} />
+                    <GroupIcon sx={{ fontSize: '1.6rem' }} />
+                    {window.location.pathname === '/groups' && (
+                      <motion.div
+                        layoutId="nav-underline"
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: '20%',
+                          right: '20%',
+                          height: '3px',
+                          background: brandGradient,
+                          borderRadius: '4px 4px 0 0'
+                        }}
+                      />
+                    )}
                   </IconButton>
 
                   {/* Apps (9-dot) button */}
@@ -822,8 +776,12 @@ function AppContent() {
                       aria-haspopup="true"
                       aria-expanded={Boolean(registeredAppsAnchor)}
                       onClick={(e) => setRegisteredAppsAnchor(e.currentTarget)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setRegisteredAppsAnchor(e.currentTarget); e.preventDefault(); } }}
-                      sx={{ color: mode === 'dark' ? '#a8aaad' : '#65676b', ml: 1, '&:focus-visible': { outline: '2px solid rgba(10,102,194,0.25)', outlineOffset: '2px' } }}
+                      sx={{
+                        color: 'text.secondary',
+                        ml: 1,
+                        '&:hover': { color: 'primary.main', backgroundColor: 'action.hover' },
+                        transition: 'all 0.2s ease'
+                      }}
                     >
                       <AppsIcon sx={{ fontSize: '1.4rem' }} />
                     </IconButton>

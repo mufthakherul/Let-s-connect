@@ -3,7 +3,8 @@ import { motion } from 'framer-motion';
 import { Box } from '@mui/material';
 
 const FloatingParticles = () => {
-    const particles = Array.from({ length: 20 }, (_, i) => i);
+    // Reduced count for better performance and subtlety
+    const particles = Array.from({ length: 15 }, (_, i) => i);
 
     return (
         <Box
@@ -23,21 +24,22 @@ const FloatingParticles = () => {
                     key={particle}
                     style={{
                         position: 'absolute',
-                        width: Math.random() * 6 + 2,
-                        height: Math.random() * 6 + 2,
-                        backgroundColor: `rgba(${Math.random() * 100 + 155}, ${Math.random() * 100 + 155}, ${Math.random() * 100 + 255}, 0.3)`,
+                        width: Math.random() * 4 + 1, // Smaller particles
+                        height: Math.random() * 4 + 1,
+                        backgroundColor: `rgba(255, 255, 255, ${Math.random() * 0.15 + 0.05})`,
                         borderRadius: '50%',
                         left: `${Math.random() * 100}%`,
                         top: `${Math.random() * 100}%`,
+                        boxShadow: '0 0 10px rgba(255,255,255,0.2)',
                     }}
                     animate={{
                         x: [0, Math.random() * 100 - 50, 0],
                         y: [0, Math.random() * 100 - 50, 0],
-                        scale: [1, Math.random() * 0.5 + 0.5, 1],
-                        opacity: [0.3, 0.8, 0.3],
+                        opacity: [0.1, 0.4, 0.1],
+                        scale: [1, 1.2, 1],
                     }}
                     transition={{
-                        duration: Math.random() * 10 + 10,
+                        duration: Math.random() * 15 + 15,
                         repeat: Infinity,
                         ease: 'easeInOut',
                     }}
@@ -58,30 +60,26 @@ const GradientWaves = () => {
                 height: '100%',
                 pointerEvents: 'none',
                 zIndex: -1,
-                overflow: 'hidden'
+                overflow: 'hidden',
+                background: 'radial-gradient(circle at 50% 50%, #0f172a 0%, #020617 100%)'
             }}
         >
-            {/* Muted, slow-moving gradients so content remains readable */}
             <motion.div
                 style={{
                     position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    background: 'linear-gradient(135deg, #1565c0 0%, #283593 100%)',
-                    opacity: 0.06,
+                    top: '-25%',
+                    left: '-25%',
+                    width: '150%',
+                    height: '150%',
+                    background: 'radial-gradient(circle at center, rgba(99, 102, 241, 0.08) 0%, transparent 50%)',
                 }}
                 animate={{
-                    background: [
-                        'linear-gradient(135deg, #1565c0 0%, #283593 100%)',
-                        'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
-                        'linear-gradient(135deg, #546e7a 0%, #263238 100%)',
-                        'linear-gradient(135deg, #1565c0 0%, #283593 100%)',
-                    ],
+                    x: [0, 50, 0],
+                    y: [0, -50, 0],
+                    scale: [1, 1.1, 1],
                 }}
                 transition={{
-                    duration: 30,
+                    duration: 20,
                     repeat: Infinity,
                     ease: 'easeInOut',
                 }}
@@ -89,18 +87,19 @@ const GradientWaves = () => {
             <motion.div
                 style={{
                     position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '50%',
-                    background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 70%)',
+                    bottom: '-25%',
+                    right: '-25%',
+                    width: '150%',
+                    height: '150%',
+                    background: 'radial-gradient(circle at center, rgba(236, 72, 153, 0.05) 0%, transparent 50%)',
                 }}
                 animate={{
-                    scale: [1, 1.08, 1],
-                    opacity: [0.06, 0.16, 0.06],
+                    x: [0, -50, 0],
+                    y: [0, 50, 0],
+                    scale: [1, 1.1, 1],
                 }}
                 transition={{
-                    duration: 14,
+                    duration: 25,
                     repeat: Infinity,
                     ease: 'easeInOut',
                 }}
@@ -109,37 +108,96 @@ const GradientWaves = () => {
     );
 };
 
+const Nebula = () => {
+    return (
+        <Box
+            sx={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+                zIndex: -1,
+                overflow: 'hidden',
+                background: '#020617',
+            }}
+        >
+            <Box
+                sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundImage: 'url("https://www.transparenttextures.com/patterns/stardust.png")',
+                    opacity: 0.15,
+                }}
+            />
+            <motion.div
+                style={{
+                    position: 'absolute',
+                    top: '10%',
+                    left: '10%',
+                    width: '60vw',
+                    height: '60vw',
+                    borderRadius: '50%',
+                    background: 'radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%)',
+                    filter: 'blur(60px)',
+                }}
+                animate={{
+                    scale: [1, 1.2, 1],
+                    opacity: [0.5, 0.8, 0.5],
+                    x: [0, 30, 0],
+                }}
+                transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <motion.div
+                style={{
+                    position: 'absolute',
+                    bottom: '10%',
+                    right: '10%',
+                    width: '70vw',
+                    height: '70vw',
+                    borderRadius: '50%',
+                    background: 'radial-gradient(circle, rgba(236, 72, 153, 0.08) 0%, transparent 70%)',
+                    filter: 'blur(80px)',
+                }}
+                animate={{
+                    scale: [1.2, 1, 1.2],
+                    opacity: [0.6, 0.4, 0.6],
+                    x: [0, -40, 0],
+                }}
+                transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
+            />
+        </Box>
+    );
+};
+
 const BackgroundAnimation = ({ variant = 'auto', isLoggedIn, reducedMotion }) => {
-    // Disable animations when reduced motion is enabled for accessibility
     if (reducedMotion || variant === 'none') return null;
 
-    // Allow explicit variant selection. 'auto' falls back to isLoggedIn behavior.
     switch (variant) {
+        case 'nebula':
+        case 'landing':
+            return <Nebula />;
         case 'loggedIn':
             return <FloatingParticles />;
-        case 'landing':
         case 'gradient':
             return <GradientWaves />;
         case 'subtle':
-            // subtle is a very light gradient (smaller visual footprint)
             return (
                 <Box
                     sx={{
                         position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        pointerEvents: 'none',
-                        zIndex: -1,
-                        overflow: 'hidden',
-                        background: 'linear-gradient(180deg, rgba(0,0,0,0.04), transparent)'
+                        top: 0, left: 0, width: '100%', height: '100%', zIndex: -1,
+                        background: 'linear-gradient(180deg, rgba(0,0,0,0.02), transparent)'
                     }}
                 />
             );
         case 'auto':
         default:
-            return isLoggedIn ? <FloatingParticles /> : <GradientWaves />;
+            return isLoggedIn ? <FloatingParticles /> : <Nebula />;
     }
 };
 

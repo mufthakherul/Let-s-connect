@@ -51,6 +51,10 @@ import { formatRelativeTime, formatApproximateTime, formatNumber, getInitials } 
 import { ANONYMOUS_USER_POST_LABEL, getPostAuthorLabel } from '../utils/profileRoutes';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
+import { motion, AnimatePresence } from 'framer-motion';
+import { designTokens, getGlassyStyle } from '../theme/designSystem';
+import { useTheme } from '@mui/material/styles';
+import { Tooltip } from '@mui/material';
 
 const VISIBILITY_OPTIONS = [
   { value: 'public', label: 'Public', icon: <Public fontSize="small" /> },
@@ -67,7 +71,43 @@ const REACTIONS = [
   { value: 'angry', label: 'Angry', emoji: '😡' }
 ];
 
+const containerVariants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: 'easeOut', staggerChildren: 0.1 }
+  }
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+};
+
+const hoverCardSx = (mode) => ({
+  ...getGlassyStyle(mode),
+  borderRadius: 4,
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  '&:hover': {
+    transform: 'translateY(-4px)',
+    boxShadow: designTokens.glassmorphism[mode].boxShadow,
+    borderColor: designTokens.colors[mode].primary,
+  }
+});
+
+const softActionSx = {
+  borderRadius: 2,
+  transition: 'all 0.2s ease',
+  '&:hover': {
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    transform: 'scale(1.05)'
+  }
+};
+
 function Feed({ user }) {
+  const theme = useTheme();
+  const mode = theme.palette.mode;
   const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [newPost, setNewPost] = useState('');
@@ -442,12 +482,12 @@ function Feed({ user }) {
   };
 
   return (
-    <Box sx={{ maxWidth: 720, mx: 'auto' }}>
+    <Box component={motion.div} variants={containerVariants} initial="hidden" animate="visible" sx={{ maxWidth: 720, mx: 'auto', py: 2 }}>
       <Typography variant="h4" fontWeight="bold" sx={{ mb: 3 }}>
         Feed
       </Typography>
 
-      <Card sx={{ mb: 3, boxShadow: 3 }}>
+      <Card component={motion.div} variants={cardVariants} sx={{ mb: 3, ...hoverCardSx(mode) }}>
         <CardContent>
           <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
             <Avatar sx={{ bgcolor: 'primary.main' }}>
@@ -587,8 +627,10 @@ function Feed({ user }) {
       ) : (
         posts.map((post, index) => (
           <Card
+            component={motion.div}
+            variants={cardVariants}
             key={post.id}
-            sx={{ mb: 2 }}
+            sx={{ mb: 2, ...hoverCardSx(mode) }}
             ref={index === posts.length - 5 ? ref : null}
           >
             <CardHeader

@@ -54,7 +54,9 @@ import { formatRelativeTime, formatApproximateTime, formatNumber, getInitials } 
 import { ANONYMOUS_USER_POST_LABEL, buildProfilePath, getPostAuthorLabel } from '../utils/profileRoutes';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { designTokens, getGlassyStyle } from '../theme/designSystem';
+import { useTheme } from '@mui/material/styles';
 
 const VISIBILITY_OPTIONS = [
     { value: 'public', label: 'Public', icon: <Public fontSize="small" /> },
@@ -85,19 +87,23 @@ const cardVariants = {
     visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } }
 };
 
-const hoverCardSx = {
-    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+const hoverCardSx = (mode) => ({
+    ...getGlassyStyle(mode),
+    borderRadius: 4,
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     '&:hover': {
         transform: 'translateY(-4px)',
-        boxShadow: 6
+        boxShadow: designTokens.glassmorphism[mode].boxShadow,
+        borderColor: designTokens.colors[mode].primary,
     }
-};
+});
 
 const softActionSx = {
-    transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+    borderRadius: 2,
+    transition: 'all 0.2s ease',
     '&:hover': {
-        transform: 'translateY(-1px)',
-        boxShadow: 3
+        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+        transform: 'scale(1.05)'
     }
 };
 
@@ -494,7 +500,12 @@ function Homepage({ user }) {
         const isVideo = post.type === 'video';
 
         return (
-            <Card component={motion.div} variants={cardVariants} key={post.id || index} sx={{ mb: 2, ...hoverCardSx }}>
+            <Card
+                component={motion.div}
+                variants={cardVariants}
+                key={post.id || index}
+                sx={{ mb: 2, ...hoverCardSx(mode) }}
+            >
                 <CardHeader
                     avatar={
                         <Tooltip title={post.isAnonymous ? 'Anonymous' : 'View profile'} arrow>
