@@ -11,7 +11,6 @@ import {
     Security as SecurityIcon,
     Search as ResearchIcon,
     MenuBook as TutorialIcon,
-    MenuBook as TutorialIcon,
     PlayCircleFilled as PlayIcon
 } from '@mui/icons-material';
 import axios from 'axios';

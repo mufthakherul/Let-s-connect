@@ -94,9 +94,10 @@ function Login({ setUser }) {
   return (
     <Container maxWidth="sm" sx={{ mt: 8, mb: 4 }}>
       <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={containerVariants}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        style={{ position: 'relative', zIndex: 10, willChange: 'opacity, transform' }}
       >
         <Paper
           elevation={0}

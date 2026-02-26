@@ -317,6 +317,8 @@ function AppContent() {
             styleOverrides: {
               root: {
                 ...(glassmorphism ? getGlassyStyle(mode) : {}),
+                backgroundColor: mode === 'dark' ? '#1e293b' : '#ffffff',
+                color: mode === 'dark' ? '#f8fafc' : '#0f172a',
                 backgroundImage: 'none',
                 boxShadow: 'none',
                 borderBottom: `1px solid ${designTokens.colors[mode].border}`,
@@ -921,7 +923,18 @@ function AppContent() {
           </AppBar>
         ) : (
           /* Classic Navbar for UNREGISTERED users */
-          <AppBar position="sticky" elevation={1}>
+          <AppBar
+            position="sticky"
+            elevation={1}
+            sx={{
+              backgroundColor: mode === 'light' ? '#ffffff' : 'primary.main',
+              color: mode === 'light' ? '#0f172a !important' : '#ffffff !important',
+              borderBottom: theme => `1px solid ${theme.palette.divider}`,
+              '& .MuiButton-root, & .MuiIconButton-root, & .MuiTypography-root': {
+                color: 'inherit !important'
+              }
+            }}
+          >
             <Toolbar>
               {isMobile && (
                 <IconButton edge="start" color="inherit" onClick={() => setDrawerOpen(true)} sx={{ mr: 2 }}>
@@ -941,7 +954,9 @@ function AppContent() {
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     fontWeight: 700,
-                    mr: 2
+                    mr: 2,
+                    // Ensure visibility on different backgrounds
+                    filter: mode === 'light' ? 'drop-shadow(0 0 1px rgba(0,0,0,0.1))' : 'none',
                   }}
                 >
                   Let's Connect
@@ -958,7 +973,8 @@ function AppContent() {
                         minWidth: 'auto',
                         px: 2,
                         '&:hover': { transform: 'scale(1.05)' },
-                        transition: 'all 0.2s ease-in-out'
+                        transition: 'all 0.2s ease-in-out',
+                        color: mode === 'light' ? 'rgba(0,0,0,0.8)' : 'inherit'
                       }}
                     >
                       Docs
@@ -972,7 +988,8 @@ function AppContent() {
                         minWidth: 'auto',
                         px: 2,
                         '&:hover': { transform: 'scale(1.05)' },
-                        transition: 'all 0.2s ease-in-out'
+                        transition: 'all 0.2s ease-in-out',
+                        color: mode === 'light' ? 'rgba(0,0,0,0.8)' : 'inherit'
                       }}
                     >
                       Videos
@@ -1018,7 +1035,8 @@ function AppContent() {
                       sx={{
                         '&:hover': { transform: 'scale(1.05)' },
                         transition: 'all 0.2s ease-in-out',
-                        ml: 1
+                        ml: 1,
+                        color: mode === 'light' ? 'rgba(0,0,0,0.8)' : 'inherit'
                       }}
                     >
                       Login
@@ -1118,7 +1136,7 @@ function AppContent() {
               transition={{ duration: 0.3 }}
             >
               <Suspense fallback={<PageLoader />}>
-                <Routes>
+                <Routes location={location}>
                   {/* Root route - Homepage for logged-in users showing all public posts */}
                   <Route
                     path="/"
