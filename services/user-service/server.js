@@ -18,7 +18,7 @@ const migrationManager = new MigrationManager(sequelize, 'user-service');
 healthChecker.registerCheck('database', () => checkDatabase(sequelize));
 healthChecker.registerCheck('redis', () => checkRedis(cacheManager.redis));
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 8001;
 
 // Middleware
 app.use(helmet());
