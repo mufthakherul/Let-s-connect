@@ -1,17 +1,22 @@
 FROM node:18-alpine
 
-ENV PORT=8001
+# Build context is ./services/
+# This allows access to shared utilities via COPY
 
-WORKDIR /app
+WORKDIR /services/user-service
 
-# Install dependencies
-COPY package*.json ./
+# Install dependencies first for layer caching
+COPY user-service/package*.json ./
 RUN npm install --production --legacy-peer-deps
 
-# Copy source and set ownership for non-root user
-COPY --chown=node:node . .
+# Copy shared utilities (needed by this service)
+COPY shared/ /services/shared/
 
-# Use non-root user
+# Copy service source
+COPY --chown=node:node user-service/ ./
+
+ENV PORT=8001
+
 USER node
 
 EXPOSE 8001

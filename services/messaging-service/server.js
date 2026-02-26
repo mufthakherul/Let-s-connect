@@ -835,13 +835,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', service: 'messaging-service' });
 });
 
-res.json(conversations);
-  } catch (error) {
-  console.error(error);
-  res.status(500).json({ error: 'Failed to fetch conversations' });
-}
-});
-
 // Subscribe to push notifications
 app.post('/push/subscribe', async (req, res) => {
   try {

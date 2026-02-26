@@ -1,7 +1,8 @@
 services:
   # API Gateway
   api-gateway:
-    build: ./services/api-gateway
+    build:
+      context: ./services/api-gateway
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -41,7 +42,9 @@ services:
 
   # User Service (Authentication, Profiles)
   user-service:
-    build: ./services/user-service
+    build:
+      context: ./services
+      dockerfile: user-service/Dockerfile
     restart: unless-stopped
     ports:
       - "8001:8001"
@@ -79,7 +82,9 @@ services:
 
   # Content Service (Posts, Feeds, Videos)
   content-service:
-    build: ./services/content-service
+    build:
+      context: ./services
+      dockerfile: content-service/Dockerfile
     restart: unless-stopped
     ports:
       - "8002:8002"
@@ -107,7 +112,8 @@ services:
 
   # Messaging Service (Chat, Real-time)
   messaging-service:
-    build: ./services/messaging-service
+    build:
+      context: ./services/messaging-service
     restart: unless-stopped
     ports:
       - "8003:8003"
@@ -134,7 +140,8 @@ services:
 
   # Collaboration Service (Docs, Wiki, Notion-like)
   collaboration-service:
-    build: ./services/collaboration-service
+    build:
+      context: ./services/collaboration-service
     restart: unless-stopped
     ports:
       - "8004:8004"
@@ -159,7 +166,9 @@ services:
 
   # Media Service (Files, Images, Storage)
   media-service:
-    build: ./services/media-service
+    build:
+      context: ./services
+      dockerfile: media-service/Dockerfile
     restart: unless-stopped
     ports:
       - "8005:8005"
@@ -187,7 +196,8 @@ services:
 
   # Shop Service (E-commerce)
   shop-service:
-    build: ./services/shop-service
+    build:
+      context: ./services/shop-service
     restart: unless-stopped
     ports:
       - "8006:8006"
@@ -209,7 +219,8 @@ services:
 
   # AI Assistant Service
   ai-service:
-    build: ./services/ai-service
+    build:
+      context: ./services/ai-service
     restart: unless-stopped
     ports:
       - "8007:8007"
@@ -232,7 +243,8 @@ services:
 
   # Streaming Service (Radio, IPTV)
   streaming-service:
-    build: ./services/streaming-service
+    build:
+      context: ./services/streaming-service
     restart: unless-stopped
     ports:
       - "8009:8009"
