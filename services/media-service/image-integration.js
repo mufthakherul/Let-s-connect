@@ -1,108 +1,48 @@
-/**
- * Image Optimization Integration for Media Service
- * Phase 4: Scale & Performance (v2.5)
- * 
- * This file integrates image optimization into media-service
- * Works with multer memory storage for buffer-based uploads
- */
-
 const { ImageOptimizer, ImageUtils } = require('../shared/imageOptimization');
 const path = require('path');
 const fs = require('fs').promises;
 const os = require('os');
+const uuid = require('uuid').v4;
 
-// Initialize image optimizer
-const imageOptimizer = new ImageOptimizer();
+const imageOptimizer = new ImageOptimizer({
+    generateThumbnails: true,
+    format: 'webp',
+    quality: 85
+});
 
 /**
- * Process single image upload with optimization
- * Works with buffer-based uploads (multer.memoryStorage)
+ * Process single image with professional multi-size generation
+ * @param {Object} file Multer file object (buffer)
  */
-async function processSingleImage(file, options = {}) {
-    const tempDir = path.join(os.tmpdir(), 'image-optimization', Date.now().toString());
-    
+async function processSingleImage(file) {
+    const tempDir = path.join(os.tmpdir(), 'lets-connect-opt', uuid());
+    await fs.mkdir(tempDir, { recursive: true });
+
     try {
-        const {
-            generateSizes = true,
-            format = 'webp',
-            quality = 85
-        } = options;
-
-        // Create temp directory for processing
-        await fs.mkdir(tempDir, { recursive: true });
-
-        // Write buffer to temp file
-        const tempInputPath = path.join(tempDir, file.originalname);
+        const tempInputPath = path.join(tempDir, `input_${file.originalname}`);
         await fs.writeFile(tempInputPath, file.buffer);
 
-        const results = {
-            original: file,
-            optimized: null,
-            sizes: {},
-            metadata: null,
-            dominantColor: null,
-            blurPlaceholder: null
-        };
+        // 1. Generate core metadata and dominant color
+        const metadata = await ImageUtils.getDimensions(tempInputPath);
+        const dominantColor = await ImageUtils.getDominantColor(tempInputPath);
 
-        // Generate responsive sizes
-        if (generateSizes) {
-            const sizes = await imageOptimizer.generateResponsiveSizes(tempInputPath, tempDir);
-            results.sizes = sizes;
-        } else {
-            // Just optimize the original
-            const outputPath = path.join(tempDir, `optimized-${file.originalname}`);
-            await imageOptimizer.optimizeImage(tempInputPath, outputPath, {
-                format,
-                quality
-            });
-            results.optimized = outputPath;
-        }
-
-        // Get image metadata
-        results.metadata = await ImageUtils.getDimensions(tempInputPath);
-
-        // Generate blur placeholder for lazy loading
-        const blurPath = path.join(tempDir, `blur-${file.originalname}.webp`);
+        // 2. Generate Blur Placeholder (Base64)
+        const blurPath = path.join(tempDir, 'blur.webp');
         await ImageUtils.generateBlurPlaceholder(tempInputPath, blurPath);
-        results.blurPlaceholder = blurPath;
 
-        // Get dominant color for placeholder background
-        results.dominantColor = await ImageUtils.getDominantColor(tempInputPath);
+        // 3. Generate Responsive Sizes (WebP)
+        const sizes = await imageOptimizer.generateResponsiveSizes(tempInputPath, tempDir);
 
-        // Clean up temp input file
-        await fs.unlink(tempInputPath);
-
-        return results;
+        return {
+            metadata,
+            dominantColor,
+            blurPlaceholder: blurPath,
+            sizes
+        };
     } catch (error) {
-        console.error('[ImageOptimization] Error processing image:', error);
-        // Clean up temp directory on error
-        try {
-            await fs.rm(tempDir, { recursive: true, force: true });
-        } catch (cleanupError) {
-            console.error('[ImageOptimization] Failed to cleanup temp directory:', cleanupError);
-        }
+        console.error('[ImageIntegration] Processing failed:', error);
         throw error;
     }
 }
 
-/**
- * Process multiple image uploads
- */
-async function processMultipleImages(files, options = {}) {
-    const results = [];
-    for (const file of files) {
-        try {
-            const processed = await processSingleImage(file, options);
-            results.push(processed);
-        } catch (error) {
-            console.error(`[ImageOptimization] Error processing ${file.originalname}:`, error);
-            results.push({ error: error.message, file: file.originalname });
-        }
-    }
-    return results;
-}
-
-module.exports = {
-    processSingleImage,
-    processMultipleImages
-};
+module.exports = { processSingleImage };
