@@ -6,15 +6,18 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=${NODE_ENV:-production}
       - JWT_SECRET=${JWT_SECRET:-your-secret-key}
-      - DB_NAME=webhooks
-      - DB_PASSWORD=${DATABASE_PASSWORD:-postgres}
+      - REDIS_URL=redis://redis:6379
     depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       user-service:
-        condition: service_started
+        condition: service_healthy
       content-service:
-        condition: service_started
+        condition: service_healthy
       messaging-service:
         condition: service_started
       collaboration-service:
@@ -27,39 +30,36 @@ services:
         condition: service_started
       streaming-service:
         condition: service_started
-      redis:
-        condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:8000/health >/dev/null 2>&1 || exit 1" ]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health > /dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 8
+      start_period: 20s
     networks:
       - lets-connect-network
 
   # User Service (Authentication, Profiles)
   user-service:
     build: ./services/user-service
+    restart: unless-stopped
     ports:
       - "8001:8001"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/users
+      - NODE_ENV=${NODE_ENV:-production}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/users
       - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - REDIS_URL=redis://redis:6379
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
-      # Mailgun Configuration
       - MAILGUN_API_KEY=${MAILGUN_API_KEY}
       - MAILGUN_PUBLIC_KEY=${MAILGUN_PUBLIC_KEY}
       - MAILGUN_DOMAIN=${MAILGUN_DOMAIN:-sandbox.mailgun.org}
       - MAILGUN_BASE_URL=${MAILGUN_BASE_URL:-https://api.mailgun.net}
       - EMAIL_FROM=${EMAIL_FROM:-noreply@sandbox.mailgun.org}
-      # hCaptcha secret (server-side verification)
       - HCAPTCHA_SECRET=${HCAPTCHA_SECRET}
-
-      # Google OAuth Configuration
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:8001/oauth/google/callback}
-      # GitHub OAuth Configuration
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
       - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI:-http://localhost:8001/oauth/github/callback}
@@ -68,20 +68,27 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8001/health > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - lets-connect-network
 
   # Content Service (Posts, Feeds, Videos)
   content-service:
     build: ./services/content-service
+    restart: unless-stopped
     ports:
       - "8002:8002"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/content
-      - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/content
       - REDIS_URL=redis://redis:6379
       - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,115 +96,160 @@ services:
         condition: service_healthy
       elasticsearch:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8002/health > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - lets-connect-network
 
   # Messaging Service (Chat, Real-time)
   messaging-service:
     build: ./services/messaging-service
+    restart: unless-stopped
     ports:
       - "8003:8003"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/messages
-      - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/messages
       - REDIS_URL=redis://redis:6379
+      - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8003/health > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - lets-connect-network
 
   # Collaboration Service (Docs, Wiki, Notion-like)
   collaboration-service:
     build: ./services/collaboration-service
+    restart: unless-stopped
     ports:
       - "8004:8004"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/collaboration
+      - NODE_ENV=${NODE_ENV:-production}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/collaboration
+      - REDIS_URL=redis://redis:6379
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8004/health > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - lets-connect-network
 
-  # Media Service (Files, Voice, Video)
+  # Media Service (Files, Images, Storage)
   media-service:
     build: ./services/media-service
+    restart: unless-stopped
     ports:
       - "8005:8005"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/media
+      - NODE_ENV=${NODE_ENV:-production}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/media
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
       - S3_BUCKET=${S3_BUCKET:-lets-connect-media}
       - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
     depends_on:
       postgres:
         condition: service_healthy
       minio:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8005/health > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - lets-connect-network
 
   # Shop Service (E-commerce)
   shop-service:
     build: ./services/shop-service
+    restart: unless-stopped
     ports:
       - "8006:8006"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/shop
+      - NODE_ENV=${NODE_ENV:-production}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/shop
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8006/health > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - lets-connect-network
 
   # AI Assistant Service
   ai-service:
     build: ./services/ai-service
+    restart: unless-stopped
     ports:
       - "8007:8007"
     environment:
+      - NODE_ENV=${NODE_ENV:-production}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
       - REDIS_URL=redis://redis:6379
     depends_on:
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8007/health > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - lets-connect-network
 
-  # Streaming Service (IPFM/IPTV)
+  # Streaming Service (Radio, IPTV)
   streaming-service:
     build: ./services/streaming-service
+    restart: unless-stopped
     ports:
       - "8009:8009"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/streaming
-      - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
+      - NODE_ENV=${NODE_ENV:-production}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/streaming
       - REDIS_URL=redis://redis:6379
+      - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
       - RUN_SEED=${RUN_SEED:-true}
-      - NODE_ENV=production
-      # Canonical seeding mode: skip|minimal|full|fast
       - SEED_MODE=${SEED_MODE:-minimal}
-      # Backward compatibility only: used when SEED_MODE is unset
       - USE_FULL_SEED=${USE_FULL_SEED:-false}
-
-      # Minimal mode subset controls
       - SEED_MINIMAL_RADIO_LIMIT=${SEED_MINIMAL_RADIO_LIMIT:-50}
       - SEED_MINIMAL_TV_LIMIT=${SEED_MINIMAL_TV_LIMIT:-50}
-
-      # Generic seeding behavior flags
       - SEED_SKIP_ONLINE_FETCH=${SEED_SKIP_ONLINE_FETCH:-false}
       - SEED_SKIP_VALIDATION=${SEED_SKIP_VALIDATION:-true}
       - SEED_SKIP_ENRICHMENT=${SEED_SKIP_ENRICHMENT:-true}
       - SEED_BATCH_SIZE=${SEED_BATCH_SIZE:-100}
-
-      # Fast mode tuning (seed.js when SEED_MODE=fast)
       - SEED_FAST_DISABLE_STREAM_VALIDATION=${SEED_FAST_DISABLE_STREAM_VALIDATION:-true}
       - SEED_FAST_DISABLE_LOGO_NETWORK=${SEED_FAST_DISABLE_LOGO_NETWORK:-true}
       - SEED_FAST_DISABLE_YOUTUBE_ENRICHMENT=${SEED_FAST_DISABLE_YOUTUBE_ENRICHMENT:-true}
@@ -210,6 +262,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8009/health > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - lets-connect-network
 
@@ -219,13 +277,12 @@ services:
       context: ./frontend
       args:
         - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+    restart: unless-stopped
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - GENERATE_SOURCEMAP=${GENERATE_SOURCEMAP:-false}
       - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
-      # hCaptcha site key exposed to frontend (browser)
       - REACT_APP_HCAPTCHA_SITEKEY=${REACT_APP_HCAPTCHA_SITEKEY}
-
     ports:
       - "3000:3000"
     depends_on:
@@ -237,9 +294,10 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
+    restart: unless-stopped
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_MULTIPLE_DATABASES=users,content,messages,collaboration,media,shop,webhooks,streaming
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -247,22 +305,24 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks:
       - lets-connect-network
 
   # Redis (Caching, Real-time)
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -272,6 +332,7 @@ services:
   # Elasticsearch (Full-text search and analytics)
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.10.0
+    restart: unless-stopped
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -281,21 +342,34 @@ services:
       - "9300:9300"
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health > /dev/null 2>&1 || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     networks:
       - lets-connect-network
 
   # MinIO (S3-compatible object storage)
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
     ports:
       - "9010:9000"
       - "9011:9001"
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
     command: server /data --console-address ":9001"
     volumes:
       - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/minio/health/live > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - lets-connect-network
 
@@ -304,7 +378,6 @@ volumes:
   redis-data:
   minio-data:
   elasticsearch-data:
-
 
 networks:
   lets-connect-network:

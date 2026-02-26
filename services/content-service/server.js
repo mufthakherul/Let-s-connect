@@ -26,9 +26,6 @@ app.use(express.json());
 // Metrics tracking middleware
 app.use(healthChecker.metricsMiddleware());
 
-// Metrics tracking middleware
-app.use(healthChecker.metricsMiddleware());
-
 // Attach utilities to req
 app.use((req, res, next) => {
     req.cacheManager = cacheManager;
