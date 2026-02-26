@@ -29,7 +29,7 @@ const models = {
 const {
     Post, Comment, Reaction, Vote, Bookmark, UserFollow, AnonIdentity,
     Hashtag, PostHashtag, Community, CommunityMember, Group, GroupMember,
-    GroupInsight, Video, Channel, Playlist, Subscription, Award, PostAward,
+    GroupInsight, Video, Channel, Playlist, Subscription, PlaylistItem, Award, PostAward,
     Retweet, ForumPost, ForumReply, Blog, BlogComment, Archive, ContentVersion
 } = models;
 
@@ -64,7 +64,17 @@ Group.hasMany(Post, { foreignKey: 'groupId' });
 Group.hasMany(GroupInsight, { foreignKey: 'groupId' });
 GroupInsight.belongsTo(Group, { foreignKey: 'groupId' });
 
-Playlist.hasMany(require('./VideoHub')(sequelize).PlaylistItem || { hasMany: () => { } }, { foreignKey: 'playlistId' }); // Fix for nested PlaylistItem if needed
+// Establish playlist / playlist item relationship if the model exists
+if (PlaylistItem) {
+    Playlist.hasMany(PlaylistItem, { foreignKey: 'playlistId' });
+    PlaylistItem.belongsTo(Playlist, { foreignKey: 'playlistId' });
+    // also connect items back to videos for convenience
+    if (Video) {
+        Video.hasMany(PlaylistItem, { foreignKey: 'videoId' });
+        PlaylistItem.belongsTo(Video, { foreignKey: 'videoId' });
+    }
+}
+
 
 Post.hasMany(PostAward, { foreignKey: 'postId' });
 PostAward.belongsTo(Award, { foreignKey: 'awardId' });

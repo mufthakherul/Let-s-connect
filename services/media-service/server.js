@@ -1,7 +1,13 @@
 const express = require('express');
 const multer = require('multer');
 const AWS = require('aws-sdk');
-const { Sequelize, DataTypes } = require('sequelize');
+let Sequelize, DataTypes;
+try {
+  ({ Sequelize, DataTypes } = require('sequelize'));
+} catch (err) {
+  console.error('Critical: sequelize package not found. Ensure npm install ran successfully.', err.message);
+  process.exit(1);
+}
 const { MigrationManager } = require('../shared/migrations-manager');
 const { globalErrorHandler } = require('../shared/errorHandling');
 const { HealthChecker, checkDatabase, checkS3 } = require('../shared/monitoring');
