@@ -1,31 +1,33 @@
-/**
- * Professional error handling system for microservices
- * Replaces generic try-catch with typed errors
- */
+const logger = require('./logger');
+const response = require('./response-wrapper');
 
+/**
+ * Standardized Error class for operational errors
+ */
 class AppError extends Error {
-  constructor(message, statusCode, code, details = null) {
+  constructor(message, statusCode, code = 'INTERNAL_ERROR', details = null) {
     super(message);
-    this.name = this.constructor.name;
     this.statusCode = statusCode;
+    this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
     this.code = code;
     this.details = details;
     this.isOperational = true;
+
     Error.captureStackTrace(this, this.constructor);
   }
 
   toJSON() {
     return {
+      success: false,
       error: {
         code: this.code,
         message: this.message,
-        ...(this.details && { details: this.details }),
+        details: this.details,
         ...(process.env.NODE_ENV === 'development' && { stack: this.stack })
       }
     };
   }
 }
-
 // Specific error types
 class ValidationError extends AppError {
   constructor(message, details = null) {
@@ -47,7 +49,7 @@ class AuthorizationError extends AppError {
 
 class NotFoundError extends AppError {
   constructor(resource, identifier = null) {
-    const message = identifier 
+    const message = identifier
       ? `${resource} with identifier '${identifier}' not found`
       : `${resource} not found`;
     super(message, 404, 'NOT_FOUND', { resource, identifier });
@@ -80,91 +82,64 @@ class ExternalServiceError extends AppError {
   }
 }
 
+const logger = require('./logger');
+const response = require('./response-wrapper');
+
 /**
- * Error handler middleware
+ * Standardized Global Error Treatment
  */
 function errorHandler(err, req, res, next) {
-  // Log error
-  console.error('[ERROR]', {
+  err.statusCode = err.statusCode || 500;
+  err.status = err.status || 'error';
+
+  // Log error with Pino
+  logger.error({
     name: err.name,
     message: err.message,
     code: err.code,
-    path: req.path,
+    path: req.originalUrl,
     method: req.method,
-    userId: req.header('x-user-id'),
+    requestId: req.headers['x-request-id'] || res.getHeader('X-Request-Id'),
     stack: err.stack
   });
 
-  // Handle operational errors
+  // Development Response
+  if (process.env.NODE_ENV === 'development') {
+    return res.status(err.statusCode).json({
+      success: false,
+      status: err.status,
+      message: err.message,
+      stack: err.stack,
+      error: err
+    });
+  }
+
+  // Handle Operational Errors
   if (err.isOperational) {
     return res.status(err.statusCode).json(err.toJSON());
   }
 
-  // Handle Sequelize errors
+  // Handle Common Library Errors
   if (err.name === 'SequelizeValidationError') {
-    const details = err.errors.map(e => ({
-      field: e.path,
-      message: e.message
-    }));
-    return res.status(400).json({
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Validation failed',
-        details
-      }
-    });
+    const details = err.errors.map(e => ({ field: e.path, message: e.message }));
+    return response.error(res, 'Validation failed', 400, details, { code: 'VALIDATION_ERROR' });
   }
 
   if (err.name === 'SequelizeUniqueConstraintError') {
     const field = err.errors[0]?.path || 'field';
-    return res.status(409).json({
-      error: {
-        code: 'CONFLICT',
-        message: `${field} already exists`,
-        details: { field }
-      }
-    });
+    return response.error(res, `${field} already exists`, 409, { field }, { code: 'CONFLICT' });
   }
 
-  if (err.name === 'SequelizeForeignKeyConstraintError') {
-    return res.status(400).json({
-      error: {
-        code: 'INVALID_REFERENCE',
-        message: 'Referenced resource does not exist'
-      }
-    });
-  }
-
-  // Handle JWT errors
   if (err.name === 'JsonWebTokenError') {
-    return res.status(401).json({
-      error: {
-        code: 'INVALID_TOKEN',
-        message: 'Invalid authentication token'
-      }
-    });
+    return response.error(res, 'Invalid authentication token', 401, null, { code: 'INVALID_TOKEN' });
   }
 
   if (err.name === 'TokenExpiredError') {
-    return res.status(401).json({
-      error: {
-        code: 'TOKEN_EXPIRED',
-        message: 'Authentication token has expired'
-      }
-    });
+    return response.error(res, 'Authentication token has expired', 401, null, { code: 'TOKEN_EXPIRED' });
   }
 
-  // Generic server error
-  res.status(500).json({
-    error: {
-      code: 'INTERNAL_SERVER_ERROR',
-      message: 'An unexpected error occurred',
-      ...(process.env.NODE_ENV === 'development' && { 
-        details: err.message,
-        stack: err.stack 
-      })
-    }
-  });
+  // Final generic fallback for production
+  return response.error(res, 'An unexpected error occurred', 500, null, { code: 'INTERNAL_SERVER_ERROR' });
 }
 
 /**
@@ -183,7 +158,7 @@ function validate(schema, source = 'body') {
   return asyncHandler(async (req, res, next) => {
     try {
       const data = req[source];
-      
+
       if (typeof schema === 'function') {
         await schema(data);
       } else if (schema.validate) {
@@ -197,7 +172,7 @@ function validate(schema, source = 'body') {
           throw new ValidationError('Validation failed', details);
         }
       }
-      
+
       next();
     } catch (error) {
       next(error);
@@ -219,11 +194,11 @@ function requireAuth(req, res, next) {
 function requireRole(...roles) {
   return asyncHandler(async (req, res, next) => {
     const userRole = req.header('x-user-role') || 'user';
-    
+
     if (!roles.includes(userRole)) {
       throw new AuthorizationError(`Required role: ${roles.join(' or ')}`);
     }
-    
+
     next();
   });
 }
@@ -243,25 +218,25 @@ function rateLimit(options = {}) {
   return (req, res, next) => {
     const key = keyGenerator(req);
     const now = Date.now();
-    
+
     if (!rateLimitStore.has(key)) {
       rateLimitStore.set(key, []);
     }
-    
+
     const requests = rateLimitStore.get(key);
     const recentRequests = requests.filter(time => now - time < windowMs);
-    
+
     if (recentRequests.length >= maxRequests) {
       const oldestRequest = Math.min(...recentRequests);
       const retryAfter = Math.ceil((windowMs - (now - oldestRequest)) / 1000);
-      
+
       res.setHeader('Retry-After', retryAfter);
       throw new RateLimitError(retryAfter);
     }
-    
+
     recentRequests.push(now);
     rateLimitStore.set(key, recentRequests);
-    
+
     // Cleanup old entries
     if (Math.random() < 0.01) {
       for (const [k, times] of rateLimitStore.entries()) {
@@ -273,7 +248,7 @@ function rateLimit(options = {}) {
         }
       }
     }
-    
+
     next();
   };
 }
