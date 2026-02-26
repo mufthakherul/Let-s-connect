@@ -5,8 +5,8 @@ const options = {
     openapi: '3.0.0',
     info: {
       title: 'Let\'s Connect API',
-      version: '4.0.0',
-      description: 'Unified Social Collaboration Platform API - Complete REST and GraphQL API documentation',
+      version: '4.5.0',
+      description: 'Unified Social Collaboration Platform API - Professional Modular Architecture & Performance Suite (v4.5)',
       contact: {
         name: 'API Support',
         email: 'support@letsconnect.com',
@@ -98,8 +98,8 @@ const options = {
           properties: {
             id: { type: 'string', format: 'uuid' },
             userId: { type: 'string', format: 'uuid' },
-            type: { 
-              type: 'string', 
+            type: {
+              type: 'string',
               enum: ['message', 'mention', 'reply', 'reaction', 'call', 'friend_request', 'server_invite', 'role_update', 'system', 'announcement']
             },
             title: { type: 'string' },

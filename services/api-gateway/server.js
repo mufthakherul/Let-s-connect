@@ -3,7 +3,6 @@ const proxy = require('express-http-proxy');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const helmet = require('helmet');
-// optional rate limiting imports controlled by RATE_LIMITING_ENABLED
 const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
@@ -12,18 +11,24 @@ const swaggerSpec = require('./swagger-config');
 const webhookRoutes = require('./webhook-routes');
 const postmanGenerator = require('./postman-generator');
 const { reducedDataMode, addDataModeHeaders, getDataModeStats } = require('./reduced-data-mode');
+const logger = require('../shared/logger');
+const response = require('../shared/response-wrapper');
+const { globalErrorHandler, AppError, catchAsync } = require('../shared/errorHandling');
+const { v4: uuidv4 } = require('uuid');
+const { HealthChecker } = require('../shared/monitoring');
+const compression = require('compression');
 require('dotenv').config();
 
 const app = express();
+const healthChecker = new HealthChecker('api-gateway');
 const PORT = process.env.PORT || 8000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Trust proxy headers in containerized environments
 app.set('trust proxy', 1);
 
-// rate limiting disabled; no Redis client required
-
-// Security middleware
+// Standard Optimizations
+app.use(compression());
 app.use(helmet());
 
 const corsOrigins = (process.env.CORS_ORIGINS || '')
@@ -67,6 +72,25 @@ app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
 app.use(express.json());
 
+// Add Correlation ID (Request ID)
+app.use((req, res, next) => {
+  const requestId = req.headers['x-request-id'] || uuidv4();
+  req.id = requestId;
+  res.setHeader('X-Request-Id', requestId);
+  next();
+});
+
+// Log requests
+app.use((req, res, next) => {
+  logger.info({
+    method: req.method,
+    path: req.originalUrl,
+    ip: req.ip,
+    requestId: req.id
+  });
+  next();
+});
+
 // Phase 7: Reduced Data Mode for mobile optimization
 app.use(addDataModeHeaders);
 app.use(reducedDataMode);
@@ -78,137 +102,137 @@ let redisClient, sendRedisCommand;
 let globalLimiter, userLimiter, strictLimiter, mediaUploadLimiter, aiRequestLimiter, usernameSoftLimiter, usernameLimiter;
 
 if (RATE_LIMITING_ENABLED) {
-    // Redis client for rate limiting
-    redisClient = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
-    sendRedisCommand = (...args) => redisClient.call(...args);
+  // Redis client for rate limiting
+  redisClient = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
+  sendRedisCommand = (...args) => redisClient.call(...args);
 
-    // Global rate limiter (fallback for unauthenticated requests)
-    globalLimiter = rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 100, // 100 requests per window
-      standardHeaders: true,
-      legacyHeaders: false,
-      store: new RedisStore({
-        sendCommand: sendRedisCommand,
-        prefix: 'rl:global:'
-      }),
-      message: { error: 'Too many requests from this IP, please try again later.' }
-    });
+  // Global rate limiter (fallback for unauthenticated requests)
+  globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // 100 requests per window
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new RedisStore({
+      sendCommand: sendRedisCommand,
+      prefix: 'rl:global:'
+    }),
+    message: { error: 'Too many requests from this IP, please try again later.' }
+  });
 
-    // User-based rate limiter (for authenticated requests)
-    userLimiter = rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 500, // 500 requests per window per user
-      standardHeaders: true,
-      legacyHeaders: false,
-      store: new RedisStore({
-        sendCommand: sendRedisCommand,
-        prefix: 'rl:user:'
-      }),
-      keyGenerator: (req) => {
-        return req.user?.id || req.ip;
-      },
-      skip: (req) => {
-        return req.path === '/health';
-      },
-      message: { error: 'Rate limit exceeded. Please try again later.' }
-    });
+  // User-based rate limiter (for authenticated requests)
+  userLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 500, // 500 requests per window per user
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new RedisStore({
+      sendCommand: sendRedisCommand,
+      prefix: 'rl:user:'
+    }),
+    keyGenerator: (req) => {
+      return req.user?.id || req.ip;
+    },
+    skip: (req) => {
+      return req.path === '/health';
+    },
+    message: { error: 'Rate limit exceeded. Please try again later.' }
+  });
 
-    // Endpoint-specific rate limiters
-    strictLimiter = rateLimit({
-      windowMs: 60 * 1000, // 1 minute
-      max: 10, // 10 requests per minute
-      standardHeaders: true,
-      legacyHeaders: false,
-      store: new RedisStore({
-        sendCommand: sendRedisCommand,
-        prefix: 'rl:strict:'
-      }),
-      keyGenerator: (req) => req.user?.id || req.ip,
-      message: { error: 'Too many attempts. Please wait before trying again.' }
-    });
+  // Endpoint-specific rate limiters
+  strictLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 10, // 10 requests per minute
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new RedisStore({
+      sendCommand: sendRedisCommand,
+      prefix: 'rl:strict:'
+    }),
+    keyGenerator: (req) => req.user?.id || req.ip,
+    message: { error: 'Too many attempts. Please wait before trying again.' }
+  });
 
-    mediaUploadLimiter = rateLimit({
-      windowMs: 60 * 60 * 1000, // 1 hour
-      max: 50, // 50 uploads per hour
-      standardHeaders: true,
-      legacyHeaders: false,
-      store: new RedisStore({
-        sendCommand: sendRedisCommand,
-        prefix: 'rl:upload:'
-      }),
-      keyGenerator: (req) => req.user?.id || req.ip,
-      message: { error: 'Upload limit reached. Please try again later.' }
-    });
+  mediaUploadLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 50, // 50 uploads per hour
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new RedisStore({
+      sendCommand: sendRedisCommand,
+      prefix: 'rl:upload:'
+    }),
+    keyGenerator: (req) => req.user?.id || req.ip,
+    message: { error: 'Upload limit reached. Please try again later.' }
+  });
 
-    aiRequestLimiter = rateLimit({
-      windowMs: 60 * 60 * 1000, // 1 hour
-      max: 100, // 100 AI requests per hour
-      standardHeaders: true,
-      legacyHeaders: false,
-      store: new RedisStore({
-        sendCommand: sendRedisCommand,
-        prefix: 'rl:ai:'
-      }),
-      keyGenerator: (req) => req.user?.id || req.ip,
-      message: { error: 'AI request limit reached. Please try again later.' }
-    });
+  aiRequestLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 100, // 100 AI requests per hour
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new RedisStore({
+      sendCommand: sendRedisCommand,
+      prefix: 'rl:ai:'
+    }),
+    keyGenerator: (req) => req.user?.id || req.ip,
+    message: { error: 'AI request limit reached. Please try again later.' }
+  });
 
-    // Username availability checks - protect against enumeration
-    usernameSoftLimiter = rateLimit({
-      windowMs: 60 * 60 * 1000, // 1 hour
-      max: 5,
-      standardHeaders: true,
-      legacyHeaders: false,
-      store: new RedisStore({ sendCommand: sendRedisCommand, prefix: 'rl:username-soft:' }),
-      keyGenerator: (req) => req.ip,
-      handler: (req, res) => {
-        console.warn(`[rate-limit] username soft-threshold reached for ip=${req.ip} url=${req.originalUrl}`);
-        res.set('X-Captcha-Required', '1');
-        res.set('Retry-After', String(Math.ceil(60 * 60)));
-        return res.status(429).json({ error: 'captcha_required', message: 'CAPTCHA required for further username checks' });
-      }
-    });
+  // Username availability checks - protect against enumeration
+  usernameSoftLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new RedisStore({ sendCommand: sendRedisCommand, prefix: 'rl:username-soft:' }),
+    keyGenerator: (req) => req.ip,
+    handler: (req, res) => {
+      console.warn(`[rate-limit] username soft-threshold reached for ip=${req.ip} url=${req.originalUrl}`);
+      res.set('X-Captcha-Required', '1');
+      res.set('Retry-After', String(Math.ceil(60 * 60)));
+      return res.status(429).json({ error: 'captcha_required', message: 'CAPTCHA required for further username checks' });
+    }
+  });
 
-    usernameLimiter = rateLimit({
-      windowMs: 60 * 60 * 1000, // 1 hour
-      max: 10,
-      standardHeaders: true,
-      legacyHeaders: false,
-      store: new RedisStore({
-        sendCommand: sendRedisCommand,
-        prefix: 'rl:username:'
-      }),
-      keyGenerator: (req) => req.ip,
-      handler: (req, res) => {
-        console.warn(`[rate-limit] username check throttled for ip=${req.ip} url=${req.originalUrl}`);
-        res.set('Retry-After', String(Math.ceil(60 * 60)));
-        return res.status(429).json({ error: 'Too many username checks. Please try again later.' });
-      }
-    });
+  usernameLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new RedisStore({
+      sendCommand: sendRedisCommand,
+      prefix: 'rl:username:'
+    }),
+    keyGenerator: (req) => req.ip,
+    handler: (req, res) => {
+      console.warn(`[rate-limit] username check throttled for ip=${req.ip} url=${req.originalUrl}`);
+      res.set('Retry-After', String(Math.ceil(60 * 60)));
+      return res.status(429).json({ error: 'Too many username checks. Please try again later.' });
+    }
+  });
 }
 
 // Apply global rate limiter conditionally
 if (RATE_LIMITING_ENABLED) {
-    if (process.env.NODE_ENV !== 'development') {
-        app.use(globalLimiter);
-    } else {
-        console.info('[API Gateway] skipping global rate limiter (development mode)');
-    }
+  if (process.env.NODE_ENV !== 'development') {
+    app.use(globalLimiter);
+  } else {
+    console.info('[API Gateway] skipping global rate limiter (development mode)');
+  }
 }
 
 // shared function to apply user limiter when enabled
 const applyUserLimiter = (req, res, next) => {
-    if (!RATE_LIMITING_ENABLED) return next();
-    if (process.env.NODE_ENV === 'development') return next();
-    if (req.originalUrl.startsWith('/api/streaming') ||
-        req.originalUrl.startsWith('/api/user/notifications')) {
-        return next();
-    }
-    if (req.user) {
-        return userLimiter(req, res, next);
-    }
-    next();
+  if (!RATE_LIMITING_ENABLED) return next();
+  if (process.env.NODE_ENV === 'development') return next();
+  if (req.originalUrl.startsWith('/api/streaming') ||
+    req.originalUrl.startsWith('/api/user/notifications')) {
+    return next();
+  }
+  if (req.user) {
+    return userLimiter(req, res, next);
+  }
+  next();
 };
 
 // rate limiting has been disabled entirely; no middleware applied.
@@ -217,7 +241,7 @@ const authMiddleware = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader) {
-    return res.status(401).json({ error: 'No token provided' });
+    return next(new AppError('No token provided', 401, 'AUTHENTICATION_ERROR'));
   }
 
   const token = authHeader.split(' ')[1];
@@ -226,17 +250,16 @@ const authMiddleware = (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
 
-    // Forward key user attributes to downstream services as headers so
-    // services behind the gateway can rely on gateway-auth without
-    // validating the JWT themselves.
+    // Forward key user attributes
     req.headers['x-user-id'] = decoded.id;
     req.headers['x-user-role'] = decoded.role || '';
     req.headers['x-user-email'] = decoded.email || '';
     req.headers['x-user-is-admin'] = (decoded.isAdmin === true || decoded.role === 'admin') ? 'true' : 'false';
+    req.headers['x-request-id'] = req.id;
 
     next();
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid token' });
+    return next(new AppError('Invalid or expired token', 401, 'AUTHENTICATION_ERROR'));
   }
 };
 
@@ -360,9 +383,29 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
+// Enhanced health checks
+app.get('/health/ready', async (req, res) => {
+  try {
+    const health = await healthChecker.runChecks();
+    const statusCode = health.status === 'healthy' ? 200 : 503;
+    res.status(statusCode).json(health);
+  } catch (error) {
+    res.status(503).json({ status: 'unhealthy', error: error.message });
+  }
+});
+
+// Prometheus metrics endpoint
+app.get('/metrics', (req, res) => {
+  res.set('Content-Type', 'text/plain');
+  res.send(healthChecker.getPrometheusMetrics());
+});
+
+// Metrics tracking middleware
+app.use(healthChecker.metricsMiddleware());
+
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+  res.json(healthChecker.getBasicHealth());
 });
 
 // Data mode info endpoint (Phase 7)
@@ -561,7 +604,7 @@ app.use(
 // app.use('/api/user/reset-password', /* no limiter */);
 
 // Expose username availability (rate limiting has been removed)
-app.use('/api/user/check-username', RATE_LIMITING_ENABLED ? usernameSoftLimiter : (req,res,next)=>next(), RATE_LIMITING_ENABLED ? usernameLimiter : (req,res,next)=>next(), proxy(services.user, {
+app.use('/api/user/check-username', RATE_LIMITING_ENABLED ? usernameSoftLimiter : (req, res, next) => next(), RATE_LIMITING_ENABLED ? usernameLimiter : (req, res, next) => next(), proxy(services.user, {
   proxyReqPathResolver: function (req) {
     return req.originalUrl.replace('/api/user', '');
   }
@@ -764,11 +807,8 @@ app.get('/api/redoc', (req, res) => {
   `);
 });
 
-// Error handling
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
-});
+// Global Error Handling
+app.use(globalErrorHandler);
 
 app.listen(PORT, () => {
   console.log(`API Gateway running on port ${PORT}`);
