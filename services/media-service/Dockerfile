@@ -1,17 +1,22 @@
 FROM node:18-alpine
 
-ENV PORT=8005
+# Build context is ./services/
+# This allows access to shared utilities via COPY
 
-WORKDIR /app
+WORKDIR /services/media-service
 
-# Install dependencies
-COPY package*.json ./
+# Install dependencies first for layer caching
+COPY media-service/package*.json ./
 RUN npm install --production --legacy-peer-deps
 
-# Copy source and set ownership for non-root user
-COPY --chown=node:node . .
+# Copy shared utilities (needed by this service)
+COPY shared/ /services/shared/
 
-# Use non-root user
+# Copy service source
+COPY --chown=node:node media-service/ ./
+
+ENV PORT=8005
+
 USER node
 
 EXPOSE 8005
