@@ -5,7 +5,9 @@
  * Replaces basic sequelize.sync() with a robust, trackable migration system.
  */
 
-const { QueryTypes } = require('sequelize');
+// QueryTypes will be accessed from the provided sequelize instance so that
+// we don't force a global dependency on the library; this keeps shared code
+// agnostic of where the package is installed.
 
 class MigrationManager {
     constructor(sequelize, serviceName) {
@@ -37,7 +39,7 @@ class MigrationManager {
             'SELECT name FROM "__migrations" WHERE service = :service ORDER BY id ASC',
             {
                 replacements: { service: this.serviceName },
-                type: QueryTypes.SELECT
+                type: this.sequelize.constructor.QueryTypes.SELECT
             }
         );
         return rows.map(r => r.name);
@@ -68,7 +70,7 @@ class MigrationManager {
                     'INSERT INTO "__migrations" (service, name) VALUES (:service, :name)',
                     {
                         replacements: { service: this.serviceName, name: migration.name },
-                        type: QueryTypes.INSERT,
+                        type: this.sequelize.constructor.QueryTypes.INSERT,
                         transaction
                     }
                 );
