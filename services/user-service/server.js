@@ -5,12 +5,14 @@ const { sequelize } = require('./src/models');
 const routes = require('./src/routes');
 const { HealthChecker, checkDatabase, checkRedis } = require('../shared/monitoring');
 const { CacheManager } = require('../shared/caching');
+const { MigrationManager } = require('../shared/migrations-manager');
 const response = require('../shared/response-wrapper');
 require('dotenv').config();
 
 const app = express();
 const healthChecker = new HealthChecker('user-service');
 const cacheManager = new CacheManager();
+const migrationManager = new MigrationManager(sequelize, 'user-service');
 
 // Register checks
 healthChecker.registerCheck('database', () => checkDatabase(sequelize));
@@ -72,11 +74,15 @@ async function startServer() {
     await sequelize.authenticate();
     logger.info('Database connection established');
 
-    // Sync models in development
-    if (process.env.NODE_ENV !== 'production') {
-      await sequelize.sync({ alter: true });
-      logger.info('Database synchronized');
-    }
+    // Phase 10: Professional Migrations
+    await migrationManager.runMigrations([
+      {
+        name: 'init-user-tables',
+        up: async (qi) => {
+          await sequelize.sync({ alter: process.env.NODE_ENV !== 'production' });
+        }
+      }
+    ]);
 
     app.listen(PORT, () => {
       logger.info(`User service running on port ${PORT}`);

@@ -6,11 +6,13 @@ const routes = require('./src/routes');
 const { globalErrorHandler } = require('../shared/errorHandling');
 const { HealthChecker, checkDatabase, checkRedis } = require('../shared/monitoring');
 const { CacheManager } = require('../shared/caching');
+const { MigrationManager } = require('../shared/migrations-manager');
 require('dotenv').config();
 
 const app = express();
 const healthChecker = new HealthChecker('content-service');
 const cacheManager = new CacheManager();
+const migrationManager = new MigrationManager(sequelize, 'content-service');
 
 // Register checks
 healthChecker.registerCheck('database', () => checkDatabase(sequelize));
@@ -66,20 +68,28 @@ const startServer = async () => {
         await sequelize.authenticate();
         console.log('[Content Service] Database connected.');
 
-        // Sync models in dev if needed
-        if (process.env.NODE_ENV === 'development') {
-            await sequelize.sync({ alter: true });
-
-            // Initialize default awards
-            const { Award } = require('./src/models');
-            const awards = [
-                { name: 'Gold Award', description: 'A prestigious gold award', icon: '🥇', cost: 500, type: 'gold' },
-                { name: 'Silver Award', description: 'A valuable silver award', icon: '🥈', cost: 100, type: 'silver' }
-            ];
-            for (const a of awards) {
-                await Award.findOrCreate({ where: { name: a.name }, defaults: a });
+        // Phase 10: Professional Migrations
+        await migrationManager.runMigrations([
+            {
+                name: 'init-content-tables',
+                up: async (qi) => {
+                    await sequelize.sync({ alter: process.env.NODE_ENV === 'development' });
+                }
+            },
+            {
+                name: 'seed-initial-awards',
+                up: async (qi) => {
+                    const { Award } = require('./src/models');
+                    const awards = [
+                        { name: 'Gold Award', description: 'A prestigious gold award', icon: '🥇', cost: 500, type: 'gold' },
+                        { name: 'Silver Award', description: 'A valuable silver award', icon: '🥈', cost: 100, type: 'silver' }
+                    ];
+                    for (const a of awards) {
+                        await Award.findOrCreate({ where: { name: a.name }, defaults: a });
+                    }
+                }
             }
-        }
+        ]);
 
         // Anon Identity Cleanup (Daily)
         setInterval(async () => {

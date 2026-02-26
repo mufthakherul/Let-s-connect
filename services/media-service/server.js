@@ -2,59 +2,33 @@ const express = require('express');
 const multer = require('multer');
 const AWS = require('aws-sdk');
 const { Sequelize, DataTypes } = require('sequelize');
-const fs = require('fs');
-const fsPromises = require('fs').promises;
+const { MigrationManager } = require('../shared/migrations-manager');
+const { globalErrorHandler } = require('../shared/errorHandling');
+const { HealthChecker, checkDatabase, checkS3 } = require('../shared/monitoring');
+const response = require('../shared/response-wrapper');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 8005;
 
 app.use(express.json());
-const path = require('path');
 
-// Ensure uploads directory exists
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
+// S3/MinIO Configuration
+const s3 = new AWS.S3({
+  endpoint: process.env.S3_ENDPOINT || 'http://minio:9000',
+  accessKeyId: process.env.MINIO_ROOT_USER || 'minioadmin',
+  secretAccessKey: process.env.MINIO_ROOT_PASSWORD || 'minioadmin',
+  s3ForcePathStyle: true,
+  signatureVersion: 'v4',
+});
 
-// Serve uploads as static assets
-app.use('/uploads', express.static(UPLOADS_DIR));
-
-// Phase 4: Image optimization integration
-let imageOptimizationEnabled = false;
-let processSingleImage, processMultipleImages;
-
-try {
-  const imageIntegration = require('./image-integration');
-  processSingleImage = imageIntegration.processSingleImage;
-  processMultipleImages = imageIntegration.processMultipleImages;
-  imageOptimizationEnabled = true;
-  console.log('[Image] Image optimization enabled for media-service');
-} catch (error) {
-  console.log('[Image] Image optimization disabled (sharp not available)');
-  // Create no-op functions for when optimization is disabled
-  processSingleImage = async (file) => ({ original: file });
-  processMultipleImages = async (files) => files.map(f => ({ original: f }));
-}
-
-// S3 is deprecated in favor of local storage for this implementation
 const BUCKET_NAME = process.env.S3_BUCKET || 'lets-connect-media';
 
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'video/mp4',
-  'video/webm',
-  'video/quicktime',
-  'application/pdf'
-];
-
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
-const MAX_DOCUMENT_BYTES = 15 * 1024 * 1024; // 15MB
+// Multer memory storage (better for buffer-based optimization)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+});
 
 // Database
 const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/media', {
@@ -62,310 +36,169 @@ const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgr
   logging: false
 });
 
-// Models
+const healthChecker = new HealthChecker('media-service');
+const migrationManager = new MigrationManager(sequelize, 'media-service');
+
+// Models (Standardized for Phase 10)
 const MediaFile = sequelize.define('MediaFile', {
-  id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true
-  },
-  userId: {
-    type: DataTypes.UUID,
-    allowNull: false
-  },
-  filename: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  userId: { type: DataTypes.UUID, allowNull: false },
+  filename: { type: DataTypes.STRING, allowNull: false },
   originalName: DataTypes.STRING,
   mimeType: DataTypes.STRING,
   size: DataTypes.INTEGER,
-  url: DataTypes.STRING,
-  type: {
-    type: DataTypes.ENUM('image', 'video', 'audio', 'document', 'other'),
-    defaultValue: 'other'
-  },
-  visibility: {
-    type: DataTypes.ENUM('public', 'private'),
-    defaultValue: 'private'
-  },
-  // Phase 4: Image optimization fields
-  optimizedUrl: DataTypes.STRING,
-  thumbnailUrl: DataTypes.STRING,
-  responsiveSizes: DataTypes.JSONB, // { thumbnail, small, medium, large }
-  blurPlaceholder: DataTypes.TEXT,  // base64 encoded blur placeholder
-  dominantColor: DataTypes.JSONB,   // { r, g, b }
-  metadata: DataTypes.JSONB         // { width, height, format }
+  key: { type: DataTypes.STRING, allowNull: false }, // S3 Key
+  bucket: { type: DataTypes.STRING, defaultValue: BUCKET_NAME },
+  visibility: { type: DataTypes.ENUM('public', 'private'), defaultValue: 'private' },
+  type: { type: DataTypes.ENUM('image', 'video', 'audio', 'document', 'other'), defaultValue: 'other' },
+  // Enrichment fields
+  thumbnailKey: DataTypes.STRING,
+  responsiveKeys: DataTypes.JSONB, // { thumbnail, small, medium, large, avif }
+  blurPlaceholder: DataTypes.TEXT,
+  dominantColor: DataTypes.JSONB,
+  metadata: DataTypes.JSONB
+}, {
+  indexes: [{ fields: ['userId'] }, { fields: ['key'] }]
 });
 
-const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
-const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
+// Register Health Checks
+healthChecker.registerCheck('database', () => checkDatabase(sequelize));
+healthChecker.registerCheck('s3', () => checkS3(s3, BUCKET_NAME));
 
-// Multer configuration for local disk storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, UPLOADS_DIR);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
+app.use(healthChecker.metricsMiddleware());
 
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
-});
+// --- ROUTES ---
 
-// Phase 4: Monitoring and health checks
-let healthChecker;
-try {
-  const { HealthChecker, checkDatabase, checkS3 } = require('../shared/monitoring');
-  healthChecker = new HealthChecker('media-service');
-
-  // Register database and S3 health checks
-  healthChecker.registerCheck('database', () => checkDatabase(sequelize));
-  healthChecker.registerCheck('s3', () => checkS3(s3, BUCKET_NAME));
-
-  // Add metrics middleware
-  app.use(healthChecker.metricsMiddleware());
-
-  console.log('[Monitoring] Health checks and metrics enabled');
-} catch (error) {
-  console.log('[Monitoring] Advanced monitoring disabled');
-}
-
-// Routes
-
-// Health check (basic liveness probe)
-app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', service: 'media-service' });
-});
-
-// Readiness check (detailed health with dependencies)
+// Health Checks
+app.get('/health', (req, res) => res.json(healthChecker.getBasicHealth()));
 app.get('/health/ready', async (req, res) => {
-  if (!healthChecker) {
-    return res.json({ status: 'healthy', service: 'media-service', message: 'Basic health check' });
-  }
-
-  try {
-    const health = await healthChecker.runChecks();
-    const statusCode = health.status === 'healthy' ? 200 : 503;
-    res.status(statusCode).json(health);
-  } catch (error) {
-    res.status(503).json({ status: 'unhealthy', error: error.message });
-  }
+  const health = await healthChecker.runChecks();
+  res.status(health.status === 'healthy' ? 200 : 503).json(health);
 });
-
-// Metrics endpoint (Prometheus format)
 app.get('/metrics', (req, res) => {
-  if (!healthChecker) {
-    return res.type('text/plain').send('# Metrics not available\n');
-  }
-
-  const metrics = healthChecker.getPrometheusMetrics();
-  res.type('text/plain').send(metrics);
+  res.set('Content-Type', 'text/plain');
+  res.send(healthChecker.getPrometheusMetrics());
 });
 
-// Public: Get public media
-app.get('/public/files', async (req, res) => {
+// Create Secure URL (Signed)
+app.get('/url/:fileId', async (req, res) => {
   try {
-    const files = await MediaFile.findAll({
-      where: { visibility: 'public' },
-      order: [['createdAt', 'DESC']],
-      limit: 50
+    const file = await MediaFile.findByPk(req.params.fileId);
+    if (!file) return res.status(404).json({ error: 'File not found' });
+
+    if (file.visibility === 'public') {
+      const publicUrl = `${process.env.S3_ENDPOINT}/${BUCKET_NAME}/${file.key}`;
+      return res.json({ url: publicUrl });
+    }
+
+    // Generate Signed URL
+    const url = s3.getSignedUrl('getObject', {
+      Bucket: BUCKET_NAME,
+      Key: file.key,
+      Expires: 3600 // 1 hour
     });
 
-    res.json(files);
+    res.json({ url });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch files' });
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Upload file
+// Upload
+const { processSingleImage } = require('./image-integration');
+
 app.post('/upload', upload.single('file'), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file provided' });
-    }
+    if (!req.file) return res.status(400).json({ error: 'No file provided' });
 
-    const { userId, visibility } = req.body;
-    const file = req.file;
+    const { userId, visibility = 'private' } = req.body;
+    const now = new Date();
+    const datePath = `${now.getFullYear()}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getDate().toString().padStart(2, '0')}`;
+    const uuid = require('uuid').v4();
+    const extension = require('path').extname(req.file.originalname);
+    const s3Key = `uploads/${datePath}/${uuid}${extension}`;
 
-    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      // Clean up the file if it's not allowed
-      await fsPromises.unlink(file.path);
-      return res.status(400).json({ error: 'Unsupported file type' });
-    }
+    // 1. Upload Original
+    await s3.putObject({
+      Bucket: BUCKET_NAME,
+      Key: s3Key,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+      ACL: visibility === 'public' ? 'public-read' : 'private'
+    }).promise();
 
-    if (file.mimetype.startsWith('image/') && file.size > MAX_IMAGE_BYTES) {
-      await fsPromises.unlink(file.path);
-      return res.status(400).json({ error: 'Image exceeds 10MB limit' });
-    }
-
-    if (file.mimetype.startsWith('video/') && file.size > MAX_VIDEO_BYTES) {
-      await fsPromises.unlink(file.path);
-      return res.status(400).json({ error: 'Video exceeds 50MB limit' });
-    }
-
-    if (file.mimetype === 'application/pdf' && file.size > MAX_DOCUMENT_BYTES) {
-      await fsPromises.unlink(file.path);
-      return res.status(400).json({ error: 'Document exceeds 15MB limit' });
-    }
-
-    // Use local URL instead of S3
-    const fileUrl = `http://localhost:${PORT}/uploads/${file.filename}`;
-
-    // Determine file type
-    let type = 'other';
-    if (file.mimetype.startsWith('image/')) type = 'image';
-    else if (file.mimetype.startsWith('video/')) type = 'video';
-    else if (file.mimetype.startsWith('audio/')) type = 'audio';
-    else if (file.mimetype.includes('pdf') || file.mimetype.includes('document')) type = 'document';
-
-    // Phase 4: Image optimization for image files
     let optimizationData = {};
-    if (type === 'image' && imageOptimizationEnabled) {
+
+    // 2. Process Image Optimization
+    if (req.file.mimetype.startsWith('image/')) {
       try {
-        console.log('[Image] Processing image optimization for:', filename);
-        const processedImage = await processSingleImage(file);
+        const processed = await processSingleImage(req.file);
 
-        // Upload optimized versions to S3
-        if (processedImage.sizes) {
-          const responsiveSizes = {};
-
-          for (const [sizeName, sizeData] of Object.entries(processedImage.sizes)) {
-            if (sizeData.path) {
-              const sizeFilename = `${Date.now()}-${sizeName}-${file.originalname}`;
-              const sizeBuffer = await fsPromises.readFile(sizeData.path);
-
-              const sizeUploadParams = {
-                Bucket: BUCKET_NAME,
-                Key: `optimized/${sizeFilename}`,
-                Body: sizeBuffer,
-                ContentType: 'image/webp',
-                ACL: visibility === 'public' ? 'public-read' : 'private'
-              };
-
-              const sizeResult = await s3.upload(sizeUploadParams).promise();
-              responsiveSizes[sizeName] = sizeResult.Location;
-
-              // Clean up temp file
-              try {
-                await fsPromises.unlink(sizeData.path);
-              } catch (cleanupError) {
-                console.error('[Image] Failed to cleanup temp file:', cleanupError);
-              }
-            }
-          }
-
-          optimizationData.responsiveSizes = responsiveSizes;
-          optimizationData.thumbnailUrl = responsiveSizes.thumbnail || null;
+        // Upload thumbnails and responsive sizes
+        const responsiveKeys = {};
+        for (const [size, data] of Object.entries(processed.sizes)) {
+          const key = `optimized/${datePath}/${uuid}_${size}.webp`;
+          const buffer = require('fs').readFileSync(data.path);
+          await s3.putObject({
+            Bucket: BUCKET_NAME,
+            Key: key,
+            Body: buffer,
+            ContentType: 'image/webp',
+            ACL: visibility === 'public' ? 'public-read' : 'private'
+          }).promise();
+          responsiveKeys[size] = key;
         }
 
-        // Upload blur placeholder if available
-        if (processedImage.blurPlaceholder) {
-          const blurBuffer = await fsPromises.readFile(processedImage.blurPlaceholder);
-          optimizationData.blurPlaceholder = `data:image/webp;base64,${blurBuffer.toString('base64')}`;
-          try {
-            await fsPromises.unlink(processedImage.blurPlaceholder);
-          } catch (cleanupError) {
-            console.error('[Image] Failed to cleanup blur placeholder:', cleanupError);
-          }
-        }
-
-        optimizationData.dominantColor = processedImage.dominantColor || null;
-        optimizationData.metadata = processedImage.metadata || null;
-
-        console.log('[Image] Image optimization completed successfully');
-      } catch (error) {
-        console.error('[Image] Image optimization failed:', error);
-        // Continue without optimization if it fails
+        optimizationData = {
+          responsiveKeys,
+          blurPlaceholder: processed.blurPlaceholder ? require('fs').readFileSync(processed.blurPlaceholder).toString('base64') : null,
+          dominantColor: processed.dominantColor,
+          metadata: processed.metadata
+        };
+      } catch (optErr) {
+        console.error('[Opt] Optimization failed, continuing with original:', optErr);
       }
     }
 
-    // Save metadata to database
     const mediaFile = await MediaFile.create({
       userId,
-      filename: file.filename,
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      size: file.size,
-      url: fileUrl,
-      type,
+      filename: req.file.originalname,
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+      key: s3Key,
       visibility,
       ...optimizationData
     });
 
     res.status(201).json(mediaFile);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to upload file' });
+    console.error('[Upload] Error:', error);
+    res.status(500).json({ error: 'Upload failed' });
   }
 });
 
-// Get user files
-app.get('/files/:userId', async (req, res) => {
-  try {
-    const files = await MediaFile.findAll({
-      where: { userId: req.params.userId },
-      order: [['createdAt', 'DESC']]
-    });
-
-    res.json(files);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch files' });
-  }
-});
-
-// Get file by ID
-app.get('/files/id/:fileId', async (req, res) => {
-  try {
-    const file = await MediaFile.findByPk(req.params.fileId);
-    if (!file) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    res.json(file);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch file' });
-  }
-});
-
-// Delete file
-app.delete('/files/:fileId', async (req, res) => {
-  try {
-    const file = await MediaFile.findByPk(req.params.fileId);
-    if (!file) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    // Delete from local storage
-    const filePath = path.join(UPLOADS_DIR, file.filename);
-    if (fs.existsSync(filePath)) {
-      await fsPromises.unlink(filePath);
-    }
-
-    await file.destroy();
-
-    res.json({ message: 'File deleted successfully' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to delete file' });
-  }
-});
+app.use(globalErrorHandler);
 
 async function startServer() {
   try {
-    await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+    // Professional Migration Initialization
+    await migrationManager.runMigrations([
+      {
+        name: 'init-media-tables',
+        up: async (qi, Sequelize) => {
+          // The model definition will handle table creation via sync in this setup, 
+          // but for Phase 10 we move toward explicit migrations.
+          await sequelize.sync({ alter: true });
+        }
+      }
+    ]);
+
     app.listen(PORT, () => {
-      console.log(`Media service running on port ${PORT}`);
+      console.log(`[Media] Professional S3 service running on port ${PORT}`);
     });
   } catch (error) {
-    console.error('Database initialization failed:', error);
+    console.error('[Fatal] Shutdown:', error);
     process.exit(1);
   }
 }
