@@ -7,7 +7,7 @@ WORKDIR /services/user-service
 
 # Install dependencies first for layer caching
 COPY user-service/package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci --production --legacy-peer-deps; else npm install --production --legacy-peer-deps; fi
+RUN if [ -f package-lock.json ]; then npm ci --production --legacy-peer-deps || npm install --production --legacy-peer-deps; else npm install --production --legacy-peer-deps; fi
 
 # Copy shared utilities (needed by this service)
 COPY shared/ /services/shared/
