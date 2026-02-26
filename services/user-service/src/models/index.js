@@ -12,6 +12,10 @@ const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgr
     }
 });
 
+// Export early so that models requiring this file during circular imports
+// can access the Sequelize instance immediately.
+module.exports = { sequelize };
+
 // Import Models
 const User = require('./User');
 const Profile = require('./Profile');

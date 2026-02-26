@@ -82,9 +82,6 @@ class ExternalServiceError extends AppError {
   }
 }
 
-const logger = require('./logger');
-const response = require('./response-wrapper');
-
 /**
  * Standardized Global Error Treatment
  */

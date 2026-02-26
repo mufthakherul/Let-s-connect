@@ -95,5 +95,33 @@ module.exports = (sequelize) => {
         }
     });
 
-    return { Video, Channel, Playlist, Subscription };
+    // Playlist items join videos to playlists with an explicit ordering
+    const PlaylistItem = sequelize.define('PlaylistItem', {
+        id: {
+            type: DataTypes.UUID,
+            defaultValue: DataTypes.UUIDV4,
+            primaryKey: true
+        },
+        playlistId: {
+            type: DataTypes.UUID,
+            allowNull: false
+        },
+        videoId: {
+            type: DataTypes.UUID,
+            allowNull: false
+        },
+        position: {
+            type: DataTypes.INTEGER,
+            defaultValue: 0
+        }
+    }, {
+        indexes: [
+            {
+                unique: true,
+                fields: ['playlistId', 'videoId']
+            }
+        ]
+    });
+
+    return { Video, Channel, Playlist, Subscription, PlaylistItem };
 };
