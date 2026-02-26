@@ -98,8 +98,25 @@ restore_database() {
     local db_name=$2
     
     if [ ! -f "$backup_file" ]; then
-        error "Backup file not found: $backup_file"
-        exit 1
+        # Phase 10: Try to fetch from S3
+        log "Local backup not found. Attempting to fetch from S3..."
+        S3_ENDPOINT="${S3_ENDPOINT:-http://minio:9000}"
+        S3_BUCKET="${S3_BACKUP_BUCKET:-backups}"
+        filename=$(basename "$backup_file")
+        
+        if command -v aws &> /dev/null; then
+            if aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/database/$filename" "$backup_file"; then
+                log "✓ Fetched $filename from S3"
+                # Also try to fetch metadata
+                aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/database/${filename}.meta" "${backup_file}.meta" 2>/dev/null || true
+            else
+                error "Backup file not found locally or in S3: $backup_file"
+                exit 1
+            fi
+        else
+            error "Backup file not found: $backup_file (AWS CLI not available for S3 fetch)"
+            exit 1
+        fi
     fi
     
     log "Restoring database '$db_name' from backup..."
