@@ -9,6 +9,8 @@ import { Visibility, VisibilityOff, PersonAdd, CheckCircle } from '@mui/icons-ma
 import api from '../utils/api';
 import CaptchaField from './common/CaptchaField';
 import { useAuthStore } from '../store/authStore';
+import { designTokens, getGlassyStyle } from '../theme/designSystem';
+import { Paper, Container } from '@mui/material';
 
 function passwordStrength(password) {
   let score = 0;
@@ -174,221 +176,247 @@ function Register({ setUser }) {
   };
 
   return (
-    <Box sx={{ maxWidth: 520, mx: 'auto', mt: 6, px: 2 }}>
+    <Container maxWidth="sm" sx={{ mt: 8, mb: 4 }}>
       <motion.div initial="hidden" animate="visible" variants={containerVariants}>
-        <Box sx={{ textAlign: 'center', mb: 3 }}>
-          <PersonAdd sx={{ fontSize: 46, color: theme.palette.primary.main }} />
-          <Typography variant="h4" sx={{ mt: 1, fontWeight: 700 }}>Create your account</Typography>
-          <Typography variant="body2" color="text.secondary">Fast setup — join the community</Typography>
-        </Box>
+        <Paper
+          elevation={0}
+          sx={{
+            p: { xs: 3, md: 5 },
+            ...getGlassyStyle(theme.palette.mode),
+            borderRadius: 4,
+            boxShadow: designTokens.glassmorphism[theme.palette.mode].boxShadow,
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+        >
+          <Box sx={{ textAlign: 'center', mb: 4 }}>
+            <Box
+              sx={{
+                width: 64,
+                height: 64,
+                borderRadius: '50%',
+                background: `linear-gradient(135deg, ${theme.palette.primary.main}22, ${theme.palette.secondary.main}22)`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                mx: 'auto',
+                mb: 2
+              }}
+            >
+              <PersonAdd sx={{ fontSize: 32, color: theme.palette.primary.main }} />
+            </Box>
+            <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-0.025em' }}>Create Account</Typography>
+            <Typography variant="body2" color="text.secondary">Join our community in just a few steps</Typography>
+          </Box>
 
-        <motion.div animate={error ? 'shake' : ''} variants={error ? errorVariant : {}}>
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          {successMessage && <Alert severity="success" sx={{ mb: 2 }}>{successMessage}</Alert>}
+          <motion.div animate={error ? 'shake' : ''} variants={error ? errorVariant : {}}>
+            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+            {successMessage && <Alert severity="success" sx={{ mb: 2 }}>{successMessage}</Alert>}
 
-          <form onSubmit={handleSubmit}>
-            <TextField
-              fullWidth
-              label="Username"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              margin="normal"
-              required
-              helperText={
-                usernameStatus === 'checking'
-                  ? 'Checking availability…'
-                  : usernameStatus === 'available'
-                    ? 'Username available'
-                    : usernameStatus === 'taken'
-                      ? 'Username already taken'
-                      : usernameStatus === 'throttled'
-                        ? 'Too many checks — please try again later.'
-                        : usernameStatus === 'captcha_required'
-                          ? 'Too many checks — complete the captcha below and retry.'
-                          : usernameStatus === 'error'
-                            ? 'Could not validate username (server unavailable) — you may still register; server will validate on submit.'
-                          : 'Choose a public handle (letters, numbers, dashes).'
-              }
-              FormHelperTextProps={{
-                sx: {
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1
+            <form onSubmit={handleSubmit}>
+              <TextField
+                fullWidth
+                label="Username"
+                name="username"
+                value={formData.username}
+                onChange={handleChange}
+                margin="normal"
+                required
+                helperText={
+                  usernameStatus === 'checking'
+                    ? 'Checking availability…'
+                    : usernameStatus === 'available'
+                      ? 'Username available'
+                      : usernameStatus === 'taken'
+                        ? 'Username already taken'
+                        : usernameStatus === 'throttled'
+                          ? 'Too many checks — please try again later.'
+                          : usernameStatus === 'captcha_required'
+                            ? 'Too many checks — complete the captcha below and retry.'
+                            : usernameStatus === 'error'
+                              ? 'Could not validate username (server unavailable) — you may still register; server will validate on submit.'
+                              : 'Choose a public handle (letters, numbers, dashes).'
                 }
-              }}
-              InputProps={{
-                endAdornment: usernameStatus === 'available' ? (
-                  <InputAdornment position="end"><CheckCircle color="success" fontSize="small" /></InputAdornment>
-                ) : undefined
-              }}
-            />
+                FormHelperTextProps={{
+                  sx: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }
+                }}
+                InputProps={{
+                  endAdornment: usernameStatus === 'available' ? (
+                    <InputAdornment position="end"><CheckCircle color="success" fontSize="small" /></InputAdornment>
+                  ) : undefined
+                }}
+              />
 
-            {usernameStatus === 'error' && (
-              <Alert severity="warning" sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+              {usernameStatus === 'error' && (
+                <Alert severity="warning" sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{ flex: 1 }}>
+                    Username availability check failed (server unreachable). You can still submit — the server will validate the username on registration.
+                  </Box>
+                  <Button size="small" onClick={() => {
+                    const name = formData.username.trim();
+                    if (!name) return;
+                    setUsernameStatus('checking');
+                    const captchaQuery = captcha?.response ? `&captchaType=${encodeURIComponent(captcha.type)}&captchaResponse=${encodeURIComponent(captcha.response)}` : '';
+                    api.get(`/user/check-username?username=${encodeURIComponent(name)}${captchaQuery}`, { skipAuthRedirect: true })
+                      .then((res) => {
+                        if (res?.data && typeof res.data.available === 'boolean') setUsernameStatus(res.data.available ? 'available' : 'taken');
+                        else setUsernameStatus('available');
+                      })
+                      .catch((err) => {
+                        if (err?.response?.status === 404) setUsernameStatus('available');
+                        else if (err?.response?.status === 429 && err?.response?.data?.error === 'captcha_required') setUsernameStatus('captcha_required');
+                        else if (err?.response?.status === 429) setUsernameStatus('throttled');
+                        else if (err?.response?.status === 400 && err?.response?.data?.error === 'Captcha verification failed') setUsernameStatus('captcha_required');
+                        else setUsernameStatus('error');
+                      });
+                  }}>Retry</Button>
+                </Alert>
+              )}
+
+              {usernameStatus === 'throttled' && (
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                  Too many username lookup attempts from your IP — please wait a while or try again later. You can still register; the server will enforce uniqueness on submit.
+                </Alert>
+              )}
+
+              {usernameStatus === 'captcha_required' && (
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                  We've detected multiple username checks — please complete the CAPTCHA below and click <strong>Retry</strong> to continue checking availability.
+                </Alert>
+              )}
+
+              <TextField
+                fullWidth
+                label="Email"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleChange}
+                margin="normal"
+                required
+                helperText="We will send a confirmation email."
+              />
+
+              <TextField
+                fullWidth
+                label="Password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                value={formData.password}
+                onChange={handleChange}
+                margin="normal"
+                required
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={toggleShowPassword} edge="end" aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }}
+              />
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
                 <Box sx={{ flex: 1 }}>
-                  Username availability check failed (server unreachable). You can still submit — the server will validate the username on registration.
+                  <LinearProgress variant="determinate" value={(score / 4) * 100} sx={{ height: 8, borderRadius: 2 }} />
+                  <Typography variant="caption" color="text.secondary">Strength: {label}</Typography>
                 </Box>
-                <Button size="small" onClick={() => {
-                  const name = formData.username.trim();
-                  if (!name) return;
-                  setUsernameStatus('checking');
-                  const captchaQuery = captcha?.response ? `&captchaType=${encodeURIComponent(captcha.type)}&captchaResponse=${encodeURIComponent(captcha.response)}` : '';
-                  api.get(`/user/check-username?username=${encodeURIComponent(name)}${captchaQuery}`, { skipAuthRedirect: true })
-                    .then((res) => {
-                      if (res?.data && typeof res.data.available === 'boolean') setUsernameStatus(res.data.available ? 'available' : 'taken');
-                      else setUsernameStatus('available');
-                    })
-                    .catch((err) => {
-                      if (err?.response?.status === 404) setUsernameStatus('available');
-                      else if (err?.response?.status === 429 && err?.response?.data?.error === 'captcha_required') setUsernameStatus('captcha_required');
-                      else if (err?.response?.status === 429) setUsernameStatus('throttled');
-                      else if (err?.response?.status === 400 && err?.response?.data?.error === 'Captcha verification failed') setUsernameStatus('captcha_required');
-                      else setUsernameStatus('error');
-                    });
-                }}>Retry</Button>
-              </Alert>
-            )}
-
-            {usernameStatus === 'throttled' && (
-              <Alert severity="warning" sx={{ mt: 1 }}>
-                Too many username lookup attempts from your IP — please wait a while or try again later. You can still register; the server will enforce uniqueness on submit.
-              </Alert>
-            )}
-
-            {usernameStatus === 'captcha_required' && (
-              <Alert severity="warning" sx={{ mt: 1 }}>
-                We've detected multiple username checks — please complete the CAPTCHA below and click <strong>Retry</strong> to continue checking availability.
-              </Alert>
-            )}
-
-            <TextField
-              fullWidth
-              label="Email"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              margin="normal"
-              required
-              helperText="We will send a confirmation email."
-            />
-
-            <TextField
-              fullWidth
-              label="Password"
-              name="password"
-              type={showPassword ? 'text' : 'password'}
-              value={formData.password}
-              onChange={handleChange}
-              margin="normal"
-              required
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={toggleShowPassword} edge="end" aria-label={showPassword ? 'Hide password' : 'Show password'}>
-                      {showPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                )
-              }}
-            />
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
-              <Box sx={{ flex: 1 }}>
-                <LinearProgress variant="determinate" value={(score / 4) * 100} sx={{ height: 8, borderRadius: 2 }} />
-                <Typography variant="caption" color="text.secondary">Strength: {label}</Typography>
+                <Box sx={{ minWidth: 140 }}>
+                  <TextField
+                    fullWidth
+                    label="Confirm password"
+                    name="confirmPassword"
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    margin="normal"
+                    required
+                  />
+                </Box>
               </Box>
-              <Box sx={{ minWidth: 140 }}>
+
+              <Box sx={{ display: 'flex', gap: 2 }}>
                 <TextField
                   fullWidth
-                  label="Confirm password"
-                  name="confirmPassword"
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.confirmPassword}
+                  label="First name"
+                  name="firstName"
+                  value={formData.firstName}
                   onChange={handleChange}
                   margin="normal"
-                  required
+                />
+                <TextField
+                  fullWidth
+                  label="Last name"
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  margin="normal"
                 />
               </Box>
-            </Box>
 
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
-                fullWidth
-                label="First name"
-                name="firstName"
-                value={formData.firstName}
-                onChange={handleChange}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Last name"
-                name="lastName"
-                value={formData.lastName}
-                onChange={handleChange}
-                margin="normal"
-              />
-            </Box>
-
-            <Box sx={{ mt: 1 }}>
-              <CaptchaField
-                label="Human verification"
-                variant="auto"
-                onSolve={(result) => setCaptcha(result)}
-                onClear={() => setCaptcha(null)}
-              />
-            </Box>
-
-            <FormControlLabel
-              control={<Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)} />}
-              label={(
-                <Typography variant="body2">I agree to the <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a></Typography>
-              )}
-              sx={{ mt: 1 }}
-            />
-
-            <Button
-              type="submit"
-              variant="contained"
-              fullWidth
-              sx={{ mt: 2, py: 1.25 }}
-              disabled={loading || usernameStatus === 'taken' || usernameStatus === 'checking' || usernameStatus === 'throttled'}
-            >
-              {loading ? 'Creating account…' : 'Create account'}
-            </Button>
-
-            {usernameStatus === 'taken' && (
-              <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1 }}>Please choose a different username.</Typography>
-            )}
-
-            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 2 }}>
-              Or sign up with
-            </Typography>
-
-            <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-              <Button fullWidth variant="outlined" onClick={() => { window.location.href = '/login/oauth?provider=google'; }}>Google</Button>
-              <Button fullWidth variant="outlined" onClick={() => { window.location.href = '/login/oauth?provider=github'; }}>GitHub</Button>
-            </Box>
-
-            {pendingVerificationEmail && (
-              <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                <Button fullWidth variant="outlined" onClick={handleResendVerification} disabled={loading}>Resend verification</Button>
-                <Button fullWidth variant="contained" onClick={() => navigate('/feed')}>Continue</Button>
+              <Box sx={{ mt: 1 }}>
+                <CaptchaField
+                  label="Human verification"
+                  variant="auto"
+                  onSolve={(result) => setCaptcha(result)}
+                  onClear={() => setCaptcha(null)}
+                />
               </Box>
-            )}
 
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, textAlign: 'center' }}>
-              Already have an account? <Button variant="text" onClick={() => navigate('/login')}>Sign in</Button>
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
-              Forgot your password? <Button variant="text" onClick={() => navigate('/reset-password')}>Reset it</Button>
-            </Typography>
-          </form>
-        </motion.div>
+              <FormControlLabel
+                control={<Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)} />}
+                label={(
+                  <Typography variant="body2">I agree to the <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a></Typography>
+                )}
+                sx={{ mt: 1 }}
+              />
+
+              <Button
+                type="submit"
+                variant="contained"
+                fullWidth
+                sx={{ mt: 2, py: 1.25 }}
+                disabled={loading || usernameStatus === 'taken' || usernameStatus === 'checking' || usernameStatus === 'throttled'}
+              >
+                {loading ? 'Creating account…' : 'Create account'}
+              </Button>
+
+              {usernameStatus === 'taken' && (
+                <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1 }}>Please choose a different username.</Typography>
+              )}
+
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 2 }}>
+                Or sign up with
+              </Typography>
+
+              <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                <Button fullWidth variant="outlined" onClick={() => { window.location.href = '/login/oauth?provider=google'; }}>Google</Button>
+                <Button fullWidth variant="outlined" onClick={() => { window.location.href = '/login/oauth?provider=github'; }}>GitHub</Button>
+              </Box>
+
+              {pendingVerificationEmail && (
+                <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                  <Button fullWidth variant="outlined" onClick={handleResendVerification} disabled={loading}>Resend verification</Button>
+                  <Button fullWidth variant="contained" onClick={() => navigate('/feed')}>Continue</Button>
+                </Box>
+              )}
+
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, textAlign: 'center' }}>
+                Already have an account? <Button variant="text" onClick={() => navigate('/login')}>Sign in</Button>
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
+                Forgot your password? <Button variant="text" onClick={() => navigate('/reset-password')}>Reset it</Button>
+              </Typography>
+            </form>
+          </motion.div>
+        </Paper>
       </motion.div>
-    </Box>
+    </Container>
   );
 }
 

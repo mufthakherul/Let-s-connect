@@ -56,6 +56,7 @@ const initializeAccessibilitySettings = () => {
       magnification: 1.0,
       reducedMotion: false,
       fontFamily: 'default', // 'default', 'dyslexic', 'high-legibility'
+      glassmorphism: true, // NEW: Toggle for premium glass effects
     };
   } catch {
     return {
@@ -66,6 +67,7 @@ const initializeAccessibilitySettings = () => {
       magnification: 1.0,
       reducedMotion: false,
       fontFamily: 'default',
+      glassmorphism: true,
     };
   }
 };
@@ -132,7 +134,6 @@ export const useThemeStore = create((set, get) => ({
     }
     set({ accessibility: defaultSettings });
   },
-
   setUseSystemTheme: (useSystem) => {
     try {
       localStorage.setItem('use-system-theme', useSystem.toString());
@@ -147,6 +148,17 @@ export const useThemeStore = create((set, get) => ({
       console.error('Failed to save system theme preference:', error);
     }
   },
+
+  toggleGlassmorphism: () => set((state) => {
+    const newValue = !state.accessibility.glassmorphism;
+    const newAccessibility = { ...state.accessibility, glassmorphism: newValue };
+    try {
+      localStorage.setItem('accessibility-settings', JSON.stringify(newAccessibility));
+    } catch (error) {
+      console.error('Failed to save glassmorphism preference:', error);
+    }
+    return { accessibility: newAccessibility };
+  }),
 
   setAccentColor: (color) => {
     try {

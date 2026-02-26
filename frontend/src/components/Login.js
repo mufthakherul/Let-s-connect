@@ -10,6 +10,8 @@ import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import api from '../utils/api';
 import { useAuthStore } from '../store/authStore';
+import { designTokens, getGlassyStyle } from '../theme/designSystem';
+import { Paper, Container } from '@mui/material';
 
 function passwordStrength(password) {
   let score = 0;
@@ -90,120 +92,144 @@ function Login({ setUser }) {
 
 
   return (
-    <Box sx={{ maxWidth: 480, mx: 'auto', mt: 6, px: 2 }}>
+    <Container maxWidth="sm" sx={{ mt: 8, mb: 4 }}>
       <motion.div
         initial="hidden"
         animate="visible"
         variants={containerVariants}
       >
-        <Box sx={{ textAlign: 'center', mb: 3 }}>
-          <LockOutlined sx={{ fontSize: 44, color: theme.palette.primary.main }} />
-          <Typography variant="h4" gutterBottom sx={{ mt: 1, fontWeight: 700 }}>Sign in</Typography>
-          <Typography variant="body2" color="text.secondary">Welcome back — sign in to continue</Typography>
-        </Box>
+        <Paper
+          elevation={0}
+          sx={{
+            p: { xs: 3, md: 5 },
+            ...getGlassyStyle(theme.palette.mode),
+            borderRadius: 4,
+            boxShadow: designTokens.glassmorphism[theme.palette.mode].boxShadow,
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+        >
+          <Box sx={{ textAlign: 'center', mb: 4 }}>
+            <Box
+              sx={{
+                width: 64,
+                height: 64,
+                borderRadius: '50%',
+                background: `linear-gradient(135deg, ${theme.palette.primary.main}22, ${theme.palette.secondary.main}22)`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                mx: 'auto',
+                mb: 2
+              }}
+            >
+              <LockOutlined sx={{ fontSize: 32, color: theme.palette.primary.main }} />
+            </Box>
+            <Typography variant="h4" gutterBottom sx={{ fontWeight: 800, letterSpacing: '-0.025em' }}>Welcome Back</Typography>
+            <Typography variant="body2" color="text.secondary">Enter your credentials to access your account</Typography>
+          </Box>
 
-        <motion.div animate={error ? 'shake' : ''} variants={error ? errorVariant : {}}>
-          {error && <Alert severity="error" sx={{ mb: 2 }} aria-live="assertive">{error}</Alert>}
+          <motion.div animate={error ? 'shake' : ''} variants={error ? errorVariant : {}}>
+            {error && <Alert severity="error" sx={{ mb: 2 }} aria-live="assertive">{error}</Alert>}
 
-          <form onSubmit={handleSubmit}>
-            <motion.div whileTap={!prefersReducedMotion ? { scale: 0.995 } : {}}>
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                margin="normal"
-                required
-                autoComplete="email"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LoginIcon fontSize="small" />
-                    </InputAdornment>
-                  )
-                }}
-              />
-
-              <TextField
-                fullWidth
-                label="Password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyUp={handleKeyCaps}
-                margin="normal"
-                required
-                autoComplete="current-password"
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={togglePassword} edge="end">
-                        {showPassword ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    </InputAdornment>
-                  )
-                }}
-              />
-
-              {password && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
-                  <Box sx={{ flex: 1 }}>
-                    <LinearProgress variant="determinate" value={(score / 4) * 100} sx={{ height: 8, borderRadius: 2 }} />
-                    <Typography variant="caption" color="text.secondary">Strength: {label}</Typography>
-                  </Box>
-                </Box>
-              )}
-
-              {capsLock && <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 1 }}>Caps Lock is on</Typography>}
-
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2 }}>
-                <FormControlLabel
-                  control={<Checkbox checked={remember} onChange={(e) => setRemember(e.target.checked)} />}
-                  label="Remember me"
+            <form onSubmit={handleSubmit}>
+              <motion.div whileTap={!prefersReducedMotion ? { scale: 0.995 } : {}}>
+                <TextField
+                  fullWidth
+                  label="Email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  margin="normal"
+                  required
+                  autoComplete="email"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LoginIcon fontSize="small" />
+                      </InputAdornment>
+                    )
+                  }}
                 />
 
-                <Button variant="text" onClick={() => navigate('/reset-password')}>
-                  Forgot password?
-                </Button>
-              </Box>
-
-              <Button type="submit" variant="contained" fullWidth sx={{ mt: 2, py: 1.25 }} disabled={loading}>
-                {loading ? 'Signing in…' : 'Sign in'}
-              </Button>
-
-              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 2 }}>
-                Or continue with
-              </Typography>
-
-              <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                <Button
+                <TextField
                   fullWidth
-                  variant="outlined"
-                  onClick={() => { window.location.href = '/login/oauth?provider=google'; }}
-                  startIcon={<Box component="span" sx={{ fontWeight: 700 }}>G</Box>}
-                >
-                  Google
-                </Button>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => { window.location.href = '/login/oauth?provider=github'; }}
-                >
-                  GitHub
-                </Button>
-              </Box>
+                  label="Password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyUp={handleKeyCaps}
+                  margin="normal"
+                  required
+                  autoComplete="current-password"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={togglePassword} edge="end">
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    )
+                  }}
+                />
 
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, textAlign: 'center' }}>
-                Need an account? <Button variant="text" onClick={() => navigate('/register')}>Sign up</Button>
-              </Typography>
-            </motion.div>
-          </form>
-        </motion.div>
+                {password && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
+                    <Box sx={{ flex: 1 }}>
+                      <LinearProgress variant="determinate" value={(score / 4) * 100} sx={{ height: 8, borderRadius: 2 }} />
+                      <Typography variant="caption" color="text.secondary">Strength: {label}</Typography>
+                    </Box>
+                  </Box>
+                )}
+
+                {capsLock && <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 1 }}>Caps Lock is on</Typography>}
+
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2 }}>
+                  <FormControlLabel
+                    control={<Checkbox checked={remember} onChange={(e) => setRemember(e.target.checked)} />}
+                    label="Remember me"
+                  />
+
+                  <Button variant="text" onClick={() => navigate('/reset-password')}>
+                    Forgot password?
+                  </Button>
+                </Box>
+
+                <Button type="submit" variant="contained" fullWidth sx={{ mt: 2, py: 1.25 }} disabled={loading}>
+                  {loading ? 'Signing in…' : 'Sign in'}
+                </Button>
+
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 2 }}>
+                  Or continue with
+                </Typography>
+
+                <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={() => { window.location.href = '/login/oauth?provider=google'; }}
+                    startIcon={<Box component="span" sx={{ fontWeight: 700 }}>G</Box>}
+                  >
+                    Google
+                  </Button>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={() => { window.location.href = '/login/oauth?provider=github'; }}
+                  >
+                    GitHub
+                  </Button>
+                </Box>
+
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, textAlign: 'center' }}>
+                  Need an account? <Button variant="text" onClick={() => navigate('/register')}>Sign up</Button>
+                </Typography>
+              </motion.div>
+            </form>
+          </motion.div>
+        </Paper>
       </motion.div>
-
-
-    </Box>
+    </Container>
   );
 }
 

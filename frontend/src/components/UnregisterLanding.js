@@ -10,6 +10,7 @@ import {
     ShoppingCart, Description, VerifiedUser, Event, Lock, Radio, Tv, Pages as PagesIcon
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
+import { designTokens, getGlassyStyle } from '../theme/designSystem';
 
 function UnregisterLanding() {
     const theme = useTheme();
@@ -18,10 +19,8 @@ function UnregisterLanding() {
     const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
     const [expandedIndex, setExpandedIndex] = useState(null);
 
-    // Brand gradient: purple in dark mode, indigo/cyan in light mode
-    const brandGradient = theme?.palette?.mode === 'dark'
-        ? 'linear-gradient(45deg, #b388ff, #7c3aed)'
-        : 'linear-gradient(45deg, #4f46e5, #06b6d4)';
+    const mode = theme.palette.mode;
+    const brandGradient = `linear-gradient(135deg, ${designTokens.colors[mode].primary}, ${designTokens.colors[mode].secondary})`;
 
     // Feature-detect whether the browser supports text background-clip
     const [supportsTextClip, setSupportsTextClip] = React.useState(true);
@@ -350,15 +349,14 @@ function UnregisterLanding() {
                                         height: '100%',
                                         minHeight: 250,
                                         cursor: 'pointer',
-                                        transition: 'transform 0.2s, box-shadow 0.2s',
+                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                                         outline: expandedIndex === index ? `2px solid ${theme.palette.primary.light}` : 'none',
-                                        border: '1px solid',
-                                        borderColor: 'divider',
-                                        borderRadius: 3,
-                                        boxShadow: theme.palette.mode === 'dark' ? '0 6px 24px rgba(0,0,0,0.35)' : '0 8px 22px rgba(15, 23, 42, 0.07)',
-                                        backdropFilter: 'saturate(140%) blur(2px)',
+                                        ...getGlassyStyle(mode),
+                                        borderRadius: 4,
                                         '&:hover': {
-                                            borderColor: 'primary.light',
+                                            transform: 'translateY(-8px)',
+                                            boxShadow: designTokens.glassmorphism[mode].boxShadow,
+                                            borderColor: designTokens.colors[mode].primary,
                                         }
                                     }}
                                 >
