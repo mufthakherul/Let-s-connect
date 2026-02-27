@@ -20,15 +20,31 @@ const TELEGRAM_BOT_WEBHOOK_TOKEN = process.env.TELEGRAM_BOT_WEBHOOK_TOKEN || '';
 app.use(express.json());
 
 // VAPID keys should be generated once and kept in .env
-// For demo, we use placeholders if not present
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BC-mD3p_H2I_y9lY-Yt_M8-Z8E8_M8-Z8E8_M8-Z8E8_M8-Z8E8_M8-Z8E8_M8-Z8E8_M8-Z8E8';
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'PLACEHOLDER_PRIVATE_KEY';
+const VAPID_PUBLIC_KEY = (process.env.VAPID_PUBLIC_KEY || '').trim();
+const VAPID_PRIVATE_KEY = (process.env.VAPID_PRIVATE_KEY || '').trim();
 
-webpush.setVapidDetails(
-  'mailto:support@letsconnect.com',
-  VAPID_PUBLIC_KEY,
-  VAPID_PRIVATE_KEY
-);
+function looksLikePlaceholder(value = '') {
+  const normalized = String(value).trim().toLowerCase();
+  return !normalized || normalized === 'dummy' || normalized.includes('placeholder');
+}
+
+let pushNotificationsEnabled = false;
+
+if (!looksLikePlaceholder(VAPID_PUBLIC_KEY) && !looksLikePlaceholder(VAPID_PRIVATE_KEY)) {
+  try {
+    webpush.setVapidDetails(
+      'mailto:support@letsconnect.com',
+      VAPID_PUBLIC_KEY,
+      VAPID_PRIVATE_KEY
+    );
+    pushNotificationsEnabled = true;
+  } catch (error) {
+    console.warn('[Push] Invalid VAPID configuration. Push notifications disabled.');
+    console.warn(`[Push] ${error.message}`);
+  }
+} else {
+  console.warn('[Push] VAPID keys missing/placeholder. Push notifications disabled.');
+}
 
 // Database
 const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/messages', {
@@ -777,27 +793,29 @@ io.on('connection', (socket) => {
           // Check if user is connected via socket (simplified check)
           // In a real app, you'd check a centralized 'online-users' Map or Redis
 
-          const subscriptions = await Subscription.findAll({ where: { userId: recipientId } });
-          for (const sub of subscriptions) {
-            try {
-              const payload = JSON.stringify({
-                title: `New message from ${data.senderId}`,
-                body: data.content,
-                url: `/chat/${data.conversationId}`
-              });
+          if (pushNotificationsEnabled) {
+            const subscriptions = await Subscription.findAll({ where: { userId: recipientId } });
+            for (const sub of subscriptions) {
+              try {
+                const payload = JSON.stringify({
+                  title: `New message from ${data.senderId}`,
+                  body: data.content,
+                  url: `/chat/${data.conversationId}`
+                });
 
-              await webpush.sendNotification(
-                {
-                  endpoint: sub.endpoint,
-                  keys: { p256dh: sub.p256dh, auth: sub.auth }
-                },
-                payload
-              );
-            } catch (err) {
-              console.error('Failed to send push notification:', err);
-              if (err.statusCode === 410) {
-                // Subscription has expired or is no longer valid
-                await sub.destroy();
+                await webpush.sendNotification(
+                  {
+                    endpoint: sub.endpoint,
+                    keys: { p256dh: sub.p256dh, auth: sub.auth }
+                  },
+                  payload
+                );
+              } catch (err) {
+                console.error('Failed to send push notification:', err);
+                if (err.statusCode === 410) {
+                  // Subscription has expired or is no longer valid
+                  await sub.destroy();
+                }
               }
             }
           }
@@ -837,6 +855,10 @@ app.get('/health', (req, res) => {
 
 // Subscribe to push notifications
 app.post('/push/subscribe', async (req, res) => {
+  if (!pushNotificationsEnabled) {
+    return res.status(503).json({ error: 'Push notifications are disabled (VAPID not configured)' });
+  }
+
   try {
     const { userId, subscription } = req.body;
 
