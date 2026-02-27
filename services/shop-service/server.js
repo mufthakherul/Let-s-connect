@@ -685,6 +685,30 @@ app.delete('/wishlist/:id', async (req, res) => {
 
 async function startServer() {
   try {
+    const maxDbAttempts = parseInt(process.env.DB_CONNECT_MAX_RETRIES || '20', 10);
+    const retryDelayMs = parseInt(process.env.DB_CONNECT_RETRY_DELAY_MS || '3000', 10);
+
+    let dbReady = false;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= maxDbAttempts; attempt++) {
+      try {
+        await sequelize.authenticate();
+        dbReady = true;
+        break;
+      } catch (error) {
+        lastError = error;
+        console.warn(`[DB] Connection attempt ${attempt}/${maxDbAttempts} failed: ${error.message}`);
+        if (attempt < maxDbAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        }
+      }
+    }
+
+    if (!dbReady) {
+      throw lastError || new Error('Database connection failed after retries');
+    }
+
     await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
     app.listen(PORT, () => {
       console.log(`Shop service running on port ${PORT}`);
