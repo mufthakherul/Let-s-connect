@@ -6,6 +6,7 @@ const communityRoutes = require('./communityRoutes');
 const videoRoutes = require('./videoRoutes');
 const blogRoutes = require('./blogRoutes');
 const hubRoutes = require('./hubRoutes');
+const playlistRoutes = require('./playlistRoutes');
 
 const router = express.Router();
 
@@ -16,5 +17,6 @@ router.use('/communities', communityRoutes);
 router.use('/videos', videoRoutes);
 router.use('/blogs', blogRoutes);
 router.use('/hubs', hubRoutes);
+router.use('/playlists', playlistRoutes);
 
 module.exports = router;

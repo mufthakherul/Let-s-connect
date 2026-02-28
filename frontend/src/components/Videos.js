@@ -19,7 +19,8 @@ import {
   FormControl,
   Select,
   MenuItem,
-  Skeleton
+  Skeleton,
+  CircularProgress
 } from '@mui/material';
 import { ContentCopy, PlaylistAdd, Share, Subscriptions } from '@mui/icons-material';
 import toast from 'react-hot-toast';
@@ -40,6 +41,7 @@ function Videos({ user }) {
   const [playlistForm, setPlaylistForm] = useState({ name: '', description: '', visibility: 'public' });
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [playlistVideoId, setPlaylistVideoId] = useState('');
+  const [playlistDialogOpen, setPlaylistDialogOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);

@@ -23,3 +23,4 @@ USER node
 EXPOSE 8005
 
 CMD ["node", "server.js"]
+ENV NODE_PATH=./node_modules

@@ -9,6 +9,8 @@ const { CacheManager } = require('../shared/caching');
 const { MigrationManager } = require('../shared/migrations-manager');
 require('dotenv').config();
 
+const PORT = process.env.PORT || 8002;
+
 const app = express();
 const healthChecker = new HealthChecker('content-service');
 const cacheManager = new CacheManager();
@@ -33,7 +35,7 @@ app.use((req, res, next) => {
 });
 
 // Main App Routes
-app.use('/api/v1/content', routes);
+app.use('/', routes);
 
 // Enhanced health checks
 app.get('/health/ready', async (req, res) => {

@@ -21,3 +21,4 @@ EXPOSE 8009
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "server.js"]
+ENV NODE_PATH=./node_modules
