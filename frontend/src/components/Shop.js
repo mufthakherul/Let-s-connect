@@ -22,6 +22,14 @@ import { motion } from 'framer-motion';
 import axios from 'axios';
 import ProductReview from './ProductReview';
 
+const extractApiData = (response) => {
+  const body = response?.data;
+  if (body && typeof body === 'object' && Object.prototype.hasOwnProperty.call(body, 'data')) {
+    return body.data;
+  }
+  return body;
+};
+
 function Shop() {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
@@ -45,7 +53,8 @@ function Shop() {
   const fetchProducts = async () => {
     try {
       const response = await axios.get('/api/shop/public/products');
-      setProducts(response.data);
+      const data = extractApiData(response);
+      setProducts(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch products:', err);
     }
@@ -56,7 +65,8 @@ function Shop() {
       const response = await axios.get(`/api/shop/wishlist/${user.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setWishlist(response.data.map(item => item.productId));
+      const data = extractApiData(response);
+      setWishlist(Array.isArray(data) ? data.map(item => item.productId) : []);
     } catch (err) {
       console.error('Failed to fetch wishlist:', err);
     }
@@ -89,7 +99,9 @@ function Shop() {
         const response = await axios.get(`/api/shop/wishlist/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        const item = response.data.find(w => w.productId === productId);
+        const data = extractApiData(response);
+        const items = Array.isArray(data) ? data : [];
+        const item = items.find(w => w.productId === productId);
         if (item) {
           await axios.delete(`/api/shop/wishlist/${item.id}`, {
             headers: { Authorization: `Bearer ${token}` }

@@ -33,6 +33,14 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 
+const extractApiData = (response) => {
+  const body = response?.data;
+  if (body && typeof body === 'object' && Object.prototype.hasOwnProperty.call(body, 'data')) {
+    return body.data;
+  }
+  return body;
+};
+
 
 function Docs({ user }) {
   const [docs, setDocs] = useState([]);
@@ -74,7 +82,8 @@ function Docs({ user }) {
   const fetchDocs = async () => {
     try {
       const response = await api.get('/collaboration/public/docs');
-      setDocs(response.data);
+      const data = extractApiData(response);
+      setDocs(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch docs:', err);
       toast.error('Failed to load docs');
@@ -84,10 +93,12 @@ function Docs({ user }) {
   const fetchWiki = async () => {
     try {
       const response = await api.get('/collaboration/public/wiki');
-      setWikiPages(response.data);
+      const data = extractApiData(response);
+      const pages = Array.isArray(data) ? data : [];
+      setWikiPages(pages);
       // Extract unique categories
       const cats = new Set();
-      response.data.forEach(page => {
+      pages.forEach(page => {
         if (page.categories) {
           page.categories.forEach(cat => cats.add(cat));
         }
@@ -105,7 +116,8 @@ function Docs({ user }) {
     if (!user) return;
     try {
       const response = await api.get(`/collaboration/documents/${docId}/versions`);
-      setDocVersions(response.data);
+      const data = extractApiData(response);
+      setDocVersions(Array.isArray(data) ? data : []);
       setShowVersionHistory(true);
     } catch (err) {
       console.error('Failed to fetch document versions:', err);
@@ -117,7 +129,7 @@ function Docs({ user }) {
     if (!user) return;
     try {
       const response = await api.get(`/collaboration/documents/${docId}/versions/${versionNumber}`);
-      setSelectedVersion(response.data);
+      setSelectedVersion(extractApiData(response));
     } catch (err) {
       console.error('Failed to load version:', err);
       toast.error('Failed to load version');
@@ -166,7 +178,8 @@ function Docs({ user }) {
   const fetchWikiHistory = async (wikiId) => {
     try {
       const response = await api.get(`/collaboration/wiki/${wikiId}/history`);
-      setWikiHistory(response.data);
+      const data = extractApiData(response);
+      setWikiHistory(Array.isArray(data) ? data : []);
       setShowWikiHistory(true);
     } catch (err) {
       console.error('Failed to fetch wiki history:', err);
@@ -177,7 +190,7 @@ function Docs({ user }) {
   const viewWikiRevision = async (wikiId, historyId) => {
     try {
       const response = await api.get(`/collaboration/wiki/${wikiId}/history/${historyId}`);
-      setSelectedWikiRevision(response.data);
+      setSelectedWikiRevision(extractApiData(response));
     } catch (err) {
       console.error('Failed to load revision:', err);
       toast.error('Failed to load revision');
@@ -289,7 +302,7 @@ function Docs({ user }) {
                           onClick={() => {
                             setSelectedDoc(doc);
                             fetchDocumentVersions(doc.id);
-                          } }
+                          }}
                         >
                           <History />
                         </IconButton>
@@ -369,7 +382,7 @@ function Docs({ user }) {
                           onClick={() => {
                             setSelectedWiki(page);
                             fetchWikiHistory(page.id);
-                          } }
+                          }}
                         >
                           <History />
                         </IconButton>
@@ -457,180 +470,180 @@ function Docs({ user }) {
 
       {/* ========== PHASE 2: Edit Document Dialog ========== */}
       <Dialog
-    open={editingDoc}
-    onClose={() => setEditingDoc(false)}
-    maxWidth="md"
-    fullWidth
-  >
-    <DialogTitle>Edit Document</DialogTitle>
-    <DialogContent>
-      <Stack spacing={2} sx={{ mt: 1 }}>
-        <TextField
-          label="Title"
-          fullWidth
-          value={editDocForm.title}
-          onChange={(e) => setEditDocForm({ ...editDocForm, title: e.target.value })}
-        />
-        <TextField
-          label="Content"
-          fullWidth
-          multiline
-          rows={10}
-          value={editDocForm.content}
-          onChange={(e) => setEditDocForm({ ...editDocForm, content: e.target.value })}
-        />
-        <TextField
-          label="Change Description"
-          fullWidth
-          placeholder="What did you change?"
-          value={editDocForm.changeDescription}
-          onChange={(e) => setEditDocForm({ ...editDocForm, changeDescription: e.target.value })}
-        />
-      </Stack>
-    </DialogContent>
-    <DialogActions>
-      <Button onClick={() => setEditingDoc(false)}>Cancel</Button>
-      <Button onClick={handleSaveDocument} variant="contained">Save</Button>
-    </DialogActions>
-  </Dialog>
-
-  {/* ========== PHASE 2: Wiki Edit History Dialog ========== */}
-  <Dialog
-    open={showWikiHistory}
-    onClose={() => setShowWikiHistory(false)}
-    maxWidth="md"
-    fullWidth
-  >
-    <DialogTitle>
-      Wiki Edit History
-      {selectedWiki && <Typography variant="caption" display="block">{selectedWiki.title}</Typography>}
-    </DialogTitle>
-    <DialogContent>
-      <List>
-        {wikiHistory.map((revision) => (
-          <Card key={revision.id} sx={{ mb: 2 }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Box>
-                  <Typography variant="subtitle1">
-                    {revision.title}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {revision.editSummary || 'No edit summary'}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {new Date(revision.createdAt).toLocaleString()}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button
-                    size="small"
-                    startIcon={<Visibility />}
-                    onClick={() => viewWikiRevision(selectedWiki.id, revision.id)}
-                  >
-                    View
-                  </Button>
-                  {user && (
-                    <Button
-                      size="small"
-                      startIcon={<Restore />}
-                      onClick={() => restoreWikiRevision(selectedWiki.id, revision.id)}
-                    >
-                      Restore
-                    </Button>
-                  )}
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        ))}
-      </List>
-      {selectedWikiRevision && (
-        <Paper sx={{ p: 2, mt: 2, bgcolor: 'grey.100' }}>
-          <Typography variant="h6" gutterBottom>{selectedWikiRevision.title}</Typography>
-          <Divider sx={{ mb: 2 }} />
-          <Typography variant="body2" style={{ whiteSpace: 'pre-wrap' }}>
-            {selectedWikiRevision.content}
-          </Typography>
-        </Paper>
-      )}
-    </DialogContent>
-    <DialogActions>
-      <Button onClick={() => setShowWikiHistory(false)}>Close</Button>
-    </DialogActions>
-  </Dialog>
-
-  {/* ========== PHASE 2: Edit Wiki Dialog ========== */}
-  <Dialog
-    open={editingWiki}
-    onClose={() => setEditingWiki(false)}
-    maxWidth="md"
-    fullWidth
-  >
-    <DialogTitle>Edit Wiki Page</DialogTitle>
-    <DialogContent>
-      <Stack spacing={2} sx={{ mt: 1 }}>
-        <TextField
-          label="Title"
-          fullWidth
-          value={editWikiForm.title}
-          onChange={(e) => setEditWikiForm({ ...editWikiForm, title: e.target.value })}
-        />
-        <TextField
-          label="Content"
-          fullWidth
-          multiline
-          rows={10}
-          value={editWikiForm.content}
-          onChange={(e) => setEditWikiForm({ ...editWikiForm, content: e.target.value })}
-        />
-        <TextField
-          label="Edit Summary"
-          fullWidth
-          placeholder="Briefly describe your changes"
-          value={editWikiForm.editSummary}
-          onChange={(e) => setEditWikiForm({ ...editWikiForm, editSummary: e.target.value })}
-        />
-
-        {/* Phase 2: Categories Management */}
-        <Box>
-          <Typography variant="subtitle2" gutterBottom>
-            Categories
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+        open={editingDoc}
+        onClose={() => setEditingDoc(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Edit Document</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField
-              size="small"
-              placeholder="Add category"
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
+              label="Title"
+              fullWidth
+              value={editDocForm.title}
+              onChange={(e) => setEditDocForm({ ...editDocForm, title: e.target.value })}
             />
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<Add />}
-              onClick={handleAddCategory}
-            >
-              Add
-            </Button>
-          </Box>
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            {editWikiForm.categories.map(cat => (
-              <Chip
-                key={cat}
-                label={cat}
-                onDelete={() => handleRemoveCategory(cat)}
-                size="small"
-              />
-            ))}
+            <TextField
+              label="Content"
+              fullWidth
+              multiline
+              rows={10}
+              value={editDocForm.content}
+              onChange={(e) => setEditDocForm({ ...editDocForm, content: e.target.value })}
+            />
+            <TextField
+              label="Change Description"
+              fullWidth
+              placeholder="What did you change?"
+              value={editDocForm.changeDescription}
+              onChange={(e) => setEditDocForm({ ...editDocForm, changeDescription: e.target.value })}
+            />
           </Stack>
-        </Box>
-      </Stack>
-    </DialogContent>
-    <DialogActions>
-      <Button onClick={() => setEditingWiki(false)}>Cancel</Button>
-      <Button onClick={handleSaveWiki} variant="contained">Save Changes</Button>
-    </DialogActions>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditingDoc(false)}>Cancel</Button>
+          <Button onClick={handleSaveDocument} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ========== PHASE 2: Wiki Edit History Dialog ========== */}
+      <Dialog
+        open={showWikiHistory}
+        onClose={() => setShowWikiHistory(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Wiki Edit History
+          {selectedWiki && <Typography variant="caption" display="block">{selectedWiki.title}</Typography>}
+        </DialogTitle>
+        <DialogContent>
+          <List>
+            {wikiHistory.map((revision) => (
+              <Card key={revision.id} sx={{ mb: 2 }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box>
+                      <Typography variant="subtitle1">
+                        {revision.title}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {revision.editSummary || 'No edit summary'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {new Date(revision.createdAt).toLocaleString()}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button
+                        size="small"
+                        startIcon={<Visibility />}
+                        onClick={() => viewWikiRevision(selectedWiki.id, revision.id)}
+                      >
+                        View
+                      </Button>
+                      {user && (
+                        <Button
+                          size="small"
+                          startIcon={<Restore />}
+                          onClick={() => restoreWikiRevision(selectedWiki.id, revision.id)}
+                        >
+                          Restore
+                        </Button>
+                      )}
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            ))}
+          </List>
+          {selectedWikiRevision && (
+            <Paper sx={{ p: 2, mt: 2, bgcolor: 'grey.100' }}>
+              <Typography variant="h6" gutterBottom>{selectedWikiRevision.title}</Typography>
+              <Divider sx={{ mb: 2 }} />
+              <Typography variant="body2" style={{ whiteSpace: 'pre-wrap' }}>
+                {selectedWikiRevision.content}
+              </Typography>
+            </Paper>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowWikiHistory(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ========== PHASE 2: Edit Wiki Dialog ========== */}
+      <Dialog
+        open={editingWiki}
+        onClose={() => setEditingWiki(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Edit Wiki Page</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Title"
+              fullWidth
+              value={editWikiForm.title}
+              onChange={(e) => setEditWikiForm({ ...editWikiForm, title: e.target.value })}
+            />
+            <TextField
+              label="Content"
+              fullWidth
+              multiline
+              rows={10}
+              value={editWikiForm.content}
+              onChange={(e) => setEditWikiForm({ ...editWikiForm, content: e.target.value })}
+            />
+            <TextField
+              label="Edit Summary"
+              fullWidth
+              placeholder="Briefly describe your changes"
+              value={editWikiForm.editSummary}
+              onChange={(e) => setEditWikiForm({ ...editWikiForm, editSummary: e.target.value })}
+            />
+
+            {/* Phase 2: Categories Management */}
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>
+                Categories
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                <TextField
+                  size="small"
+                  placeholder="Add category"
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
+                />
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<Add />}
+                  onClick={handleAddCategory}
+                >
+                  Add
+                </Button>
+              </Box>
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                {editWikiForm.categories.map(cat => (
+                  <Chip
+                    key={cat}
+                    label={cat}
+                    onDelete={() => handleRemoveCategory(cat)}
+                    size="small"
+                  />
+                ))}
+              </Stack>
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditingWiki(false)}>Cancel</Button>
+          <Button onClick={handleSaveWiki} variant="contained">Save Changes</Button>
+        </DialogActions>
       </Dialog>
     </>
   );

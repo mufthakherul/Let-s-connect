@@ -39,6 +39,14 @@ import toast from 'react-hot-toast';
 import api from '../utils/api';
 import config from '../config/api';
 
+const extractApiData = (response) => {
+  const body = response?.data;
+  if (body && typeof body === 'object' && Object.prototype.hasOwnProperty.call(body, 'data')) {
+    return body.data;
+  }
+  return body;
+};
+
 function Chat({ user }) {
   const [tab, setTab] = useState(0);
   const [conversations, setConversations] = useState([]);
@@ -64,7 +72,10 @@ function Chat({ user }) {
 
   useEffect(() => {
     fetchConversations();
-    const newSocket = io(config.MESSAGING_SERVICE_URL);
+    const newSocket = io(config.MESSAGING_SERVICE_URL, {
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+    });
     setSocket(newSocket);
 
     return () => newSocket.close();
@@ -73,7 +84,8 @@ function Chat({ user }) {
   const fetchConversations = async () => {
     try {
       const response = await api.get(`/messaging/conversations/${user.id}`);
-      setConversations(response.data);
+      const data = extractApiData(response);
+      setConversations(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch conversations:', err);
       toast.error('Failed to load conversations');
@@ -83,7 +95,8 @@ function Chat({ user }) {
   const fetchMessages = async (conversationId) => {
     try {
       const response = await api.get(`/messaging/conversations/${conversationId}/messages`);
-      setMessages(response.data);
+      const data = extractApiData(response);
+      setMessages(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch messages:', err);
       toast.error('Failed to load messages');
@@ -129,9 +142,9 @@ function Chat({ user }) {
         api.get('/messaging/servers/popular'),
         api.get('/messaging/servers/categories')
       ]);
-      setDiscoverServers(discover.data);
-      setPopularServers(popular.data);
-      setCategories(cats.data);
+      setDiscoverServers(Array.isArray(extractApiData(discover)) ? extractApiData(discover) : []);
+      setPopularServers(Array.isArray(extractApiData(popular)) ? extractApiData(popular) : []);
+      setCategories(Array.isArray(extractApiData(cats)) ? extractApiData(cats) : []);
     } catch (err) {
       console.error('Failed to fetch server discovery:', err);
       toast.error('Failed to load discovery');
@@ -146,7 +159,8 @@ function Chat({ user }) {
       const response = await api.get('/messaging/servers/search', {
         params: { q: searchQuery.trim() }
       });
-      setSearchResults(response.data);
+      const data = extractApiData(response);
+      setSearchResults(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to search servers:', err);
       toast.error('Search failed');
@@ -275,9 +289,15 @@ function Chat({ user }) {
     if (socket && selectedConversation) {
       socket.emit('join-conversation', selectedConversation.id);
 
-      socket.on('new-message', (message) => {
+      const handleNewMessage = (message) => {
         setMessages((prev) => [...prev, message]);
-      });
+      };
+
+      socket.on('new-message', handleNewMessage);
+
+      return () => {
+        socket.off('new-message', handleNewMessage);
+      };
     }
   }, [socket, selectedConversation]);
 

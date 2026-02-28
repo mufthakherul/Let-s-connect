@@ -549,6 +549,7 @@ const services = {
 // Public routes (no authentication required)
 const publicRoutes = [
   '/api/content/public',
+  '/api/content/videos/public',
   '/api/media/public',
   '/api/shop/public',
   '/api/collaboration/public',
