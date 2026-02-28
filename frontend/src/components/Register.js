@@ -135,18 +135,26 @@ function Register({ setUser }) {
         captchaResponse: captcha?.response
       };
       const response = await api.post('/user/register', send);
+      const payload = response?.data?.data || response?.data || {};
+      const token = payload?.token;
+      const user = payload?.user;
+
+      if (!token || !user) {
+        throw new Error('Registration response missing token or user');
+      }
+
       // Persist token + user then set a short grace period to avoid
       // accidental automatic redirect caused by background 401s.
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
 
       // Update global auth store (keeps useAuthStore in sync with localStorage)
-      try { setGlobalToken(response.data.token); setGlobalUser(response.data.user); } catch (e) { /* ignore */ }
+      try { setGlobalToken(token); setGlobalUser(user); } catch (e) { /* ignore */ }
 
       // suppress automatic redirect-to-login for 8 seconds (race-condition safety)
       try { window.__suppressAuthRedirectUntil = Date.now() + 8000; } catch (e) { /* ignore */ }
 
-      setUser(response.data.user);
+      setUser(user);
       // Keep user logged in but prompt for email verification
       setPendingVerificationEmail(send.email);
       setSuccessMessage('Account created — check your inbox for a verification link.');
@@ -155,7 +163,7 @@ function Register({ setUser }) {
         console.error('Registration network error:', err);
         setError('Network error when contacting the backend — check your API settings or open port 8000 if using Codespaces.');
       } else {
-        setError(err.response?.data?.error || 'Registration failed');
+        setError(err.response?.data?.message || err.response?.data?.error || 'Registration failed');
       }
     } finally {
       setLoading(false);

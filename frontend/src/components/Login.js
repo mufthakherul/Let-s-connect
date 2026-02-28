@@ -51,21 +51,29 @@ function Login({ setUser }) {
 
     try {
       const response = await api.post('/user/login', { email, password });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      const payload = response?.data?.data || response?.data || {};
+      const token = payload?.token;
+      const user = payload?.user;
+
+      if (!token || !user) {
+        throw new Error('Login response missing token or user');
+      }
+
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
 
       // Update global auth store immediately
-      try { setGlobalToken(response.data.token); setGlobalUser(response.data.user); } catch (e) { /* ignore */ }
+      try { setGlobalToken(token); setGlobalUser(user); } catch (e) { /* ignore */ }
 
       // brief grace period to avoid immediate 401->redirect races in other components
       try { window.__suppressAuthRedirectUntil = Date.now() + 8000; } catch (e) { /* ignore */ }
 
       if (remember) localStorage.setItem('rememberEmail', email);
       else localStorage.removeItem('rememberEmail');
-      setUser(response.data.user);
+      setUser(user);
       navigate('/feed');
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed. Please check your credentials.');
+      setError(err.response?.data?.message || err.response?.data?.error || err.message || 'Login failed. Please check your credentials.');
       // small shake handled by motion (see markup)
     } finally {
       setLoading(false);

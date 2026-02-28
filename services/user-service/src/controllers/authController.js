@@ -45,3 +45,16 @@ exports.login = catchAsync(async (req, res, next) => {
 
     response.success(res, { user: { id: user.id, username: user.username, email: user.email, role: user.role }, token }, 'Login successful');
 });
+
+exports.checkUsername = catchAsync(async (req, res, next) => {
+    const username = (req.query?.username || '').trim();
+
+    if (!username) {
+        return next(new AppError('Username is required', 400, 'VALIDATION_ERROR'));
+    }
+
+    const existingUser = await User.findOne({ where: { username } });
+    const available = !existingUser;
+
+    response.success(res, { available }, 'Username availability checked');
+});
