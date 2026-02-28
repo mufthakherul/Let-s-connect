@@ -7,6 +7,8 @@ const { HealthChecker, checkDatabase, checkRedis } = require('../shared/monitori
 const { CacheManager } = require('../shared/caching');
 const { MigrationManager } = require('../shared/migrations-manager');
 const response = require('../shared/response-wrapper');
+const { errorHandler: globalErrorHandler } = require('../shared/errorHandling');
+const logger = require('../shared/logger');
 require('dotenv').config();
 
 const app = express();
@@ -40,8 +42,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
-app.use('/api', routes);
+// App Routes
+app.use('/', routes);
 
 // Enhanced health checks
 app.get('/health/ready', async (req, res) => {

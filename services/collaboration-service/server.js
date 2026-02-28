@@ -8628,6 +8628,35 @@ io.on('connection', (socket) => {
   });
 });
 
+// --- Public Documentation Endpoints ---
+app.get('/public/docs', async (req, res) => {
+  try {
+    const docs = await Document.findAll({
+      where: { visibility: 'public' },
+      order: [['updatedAt', 'DESC']],
+      limit: 50
+    });
+    res.json(docs);
+  } catch (error) {
+    console.error('Error fetching public docs:', error);
+    res.status(500).json({ error: 'Failed to fetch public documents' });
+  }
+});
+
+app.get('/public/wiki', async (req, res) => {
+  try {
+    const pages = await Wiki.findAll({
+      where: { visibility: 'public' },
+      order: [['updatedAt', 'DESC']],
+      limit: 50
+    });
+    res.json(pages);
+  } catch (error) {
+    console.error('Error fetching wiki pages:', error);
+    res.status(500).json({ error: 'Failed to fetch wiki pages' });
+  }
+});
+
 async function startServer() {
   try {
     await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });

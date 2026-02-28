@@ -5,7 +5,7 @@ const socialRoutes = require('./socialRoutes');
 
 const router = express.Router();
 
-router.use('/auth', authRoutes);
+router.use('/', authRoutes);
 router.use('/profile', profileRoutes);
 router.use('/social', socialRoutes);
 
