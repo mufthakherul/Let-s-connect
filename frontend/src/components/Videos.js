@@ -25,8 +25,14 @@ import {
 import { ContentCopy, PlaylistAdd, Share, Subscriptions } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
-import axios from 'axios';
-import config from '../config/api';
+
+const extractApiData = (response) => {
+  const body = response?.data;
+  if (body && typeof body === 'object' && Object.prototype.hasOwnProperty.call(body, 'data')) {
+    return body.data;
+  }
+  return body;
+};
 
 function Videos({ user }) {
   const [tab, setTab] = useState(0);
@@ -66,8 +72,9 @@ function Videos({ user }) {
   const fetchChannels = async () => {
     try {
       setChannelsLoading(true);
-      const response = await api.get('/content/channels');
-      setChannels(response.data);
+      const response = await api.get('/content/videos/channels');
+      const data = extractApiData(response);
+      setChannels(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch channels:', err);
       toast.error('Failed to load channels');
@@ -79,8 +86,9 @@ function Videos({ user }) {
   const fetchVideos = async () => {
     try {
       setVideosLoading(true);
-      const response = await api.get('/content/public/videos');
-      setVideos(response.data);
+      const response = await api.get('/content/videos/public/videos');
+      const data = extractApiData(response);
+      setVideos(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch videos:', err);
       toast.error('Failed to load videos');
@@ -112,11 +120,11 @@ function Videos({ user }) {
     }
 
     try {
-      const response = await api.post('/content/channels', {
+      const response = await api.post('/content/videos/channels', {
         userId: user.id,
         ...channelForm
       });
-      setChannelData(response.data);
+      setChannelData(extractApiData(response));
       setChannelForm({ name: '', description: '', avatarUrl: '', bannerUrl: '' });
       toast.success('Channel created');
     } catch (err) {
@@ -132,8 +140,8 @@ function Videos({ user }) {
     }
 
     try {
-      const response = await api.get(`/content/channels/${channelIdInput.trim()}`);
-      setChannelData(response.data);
+      const response = await api.get(`/content/videos/channels/${channelIdInput.trim()}`);
+      setChannelData(extractApiData(response));
     } catch (err) {
       console.error('Failed to fetch channel:', err);
       toast.error(err.response?.data?.error || 'Channel not found');
@@ -143,7 +151,7 @@ function Videos({ user }) {
   const handleSubscribe = async () => {
     if (!user?.id || !channelData?.id) return;
     try {
-      await api.post(`/content/channels/${channelData.id}/subscribe`, { userId: user.id });
+      await api.post(`/content/videos/channels/${channelData.id}/subscribe`, { userId: user.id });
       toast.success('Subscribed');
       fetchChannel();
     } catch (err) {
@@ -155,7 +163,7 @@ function Videos({ user }) {
   const handleUnsubscribe = async () => {
     if (!user?.id || !channelData?.id) return;
     try {
-      await api.delete(`/content/channels/${channelData.id}/subscribe`, { data: { userId: user.id } });
+      await api.delete(`/content/videos/channels/${channelData.id}/subscribe`, { data: { userId: user.id } });
       toast.success('Unsubscribed');
       fetchChannel();
     } catch (err) {
@@ -167,7 +175,8 @@ function Videos({ user }) {
   const fetchPlaylists = async () => {
     try {
       const response = await api.get(`/content/playlists/user/${user.id}`);
-      setPlaylists(response.data);
+      const data = extractApiData(response);
+      setPlaylists(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch playlists:', err);
       toast.error('Failed to load playlists');
@@ -182,7 +191,8 @@ function Videos({ user }) {
 
     try {
       const response = await api.post('/content/playlists', playlistForm);
-      setPlaylists([response.data, ...playlists]);
+      const created = extractApiData(response);
+      setPlaylists(created ? [created, ...playlists] : playlists);
       setPlaylistForm({ name: '', description: '', visibility: 'public' });
       toast.success('Playlist created');
     } catch (err) {
@@ -194,7 +204,7 @@ function Videos({ user }) {
   const fetchPlaylistDetails = async (playlistId) => {
     try {
       const response = await api.get(`/content/playlists/${playlistId}`);
-      setSelectedPlaylist(response.data);
+      setSelectedPlaylist(extractApiData(response));
     } catch (err) {
       console.error('Failed to fetch playlist:', err);
       toast.error(err.response?.data?.error || 'Failed to load playlist');
@@ -255,14 +265,15 @@ function Videos({ user }) {
       const response = await api.post('/media/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
+      const mediaData = extractApiData(response);
 
       // Notify content-service about the new video (demo)
       await api.post('/content/videos', {
         title: videoMetadata.title,
         description: videoMetadata.description,
         category: videoMetadata.category,
-        videoUrl: response.data.url,
-        thumbnailUrl: response.data.thumbnailUrl,
+        videoUrl: mediaData?.url,
+        thumbnailUrl: mediaData?.thumbnailUrl,
         userId: user?.id
       });
 
