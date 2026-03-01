@@ -98,6 +98,9 @@ app.use(reducedDataMode);
 // feature toggle for rate limiting
 const RATE_LIMITING_ENABLED = process.env.RATE_LIMITING_ENABLED !== 'false';
 
+const getIpRateLimitKey = (req) => rateLimit.ipKeyGenerator(req.ip);
+const getUserOrIpRateLimitKey = (req) => req.user?.id || getIpRateLimitKey(req);
+
 let redisClient, sendRedisCommand;
 let globalLimiter, userLimiter, strictLimiter, mediaUploadLimiter, aiRequestLimiter, usernameSoftLimiter, usernameLimiter;
 
@@ -129,9 +132,7 @@ if (RATE_LIMITING_ENABLED) {
       sendCommand: sendRedisCommand,
       prefix: 'rl:user:'
     }),
-    keyGenerator: (req) => {
-      return req.user?.id || req.ip;
-    },
+    keyGenerator: (req) => getUserOrIpRateLimitKey(req),
     skip: (req) => {
       return req.path === '/health';
     },
@@ -148,7 +149,7 @@ if (RATE_LIMITING_ENABLED) {
       sendCommand: sendRedisCommand,
       prefix: 'rl:strict:'
     }),
-    keyGenerator: (req) => req.user?.id || req.ip,
+    keyGenerator: (req) => getUserOrIpRateLimitKey(req),
     message: { error: 'Too many attempts. Please wait before trying again.' }
   });
 
@@ -161,7 +162,7 @@ if (RATE_LIMITING_ENABLED) {
       sendCommand: sendRedisCommand,
       prefix: 'rl:upload:'
     }),
-    keyGenerator: (req) => req.user?.id || req.ip,
+    keyGenerator: (req) => getUserOrIpRateLimitKey(req),
     message: { error: 'Upload limit reached. Please try again later.' }
   });
 
@@ -174,7 +175,7 @@ if (RATE_LIMITING_ENABLED) {
       sendCommand: sendRedisCommand,
       prefix: 'rl:ai:'
     }),
-    keyGenerator: (req) => req.user?.id || req.ip,
+    keyGenerator: (req) => getUserOrIpRateLimitKey(req),
     message: { error: 'AI request limit reached. Please try again later.' }
   });
 
@@ -185,7 +186,7 @@ if (RATE_LIMITING_ENABLED) {
     standardHeaders: true,
     legacyHeaders: false,
     store: new RedisStore({ sendCommand: sendRedisCommand, prefix: 'rl:username-soft:' }),
-    keyGenerator: (req) => req.ip,
+    keyGenerator: (req) => getIpRateLimitKey(req),
     handler: (req, res) => {
       console.warn(`[rate-limit] username soft-threshold reached for ip=${req.ip} url=${req.originalUrl}`);
       res.set('X-Captcha-Required', '1');
@@ -203,7 +204,7 @@ if (RATE_LIMITING_ENABLED) {
       sendCommand: sendRedisCommand,
       prefix: 'rl:username:'
     }),
-    keyGenerator: (req) => req.ip,
+    keyGenerator: (req) => getIpRateLimitKey(req),
     handler: (req, res) => {
       console.warn(`[rate-limit] username check throttled for ip=${req.ip} url=${req.originalUrl}`);
       res.set('Retry-After', String(Math.ceil(60 * 60)));

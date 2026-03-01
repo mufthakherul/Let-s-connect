@@ -2,14 +2,15 @@ FROM node:18-alpine
 
 ENV PORT=8006
 
-WORKDIR /app
+WORKDIR /services/shop-service
 
 # Install dependencies
-COPY package*.json ./
+COPY shop-service/package*.json ./
 RUN npm install --production --legacy-peer-deps
 
-# Copy source and set ownership for non-root user
-COPY --chown=node:node . .
+# Copy shared modules and service source
+COPY shared/ /services/shared/
+COPY --chown=node:node shop-service/ ./
 
 # Use non-root user
 USER node

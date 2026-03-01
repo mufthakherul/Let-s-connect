@@ -64,10 +64,10 @@ const cacheCategories = cache.middleware('product:categories', {
  * Clears product-related caches
  */
 const invalidateProductCache = cache.invalidateMiddleware([
-    InvalidationPatterns.PRODUCT.list,
-    InvalidationPatterns.PRODUCT.details,
-    InvalidationPatterns.PRODUCT.reviews,
-    InvalidationPatterns.SEARCH.results
+    'shop:products:*',
+    'shop:product:*',
+    'shop:reviews:*',
+    'search:*'
 ]);
 
 /**
@@ -75,8 +75,8 @@ const invalidateProductCache = cache.invalidateMiddleware([
  * Clears review caches
  */
 const invalidateReviewCache = cache.invalidateMiddleware([
-    InvalidationPatterns.PRODUCT.reviews,
-    InvalidationPatterns.PRODUCT.details // Reviews affect product rating
+    'shop:reviews:*',
+    'shop:product:*' // Reviews affect product rating
 ]);
 
 /**
@@ -84,7 +84,8 @@ const invalidateReviewCache = cache.invalidateMiddleware([
  * Clears order caches
  */
 const invalidateOrderCache = cache.invalidateMiddleware([
-    InvalidationPatterns.PRODUCT.list // Orders affect stock levels
+    'shop:products:*', // Orders affect stock levels
+    'shop:order:*'
 ]);
 
 /**
@@ -92,9 +93,11 @@ const invalidateOrderCache = cache.invalidateMiddleware([
  */
 async function invalidateProductCaches(productId) {
     try {
-        await cache.del('product:detail', productId);
-        await cache.del('product:reviews', productId);
-        await cache.delPattern('product:list:*');
+        await cache.del('shop:product', productId);
+        await cache.del('shop:reviews', productId);
+        await cache.delPattern('shop:products:*');
+        await cache.delPattern('shop:product:*');
+        await cache.delPattern('shop:reviews:*');
         await cache.delPattern('search:*');
         console.log(`[Cache] Invalidated caches for product ${productId}`);
     } catch (error) {
@@ -104,7 +107,8 @@ async function invalidateProductCaches(productId) {
 
 async function invalidateOrderCaches(orderId) {
     try {
-        await cache.del('order:detail', orderId);
+        await cache.del('shop:order', orderId);
+        await cache.delPattern('shop:products:*');
         console.log(`[Cache] Invalidated caches for order ${orderId}`);
     } catch (error) {
         console.error('[Cache] Error invalidating order caches:', error);
@@ -113,7 +117,7 @@ async function invalidateOrderCaches(orderId) {
 
 async function invalidateCategoryCaches() {
     try {
-        await cache.delPattern('product:categories:*');
+        await cache.delPattern('shop:categories:*');
         console.log('[Cache] Invalidated category caches');
     } catch (error) {
         console.error('[Cache] Error invalidating category caches:', error);
