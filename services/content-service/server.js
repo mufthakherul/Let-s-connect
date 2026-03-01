@@ -7,6 +7,8 @@ const { globalErrorHandler } = require('../shared/errorHandling');
 const { HealthChecker, checkDatabase, checkRedis } = require('../shared/monitoring');
 const { CacheManager } = require('../shared/caching');
 const { MigrationManager } = require('../shared/migrations-manager');
+const { getSafeSyncOptions } = require('../shared/db-sync-policy');
+const { createForwardedIdentityGuard } = require('../shared/security-utils');
 require('dotenv').config();
 
 const PORT = process.env.PORT || 8002;
@@ -24,6 +26,7 @@ healthChecker.registerCheck('redis', () => checkRedis(cacheManager.redis));
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+app.use(createForwardedIdentityGuard());
 
 // Metrics tracking middleware
 app.use(healthChecker.metricsMiddleware());
@@ -72,7 +75,7 @@ const startServer = async () => {
             {
                 name: 'init-content-tables',
                 up: async (qi) => {
-                    await sequelize.sync({ alter: process.env.NODE_ENV === 'development' });
+                    await sequelize.sync(getSafeSyncOptions('content-service'));
                 }
             },
             {

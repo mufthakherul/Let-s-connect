@@ -72,7 +72,7 @@ elif [ "$SEED_MODE" = "skip" ]; then
   echo "⏭️  Seed skipped (SEED_MODE=skip)"
 elif [ "$RUN_SEED" = "true" ]; then
   echo "🌾 Running database seed (mode: $SEED_MODE, script: $SEED_SCRIPT)..."
-  cd /app
+  cd /services/streaming-service
   node $SEED_SCRIPT
   echo "✅ Seed completed"
 else
@@ -81,7 +81,7 @@ else
   echo "   Set RUN_SEED=false to skip entirely"
   echo "   Canonical SEED_MODE values: skip|minimal|full|fast"
   echo "   Backward compat: USE_FULL_SEED=true only applies when SEED_MODE is unset"
-  cd /app
+  cd /services/streaming-service
   node $SEED_SCRIPT
   echo "✅ Seed completed"
 fi

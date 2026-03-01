@@ -6,8 +6,9 @@ const { User, Profile, NotificationPreference, UserPreferences } = require('../m
 const { AppError, catchAsync } = require('../../../shared/errorHandling');
 const response = require('../../../shared/response-wrapper');
 const logger = require('../../../shared/logger');
+const { getRequiredEnv } = require('../../../shared/security-utils');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = getRequiredEnv('JWT_SECRET');
 
 exports.register = catchAsync(async (req, res, next) => {
     const { username, email, password, firstName, lastName } = req.body;

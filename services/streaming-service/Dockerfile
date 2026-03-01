@@ -2,14 +2,17 @@ FROM node:18-alpine
 
 ENV PORT=8009
 
-WORKDIR /app
+WORKDIR /services/streaming-service
 
 # Install dependencies
-COPY package*.json ./
+COPY streaming-service/package*.json ./
 RUN npm install --production --legacy-peer-deps
 
+# Shared modules required by service imports (e.g., ../shared/*)
+COPY shared/ /services/shared/
+
 # Copy source and set ownership for non-root user
-COPY --chown=node:node . .
+COPY --chown=node:node streaming-service/ ./
 
 # Fix line endings and permissions for entrypoint
 RUN sed -i 's/\r$//' ./docker-entrypoint.sh && chmod +x ./docker-entrypoint.sh

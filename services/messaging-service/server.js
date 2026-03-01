@@ -5,6 +5,8 @@ const { Sequelize, DataTypes, Op } = require('sequelize');
 const Redis = require('ioredis');
 const crypto = require('crypto');
 const webpush = require('web-push');
+const { createForwardedIdentityGuard } = require('../shared/security-utils');
+const { getSafeSyncOptions } = require('../shared/db-sync-policy');
 require('dotenv').config();
 
 const app = express();
@@ -18,6 +20,7 @@ const BOT_SYSTEM_USER_ID = process.env.BOT_SYSTEM_USER_ID || '00000000-0000-0000
 const TELEGRAM_BOT_WEBHOOK_TOKEN = process.env.TELEGRAM_BOT_WEBHOOK_TOKEN || '';
 
 app.use(express.json());
+app.use(createForwardedIdentityGuard());
 
 // VAPID keys should be generated once and kept in .env
 const VAPID_PUBLIC_KEY = (process.env.VAPID_PUBLIC_KEY || '').trim();
@@ -733,8 +736,7 @@ Conversation.hasMany(ConversationSettings, { foreignKey: 'conversationId' });
 ConversationSettings.belongsTo(Conversation, { foreignKey: 'conversationId' });
 
 // Only run sequelize ALTER when explicitly enabled to avoid invalid SQL on fresh DBs
-const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true';
-const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
+const syncOptions = getSafeSyncOptions('messaging-service');
 
 // Socket.IO for real-time messaging
 io.on('connection', (socket) => {
@@ -3414,7 +3416,7 @@ app.delete('/categories/:categoryId', async (req, res) => {
 
 async function startServer() {
   try {
-    await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+    await sequelize.sync(syncOptions);
     server.listen(PORT, () => {
       console.log(`Messaging service running on port ${PORT}`);
     });

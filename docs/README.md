@@ -35,6 +35,7 @@ Welcome to the Let's Connect documentation. This directory contains comprehensiv
 ### Development
 - **[TESTING.md](../TESTING.md)** - Testing strategy and guidelines
 - **[SECURITY_NOTES.md](../SECURITY_NOTES.md)** - Security best practices and guidelines
+- **[ENGINEERING_AUDIT_REPORT_2026-03-02.md](ENGINEERING_AUDIT_REPORT_2026-03-02.md)** - Full code/runtime health audit across backend, frontend, DB, security, and performance
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history and changes
 - **[ROADMAP.md](../ROADMAP.md)** - Future development plans
 

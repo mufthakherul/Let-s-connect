@@ -1,5 +1,5 @@
 const express = require('express');
-const proxy = require('express-http-proxy');
+const rawProxy = require('express-http-proxy');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -16,13 +16,35 @@ const response = require('../shared/response-wrapper');
 const { globalErrorHandler, AppError, catchAsync } = require('../shared/errorHandling');
 const { v4: uuidv4 } = require('uuid');
 const { HealthChecker } = require('../shared/monitoring');
+const { getRequiredEnv } = require('../shared/security-utils');
 const compression = require('compression');
 require('dotenv').config();
 
 const app = express();
 const healthChecker = new HealthChecker('api-gateway');
 const PORT = process.env.PORT || 8000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = getRequiredEnv('JWT_SECRET');
+const INTERNAL_GATEWAY_TOKEN = getRequiredEnv('INTERNAL_GATEWAY_TOKEN');
+
+const proxy = (target, options = {}) => rawProxy(target, {
+  ...options,
+  proxyReqOptDecorator: async (proxyReqOpts, srcReq) => {
+    let decoratedOpts = proxyReqOpts;
+
+    if (typeof options.proxyReqOptDecorator === 'function') {
+      decoratedOpts = await options.proxyReqOptDecorator(proxyReqOpts, srcReq) || proxyReqOpts;
+    }
+
+    decoratedOpts.headers = decoratedOpts.headers || {};
+    decoratedOpts.headers['x-internal-gateway-token'] = INTERNAL_GATEWAY_TOKEN;
+
+    if (srcReq?.id) {
+      decoratedOpts.headers['x-request-id'] = srcReq.id;
+    }
+
+    return decoratedOpts;
+  }
+});
 
 // Trust proxy headers in containerized environments
 app.set('trust proxy', 1);

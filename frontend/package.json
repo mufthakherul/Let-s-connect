@@ -32,10 +32,12 @@
     "prebuild": "node scripts/strip-shaka-sourcemaps.js",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "test:e2e": "playwright test",
     "eject": "react-scripts eject",
     "postinstall": "node -e \"const fs=require('fs');['shaka-player.ui.js','controls.css'].forEach(file=>{const p='./node_modules/shaka-player/dist/'+file;try{if(fs.existsSync(p)){let c=fs.readFileSync(p,'utf8');c=c.replace(/(^|\\n)\\/\\/# sourceMappingURL=.*$/gm,'');c=c.replace(/\\/\\*# sourceMappingURL=[^*]*\\*\\//gm,'');fs.writeFileSync(p,c,'utf8');}}catch(_){}});\""
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
     "ajv": "^8.17.1",
     "ajv-keywords": "^5.1.0",
     "eslint-plugin-react-hooks": "^7.0.1",

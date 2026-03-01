@@ -2,8 +2,9 @@ const jwt = require('jsonwebtoken');
 const { User, Page, PageInsight } = require('../models');
 const { AppError, catchAsync } = require('../../../shared/errorHandling');
 const response = require('../../../shared/response-wrapper');
+const { getRequiredEnv } = require('../../../shared/security-utils');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = getRequiredEnv('JWT_SECRET');
 
 // Developer Sandbox
 exports.generateSandboxToken = catchAsync(async (req, res, next) => {
