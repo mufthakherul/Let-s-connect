@@ -84,7 +84,7 @@ async function startServer() {
       {
         name: 'init-user-tables',
         up: async (qi) => {
-      await sequelize.sync(getSafeSyncOptions('user-service'));
+          await sequelize.sync(getSafeSyncOptions('user-service'));
         }
       }
     ]);
