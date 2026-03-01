@@ -10,11 +10,10 @@ module.exports = function (app) {
   // proxy all /api requests to the backend - the target may be overridden by
   // REACT_APP_API_PROXY in development if you need to point at a different host.
   app.use(
-    '/api',
-    createProxyMiddleware({
+    createProxyMiddleware('/api', {
       target,
       changeOrigin: true,
-      ws: true,
+      ws: false,
     })
   );
 };
