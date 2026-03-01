@@ -50,7 +50,13 @@ if (shouldRegisterSW) {
 // harmless and just clutter the console.
 window.addEventListener('error', (e) => {
   const msg = e.message || '';
-  if (msg.includes('WebSocket connection to') && msg.includes('Unexpected response code: 404')) {
+  if (
+    msg.includes('WebSocket connection to') && (
+      msg.includes('Unexpected response code: 404') ||
+      msg.includes('Invalid frame header') ||
+      msg.includes('Connection closed before receiving a handshake response')
+    )
+  ) {
     // ignore dev-server websocket handshake noise
     return;
   }
@@ -58,7 +64,13 @@ window.addEventListener('error', (e) => {
 });
 window.addEventListener('unhandledrejection', (e) => {
   const msg = e.reason && e.reason.message ? e.reason.message : '';
-  if (msg.includes('WebSocket connection to') && msg.includes('Unexpected response code: 404')) {
+  if (
+    msg.includes('WebSocket connection to') && (
+      msg.includes('Unexpected response code: 404') ||
+      msg.includes('Invalid frame header') ||
+      msg.includes('Connection closed before receiving a handshake response')
+    )
+  ) {
     return;
   }
   console.error('[Unhandled Rejection]', e.reason || e);
@@ -86,7 +98,13 @@ window.addEventListener('unhandledrejection', (e) => {
   console.error = (...args) => {
     const msg = args[0] || '';
     if (typeof msg === 'string') {
-      if (msg.includes('WebSocket connection to') && msg.includes('Unexpected response code: 404')) {
+      if (
+        msg.includes('WebSocket connection to') && (
+          msg.includes('Unexpected response code: 404') ||
+          msg.includes('Invalid frame header') ||
+          msg.includes('Connection closed before receiving a handshake response')
+        )
+      ) {
         return;
       }
       if (msg.includes('Request failed with status code 429') || msg.includes('Too Many Requests')) {
