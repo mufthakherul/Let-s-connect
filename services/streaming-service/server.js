@@ -6,6 +6,7 @@ const net = require('net');
 const NodeCache = require('node-cache');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { getSafeSyncOptions } = require('../shared/db-sync-policy');
+const { buildCorsOptions } = require('../shared/cors-config');
 require('dotenv').config();
 
 // Advanced TV services (search, health, recommendations)
@@ -22,7 +23,7 @@ const app = express();
 const PORT = process.env.PORT || 8009;
 
 // Middleware
-app.use(cors());
+app.use(cors(buildCorsOptions()));
 app.use(express.json());
 app.use(createForwardedIdentityGuard());
 

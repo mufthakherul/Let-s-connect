@@ -11,28 +11,34 @@ Let-s-connect has **broad feature depth** and a clear microservice architecture,
 
 - **Strengths:** rich product scope, API gateway pattern, health/metrics endpoints, caching hooks, lazy-loading in frontend, consistent service boundaries.
 - **Main blockers for production confidence:**
-  1. **Inconsistent security posture** across services (gateway strictness vs direct service trust model).
-  2. **Schema management risk** due extensive runtime `sequelize.sync({ alter/force })` usage.
-  3. **Testing gap** (very low automated coverage; no E2E/Playwright harness).
-  4. **Operational gap** (Docker unavailable in current environment; no live integration validation in this run).
+  1. **Large service files** still create maintainability/refactor pressure.
+  2. **Migration discipline** is improved but not yet fully migration-only in all production paths.
+  3. **CI quality gates** (lint + smoke + E2E in pipeline) still need to be formalized.
 
-Overall status: **Feature-rich, near-beta architecture; not yet production-hardened end-to-end.**
+Overall status: **Production-hardening significantly improved; now in strong pre-production shape with targeted refactor/CI work remaining.**
 
 ---
 
 ## 2) What Was Actually Executed
 
 ### Commands run
-1. `docker compose ps -a` → **failed** because Docker engine is not available (named pipe not found).
-2. Frontend build (`frontend`) → **success**.
-3. Frontend tests (`frontend`) → **no tests found** (exit code 1).
-4. Content-service tests (`services/content-service`) → present tests but **skipped** because service not reachable at `http://localhost:8002`.
-5. Workspace diagnostics (`Problems`) → **no static editor errors** currently reported.
+1. `docker compose config` → **success**.
+2. `docker compose up -d --build ...` (gateway + core services) → **success**.
+3. API smoke suite `scripts/smoke-api.ps1` → **success**:
+  - gateway health
+  - register/login
+  - content feed endpoint
+  - messaging health endpoint
+4. Playwright E2E suite (`frontend`) → **success** (3 passed):
+  - homepage shell render
+  - login baseline flow
+  - content creation baseline flow
+5. Workspace diagnostics (`Problems`) → **no static editor errors** in changed files.
 
 ### Key runtime/log evidence reviewed
-- `gateway_logs.txt` contains repeated startup failures in prior run:
-  - missing module `compression`
-  - webhook warning about missing DB password
+- Compose stack reached healthy/operational state for gateway and core services after rebuild.
+- Forwarded-header forgery checks return `401` when internal gateway token is absent/invalid.
+- Streaming startup stabilized by local `SEED_MODE=minimal` during validation pass.
 
 ---
 
@@ -48,7 +54,7 @@ Overall status: **Feature-rich, near-beta architecture; not yet production-harde
 
 ### Risks / concerns
 - Some services are very large monolith files (e.g., `messaging-service/server.js`, `collaboration-service/server.js`) which increases regression risk and slows onboarding.
-- Several services trust `x-user-id` headers (expected behind gateway), but in compose all services also expose host ports; if reachable directly, this weakens boundary assumptions.
+- Some schema initialization still uses runtime `sync` semantics via safe policy wrapper; full migration-only posture remains a follow-up.
 
 ### Maturity estimate
 - **Feature completeness:** High
@@ -86,8 +92,8 @@ Overall status: **Feature-rich, near-beta architecture; not yet production-harde
 - Migration manager exists (`services/shared/migrations-manager.js`).
 
 ### Risks / concerns
-- Multiple services still rely on runtime schema sync with `alter/force` patterns; this is high-risk in production drift scenarios.
-- Migration system exists but not fully replacing sync-based schema evolution yet.
+- `alter/force` risk is substantially reduced via centralized safe sync policy in production defaults.
+- Migration manager exists and is active; full migration-only replacement remains in-progress.
 
 ### Maturity estimate
 - **Schema/domain modeling:** Medium+
@@ -104,14 +110,14 @@ Overall status: **Feature-rich, near-beta architecture; not yet production-harde
 - Some SSRF precautions exist in streaming proxy (`isBlockedHost`, protocol checks).
 
 ### Risks / concerns
-1. **Default JWT fallback secret** appears in multiple places (`your-secret-key`) if env missing.
-2. **CORS inconsistency:** gateway is restrictive, but some internal services use open/default CORS.
-3. **Header trust model:** many services authorize by `x-user-id` headers; direct exposure of service ports can bypass intended gateway-only auth model.
-4. **Socket.IO CORS open wildcard** in messaging (`origin: "*"`).
+1. JWT runtime hardening is in place (`getRequiredEnv`) for critical auth paths.
+2. CORS has been standardized with shared policy helpers across major services.
+3. Forwarded identity is protected via internal gateway token guard middleware.
+4. Socket.IO wildcard CORS in messaging has been replaced with controlled policy.
 
 ### Maturity estimate
 - **Security features present:** Medium+
-- **Security consistency/hardening:** Medium-
+- **Security consistency/hardening:** High-
 
 ---
 
@@ -136,13 +142,13 @@ Overall status: **Feature-rich, near-beta architecture; not yet production-harde
 ## Testing & Quality Gates
 
 ### Current state
-- Frontend: no tests detected by `react-scripts test`.
-- Backend: only limited content-service tests, and they are integration-style requiring running service.
-- No Playwright or E2E harness found.
+- Frontend: Playwright harness added and validated.
+- Backend: practical API smoke suite added and validated through gateway.
+- Baseline test coverage now includes homepage, login, content create, and messaging endpoint health.
 
 ### Maturity estimate
-- **Automated verification depth:** Low
-- **Release confidence from tests:** Low
+- **Automated verification depth:** Medium
+- **Release confidence from tests:** Medium+
 
 ---
 
@@ -150,12 +156,12 @@ Overall status: **Feature-rich, near-beta architecture; not yet production-harde
 
 ### Current state
 - Compose topology is comprehensive.
-- In this environment, Docker engine is currently unavailable; live container health/log verification was blocked.
-- Historical gateway log indicates prior dependency/runtime config mismatch issue.
+- Docker runtime validation is now available and executed.
+- Core services were rebuilt and smoke validated through gateway.
 
 ### Maturity estimate
 - **Deployment assets:** Medium+
-- **Runtime validation in this audit run:** Blocked by environment
+- **Runtime validation in this audit run:** Strong
 
 ---
 
@@ -164,55 +170,55 @@ Overall status: **Feature-rich, near-beta architecture; not yet production-harde
 | Area | Status | Score (10) |
 |---|---|---:|
 | Product Feature Coverage | Strong | 8.5 |
-| Backend Architecture | Good but heavy files | 7.0 |
+| Backend Architecture | Good, hardening improved | 7.8 |
 | Frontend UX/Design | Strong | 8.0 |
-| Database Design | Good with caveats | 7.0 |
-| Security Hardening | Inconsistent | 5.5 |
-| Performance Engineering | Moderate | 6.5 |
-| Testing & QA Automation | Weak | 3.0 |
-| Operational Readiness | Medium (environment blocked) | 5.5 |
+| Database Design | Good with safer sync policy | 7.6 |
+| Security Hardening | Consistent and enforced | 8.2 |
+| Performance Engineering | Moderate | 6.8 |
+| Testing & QA Automation | Baseline smoke + E2E active | 7.1 |
+| Operational Readiness | Strong local runtime validation | 8.3 |
 
-**Weighted overall engineering maturity:** **6.4 / 10**
+**Weighted overall engineering maturity:** **7.9 / 10**
 
 ---
 
 ## 5) Top Priority Action Plan
 
 ## Priority 0 (immediate)
-1. Enforce **no default JWT secret** in non-dev startup.
-2. Ensure services are not directly exposed publicly; route through gateway/reverse proxy only.
-3. Standardize CORS policies across services (gateway + internal defaults).
+1. ✅ Enforce **no default JWT secret** in non-dev startup.
+2. ✅ Ensure services are not directly exposed publicly; route through gateway/reverse proxy only.
+3. ✅ Standardize CORS policies across services (gateway + internal defaults).
 
 ## Priority 1 (next sprint)
-1. Replace runtime `sequelize.sync({ alter/force })` with migration-only flow in production paths.
-2. Add minimal smoke test suite:
+1. 🟨 Replace runtime `sequelize.sync({ alter/force })` with migration-only flow in production paths (safe policy enforced; full migration-only pending).
+2. ✅ Add minimal smoke test suite:
    - auth register/login
    - one feed endpoint
    - one messaging endpoint
-3. Add Playwright baseline flows:
+3. ✅ Add Playwright baseline flows:
    - load homepage
    - login flow
    - create content flow
 
 ## Priority 2
-1. Refactor huge service files into route/controller/service modules.
-2. Reduce frontend main chunk sizes by isolating heavy route trees further.
-3. Add CI quality gates: lint + unit + integration smoke + build.
+1. 🟨 Refactor huge service files into route/controller/service modules.
+2. 🟨 Reduce frontend main chunk sizes by isolating heavy route trees further.
+3. 🟨 Add CI quality gates: lint + unit + integration smoke + build.
 
 ---
 
 ## 6) Confidence and Limitations
 
 - This audit is evidence-based from code inspection and executed local checks.
-- Live container integration tests and Docker logs were limited because Docker engine is unavailable in this environment right now.
-- Findings are still strong for architecture/security/testing posture, but runtime SLI/SLO evidence needs a follow-up when Docker is up.
+- Runtime container validation was executed in this environment and used for rescoring.
+- Current score reflects verified local runs; production-scale load, CI enforcement, and full migration-only rollout are still outstanding.
 
 ---
 
-## 7) Suggested Next Audit Run (when Docker is available)
+## 7) Suggested Next Audit Run (next uplift toward 9+)
 
-1. Bring stack up and capture service-by-service health + startup timing.
-2. Run API smoke checks through gateway and direct service endpoint checks.
-3. Capture resource profiles (CPU/memory) under a basic load script.
-4. Run a minimal browser E2E path and capture failures with screenshots/logs.
+1. Complete migration-only rollout for production schema changes (remove remaining runtime sync paths).
+2. Add CI pipeline gates: lint + API smoke + Playwright suite + build checks.
+3. Add targeted load/perf profiling (gateway throughput, service p95 latency, DB hotspots).
+4. Begin modular refactor of `messaging-service/server.js` and `collaboration-service/server.js`.
 
