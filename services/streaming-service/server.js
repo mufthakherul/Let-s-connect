@@ -1020,7 +1020,7 @@ app.get('/favorites', async (req, res) => {
 
         // Map favorites to their items
         const results = favorites.map(fav => {
-            const item = fav.itemType === 'radio' 
+            const item = fav.itemType === 'radio'
                 ? radioMap.get(fav.itemId)
                 : tvMap.get(fav.itemId);
             return { ...fav.toJSON(), item };
@@ -1340,7 +1340,7 @@ app.get('/tv/categories', async (req, res) => {
     try {
         const { source } = req.query;
         const cacheKey = `tv:categories:${source || 'all'}`;
-        
+
         // Check cache first (5 minute TTL)
         const cached = streamCache.get(cacheKey);
         if (cached) {
