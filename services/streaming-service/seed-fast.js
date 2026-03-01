@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { Sequelize, DataTypes, Op } = require('sequelize');
+const { getSafeSyncOptions } = require('../shared/db-sync-policy');
 require('dotenv').config();
 
 // Fetchers/enrichers are lazy-loaded only when needed for full mode
@@ -303,19 +304,9 @@ const seed = async () => {
 
         // Sync database
         console.log('🔧 Synchronizing database models...');
-        const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
-        const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
-
-        if (shouldForceSchema) {
-            await sequelize.sync({ force: true });
-            console.log('✅ Database models synced with force\n');
-        } else if (shouldAlterSchema) {
-            await sequelize.sync({ alter: true });
-            console.log('✅ Database models synced with alter\n');
-        } else {
-            await sequelize.sync();
-            console.log('✅ Database models synced\n');
-        }
+        const syncOptions = getSafeSyncOptions('streaming-service-seed-fast');
+        await sequelize.sync(syncOptions);
+        console.log(`✅ Database models synced with options: ${JSON.stringify(syncOptions)}\n`);
 
         // ========== RADIO STATIONS ==========
         console.log('═══════════════════════════════════════════');

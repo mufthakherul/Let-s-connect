@@ -4,6 +4,8 @@ const { Sequelize, DataTypes, Op } = require('sequelize');
 const axios = require('axios');
 const net = require('net');
 const NodeCache = require('node-cache');
+const { createForwardedIdentityGuard } = require('../shared/security-utils');
+const { getSafeSyncOptions } = require('../shared/db-sync-policy');
 require('dotenv').config();
 
 // Advanced TV services (search, health, recommendations)
@@ -22,6 +24,7 @@ const PORT = process.env.PORT || 8009;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(createForwardedIdentityGuard());
 
 // If requests are proxied through the API Gateway the gateway will
 // forward authenticated user info via headers (x-user-id, x-user-role,
@@ -272,8 +275,7 @@ const Playlist = sequelize.define('Playlist', {
 });
 
 // Initialize database
-const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
-const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
+const syncOptions = getSafeSyncOptions('streaming-service');
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -1756,7 +1758,7 @@ app.get('/health', async (req, res) => {
 
 async function startServer() {
     try {
-        await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+        await sequelize.sync(syncOptions);
         console.log('[Streaming] Database synced');
 
         // Initialize search / health / recommender services now that DB is ready

@@ -5,6 +5,8 @@ const http = require('http');
 const { Server } = require('socket.io');
 const ot = require('ot');
 const Redis = require('ioredis');
+const { createForwardedIdentityGuard } = require('../shared/security-utils');
+const { getSafeSyncOptions } = require('../shared/db-sync-policy');
 require('dotenv').config();
 
 const app = express();
@@ -22,6 +24,7 @@ const PORT = process.env.PORT || 8004;
 const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 
 app.use(express.json());
+app.use(createForwardedIdentityGuard());
 
 const generateAccessCode = () => {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -2255,8 +2258,7 @@ QuizQuestion.belongsTo(Meeting, { foreignKey: 'meetingId' });
 QuizQuestion.hasMany(QuizResponse, { foreignKey: 'questionId', as: 'responses' });
 QuizResponse.belongsTo(QuizQuestion, { foreignKey: 'questionId' });
 
-const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
-const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
+const syncOptions = getSafeSyncOptions('collaboration-service');
 
 // Routes
 
@@ -3309,12 +3311,12 @@ app.get('/meetings/:id/debate/arguments', async (req, res) => {
     }
 
     await requireMeetingAccess(req.params.id, userId);
-    const arguments = await DebateArgument.findAll({
+    const debateArguments = await DebateArgument.findAll({
       where: { meetingId: req.params.id },
       order: [['roundNumber', 'ASC'], ['timestamp', 'ASC']]
     });
 
-    res.json(arguments);
+    res.json(debateArguments);
   } catch (error) {
     console.error(error);
     res.status(error.status || 500).json({ error: error.message || 'Failed to get arguments' });
@@ -8659,7 +8661,7 @@ app.get('/public/wiki', async (req, res) => {
 
 async function startServer() {
   try {
-    await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+    await sequelize.sync(syncOptions);
     server.listen(PORT, () => {
       console.log(`Collaboration service running on port ${PORT}`);
     });

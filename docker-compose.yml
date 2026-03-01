@@ -9,7 +9,8 @@ services:
       - "8000:8000"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
-      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - JWT_SECRET=${JWT_SECRET}
+      - INTERNAL_GATEWAY_TOKEN=${INTERNAL_GATEWAY_TOKEN}
       - REDIS_URL=redis://redis:6379
       - DB_USER=postgres
       - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -52,11 +53,12 @@ services:
       dockerfile: user-service/Dockerfile
     restart: unless-stopped
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/users
-      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - JWT_SECRET=${JWT_SECRET}
+      - INTERNAL_GATEWAY_TOKEN=${INTERNAL_GATEWAY_TOKEN}
       - REDIS_URL=redis://redis:6379
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
       - MAILGUN_API_KEY=${MAILGUN_API_KEY}
@@ -92,10 +94,11 @@ services:
       dockerfile: content-service/Dockerfile
     restart: unless-stopped
     ports:
-      - "8002:8002"
+      - "127.0.0.1:8002:8002"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/content
+      - INTERNAL_GATEWAY_TOKEN=${INTERNAL_GATEWAY_TOKEN}
       - REDIS_URL=redis://redis:6379
       - ELASTICSEARCH_URL=http://elasticsearch:9200
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
@@ -118,13 +121,15 @@ services:
   # Messaging Service (Chat, Real-time)
   messaging-service:
     build:
-      context: ./services/messaging-service
+      context: ./services
+      dockerfile: messaging-service/Dockerfile
     restart: unless-stopped
     ports:
-      - "8003:8003"
+      - "127.0.0.1:8003:8003"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/messages
+      - INTERNAL_GATEWAY_TOKEN=${INTERNAL_GATEWAY_TOKEN}
       - REDIS_URL=redis://redis:6379
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-dummy}
@@ -146,13 +151,15 @@ services:
   # Collaboration Service (Docs, Wiki, Notion-like)
   collaboration-service:
     build:
-      context: ./services/collaboration-service
+      context: ./services
+      dockerfile: collaboration-service/Dockerfile
     restart: unless-stopped
     ports:
-      - "8004:8004"
+      - "127.0.0.1:8004:8004"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/collaboration
+      - INTERNAL_GATEWAY_TOKEN=${INTERNAL_GATEWAY_TOKEN}
       - REDIS_URL=redis://redis:6379
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
     depends_on:
@@ -176,10 +183,11 @@ services:
       dockerfile: media-service/Dockerfile
     restart: unless-stopped
     ports:
-      - "8005:8005"
+      - "127.0.0.1:8005:8005"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/media
+      - INTERNAL_GATEWAY_TOKEN=${INTERNAL_GATEWAY_TOKEN}
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
       - S3_BUCKET=${S3_BUCKET:-lets-connect-media}
       - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
@@ -206,10 +214,11 @@ services:
       dockerfile: shop-service/Dockerfile
     restart: unless-stopped
     ports:
-      - "8006:8006"
+      - "127.0.0.1:8006:8006"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/shop
+      - INTERNAL_GATEWAY_TOKEN=${INTERNAL_GATEWAY_TOKEN}
       - REDIS_URL=redis://redis:6379
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
     depends_on:
@@ -232,7 +241,7 @@ services:
       context: ./services/ai-service
     restart: unless-stopped
     ports:
-      - "8007:8007"
+      - "127.0.0.1:8007:8007"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
@@ -253,13 +262,15 @@ services:
   # Streaming Service (Radio, IPTV)
   streaming-service:
     build:
-      context: ./services/streaming-service
+      context: ./services
+      dockerfile: streaming-service/Dockerfile
     restart: unless-stopped
     ports:
-      - "8009:8009"
+      - "127.0.0.1:8009:8009"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/streaming
+      - INTERNAL_GATEWAY_TOKEN=${INTERNAL_GATEWAY_TOKEN}
       - REDIS_URL=redis://redis:6379
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
       - RUN_SEED=${RUN_SEED:-true}
@@ -324,7 +335,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./scripts/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 10s
@@ -339,7 +350,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -359,8 +370,8 @@ services:
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
-      - "9200:9200"
-      - "9300:9300"
+      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:9300:9300"
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
     healthcheck:
@@ -377,8 +388,8 @@ services:
     image: minio/minio:latest
     restart: unless-stopped
     ports:
-      - "9010:9000"
-      - "9011:9001"
+      - "127.0.0.1:9010:9000"
+      - "127.0.0.1:9011:9001"
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}

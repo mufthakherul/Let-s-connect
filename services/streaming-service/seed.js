@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { Sequelize, DataTypes, Op } = require('sequelize');
+const { getSafeSyncOptions } = require('../shared/db-sync-policy');
 require('dotenv').config();
 
 // Import dynamic fetchers
@@ -465,8 +466,9 @@ const seed = async () => {
 
         // Sync database
         console.log('🔧 Synchronizing database models...');
-        await sequelize.sync({ alter: true });
-        console.log('✅ Database models synced (altered where necessary)\n');
+        const syncOptions = getSafeSyncOptions('streaming-service-seed');
+        await sequelize.sync(syncOptions);
+        console.log(`✅ Database models synced with options: ${JSON.stringify(syncOptions)}\n`);
 
         // ========== RADIO STATIONS ==========
         console.log('═══════════════════════════════════════════');

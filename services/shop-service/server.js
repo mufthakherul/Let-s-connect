@@ -1,11 +1,14 @@
 const express = require('express');
 const { Sequelize, DataTypes, Op } = require('sequelize');
+const { createForwardedIdentityGuard } = require('../shared/security-utils');
+const { getSafeSyncOptions } = require('../shared/db-sync-policy');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 8006;
 
 app.use(express.json());
+app.use(createForwardedIdentityGuard());
 
 // Database
 const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/shop', {
@@ -199,8 +202,7 @@ ProductReview.belongsTo(Product, { foreignKey: 'productId' });
 Product.hasMany(WishlistItem, { foreignKey: 'productId' });
 WishlistItem.belongsTo(Product, { foreignKey: 'productId' });
 
-const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV !== 'production';
-const shouldForceSchema = process.env.DB_SYNC_FORCE === 'true';
+const syncOptions = getSafeSyncOptions('shop-service');
 
 // Routes
 
@@ -709,7 +711,7 @@ async function startServer() {
       throw lastError || new Error('Database connection failed after retries');
     }
 
-    await sequelize.sync({ alter: shouldAlterSchema, force: shouldForceSchema });
+    await sequelize.sync(syncOptions);
     app.listen(PORT, () => {
       console.log(`Shop service running on port ${PORT}`);
     });

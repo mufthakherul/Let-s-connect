@@ -11,6 +11,8 @@ try {
 const { MigrationManager } = require('../shared/migrations-manager');
 const { globalErrorHandler } = require('../shared/errorHandling');
 const { HealthChecker, checkDatabase, checkS3 } = require('../shared/monitoring');
+const { getSafeSyncOptions } = require('../shared/db-sync-policy');
+const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const response = require('../shared/response-wrapper');
 require('dotenv').config();
 
@@ -18,6 +20,7 @@ const app = express();
 const PORT = process.env.PORT || 8005;
 
 app.use(express.json());
+app.use(createForwardedIdentityGuard());
 
 // S3/MinIO Configuration
 const s3 = new AWS.S3({
@@ -195,7 +198,7 @@ async function startServer() {
         up: async (qi, Sequelize) => {
           // The model definition will handle table creation via sync in this setup, 
           // but for Phase 10 we move toward explicit migrations.
-          await sequelize.sync({ alter: true });
+          await sequelize.sync(getSafeSyncOptions('media-service'));
         }
       }
     ]);
