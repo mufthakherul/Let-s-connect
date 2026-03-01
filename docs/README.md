@@ -16,6 +16,8 @@ Welcome to the Let's Connect documentation. This directory contains comprehensiv
 
 ### Deployment & Operations
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Deployment guide and infrastructure setup
+- **[HOME_SERVER_SUBDOMAIN_STAGING_GUIDE.md](HOME_SERVER_SUBDOMAIN_STAGING_GUIDE.md)** - Namecheap subdomain staging on home server + VPS production migration plan
+- **[REVERSE_PROXY_STAGING_SETUP.md](REVERSE_PROXY_STAGING_SETUP.md)** - Copy/paste Nginx and Caddy setup for staging.yourdomain.com + api-staging.yourdomain.com
 - **[RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md)** - Render.com deployment instructions
 - **[Kubernetes Setup](../k8s/README.md)** - Kubernetes deployment configuration
 
