@@ -8,6 +8,7 @@ const { CacheManager } = require('../shared/caching');
 const { MigrationManager } = require('../shared/migrations-manager');
 const { getSafeSyncOptions } = require('../shared/db-sync-policy');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
+const { buildCorsOptions } = require('../shared/cors-config');
 const response = require('../shared/response-wrapper');
 const { errorHandler: globalErrorHandler } = require('../shared/errorHandling');
 const logger = require('../shared/logger');
@@ -26,7 +27,7 @@ const PORT = process.env.PORT || 8001;
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors(buildCorsOptions()));
 app.use(express.json());
 app.use(createForwardedIdentityGuard());
 

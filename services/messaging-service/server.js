@@ -7,12 +7,13 @@ const crypto = require('crypto');
 const webpush = require('web-push');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { getSafeSyncOptions } = require('../shared/db-sync-policy');
+const { buildSocketCorsOptions } = require('../shared/cors-config');
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
-  cors: { origin: "*" }
+  cors: buildSocketCorsOptions()
 });
 
 const PORT = process.env.PORT || 8003;
