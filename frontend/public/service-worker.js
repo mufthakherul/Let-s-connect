@@ -71,6 +71,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // For navigations, prefer fresh HTML from network to avoid serving stale
+  // index.html that can reference outdated JS bundles.
+  if (request.mode === 'navigate') {
+    event.respondWith(navigationNetworkFirst(request));
+    return;
+  }
+
   // Handle API requests with network-first strategy
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(networkFirstStrategy(request));
@@ -112,6 +119,36 @@ async function cacheFirstStrategy(request) {
     // Return a basic error response
     return new Response('Network error', {
       status: 408,
+      headers: { 'Content-Type': 'text/plain' }
+    });
+  }
+}
+
+// Navigation requests should prefer network so shell updates are applied
+// immediately, while still providing offline fallback.
+async function navigationNetworkFirst(request) {
+  try {
+    const networkResponse = await fetch(request);
+
+    if (networkResponse.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, networkResponse.clone());
+    }
+
+    return networkResponse;
+  } catch (error) {
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    const offlineResponse = await caches.match('/offline.html');
+    if (offlineResponse) {
+      return offlineResponse;
+    }
+
+    return new Response('Offline', {
+      status: 503,
       headers: { 'Content-Type': 'text/plain' }
     });
   }
