@@ -31,7 +31,7 @@ const s3 = new AWS.S3({
   signatureVersion: 'v4',
 });
 
-const BUCKET_NAME = process.env.S3_BUCKET || 'lets-connect-media';
+const BUCKET_NAME = process.env.S3_BUCKET || 'milonexa-media';
 
 // Multer memory storage (better for buffer-based optimization)
 const upload = multer({

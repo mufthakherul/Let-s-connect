@@ -1,5 +1,5 @@
 /**
- * Image Optimization Middleware for Let's Connect Platform
+ * Image Optimization Middleware for Milonexa Platform
  * Phase 4: Scale & Performance (v2.5)
  * 
  * Automatically optimizes, resizes, and converts images for better performance

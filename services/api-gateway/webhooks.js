@@ -5,7 +5,7 @@ const { syncWithPolicy } = require('../shared/db-sync-policy');
 
 // Database setup (reuse from user-service)
 const sequelize = new Sequelize(
-  process.env.DB_NAME || 'letsconnect_webhooks',
+  process.env.DB_NAME || 'milonexa_webhooks',
   process.env.DB_USER || 'postgres',
   process.env.DB_PASSWORD,
   {
@@ -236,7 +236,7 @@ async function deliverWebhook(webhook, event, payload) {
           'X-Webhook-Event': event,
           'X-Webhook-Signature': signature,
           'X-Webhook-Delivery': delivery.id,
-          'User-Agent': 'LetsConnect-Webhooks/4.0',
+          'User-Agent': 'Milonexa-Webhooks/4.0',
           ...webhook.headers
         }
       });

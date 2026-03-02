@@ -81,7 +81,7 @@ export default function AccessibilityHub() {
                         Accessibility Resources
                     </Typography>
                     <Typography variant="h6" color="text.secondary" maxWidth="750px" mx="auto">
-                        Ensuring Let's Connect works for everyone. Explore user guides, the robust A11y Developer API, and provide direct feedback.
+                        Ensuring Milonexa works for everyone. Explore user guides, the robust A11y Developer API, and provide direct feedback.
                     </Typography>
                     <Box sx={{ mt: 4 }}>
                         <Button variant="contained" component={Link} to="/settings/accessibility" sx={{ bgcolor: '#14b8a6', '&:hover': { bgcolor: '#0f766e' }, borderRadius: 8, px: 4, py: 1.5, fontWeight: 600 }}>

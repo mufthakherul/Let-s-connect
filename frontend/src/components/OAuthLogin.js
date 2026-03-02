@@ -105,7 +105,7 @@ const Login = () => {
         <Container maxWidth="sm">
             <Box sx={{ py: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <Typography variant="h3" gutterBottom sx={{ mb: 1 }}>
-                    Let's Connect
+                    Milonexa
                 </Typography>
                 <Typography variant="body1" color="textSecondary" sx={{ mb: 4 }}>
                     Sign in to your account

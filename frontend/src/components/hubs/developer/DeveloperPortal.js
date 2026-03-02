@@ -147,7 +147,7 @@ export default function DeveloperPortal() {
                                 <Box>
                                     <Typography variant="h4" fontWeight={700} gutterBottom>Quick Start Guide</Typography>
                                     <Typography variant="body1" color="text.secondary" paragraph mb={4}>
-                                        Integrate Let's Connect into your platform with just a few lines of code.
+                                        Integrate Milonexa into your platform with just a few lines of code.
                                     </Typography>
 
                                     <Card sx={{ borderRadius: 4, bgcolor: '#1e1e1e', color: '#fff', mb: 4, boxShadow: '0 12px 24px rgba(0,0,0,0.2)' }}>
@@ -157,9 +157,9 @@ export default function DeveloperPortal() {
                                                 <Button size="small" sx={{ color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' }}>Copy</Button>
                                             </Box>
                                             <Typography variant="body1" sx={{ fontFamily: 'monospace' }}>
-                                                $ npm install @letsconnect/sdk<br />
-                                                $ export LETSCONNECT_API_KEY="your_api_key"<br />
-                                                $ letsconnect init
+                                                $ npm install @milonexa/sdk<br />
+                                                $ export MILONEXA_API_KEY="your_api_key"<br />
+                                                $ milonexa init
                                             </Typography>
                                         </CardContent>
                                     </Card>

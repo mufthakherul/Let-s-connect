@@ -4,13 +4,13 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Let\'s Connect API',
+      title: 'Milonexa API',
       version: '4.5.0',
       description: 'Unified Social Collaboration Platform API - Professional Modular Architecture & Performance Suite (v4.5)',
       contact: {
         name: 'API Support',
-        email: 'support@letsconnect.com',
-        url: 'https://letsconnect.com/support'
+        email: 'support@milonexa.com',
+        url: 'https://milonexa.com/support'
       },
       license: {
         name: 'MIT',
@@ -23,7 +23,7 @@ const options = {
         description: 'Development server'
       },
       {
-        url: 'https://api.letsconnect.com',
+        url: 'https://api.milonexa.com',
         description: 'Production server'
       }
     ],

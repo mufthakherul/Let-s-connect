@@ -131,7 +131,7 @@ function UnregisterLanding() {
     const Fallback = (error, reset) => (
         <Container maxWidth="md" sx={{ py: 8, textAlign: 'center' }}>
             <Box sx={{ mb: 4 }}>
-                <Typography variant="h3" fontWeight="700">Welcome to Let's Connect</Typography>
+                <Typography variant="h3" fontWeight="700">Welcome to Milonexa</Typography>
                 <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>A lightweight landing page is displayed because the interactive content failed to load. Refresh or continue to register.</Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
@@ -228,11 +228,11 @@ function UnregisterLanding() {
                             zIndex: 2,
                         })}
                     >
-                        Welcome to Let's Connect
+                        Welcome to Milonexa
                     </Typography>
 
                     <Typography component={motion.p} variants={fadeInUp} variant="h5" color="text.secondary" paragraph sx={{ mb: 3 }}>
-                        The All-in-One Social Collaboration Platform
+                        Milonexa — A Next-Generation Platform for Connecting People Virtually
                     </Typography>
 
                     <Typography component={motion.p} variants={fadeInUp} variant="body1" color="text.secondary" paragraph sx={{ maxWidth: 800, mx: 'auto', mb: 4 }}>

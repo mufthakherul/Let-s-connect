@@ -37,7 +37,7 @@ let pushNotificationsEnabled = false;
 if (!looksLikePlaceholder(VAPID_PUBLIC_KEY) && !looksLikePlaceholder(VAPID_PRIVATE_KEY)) {
   try {
     webpush.setVapidDetails(
-      'mailto:support@letsconnect.com',
+      'mailto:support@milonexa.com',
       VAPID_PUBLIC_KEY,
       VAPID_PRIVATE_KEY
     );

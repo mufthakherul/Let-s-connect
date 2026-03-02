@@ -1,5 +1,5 @@
 /**
- * Professional Migration Manager for Let's Connect Platform
+ * Professional Migration Manager for Milonexa Platform
  * Phase 10: Database & Bucket Professionalization (v3.0)
  * 
  * Replaces basic sequelize.sync() with a robust, trackable migration system.

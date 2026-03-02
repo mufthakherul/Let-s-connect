@@ -1,5 +1,5 @@
 ---
-# Prometheus Monitoring for Let's Connect Platform
+# Prometheus Monitoring for Milonexa Platform
 # Phase 4: Scale & Performance (v2.5)
 #
 # This manifest deploys Prometheus for metrics collection and monitoring
@@ -9,14 +9,14 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-config
-  namespace: lets-connect
+  namespace: milonexa
 data:
   prometheus.yml: |
     global:
       scrape_interval: 15s
       evaluation_interval: 15s
       external_labels:
-        cluster: 'lets-connect'
+        cluster: 'milonexa'
         environment: 'production'
 
     # Alerting configuration
@@ -126,7 +126,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus
-  namespace: lets-connect
+  namespace: milonexa
   labels:
     app: prometheus
     component: monitoring
@@ -193,7 +193,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: prometheus
-  namespace: lets-connect
+  namespace: milonexa
   labels:
     app: prometheus
     component: monitoring
@@ -213,7 +213,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: prometheus
-  namespace: lets-connect
+  namespace: milonexa
 
 ---
 # Prometheus ClusterRole
@@ -250,7 +250,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: prometheus
-    namespace: lets-connect
+    namespace: milonexa
 
 ---
 # Prometheus PersistentVolumeClaim (Optional - for persistent storage)
@@ -258,7 +258,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: prometheus-storage
-  namespace: lets-connect
+  namespace: milonexa
 spec:
   accessModes:
     - ReadWriteOnce

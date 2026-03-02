@@ -63,10 +63,10 @@ kubectl apply -f k8s/elasticsearch.yaml
 kubectl apply -f k8s/minio.yaml
 
 # Wait for infrastructure to be ready
-kubectl wait --for=condition=ready pod -l tier=database -n lets-connect --timeout=300s
-kubectl wait --for=condition=ready pod -l tier=cache -n lets-connect --timeout=120s
-kubectl wait --for=condition=ready pod -l tier=search -n lets-connect --timeout=300s
-kubectl wait --for=condition=ready pod -l tier=storage -n lets-connect --timeout=120s
+kubectl wait --for=condition=ready pod -l tier=database -n milonexa --timeout=300s
+kubectl wait --for=condition=ready pod -l tier=cache -n milonexa --timeout=120s
+kubectl wait --for=condition=ready pod -l tier=search -n milonexa --timeout=300s
+kubectl wait --for=condition=ready pod -l tier=storage -n milonexa --timeout=120s
 
 # 5. Deploy backend microservices
 kubectl apply -f k8s/user-service.yaml
@@ -78,15 +78,15 @@ kubectl apply -f k8s/shop-service.yaml
 kubectl apply -f k8s/ai-service.yaml
 
 # Wait for services to be ready
-kubectl wait --for=condition=ready pod -l tier=backend -n lets-connect --timeout=300s
+kubectl wait --for=condition=ready pod -l tier=backend -n milonexa --timeout=300s
 
 # 6. Deploy API Gateway and Frontend
 kubectl apply -f k8s/api-gateway.yaml
 kubectl apply -f k8s/frontend.yaml
 
 # Wait for gateway and frontend
-kubectl wait --for=condition=ready pod -l tier=gateway -n lets-connect --timeout=120s
-kubectl wait --for=condition=ready pod -l tier=frontend -n lets-connect --timeout=120s
+kubectl wait --for=condition=ready pod -l tier=gateway -n milonexa --timeout=120s
+kubectl wait --for=condition=ready pod -l tier=frontend -n milonexa --timeout=120s
 
 # 7. Deploy Load Balancing (Phase 4)
 kubectl apply -f k8s/ingress.yaml
@@ -96,20 +96,20 @@ kubectl apply -f k8s/prometheus.yaml
 kubectl apply -f k8s/grafana.yaml
 
 # 9. Verify all components
-kubectl get pods -n lets-connect
-kubectl get svc -n lets-connect
-kubectl get ingress -n lets-connect
+kubectl get pods -n milonexa
+kubectl get svc -n milonexa
+kubectl get ingress -n milonexa
 ```
 
 ### Access Monitoring
 
 ```bash
 # Port-forward Prometheus
-kubectl port-forward svc/prometheus 9090:9090 -n lets-connect
+kubectl port-forward svc/prometheus 9090:9090 -n milonexa
 # Access at: http://localhost:9090
 
 # Port-forward Grafana  
-kubectl port-forward svc/grafana 3000:3000 -n lets-connect
+kubectl port-forward svc/grafana 3000:3000 -n milonexa
 # Access at: http://localhost:3000
 # Default credentials: admin / admin
 ```
@@ -118,16 +118,16 @@ kubectl port-forward svc/grafana 3000:3000 -n lets-connect
 
 ```bash
 # Check all pods
-kubectl get pods -n lets-connect
+kubectl get pods -n milonexa
 
 # Check services
-kubectl get svc -n lets-connect
+kubectl get svc -n milonexa
 
 # Check logs
-kubectl logs -f deployment/user-service -n lets-connect
+kubectl logs -f deployment/user-service -n milonexa
 
 # Check health
-kubectl exec deployment/user-service -n lets-connect -- curl localhost:8001/health
+kubectl exec deployment/user-service -n milonexa -- curl localhost:8001/health
 ```
 
 ## Architecture
@@ -178,8 +178,8 @@ Create `secrets.yaml` with:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: lets-connect-secrets
-  namespace: lets-connect
+  name: milonexa-secrets
+  namespace: milonexa
 type: Opaque
 stringData:
   JWT_SECRET: "your-jwt-secret-here"
@@ -192,13 +192,13 @@ stringData:
 
 ### Manual Scaling
 ```bash
-kubectl scale deployment user-service --replicas=3 -n lets-connect
+kubectl scale deployment user-service --replicas=3 -n milonexa
 ```
 
 ### Auto-scaling (HPA)
 ```bash
 kubectl apply -f k8s/hpa.yaml
-kubectl get hpa -n lets-connect
+kubectl get hpa -n milonexa
 ```
 
 ## Monitoring
@@ -206,31 +206,31 @@ kubectl get hpa -n lets-connect
 ### Health Checks
 ```bash
 # Liveness probe
-kubectl exec deployment/user-service -n lets-connect -- curl localhost:8001/health
+kubectl exec deployment/user-service -n milonexa -- curl localhost:8001/health
 
 # Readiness probe
-kubectl exec deployment/user-service -n lets-connect -- curl localhost:8001/health/ready
+kubectl exec deployment/user-service -n milonexa -- curl localhost:8001/health/ready
 
 # Prometheus metrics
-kubectl exec deployment/user-service -n lets-connect -- curl localhost:8001/metrics
+kubectl exec deployment/user-service -n milonexa -- curl localhost:8001/metrics
 ```
 
 ### Prometheus & Grafana (Phase 4)
 ```bash
 # Check Prometheus status
-kubectl get pods -n lets-connect -l app=prometheus
-kubectl logs -f deployment/prometheus -n lets-connect
+kubectl get pods -n milonexa -l app=prometheus
+kubectl logs -f deployment/prometheus -n milonexa
 
 # Check Grafana status
-kubectl get pods -n lets-connect -l app=grafana
-kubectl logs -f deployment/grafana -n lets-connect
+kubectl get pods -n milonexa -l app=grafana
+kubectl logs -f deployment/grafana -n milonexa
 
 # Access Prometheus UI
-kubectl port-forward svc/prometheus 9090:9090 -n lets-connect
+kubectl port-forward svc/prometheus 9090:9090 -n milonexa
 # Browse to: http://localhost:9090
 
 # Access Grafana dashboards
-kubectl port-forward svc/grafana 3000:3000 -n lets-connect
+kubectl port-forward svc/grafana 3000:3000 -n milonexa
 # Browse to: http://localhost:3000
 # Login with: admin / admin
 
@@ -241,34 +241,34 @@ curl http://localhost:9090/api/v1/targets  # Check Prometheus targets
 ### Logs
 ```bash
 # View logs
-kubectl logs -f deployment/user-service -n lets-connect
+kubectl logs -f deployment/user-service -n milonexa
 
 # Follow all pods
-kubectl logs -f -l app=user-service -n lets-connect
+kubectl logs -f -l app=user-service -n milonexa
 
 # View last hour
-kubectl logs deployment/user-service -n lets-connect --since=1h
+kubectl logs deployment/user-service -n milonexa --since=1h
 ```
 
 ## Troubleshooting
 
 ### Pod Not Starting
 ```bash
-kubectl describe pod <pod-name> -n lets-connect
-kubectl logs <pod-name> -n lets-connect --previous
+kubectl describe pod <pod-name> -n milonexa
+kubectl logs <pod-name> -n milonexa --previous
 ```
 
 ### Service Not Accessible
 ```bash
-kubectl get svc -n lets-connect
-kubectl describe svc user-service -n lets-connect
-kubectl get endpoints user-service -n lets-connect
+kubectl get svc -n milonexa
+kubectl describe svc user-service -n milonexa
+kubectl get endpoints user-service -n milonexa
 ```
 
 ### Database Connection Issues
 ```bash
-kubectl exec deployment/postgres -n lets-connect -- psql -U postgres -c "SELECT 1"
-kubectl exec deployment/user-service -n lets-connect -- nc -zv postgres 5432
+kubectl exec deployment/postgres -n milonexa -- psql -U postgres -c "SELECT 1"
+kubectl exec deployment/user-service -n milonexa -- nc -zv postgres 5432
 ```
 
 ## Production Considerations

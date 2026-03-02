@@ -1,5 +1,5 @@
 /**
- * Lazy Loading Components for Let's Connect Platform
+ * Lazy Loading Components for Milonexa Platform
  * Phase 4: Scale & Performance (v2.5)
  * 
  * Provides lazy loading functionality for images and components

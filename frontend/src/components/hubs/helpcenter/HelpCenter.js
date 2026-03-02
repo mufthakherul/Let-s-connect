@@ -161,7 +161,7 @@ export default function HelpCenter() {
                             Can't find what you're looking for?
                         </Typography>
                         <Typography variant="body1" color="text.secondary" mb={2}>
-                            Browse the Community Forum for peer-to-peer resolutions, or email us directly at <strong>support@letsconnect.com</strong>.
+                            Browse the Community Forum for peer-to-peer resolutions, or email us directly at <strong>support@milonexa.com</strong>.
                         </Typography>
                         <Button variant="contained" component={Link} to="/hubs/forum" sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 600 }}>
                             Visit Community Forum

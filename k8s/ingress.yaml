@@ -1,5 +1,5 @@
 ---
-# Ingress Controller for Let's Connect Platform
+# Ingress Controller for Milonexa Platform
 # Phase 4: Scale & Performance (v2.5)
 # 
 # This Ingress provides external load balancing and routing for all services
@@ -8,8 +8,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: lets-connect-ingress
-  namespace: lets-connect
+  name: milonexa-ingress
+  namespace: milonexa
   annotations:
     # Nginx Ingress Controller annotations
     nginx.ingress.kubernetes.io/rewrite-target: /$2
@@ -40,11 +40,11 @@ spec:
   # TLS/SSL termination
   tls:
     - hosts:
-        - api.letsconnect.example.com
-      secretName: letsconnect-tls-cert
+        - api.milonexa.example.com
+      secretName: milonexa-tls-cert
   
   rules:
-    - host: api.letsconnect.example.com
+    - host: api.milonexa.example.com
       http:
         paths:
           # API Gateway - Main entry point
@@ -124,8 +124,8 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: lets-connect-ingress-dev
-  namespace: lets-connect
+  name: milonexa-ingress-dev
+  namespace: milonexa
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
     nginx.ingress.kubernetes.io/use-regex: "true"

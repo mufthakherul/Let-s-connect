@@ -298,7 +298,7 @@ class IPTVOrgAPI {
 
                     https.get(url, {
                         headers: {
-                            'User-Agent': 'TV-App/1.0 (+https://letsconnect.app)',
+                            'User-Agent': 'TV-App/1.0 (+https://milonexa.app)',
                             'Accept': 'application/json'
                         }
                     }, (res) => {

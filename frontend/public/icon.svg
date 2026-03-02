@@ -1,13 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Let's Connect">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Milonexa">
   <defs>
-    <linearGradient id="lcGradient" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1976d2" />
-      <stop offset="100%" stop-color="#4caf50" />
+    <linearGradient id="miloGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="55%" stop-color="#7c3aed" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <linearGradient id="orbitGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#e2e8f0" stop-opacity="0.9" />
     </linearGradient>
   </defs>
-  <rect width="256" height="256" rx="48" fill="url(#lcGradient)" />
-  <circle cx="96" cy="108" r="28" fill="#ffffff" opacity="0.9" />
-  <circle cx="160" cy="148" r="28" fill="#ffffff" opacity="0.9" />
-  <path d="M114 124 L142 132" stroke="#ffffff" stroke-width="12" stroke-linecap="round" />
-  <path d="M72 184 C92 160 164 160 184 184" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" />
+  <rect width="256" height="256" rx="56" fill="url(#miloGradient)" />
+  <path d="M54 176V80h24l50 60 50-60h24v96h-26v-54l-44 52h-8l-44-52v54H54z" fill="#ffffff" />
+  <ellipse cx="128" cy="128" rx="92" ry="50" fill="none" stroke="url(#orbitGradient)" stroke-width="8" opacity="0.9" />
+  <circle cx="212" cy="128" r="9" fill="#ffffff" />
 </svg>

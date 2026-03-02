@@ -959,7 +959,7 @@ function AppContent() {
                     filter: mode === 'light' ? 'drop-shadow(0 0 1px rgba(0,0,0,0.1))' : 'none',
                   }}
                 >
-                  Let's Connect
+                  Milonexa
                 </Typography>
 
                 {!isMobile && (

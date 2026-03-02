@@ -223,7 +223,7 @@ export default function BusinessSupport() {
                     Open Source Sustainability Pledges
                 </Typography>
                 <Typography variant="body1" color="text.secondary" textAlign="center" maxWidth="700px" mx="auto" mb={6}>
-                    Align your brand with the future of the open web. Companies that sponsor Let's Connect development receive permanent credits in our repository.
+                    Align your brand with the future of the open web. Companies that sponsor Milonexa development receive permanent credits in our repository.
                 </Typography>
 
                 <Grid container spacing={4} justifyContent="center">
