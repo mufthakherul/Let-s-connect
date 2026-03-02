@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const { syncWithPolicy } = require('../shared/db-sync-policy');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 // Fetchers/enrichers are lazy-loaded only when needed for full mode
 

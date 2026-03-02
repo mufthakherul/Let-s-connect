@@ -8,7 +8,7 @@ const webpush = require('web-push');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { startServiceWithDatabase } = require('../shared/startup');
 const { buildSocketCorsOptions } = require('../shared/cors-config');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const app = express();
 const server = http.createServer(app);

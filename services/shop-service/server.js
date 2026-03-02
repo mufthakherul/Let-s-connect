@@ -2,7 +2,7 @@ const express = require('express');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { syncWithPolicy } = require('../shared/db-sync-policy');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const app = express();
 const PORT = process.env.PORT || 8006;

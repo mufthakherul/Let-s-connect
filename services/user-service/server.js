@@ -12,7 +12,7 @@ const { buildCorsOptions } = require('../shared/cors-config');
 const response = require('../shared/response-wrapper');
 const { errorHandler: globalErrorHandler } = require('../shared/errorHandling');
 const logger = require('../shared/logger');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const app = express();
 const healthChecker = new HealthChecker('user-service');

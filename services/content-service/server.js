@@ -10,7 +10,7 @@ const { MigrationManager } = require('../shared/migrations-manager');
 const { syncWithPolicy } = require('../shared/db-sync-policy');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { buildCorsOptions } = require('../shared/cors-config');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const PORT = process.env.PORT || 8002;
 

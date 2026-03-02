@@ -7,7 +7,7 @@ const ot = require('ot');
 const Redis = require('ioredis');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { startServiceWithDatabase } = require('../shared/startup');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const app = express();
 const server = http.createServer(app);

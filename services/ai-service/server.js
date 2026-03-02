@@ -1,7 +1,7 @@
 const express = require('express');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Redis = require('ioredis');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const app = express();
 const PORT = process.env.PORT || 8007;
