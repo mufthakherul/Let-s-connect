@@ -683,6 +683,27 @@ app.delete('/wishlist/:id', async (req, res) => {
   }
 });
 
+// Friendly root endpoint (avoid default "Cannot GET /")
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    service: 'shop-service',
+    message: 'Shop service is running.',
+    health: '/health'
+  });
+});
+
+// Standard route fallback
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: {
+      code: 'ROUTE_NOT_FOUND',
+      message: `The requested endpoint '${req.originalUrl}' does not exist.`
+    }
+  });
+});
+
 async function startServer() {
   try {
     const maxDbAttempts = parseInt(process.env.DB_CONNECT_MAX_RETRIES || '20', 10);

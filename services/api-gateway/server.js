@@ -838,6 +838,28 @@ app.get('/api/redoc', (req, res) => {
   `);
 });
 
+// Friendly root endpoint (avoid default "Cannot GET /")
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    service: 'api-gateway',
+    message: 'API Gateway is running.',
+    docs: '/api/docs',
+    health: '/health'
+  });
+});
+
+// Standard route fallback
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: {
+      code: 'ROUTE_NOT_FOUND',
+      message: `The requested endpoint '${req.originalUrl}' does not exist.`
+    }
+  });
+});
+
 // Global Error Handling
 app.use(globalErrorHandler);
 

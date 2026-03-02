@@ -8657,6 +8657,27 @@ app.get('/public/wiki', async (req, res) => {
   }
 });
 
+// Friendly root endpoint (avoid default "Cannot GET /")
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    service: 'collaboration-service',
+    message: 'Collaboration service is running.',
+    health: '/health'
+  });
+});
+
+// Standard route fallback
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: {
+      code: 'ROUTE_NOT_FOUND',
+      message: `The requested endpoint '${req.originalUrl}' does not exist.`
+    }
+  });
+});
+
 startServiceWithDatabase({
   serviceName: 'collaboration-service',
   sequelize,

@@ -80,6 +80,27 @@ app.get('/health', (req, res) => {
     res.json(healthChecker.getBasicHealth());
 });
 
+// Friendly root endpoint (avoid default "Cannot GET /")
+app.get('/', (req, res) => {
+    res.status(200).json({
+        success: true,
+        service: 'content-service',
+        message: 'Content service is running.',
+        health: '/health'
+    });
+});
+
+// Standard route fallback
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: {
+            code: 'ROUTE_NOT_FOUND',
+            message: `The requested endpoint '${req.originalUrl}' does not exist.`
+        }
+    });
+});
+
 // Global Error Handler
 app.use(globalErrorHandler);
 
