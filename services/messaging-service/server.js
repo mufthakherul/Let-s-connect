@@ -3412,6 +3412,27 @@ app.delete('/categories/:categoryId', async (req, res) => {
   }
 });
 
+// Friendly root endpoint (avoid default "Cannot GET /")
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    service: 'messaging-service',
+    message: 'Messaging service is running.',
+    health: '/health'
+  });
+});
+
+// Standard route fallback
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: {
+      code: 'ROUTE_NOT_FOUND',
+      message: `The requested endpoint '${req.originalUrl}' does not exist.`
+    }
+  });
+});
+
 // ensure tables exist when DB_SCHEMA_MODE=migrate skips sync during normal startup
 async function ensureSchemaBootstrapIfMissing() {
   const qi = sequelize.getQueryInterface();

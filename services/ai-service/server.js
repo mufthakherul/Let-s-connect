@@ -482,6 +482,27 @@ Identify what's trending and why.
   }
 });
 
+// Friendly root endpoint (avoid default "Cannot GET /")
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    service: 'ai-service',
+    message: 'AI service is running.',
+    health: '/health'
+  });
+});
+
+// Standard route fallback
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: {
+      code: 'ROUTE_NOT_FOUND',
+      message: `The requested endpoint '${req.originalUrl}' does not exist.`
+    }
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`AI service running on port ${PORT}`);
 });
