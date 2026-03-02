@@ -7,7 +7,7 @@ const { globalErrorHandler } = require('../shared/errorHandling');
 const { HealthChecker, checkDatabase, checkRedis } = require('../shared/monitoring');
 const { CacheManager } = require('../shared/caching');
 const { MigrationManager } = require('../shared/migrations-manager');
-const { getSafeSyncOptions } = require('../shared/db-sync-policy');
+const { syncWithPolicy } = require('../shared/db-sync-policy');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { buildCorsOptions } = require('../shared/cors-config');
 require('dotenv').config();
@@ -76,7 +76,7 @@ const startServer = async () => {
             {
                 name: 'init-content-tables',
                 up: async (qi) => {
-                    await sequelize.sync(getSafeSyncOptions('content-service'));
+                    await syncWithPolicy(sequelize, 'content-service');
                 }
             },
             {

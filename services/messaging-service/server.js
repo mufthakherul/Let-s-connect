@@ -6,7 +6,7 @@ const Redis = require('ioredis');
 const crypto = require('crypto');
 const webpush = require('web-push');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
-const { getSafeSyncOptions } = require('../shared/db-sync-policy');
+const { startServiceWithDatabase } = require('../shared/startup');
 const { buildSocketCorsOptions } = require('../shared/cors-config');
 require('dotenv').config();
 
@@ -735,9 +735,6 @@ Conversation.hasMany(ScheduledMessage, { foreignKey: 'conversationId' });
 ScheduledMessage.belongsTo(Conversation, { foreignKey: 'conversationId' });
 Conversation.hasMany(ConversationSettings, { foreignKey: 'conversationId' });
 ConversationSettings.belongsTo(Conversation, { foreignKey: 'conversationId' });
-
-// Only run sequelize ALTER when explicitly enabled to avoid invalid SQL on fresh DBs
-const syncOptions = getSafeSyncOptions('messaging-service');
 
 // Socket.IO for real-time messaging
 io.on('connection', (socket) => {
@@ -3415,16 +3412,16 @@ app.delete('/categories/:categoryId', async (req, res) => {
   }
 });
 
-async function startServer() {
-  try {
-    await sequelize.sync(syncOptions);
+startServiceWithDatabase({
+  serviceName: 'messaging-service',
+  sequelize,
+  start: () => new Promise((resolve) => {
     server.listen(PORT, () => {
       console.log(`Messaging service running on port ${PORT}`);
+      resolve();
     });
-  } catch (error) {
+  }),
+  onError: (error) => {
     console.error('Database initialization failed:', error);
-    process.exit(1);
   }
-}
-
-startServer();
+});

@@ -5,7 +5,7 @@ const axios = require('axios');
 const net = require('net');
 const NodeCache = require('node-cache');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
-const { getSafeSyncOptions } = require('../shared/db-sync-policy');
+const { syncWithPolicy } = require('../shared/db-sync-policy');
 const { buildCorsOptions } = require('../shared/cors-config');
 require('dotenv').config();
 
@@ -274,9 +274,6 @@ const Playlist = sequelize.define('Playlist', {
         defaultValue: []
     }
 });
-
-// Initialize database
-const syncOptions = getSafeSyncOptions('streaming-service');
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -1759,7 +1756,7 @@ app.get('/health', async (req, res) => {
 
 async function startServer() {
     try {
-        await sequelize.sync(syncOptions);
+        await syncWithPolicy(sequelize, 'streaming-service');
         console.log('[Streaming] Database synced');
 
         // Initialize search / health / recommender services now that DB is ready

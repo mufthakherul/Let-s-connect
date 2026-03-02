@@ -6,7 +6,7 @@ const { Server } = require('socket.io');
 const ot = require('ot');
 const Redis = require('ioredis');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
-const { getSafeSyncOptions } = require('../shared/db-sync-policy');
+const { startServiceWithDatabase } = require('../shared/startup');
 require('dotenv').config();
 
 const app = express();
@@ -2257,8 +2257,6 @@ Meeting.hasMany(QuizQuestion, { foreignKey: 'meetingId', as: 'quizQuestions' });
 QuizQuestion.belongsTo(Meeting, { foreignKey: 'meetingId' });
 QuizQuestion.hasMany(QuizResponse, { foreignKey: 'questionId', as: 'responses' });
 QuizResponse.belongsTo(QuizQuestion, { foreignKey: 'questionId' });
-
-const syncOptions = getSafeSyncOptions('collaboration-service');
 
 // Routes
 
@@ -8659,16 +8657,16 @@ app.get('/public/wiki', async (req, res) => {
   }
 });
 
-async function startServer() {
-  try {
-    await sequelize.sync(syncOptions);
+startServiceWithDatabase({
+  serviceName: 'collaboration-service',
+  sequelize,
+  start: () => new Promise((resolve) => {
     server.listen(PORT, () => {
       console.log(`Collaboration service running on port ${PORT}`);
+      resolve();
     });
-  } catch (error) {
+  }),
+  onError: (error) => {
     console.error('Database initialization failed:', error);
-    process.exit(1);
   }
-}
-
-startServer();
+});
