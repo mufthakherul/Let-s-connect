@@ -3412,9 +3412,29 @@ app.delete('/categories/:categoryId', async (req, res) => {
   }
 });
 
+// ensure tables exist when DB_SCHEMA_MODE=migrate skips sync during normal startup
+async function ensureSchemaBootstrapIfMissing() {
+  const qi = sequelize.getQueryInterface();
+  const rawTables = await qi.showAllTables();
+  const tableNames = new Set(
+    rawTables.map((entry) => (typeof entry === 'string' ? entry : entry.tableName || entry)).filter(Boolean)
+  );
+
+  // recovery: migrations may have run while schema sync was skipped
+  if (!tableNames.has('Notifications')) {
+    console.warn('[Messaging Service] Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
+    await sequelize.sync();
+  }
+}
+
 startServiceWithDatabase({
   serviceName: 'messaging-service',
   sequelize,
+  beforeStart: async () => {
+    await sequelize.authenticate();
+    console.log('[Messaging Service] Database connected.');
+    await ensureSchemaBootstrapIfMissing();
+  },
   start: () => new Promise((resolve) => {
     server.listen(PORT, () => {
       console.log(`Messaging service running on port ${PORT}`);
