@@ -6,7 +6,7 @@ const routes = require('./src/routes');
 const { HealthChecker, checkDatabase, checkRedis } = require('../shared/monitoring');
 const { CacheManager } = require('../shared/caching');
 const { MigrationManager } = require('../shared/migrations-manager');
-const { getSafeSyncOptions } = require('../shared/db-sync-policy');
+const { syncWithPolicy } = require('../shared/db-sync-policy');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { buildCorsOptions } = require('../shared/cors-config');
 const response = require('../shared/response-wrapper');
@@ -85,7 +85,7 @@ async function startServer() {
       {
         name: 'init-user-tables',
         up: async (qi) => {
-          await sequelize.sync(getSafeSyncOptions('user-service'));
+          await syncWithPolicy(sequelize, 'user-service');
         }
       }
     ]);

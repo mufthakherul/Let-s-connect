@@ -11,7 +11,7 @@ try {
 const { MigrationManager } = require('../shared/migrations-manager');
 const { globalErrorHandler } = require('../shared/errorHandling');
 const { HealthChecker, checkDatabase, checkS3 } = require('../shared/monitoring');
-const { getSafeSyncOptions } = require('../shared/db-sync-policy');
+const { syncWithPolicy } = require('../shared/db-sync-policy');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const response = require('../shared/response-wrapper');
 require('dotenv').config();
@@ -198,7 +198,7 @@ async function startServer() {
         up: async (qi, Sequelize) => {
           // The model definition will handle table creation via sync in this setup, 
           // but for Phase 10 we move toward explicit migrations.
-          await sequelize.sync(getSafeSyncOptions('media-service'));
+          await syncWithPolicy(sequelize, 'media-service');
         }
       }
     ]);

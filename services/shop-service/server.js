@@ -1,7 +1,7 @@
 const express = require('express');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
-const { getSafeSyncOptions } = require('../shared/db-sync-policy');
+const { syncWithPolicy } = require('../shared/db-sync-policy');
 require('dotenv').config();
 
 const app = express();
@@ -201,8 +201,6 @@ Product.hasMany(ProductReview, { foreignKey: 'productId' });
 ProductReview.belongsTo(Product, { foreignKey: 'productId' });
 Product.hasMany(WishlistItem, { foreignKey: 'productId' });
 WishlistItem.belongsTo(Product, { foreignKey: 'productId' });
-
-const syncOptions = getSafeSyncOptions('shop-service');
 
 // Routes
 
@@ -711,7 +709,7 @@ async function startServer() {
       throw lastError || new Error('Database connection failed after retries');
     }
 
-    await sequelize.sync(syncOptions);
+    await syncWithPolicy(sequelize, 'shop-service');
     app.listen(PORT, () => {
       console.log(`Shop service running on port ${PORT}`);
     });

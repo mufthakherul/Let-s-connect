@@ -1,7 +1,7 @@
 const axios = require('axios');
 const crypto = require('crypto');
 const { Sequelize, DataTypes } = require('sequelize');
-const { getSafeSyncOptions } = require('../shared/db-sync-policy');
+const { syncWithPolicy } = require('../shared/db-sync-policy');
 
 // Database setup (reuse from user-service)
 const sequelize = new Sequelize(
@@ -159,8 +159,14 @@ Webhook.hasMany(WebhookDelivery, { foreignKey: 'webhookId', as: 'deliveries' });
 WebhookDelivery.belongsTo(Webhook, { foreignKey: 'webhookId', as: 'webhook' });
 
 // Sync database - with error handling
-sequelize.sync(getSafeSyncOptions('api-gateway-webhooks'))
-  .then(() => console.log('[Webhooks] Database synced'))
+syncWithPolicy(sequelize, 'api-gateway-webhooks')
+  .then((synced) => {
+    if (synced) {
+      console.log('[Webhooks] Database synced');
+    } else {
+      console.log('[Webhooks] Schema sync skipped by policy');
+    }
+  })
   .catch(err => console.error('[Webhooks] Database sync failed:', err));
 
 // Max response body length for logging (5KB)
