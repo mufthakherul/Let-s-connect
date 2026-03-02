@@ -19,6 +19,23 @@ const healthChecker = new HealthChecker('content-service');
 const cacheManager = new CacheManager();
 const migrationManager = new MigrationManager(sequelize, 'content-service');
 
+const ensureSchemaBootstrapIfMissing = async () => {
+    const qi = sequelize.getQueryInterface();
+    const rawTables = await qi.showAllTables();
+    const tableNames = new Set(
+        rawTables.map((entry) => (typeof entry === 'string' ? entry : entry.tableName || entry)).filter(Boolean)
+    );
+
+    // Recovery path: older runs could record migration success while DB_SCHEMA_MODE=migrate
+    // skipped sequelize.sync(), leaving empty schemas with __migrations present.
+    const hasCorePostTable = tableNames.has('Posts');
+
+    if (!hasCorePostTable) {
+        console.warn('[Content Service] Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
+        await sequelize.sync();
+    }
+};
+
 // Register checks
 healthChecker.registerCheck('database', () => checkDatabase(sequelize));
 healthChecker.registerCheck('redis', () => checkRedis(cacheManager.redis));
@@ -71,6 +88,8 @@ const startServer = async () => {
         await sequelize.authenticate();
         console.log('[Content Service] Database connected.');
 
+        await ensureSchemaBootstrapIfMissing();
+
         // Phase 10: Professional Migrations
         await migrationManager.runMigrations([
             {
@@ -82,7 +101,14 @@ const startServer = async () => {
             {
                 name: 'seed-initial-awards',
                 up: async (qi) => {
-                    const { Award } = require('./src/models');
+                    const { Award, PostAward } = require('./src/models');
+
+                    // Ensure award tables exist even when DB_SCHEMA_MODE=migrate.
+                    // In that mode syncWithPolicy() intentionally skips global sequelize.sync(),
+                    // so seeding must bootstrap its own required tables.
+                    await Award.sync();
+                    await PostAward.sync();
+
                     const awards = [
                         { name: 'Gold Award', description: 'A prestigious gold award', icon: '🥇', cost: 500, type: 'gold' },
                         { name: 'Silver Award', description: 'A valuable silver award', icon: '🥈', cost: 100, type: 'silver' }

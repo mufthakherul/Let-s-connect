@@ -275,6 +275,22 @@ const Playlist = sequelize.define('Playlist', {
     }
 });
 
+async function ensureStreamingSchemaBootstrap() {
+    const qi = sequelize.getQueryInterface();
+    const rawTables = await qi.showAllTables();
+    const tableNames = new Set(
+        rawTables.map((entry) => (typeof entry === 'string' ? entry : entry.tableName || entry)).filter(Boolean)
+    );
+
+    const requiredTables = ['RadioStations', 'TVChannels'];
+    const missingRequiredTable = requiredTables.some((tableName) => !tableNames.has(tableName));
+
+    if (missingRequiredTable) {
+        console.warn('[Streaming] Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
+        await sequelize.sync();
+    }
+}
+
 // ==================== HELPER FUNCTIONS ====================
 
 // Extract user ID from request headers
@@ -1757,6 +1773,7 @@ app.get('/health', async (req, res) => {
 async function startServer() {
     try {
         await syncWithPolicy(sequelize, 'streaming-service');
+        await ensureStreamingSchemaBootstrap();
         console.log('[Streaming] Database synced');
 
         // Initialize search / health / recommender services now that DB is ready

@@ -280,6 +280,22 @@ async function bulkUpsertTVChannels(channels) {
     return result;
 }
 
+async function ensureStreamingSchemaBootstrap() {
+    const qi = sequelize.getQueryInterface();
+    const rawTables = await qi.showAllTables();
+    const tableNames = new Set(
+        rawTables.map((entry) => (typeof entry === 'string' ? entry : entry.tableName || entry)).filter(Boolean)
+    );
+
+    const requiredTables = ['RadioStations', 'TVChannels'];
+    const missingRequiredTable = requiredTables.some((tableName) => !tableNames.has(tableName));
+
+    if (missingRequiredTable) {
+        console.warn('[Streaming Seed] Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
+        await sequelize.sync();
+    }
+}
+
 // ==================== SEED FUNCTION ====================
 
 const seed = async () => {
@@ -305,6 +321,7 @@ const seed = async () => {
         // Sync database
         console.log('🔧 Synchronizing database models...');
         await syncWithPolicy(sequelize, 'streaming-service-seed-fast');
+        await ensureStreamingSchemaBootstrap();
         console.log('✅ Database models sync step completed\n');
 
         // ========== RADIO STATIONS ==========
