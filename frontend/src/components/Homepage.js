@@ -174,7 +174,7 @@ function Homepage({ user }) {
 
     const fetchPosts = async (pageNum, filter) => {
         try {
-            const response = await api.get(`/content/feed/${user.id}?page=${pageNum}&limit=10&filter=${filter}`);
+            const response = await api.get(`/content/posts/feed/${user.id}?page=${pageNum}&limit=10&filter=${filter}`);
             if (response.data && response.data.length > 0) {
                 if (pageNum === 1) {
                     setPosts(response.data);

@@ -154,7 +154,7 @@ function Feed({ user }) {
   const fetchPosts = async (pageNum) => {
     try {
       setLoading(true);
-      const response = await api.get(`/content/feed/${user.id}?page=${pageNum}&limit=10`);
+      const response = await api.get(`/content/posts/feed/${user.id}?page=${pageNum}&limit=10`);
 
       if (response.data.length < 10) {
         setHasMore(false);
