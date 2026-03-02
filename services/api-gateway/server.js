@@ -634,6 +634,13 @@ app.use('/api/user/check-username', RATE_LIMITING_ENABLED ? usernameSoftLimiter 
   }
 }));
 
+// Backward-compatible alias: route /api/user/notifications* to messaging-service.
+app.use('/api/user/notifications', authMiddleware, applyUserLimiter, proxy(services.messaging, {
+  proxyReqPathResolver: function (req) {
+    return req.originalUrl.replace('/api/user', '');
+  }
+}));
+
 // User Service routes
 app.use('/api/user', createAuthProxy(services.user), applyUserLimiter, proxy(services.user, {
   proxyReqPathResolver: function (req) {
