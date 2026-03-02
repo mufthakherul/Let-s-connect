@@ -326,7 +326,7 @@ if (process.env.NODE_ENV !== 'production') {
         </head>
         <body>
           <div class="container">
-            <h1>GraphQL API - Let's Connect</h1>
+            <h1>GraphQL API - Milonexa</h1>
             <div class="info">
               <p><strong>Endpoint:</strong> <code>/graphql</code></p>
               <p><strong>GraphiQL Interface:</strong> <a href="/graphql">Open GraphiQL</a></p>
@@ -776,7 +776,7 @@ app.get('/api/auth/oauth/github/callback', (req, res, next) => {
 // Swagger UI options
 const swaggerOptions = {
   customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'Let\'s Connect API Documentation',
+  customSiteTitle: 'Milonexa API Documentation',
   customfavIcon: '/favicon.ico'
 };
 
