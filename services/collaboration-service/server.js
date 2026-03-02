@@ -8678,9 +8678,29 @@ app.use((req, res) => {
   });
 });
 
+// Recovery bootstrap for DB_SCHEMA_MODE=migrate environments with empty schemas.
+async function ensureSchemaBootstrapIfMissing() {
+  const qi = sequelize.getQueryInterface();
+  const rawTables = await qi.showAllTables();
+  const tableNames = new Set(
+    rawTables.map((entry) => (typeof entry === 'string' ? entry : entry.tableName || entry)).filter(Boolean)
+  );
+
+  const hasCoreTables = tableNames.has('Documents') && tableNames.has('Wikis');
+  if (!hasCoreTables) {
+    console.warn('[Collaboration Service] Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
+    await sequelize.sync();
+  }
+}
+
 startServiceWithDatabase({
   serviceName: 'collaboration-service',
   sequelize,
+  beforeStart: async () => {
+    await sequelize.authenticate();
+    console.log('[Collaboration Service] Database connected.');
+    await ensureSchemaBootstrapIfMissing();
+  },
   start: () => new Promise((resolve) => {
     server.listen(PORT, () => {
       console.log(`Collaboration service running on port ${PORT}`);

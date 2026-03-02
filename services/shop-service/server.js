@@ -704,6 +704,19 @@ app.use((req, res) => {
   });
 });
 
+async function ensureSchemaBootstrapIfMissing() {
+  const qi = sequelize.getQueryInterface();
+  const rawTables = await qi.showAllTables();
+  const tableNames = new Set(
+    rawTables.map((entry) => (typeof entry === 'string' ? entry : entry.tableName || entry)).filter(Boolean)
+  );
+
+  if (!tableNames.has('Products')) {
+    console.warn('[Shop Service] Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
+    await sequelize.sync();
+  }
+}
+
 async function startServer() {
   try {
     const maxDbAttempts = parseInt(process.env.DB_CONNECT_MAX_RETRIES || '20', 10);
@@ -730,6 +743,7 @@ async function startServer() {
       throw lastError || new Error('Database connection failed after retries');
     }
 
+    await ensureSchemaBootstrapIfMissing();
     await syncWithPolicy(sequelize, 'shop-service');
     app.listen(PORT, () => {
       console.log(`Shop service running on port ${PORT}`);
