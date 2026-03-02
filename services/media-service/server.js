@@ -14,7 +14,7 @@ const { HealthChecker, checkDatabase, checkS3 } = require('../shared/monitoring'
 const { syncWithPolicy } = require('../shared/db-sync-policy');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const response = require('../shared/response-wrapper');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const app = express();
 const PORT = process.env.PORT || 8005;

@@ -18,7 +18,7 @@ const { v4: uuidv4 } = require('uuid');
 const { HealthChecker } = require('../shared/monitoring');
 const { getRequiredEnv } = require('../shared/security-utils');
 const compression = require('compression');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const app = express();
 const healthChecker = new HealthChecker('api-gateway');

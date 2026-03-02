@@ -2,7 +2,7 @@ const assert = require('assert');
 const { randomUUID } = require('crypto');
 
 const SERVICE_URL = process.env.CONTENT_SERVICE_URL || 'http://localhost:8002';
-const API_BASE_URL = process.env.CONTENT_SERVICE_API_BASE_URL || `${SERVICE_URL}/api/v1/content`;
+const API_BASE_URL = process.env.CONTENT_SERVICE_API_BASE_URL || null;
 
 const fetchJson = async (url, options = {}) => {
     const res = await fetch(url, {
@@ -33,6 +33,26 @@ const isServiceReachable = async () => {
     }
 };
 
+const resolveApiBaseUrl = async () => {
+    if (API_BASE_URL) {
+        return API_BASE_URL;
+    }
+
+    const candidates = [
+        `${SERVICE_URL}`,
+        `${SERVICE_URL}/api/v1/content`
+    ];
+
+    for (const base of candidates) {
+        const probe = await fetchJson(`${base}/posts/feed/${randomUUID()}?filter=for_you`);
+        if (probe.status === 200) {
+            return base;
+        }
+    }
+
+    throw new Error(`Unable to resolve content API base URL. Tried: ${candidates.join(', ')}`);
+};
+
 const run = async () => {
     const reachable = await isServiceReachable();
     if (!reachable) {
@@ -42,17 +62,19 @@ const run = async () => {
 
     const userId = randomUUID();
 
+    const resolvedApiBaseUrl = await resolveApiBaseUrl();
+
     // Feed filters
-    const forYou = await fetchJson(`${API_BASE_URL}/posts/feed/${userId}?filter=for_you`);
+    const forYou = await fetchJson(`${resolvedApiBaseUrl}/posts/feed/${userId}?filter=for_you`);
     assert(forYou.status === 200, `for_you status ${forYou.status}`);
 
-    const recent = await fetchJson(`${API_BASE_URL}/posts/feed/${userId}?filter=recent`);
+    const recent = await fetchJson(`${resolvedApiBaseUrl}/posts/feed/${userId}?filter=recent`);
     assert(recent.status === 200, `recent status ${recent.status}`);
 
-    const trending = await fetchJson(`${API_BASE_URL}/posts/feed/${userId}?filter=trending`);
+    const trending = await fetchJson(`${resolvedApiBaseUrl}/posts/feed/${userId}?filter=trending`);
     assert(trending.status === 200, `trending status ${trending.status}`);
 
-    const following = await fetchJson(`${API_BASE_URL}/posts/feed/${userId}?filter=following`);
+    const following = await fetchJson(`${resolvedApiBaseUrl}/posts/feed/${userId}?filter=following`);
     assert(following.status === 200, `following status ${following.status}`);
 
     console.log('Feed filter integration tests passed');

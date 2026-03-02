@@ -7,7 +7,7 @@ const NodeCache = require('node-cache');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { syncWithPolicy } = require('../shared/db-sync-policy');
 const { buildCorsOptions } = require('../shared/cors-config');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 // Advanced TV services (search, health, recommendations)
 const ChannelSearch = require('./channel-search');
