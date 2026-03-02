@@ -75,10 +75,25 @@ app.get('/health', (req, res) => {
 app.use(globalErrorHandler);
 
 // Start Server
+async function ensureSchemaBootstrapIfMissing() {
+  const qi = sequelize.getQueryInterface();
+  const rawTables = await qi.showAllTables();
+  const tableNames = new Set(
+    rawTables.map((entry) => (typeof entry === 'string' ? entry : entry.tableName || entry)).filter(Boolean)
+  );
+
+  if (!tableNames.has('Users')) {
+    console.warn('[User Service] Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
+    await sequelize.sync();
+  }
+}
+
 async function startServer() {
   try {
     await sequelize.authenticate();
     logger.info('Database connection established');
+
+    await ensureSchemaBootstrapIfMissing();
 
     // Phase 10: Professional Migrations
     await migrationManager.runMigrations([
