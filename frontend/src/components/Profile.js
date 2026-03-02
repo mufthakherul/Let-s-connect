@@ -477,7 +477,7 @@ function Profile({ user }) {
                       name="headline"
                       value={profile.headline || ''}
                       onChange={handleChange}
-                      placeholder="e.g., Product Designer at Let’s Connect"
+                      placeholder="e.g., Product Designer at Milonexa"
                     />
                   </Tooltip>
                 </Grid>

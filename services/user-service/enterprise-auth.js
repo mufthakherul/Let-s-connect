@@ -13,7 +13,7 @@ const crypto = require('crypto');
 class SAMLProvider {
   constructor(config) {
     this.config = {
-      entityId: config.entityId || 'lets-connect-sp',
+      entityId: config.entityId || 'milonexa-sp',
       assertionConsumerServiceUrl: config.assertionConsumerServiceUrl || '/auth/saml/callback',
       singleLogoutServiceUrl: config.singleLogoutServiceUrl || '/auth/saml/logout',
       identityProviderUrl: config.identityProviderUrl,

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: elasticsearch-pvc
-  namespace: lets-connect
+  namespace: milonexa
 spec:
   accessModes:
     - ReadWriteOnce
@@ -15,7 +15,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: elasticsearch
-  namespace: lets-connect
+  namespace: milonexa
   labels:
     app: elasticsearch
     tier: search
@@ -61,7 +61,7 @@ spec:
         - name: ES_JAVA_OPTS
           value: "-Xms1g -Xmx1g"
         - name: cluster.name
-          value: "lets-connect-cluster"
+          value: "milonexa-cluster"
         - name: node.name
           value: "elasticsearch-0"
         volumeMounts:
@@ -97,7 +97,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: elasticsearch
-  namespace: lets-connect
+  namespace: milonexa
   labels:
     app: elasticsearch
 spec:

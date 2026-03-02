@@ -1,6 +1,6 @@
 /**
  * Email Notification Service
- * SMTP-based email sending functionality for Let's Connect
+ * SMTP-based email sending functionality for Milonexa
  * Phase 7 Feature
  */
 
@@ -56,12 +56,12 @@ initializeEmailTransport();
 // Email templates
 const emailTemplates = {
   welcome: (userData) => ({
-    subject: 'Welcome to Let\'s Connect!',
+    subject: 'Welcome to Milonexa!',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #1976d2;">Welcome to Let's Connect!</h1>
+        <h1 style="color: #1976d2;">Welcome to Milonexa!</h1>
         <p>Hi ${userData.firstName || 'there'},</p>
-        <p>Thank you for joining Let's Connect - your unified social collaboration platform.</p>
+        <p>Thank you for joining Milonexa - your next-generation platform for connecting people virtually.</p>
         <p>Get started by:</p>
         <ul>
           <li>Completing your profile</li>
@@ -70,44 +70,44 @@ const emailTemplates = {
           <li>Sharing your first post</li>
         </ul>
         <p>If you have any questions, feel free to reach out to our support team.</p>
-        <p>Best regards,<br>The Let's Connect Team</p>
+        <p>Best regards,<br>The Milonexa Team</p>
       </div>
     `,
-    text: `Welcome to Let's Connect!\n\nHi ${userData.firstName || 'there'},\n\nThank you for joining Let's Connect. Get started by completing your profile and connecting with others.\n\nBest regards,\nThe Let's Connect Team`
+    text: `Welcome to Milonexa!\n\nHi ${userData.firstName || 'there'},\n\nThank you for joining Milonexa. Get started by completing your profile and connecting with others.\n\nBest regards,\nThe Milonexa Team`
   }),
 
   passwordReset: (userData, resetToken) => ({
-    subject: 'Password Reset Request - Let\'s Connect',
+    subject: 'Password Reset Request - Milonexa',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #1976d2;">Password Reset Request</h1>
         <p>Hi ${userData.firstName || 'there'},</p>
-        <p>We received a request to reset your password for your Let's Connect account.</p>
+        <p>We received a request to reset your password for your Milonexa account.</p>
         <p>Your password reset token is: <strong>${resetToken}</strong></p>
         <p>This token will expire in 1 hour.</p>
         <p>If you didn't request this, please ignore this email and your password will remain unchanged.</p>
-        <p>Best regards,<br>The Let's Connect Team</p>
+        <p>Best regards,<br>The Milonexa Team</p>
       </div>
     `,
-    text: `Password Reset Request\n\nHi ${userData.firstName || 'there'},\n\nYour password reset token is: ${resetToken}\n\nThis token will expire in 1 hour.\n\nBest regards,\nThe Let's Connect Team`
+    text: `Password Reset Request\n\nHi ${userData.firstName || 'there'},\n\nYour password reset token is: ${resetToken}\n\nThis token will expire in 1 hour.\n\nBest regards,\nThe Milonexa Team`
   }),
 
   notification: (userData, notificationData) => ({
-    subject: notificationData.title || 'New Notification - Let\'s Connect',
+    subject: notificationData.title || 'New Notification - Milonexa',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #1976d2;">${notificationData.title}</h2>
         <p>Hi ${userData.firstName || 'there'},</p>
         <p>${notificationData.body}</p>
         ${notificationData.actionUrl ? `<p><a href="${notificationData.actionUrl}" style="background-color: #1976d2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Details</a></p>` : ''}
-        <p>Best regards,<br>The Let's Connect Team</p>
+        <p>Best regards,<br>The Milonexa Team</p>
       </div>
     `,
-    text: `${notificationData.title}\n\nHi ${userData.firstName || 'there'},\n\n${notificationData.body}\n\nBest regards,\nThe Let's Connect Team`
+    text: `${notificationData.title}\n\nHi ${userData.firstName || 'there'},\n\n${notificationData.body}\n\nBest regards,\nThe Milonexa Team`
   }),
 
   digest: (userData, digestData) => ({
-    subject: `Your Let's Connect Digest - ${digestData.period}`,
+    subject: `Your Milonexa Digest - ${digestData.period}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #1976d2;">Your ${digestData.period} Digest</h1>
@@ -116,11 +116,11 @@ const emailTemplates = {
         <ul>
           ${digestData.items?.map(item => `<li>${item}</li>`).join('') || '<li>No new activity</li>'}
         </ul>
-        <p><a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}" style="background-color: #1976d2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Visit Let's Connect</a></p>
-        <p>Best regards,<br>The Let's Connect Team</p>
+        <p><a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}" style="background-color: #1976d2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Visit Milonexa</a></p>
+        <p>Best regards,<br>The Milonexa Team</p>
       </div>
     `,
-    text: `Your ${digestData.period} Digest\n\nHi ${userData.firstName || 'there'},\n\nHere's what happened in your network:\n${digestData.items?.join('\n') || 'No new activity'}\n\nBest regards,\nThe Let's Connect Team`
+    text: `Your ${digestData.period} Digest\n\nHi ${userData.firstName || 'there'},\n\nHere's what happened in your network:\n${digestData.items?.join('\n') || 'No new activity'}\n\nBest regards,\nThe Milonexa Team`
   }),
 
   verification: (userData, verification) => {
@@ -129,19 +129,19 @@ const emailTemplates = {
     const link = token ? `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${encodeURIComponent(token)}` : null;
 
     return {
-      subject: 'Verify Your Email - Let\'s Connect',
+      subject: 'Verify Your Email - Milonexa',
       html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #1976d2;">Verify Your Email</h1>
         <p>Hi ${userData.firstName || 'there'},</p>
-        <p>Please verify your email address to activate your Let's Connect account.</p>
+        <p>Please verify your email address to activate your Milonexa account.</p>
         ${code ? `<p>Your verification code is: <strong style="font-size: 24px; color: #1976d2;">${code}</strong></p>` : ''}
         ${link ? `<p><a href="${link}" style="background-color: #1976d2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Verify email</a></p>` : ''}
         <p>This code will expire in 24 hours.</p>
-        <p>Best regards,<br>The Let's Connect Team</p>
+        <p>Best regards,<br>The Milonexa Team</p>
       </div>
     `,
-      text: `Verify Your Email\n\nHi ${userData.firstName || 'there'},\n\n${code ? `Your verification code is: ${code}\n\n` : ''}${link ? `Or click to verify: ${link}\n\n` : ''}This code will expire in 24 hours.\n\nBest regards,\nThe Let's Connect Team`
+      text: `Verify Your Email\n\nHi ${userData.firstName || 'there'},\n\n${code ? `Your verification code is: ${code}\n\n` : ''}${link ? `Or click to verify: ${link}\n\n` : ''}This code will expire in 24 hours.\n\nBest regards,\nThe Milonexa Team`
     };
   }
 };
@@ -168,7 +168,7 @@ async function sendEmail(to, template, data) {
   if (transporter) {
     try {
       const mailOptions = {
-        from: process.env.SMTP_FROM || '"Let\'s Connect" <noreply@letsconnect.com>',
+        from: process.env.SMTP_FROM || '"Milonexa" <noreply@milonexa.com>',
         to,
         subject,
         text,
@@ -188,7 +188,7 @@ async function sendEmail(to, template, data) {
   if (mailgunClient && mailgunDomain) {
     try {
       const emailData = {
-        from: process.env.EMAIL_FROM || process.env.SMTP_FROM || '"Let\'s Connect" <noreply@letsconnect.com>',
+        from: process.env.EMAIL_FROM || process.env.SMTP_FROM || '"Milonexa" <noreply@milonexa.com>',
         to,
         subject,
         text,

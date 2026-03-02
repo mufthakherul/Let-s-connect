@@ -10,7 +10,7 @@ export default function TermsOfService() {
                 </Typography>
 
                 <Typography variant="body1" color="text.secondary" paragraph>
-                    These Terms govern your use of Let's Connect. By accessing or using the service you agree
+                    These Terms govern your use of Milonexa. By accessing or using the service you agree
                     to these Terms. If you do not agree, please do not use the service.
                 </Typography>
 

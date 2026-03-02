@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: media-service
-  namespace: lets-connect
+  namespace: milonexa
   labels:
     app: media-service
     tier: backend
@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: media-service
-        image: lets-connect/media-service:latest
+        image: milonexa/media-service:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8005
@@ -35,27 +35,27 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: lets-connect-secrets
+              name: milonexa-secrets
               key: MEDIA_DATABASE_URL
         - name: S3_BUCKET
           valueFrom:
             secretKeyRef:
-              name: lets-connect-secrets
+              name: milonexa-secrets
               key: S3_BUCKET
         - name: S3_ENDPOINT
           valueFrom:
             secretKeyRef:
-              name: lets-connect-secrets
+              name: milonexa-secrets
               key: S3_ENDPOINT
         - name: S3_ACCESS_KEY
           valueFrom:
             secretKeyRef:
-              name: lets-connect-secrets
+              name: milonexa-secrets
               key: S3_ACCESS_KEY
         - name: S3_SECRET_KEY
           valueFrom:
             secretKeyRef:
-              name: lets-connect-secrets
+              name: milonexa-secrets
               key: S3_SECRET_KEY
         resources:
           requests:
@@ -85,7 +85,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: media-service
-  namespace: lets-connect
+  namespace: milonexa
   labels:
     app: media-service
 spec:
@@ -102,7 +102,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: media-service-hpa
-  namespace: lets-connect
+  namespace: milonexa
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

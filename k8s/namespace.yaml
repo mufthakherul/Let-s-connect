@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: lets-connect
+  name: milonexa
   labels:
-    name: lets-connect
+    name: milonexa
     environment: production

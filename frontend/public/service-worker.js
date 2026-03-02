@@ -2,7 +2,7 @@
 
 // generate a new cache version on each build/refresh by using timestamp
 const CACHE_VERSION = `v${Date.now()}`;
-const CACHE_NAME = `lets-connect-${CACHE_VERSION}`;
+const CACHE_NAME = `milonexa-${CACHE_VERSION}`;
 
 // Assets to cache on install
 const STATIC_ASSETS = [

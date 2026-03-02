@@ -44,7 +44,7 @@ services:
       retries: 8
       start_period: 20s
     networks:
-      - lets-connect-network
+      - milonexa-network
 
   # User Service (Authentication, Profiles)
   user-service:
@@ -85,7 +85,7 @@ services:
       retries: 5
       start_period: 15s
     networks:
-      - lets-connect-network
+      - milonexa-network
 
   # Content Service (Posts, Feeds, Videos)
   content-service:
@@ -116,7 +116,7 @@ services:
       retries: 5
       start_period: 15s
     networks:
-      - lets-connect-network
+      - milonexa-network
 
   # Messaging Service (Chat, Real-time)
   messaging-service:
@@ -146,7 +146,7 @@ services:
       retries: 5
       start_period: 15s
     networks:
-      - lets-connect-network
+      - milonexa-network
 
   # Collaboration Service (Docs, Wiki, Notion-like)
   collaboration-service:
@@ -174,7 +174,7 @@ services:
       retries: 5
       start_period: 15s
     networks:
-      - lets-connect-network
+      - milonexa-network
 
   # Media Service (Files, Images, Storage)
   media-service:
@@ -189,7 +189,7 @@ services:
       - DATABASE_URL=postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD}@postgres:5432/media
       - INTERNAL_GATEWAY_TOKEN=${INTERNAL_GATEWAY_TOKEN}
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
-      - S3_BUCKET=${S3_BUCKET:-lets-connect-media}
+      - S3_BUCKET=${S3_BUCKET:-milonexa-media}
       - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
@@ -205,7 +205,7 @@ services:
       retries: 5
       start_period: 15s
     networks:
-      - lets-connect-network
+      - milonexa-network
 
   # Shop Service (E-commerce)
   shop-service:
@@ -233,7 +233,7 @@ services:
       retries: 5
       start_period: 15s
     networks:
-      - lets-connect-network
+      - milonexa-network
 
   # AI Assistant Service
   ai-service:
@@ -257,7 +257,7 @@ services:
       retries: 5
       start_period: 15s
     networks:
-      - lets-connect-network
+      - milonexa-network
 
   # Streaming Service (Radio, IPTV)
   streaming-service:
@@ -301,7 +301,7 @@ services:
       retries: 5
       start_period: 30s
     networks:
-      - lets-connect-network
+      - milonexa-network
 
   # Frontend Application
   frontend:
@@ -321,7 +321,7 @@ services:
       api-gateway:
         condition: service_healthy
     networks:
-      - lets-connect-network
+      - milonexa-network
 
   # PostgreSQL Database
   postgres:
@@ -345,7 +345,7 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - lets-connect-network
+      - milonexa-network
 
   # Redis (Caching, Real-time)
   redis:
@@ -361,7 +361,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - lets-connect-network
+      - milonexa-network
 
   # Elasticsearch (Full-text search and analytics)
   elasticsearch:
@@ -383,7 +383,7 @@ services:
       retries: 5
       start_period: 30s
     networks:
-      - lets-connect-network
+      - milonexa-network
 
   # MinIO (S3-compatible object storage)
   minio:
@@ -405,7 +405,7 @@ services:
       retries: 5
       start_period: 15s
     networks:
-      - lets-connect-network
+      - milonexa-network
 
 volumes:
   postgres-data:
@@ -415,5 +415,5 @@ volumes:
 
 
 networks:
-  lets-connect-network:
+  milonexa-network:
     driver: bridge

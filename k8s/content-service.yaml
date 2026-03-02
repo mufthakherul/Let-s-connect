@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: content-service
-  namespace: lets-connect
+  namespace: milonexa
   labels:
     app: content-service
     tier: backend
@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: content-service
-        image: lets-connect/content-service:latest
+        image: milonexa/content-service:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8002
@@ -35,12 +35,12 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: lets-connect-secrets
+              name: milonexa-secrets
               key: CONTENT_DATABASE_URL
         - name: REDIS_URL
           valueFrom:
             configMapKeyRef:
-              name: lets-connect-config
+              name: milonexa-config
               key: REDIS_URL
         - name: ELASTICSEARCH_URL
           value: "http://elasticsearch:9200"
@@ -72,7 +72,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: content-service
-  namespace: lets-connect
+  namespace: milonexa
   labels:
     app: content-service
 spec:
@@ -89,7 +89,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: content-service-hpa
-  namespace: lets-connect
+  namespace: milonexa
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

@@ -8,7 +8,7 @@ export default function GettingStartedGuide() {
         <Container maxWidth="md" sx={{ mt: 6, mb: 6 }}>
             <Paper sx={{ p: { xs: 3, md: 6 } }} elevation={0}>
                 <Typography variant="h4" gutterBottom fontWeight={700}>
-                    Getting Started with Let's Connect
+                    Getting Started with Milonexa
                 </Typography>
 
                 <Alert severity="info" sx={{ mb: 4 }}>

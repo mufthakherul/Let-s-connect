@@ -1,5 +1,5 @@
 /**
- * Redis Caching Middleware for Let's Connect Platform
+ * Redis Caching Middleware for Milonexa Platform
  * Phase 4: Scale & Performance (v2.5)
  * 
  * Provides caching strategies for frequently accessed data across all services

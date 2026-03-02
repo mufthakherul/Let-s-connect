@@ -86,7 +86,7 @@ function PWAInstallBanner() {
           <PhoneIcon sx={{ fontSize: 40, mt: 0.5 }} />
           <Box sx={{ flex: 1 }}>
             <Typography variant="h6" gutterBottom>
-              Install Let's Connect
+              Install Milonexa
             </Typography>
             <Typography variant="body2" sx={{ mb: 2, opacity: 0.9 }}>
               Add to your home screen for a better experience with offline support and faster loading.

@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: lets-connect-config
-  namespace: lets-connect
+  name: milonexa-config
+  namespace: milonexa
 data:
   # Node Environment
   NODE_ENV: "production"
@@ -22,7 +22,7 @@ data:
   
   # Storage Configuration
   S3_ENDPOINT: "http://minio:9000"
-  S3_BUCKET: "lets-connect-media"
+  S3_BUCKET: "milonexa-media"
   
   # Monitoring
   ENABLE_METRICS: "true"

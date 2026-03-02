@@ -5,6 +5,6 @@ test('homepage shell renders', async ({ page }) => {
     expect(response).not.toBeNull();
     expect(response.ok()).toBeTruthy();
 
-    await expect(page).toHaveTitle(/Let's Connect/i);
-    await expect(page.locator('body')).toContainText(/let's connect|enable javascript|loading/i);
+    await expect(page).toHaveTitle(/Milonexa/i);
+    await expect(page.locator('body')).toContainText(/milonexa|enable javascript|loading/i);
 });

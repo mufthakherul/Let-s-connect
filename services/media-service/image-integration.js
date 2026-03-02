@@ -15,7 +15,7 @@ const imageOptimizer = new ImageOptimizer({
  * @param {Object} file Multer file object (buffer)
  */
 async function processSingleImage(file) {
-    const tempDir = path.join(os.tmpdir(), 'lets-connect-opt', uuid());
+    const tempDir = path.join(os.tmpdir(), 'milonexa-opt', uuid());
     await fs.mkdir(tempDir, { recursive: true });
 
     try {

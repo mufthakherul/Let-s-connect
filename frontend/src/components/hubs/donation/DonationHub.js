@@ -65,7 +65,7 @@ export default function DonationHub() {
                         Donation & Sustainability
                     </Typography>
                     <Typography variant="h6" color="text.secondary" maxWidth="800px" mx="auto">
-                        Let's Connect is powered by community, not invasive ads or data harvesting. Help us keep the servers running and the open-source development thriving.
+                        Milonexa is powered by community, not invasive ads or data harvesting. Help us keep the servers running and the open-source development thriving.
                     </Typography>
                     <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 2 }}>
                         <Button variant="contained" color="error" size="large" sx={{ borderRadius: 8, px: 4, py: 1.5, fontWeight: 600 }}>

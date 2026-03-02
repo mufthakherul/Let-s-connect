@@ -4,7 +4,7 @@ const apiBase = process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8000/ap
 
 async function registerAndLogin(request) {
     const runId = Date.now().toString(36);
-    const email = `pw+${runId}@letsconnect.test`;
+    const email = `pw+${runId}@milonexa.test`;
     const username = `pw_${runId}`;
     const password = 'Sm0ke!Pass123';
 

@@ -471,7 +471,7 @@ const versionMiddleware = (req, res, next) => {
     // Add deprecation warning for old versions
     if (requestedVersion === 'v1') {
       res.setHeader('X-API-Deprecation', 'v1 API will be deprecated on 2026-12-31. Please migrate to v2.');
-      res.setHeader('X-API-Migration-Guide', 'https://docs.letsconnect.com/api/migration/v1-to-v2');
+      res.setHeader('X-API-Migration-Guide', 'https://docs.milonexa.com/api/migration/v1-to-v2');
     }
   } else {
     // Default to v1 if no version specified
@@ -494,7 +494,7 @@ app.get('/api/version', (req, res) => {
     deprecations: {
       v1: {
         sunsetDate: '2026-12-31',
-        migrationGuide: 'https://docs.letsconnect.com/api/migration/v1-to-v2',
+        migrationGuide: 'https://docs.milonexa.com/api/migration/v1-to-v2',
         changes: [
           'Authentication: JWT tokens now require refresh tokens',
           'Pagination: Changed from offset-based to cursor-based',
@@ -794,7 +794,7 @@ app.get('/api/docs/postman', (req, res) => {
   try {
     const collection = postmanGenerator.exportPostmanCollection();
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', 'attachment; filename="lets-connect-api.postman_collection.json"');
+    res.setHeader('Content-Disposition', 'attachment; filename="milonexa-api.postman_collection.json"');
     res.send(collection);
   } catch (error) {
     console.error('Postman collection generation error:', error);
@@ -819,7 +819,7 @@ app.get('/api/redoc', (req, res) => {
     <!DOCTYPE html>
     <html>
       <head>
-        <title>Let's Connect API Documentation</title>
+        <title>Milonexa API Documentation</title>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">

@@ -131,7 +131,7 @@ export default function CommunityForum() {
                             Community Forum
                         </Typography>
                         <Typography variant="h6" color="text.secondary" maxWidth="800px">
-                            Peer-to-peer support, bug reporting, and feature ideation. Help shape the future of Let's Connect.
+                            Peer-to-peer support, bug reporting, and feature ideation. Help shape the future of Milonexa.
                         </Typography>
                     </motion.div>
                 </Box>
