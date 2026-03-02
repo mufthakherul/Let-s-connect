@@ -1,4 +1,4 @@
-# Let's Connect - Unified Social Collaboration Platform
+# Milonexa — A Next-Generation Platform for Connecting People Virtually
 
 A comprehensive enterprise-grade social collaboration platform combining features from Facebook, X (Twitter), YouTube, WhatsApp, Telegram, Discord, and Notion into one self-hosted application.
 
@@ -159,7 +159,7 @@ Built with **modular microservices** for scalability and maintainability:
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/mufthakherul/Let-s-connect.git
+git clone https://github.com/mufthakherul/Milonexa.git
 cd Let-s-connect
 ```
 
@@ -292,4 +292,4 @@ Inspired by the best features from:
 
 ## 📧 Support
 
-For issues and questions, please use the [GitHub Issues](https://github.com/mufthakherul/Let-s-connect/issues) page.
+For issues and questions, please use the [GitHub Issues](https://github.com/mufthakherul/Milonexa/issues) page.

@@ -421,7 +421,7 @@ function AppContent() {
             fontWeight: 800
           }}
         >
-          Let's Connect
+          Milonexa
         </Typography>
       </Box>
       <Divider />
@@ -572,7 +572,7 @@ function AppContent() {
                     minWidth: 'fit-content'
                   }}
                 >
-                  Let's Connect
+                  Milonexa
                 </Typography>
 
                 {/* Search Icon - toggles inline search */}

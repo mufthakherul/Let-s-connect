@@ -1,7 +1,7 @@
 {
   "name": "api-gateway",
   "version": "1.0.0",
-  "description": "API Gateway for Let's Connect platform",
+  "description": "API Gateway for Milonexa platform",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
