@@ -42,7 +42,7 @@ function PWAInstallBanner() {
     setIsInstalling(true);
     try {
       const { outcome } = await showInstallPrompt();
-      
+
       if (outcome === 'accepted') {
         console.log('User accepted the install prompt');
         setShowBanner(false);
