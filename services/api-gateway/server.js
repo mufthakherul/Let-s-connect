@@ -24,12 +24,12 @@ const app = express();
 const healthChecker = new HealthChecker('api-gateway');
 // main HTTP port for user-facing API gateway
 const PORT = process.env.PORT || 8000;
-// optional separate port for admin-only endpoints (will run a second express instance)
-const ADMIN_PORT = process.env.ADMIN_PORT || process.env.PORT_ADMIN || 9001;
+// port where the dedicated security (admin backend) service listens
+const SECURITY_PORT = process.env.SECURITY_PORT || 9101;
 
 const JWT_SECRET = getRequiredEnv('JWT_SECRET');
 const INTERNAL_GATEWAY_TOKEN = getRequiredEnv('INTERNAL_GATEWAY_TOKEN');
-// secret token used only by admin panel/backend for extra protection
+// secret token used by admin frontend/backend for extra protection
 const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || 'change-me';
 
 const proxy = (target, options = {}) => rawProxy(target, {
@@ -109,9 +109,13 @@ app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
 app.use(express.json());
 
-// --------- ADMIN ROUTING SECURITY ----------
-// any request beginning with /admin will require the admin secret
-app.use('/admin', requireAdminSecret);
+// --------- ADMIN ROUTING REDIRECT ----------
+// forward any /admin traffic to the dedicated security service
+// SECURITY_PORT should match the port where security-service is running
+const SECURITY_PORT = process.env.SECURITY_PORT || 9101;
+if (SECURITY_PORT) {
+  app.use('/admin', proxy(`http://localhost:${SECURITY_PORT}`));
+}
 
 // Add Correlation ID (Request ID)
 app.use((req, res, next) => {
@@ -893,40 +897,3 @@ app.listen(PORT, () => {
 // ----------------------------------------------------------
 // Optional admin-only listener (separate port for security)
 // ----------------------------------------------------------
-if (ADMIN_PORT && ADMIN_PORT !== PORT) {
-  const adminApp = express();
-  adminApp.set('trust proxy', 1);
-  adminApp.use(compression());
-  adminApp.use(helmet());
-
-  // admin-specific CORS (tight by default)
-  const adminCorsOrigins = (process.env.ADMIN_CORS_ORIGINS || '')
-    .split(',')
-    .map(o => o.trim())
-    .filter(Boolean);
-  const adminCorsOptions = {
-    origin: (origin, callback) => {
-      if (!origin || adminCorsOrigins.includes(origin) || origin.includes('localhost')) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by admin CORS'));
-      }
-    },
-    credentials: true,
-    methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-    allowedHeaders: ['Authorization','Content-Type','X-Requested-With','X-User-Id','X-Admin-Secret']
-  };
-  adminApp.use(cors(adminCorsOptions));
-  adminApp.options(/.*/, cors(adminCorsOptions));
-  adminApp.use(express.json());
-
-  // require secret for every admin request
-  adminApp.use(requireAdminSecret);
-
-  // mount same app stack so admin routes are identical (or restrict to '/admin')
-  adminApp.use(app);
-
-  adminApp.listen(ADMIN_PORT, () => {
-    console.log(`Admin API Gateway running on port ${ADMIN_PORT} (admin-only)`);
-  });
-}

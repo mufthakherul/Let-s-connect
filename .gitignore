@@ -217,6 +217,11 @@ archives/
 *.backup
 *~
 
+# Admin frontend
+/admin_frontend/node_modules/
+/admin_frontend/build/
+
+
 # Large files
 *.zip
 *.tar.gz
