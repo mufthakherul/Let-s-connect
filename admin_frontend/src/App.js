@@ -46,73 +46,7 @@ import Login from './components/Login';
 import Register from './components/Register';
 
 // Lazy load non-critical components (Phase 4: Performance Optimization)
-const Homepage = lazy(() => import('./components/Homepage'));
-const Feed = lazy(() => import('./components/Feed'));
-const Videos = lazy(() => import('./components/Videos'));
-const Shop = lazy(() => import('./components/Shop'));
-const Docs = lazy(() => import('./components/Docs'));
-const Chat = lazy(() => import('./components/Chat'));
-const Profile = lazy(() => import('./components/Profile'));
-const PublicProfile = lazy(() => import('./components/PublicProfile'));
-const Groups = lazy(() => import('./components/Groups'));
-const Bookmarks = lazy(() => import('./components/Bookmarks'));
-const Cart = lazy(() => import('./components/Cart'));
-const Blog = lazy(() => import('./components/Blog'));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
-const ThemeSettings = lazy(() => import('./components/ThemeSettings'));
-const AccessibilitySettings = lazy(() => import('./components/AccessibilitySettings'));
-const SecuritySettings = lazy(() => import('./components/SecuritySettings'));
-const MediaGallery = lazy(() => import('./components/MediaGallery'));
-const Analytics = lazy(() => import('./components/Analytics'));
-const Search = lazy(() => import('./components/Search'));
-const EmailPreferences = lazy(() => import('./components/EmailPreferences'));
-const OAuthLogin = lazy(() => import('./components/OAuthLogin'));
-const ResetRequest = lazy(() => import('./components/ResetRequest'));
-const ResetPassword = lazy(() => import('./components/ResetPassword'));
-const Meetings = lazy(() => import('./components/Meetings'));
-const MeetingRoom = lazy(() => import('./components/MeetingRoom'));
-const MeetingLobby = lazy(() => import('./components/MeetingLobby'));
-const Radio = lazy(() => import('./components/Radio'));
-const TV = lazy(() => import('./components/TV'));
-const Pages = lazy(() => import('./components/Pages'));
-const Friends = lazy(() => import('./components/Friends'));
-const AppearanceSettings = lazy(() => import('./components/AppearanceSettings'));
-const SettingsHub = lazy(() => import('./components/SettingsHub'));
-const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy'));
-const TermsOfService = lazy(() => import('./components/TermsOfService'));
-const CookiePolicy = lazy(() => import('./components/CookiePolicy'));
-const HelpCenter = lazy(() => import('./components/hubs/helpcenter/HelpCenter'));
-const UserManuals = lazy(() => import('./components/hubs/helpcenter/UserManuals'));
-const FAQ = lazy(() => import('./components/hubs/helpcenter/FAQ'));
-const Feedback = lazy(() => import('./components/hubs/helpcenter/Feedback'));
-const SupportTicket = lazy(() => import('./components/hubs/helpcenter/SupportTicket'));
-const GettingStartedGuide = lazy(() => import('./components/hubs/helpcenter/guides/GettingStartedGuide'));
-const SocialFeaturesGuide = lazy(() => import('./components/hubs/helpcenter/guides/SocialFeaturesGuide'));
-const MessagingGuide = lazy(() => import('./components/hubs/helpcenter/guides/MessagingGuide'));
-const VideosGuide = lazy(() => import('./components/hubs/helpcenter/guides/VideosGuide'));
-const MeetingsGuide = lazy(() => import('./components/hubs/helpcenter/guides/MeetingsGuide'));
-const ShopGuide = lazy(() => import('./components/hubs/helpcenter/guides/ShopGuide'));
-const BlogGuide = lazy(() => import('./components/hubs/helpcenter/guides/BlogGuide'));
-const DocsGuide = lazy(() => import('./components/hubs/helpcenter/guides/DocsGuide'));
-const GroupsGuide = lazy(() => import('./components/hubs/helpcenter/guides/GroupsGuide'));
-const CartGuide = lazy(() => import('./components/hubs/helpcenter/guides/CartGuide'));
-const BookmarksGuide = lazy(() => import('./components/hubs/helpcenter/guides/BookmarksGuide'));
-const ProfileGuide = lazy(() => import('./components/hubs/helpcenter/guides/ProfileGuide'));
-const EmailSettingsGuide = lazy(() => import('./components/hubs/helpcenter/guides/EmailSettingsGuide'));
-const SearchGuide = lazy(() => import('./components/hubs/helpcenter/guides/SearchGuide'));
-const LiveRadioGuide = lazy(() => import('./components/hubs/helpcenter/guides/LiveRadioGuide'));
-const LiveTvGuide = lazy(() => import('./components/hubs/helpcenter/guides/LiveTvGuide'));
-const PagesGuide = lazy(() => import('./components/hubs/helpcenter/guides/PagesGuide'));
-const HubsDirectory = lazy(() => import('./components/hubs/HubsDirectory'));
-const CommunityForum = lazy(() => import('./components/hubs/forum/CommunityForum'));
-const TransparencyHub = lazy(() => import('./components/hubs/transparency/TransparencyHub'));
-const DeveloperPortal = lazy(() => import('./components/hubs/developer/DeveloperPortal'));
-const CreatorHub = lazy(() => import('./components/hubs/creator/CreatorHub'));
-const BusinessSupport = lazy(() => import('./components/hubs/business/BusinessSupport'));
-const WellbeingCenter = lazy(() => import('./components/hubs/wellbeing/WellbeingCenter'));
-const EducationalResourceCenter = lazy(() => import('./components/hubs/education/EducationalResourceCenter'));
-const AccessibilityHub = lazy(() => import('./components/hubs/accessibility/AccessibilityHub'));
-const DonationHub = lazy(() => import('./components/hubs/donation/DonationHub'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -1137,159 +1071,18 @@ function AppContent() {
             >
               <Suspense fallback={<PageLoader />}>
                 <Routes location={location}>
-                  {/* Root route - Homepage for logged-in users showing all public posts */}
+                  {/* Root route - redirect to admin */}
                   <Route
                     path="/"
-                    element={internalUser ? <Homepage user={internalUser} /> : <Home user={internalUser} />}
+                    element={<Navigate to="/admin" />}
                   />
-                  {/* Unregister landing page - smart router for unregistered users */}
-                  <Route
-                    path="/unregister"
-                    element={<Home user={internalUser} />}
-                  />
-                  <Route path="/search" element={<Search />} />
-                  <Route path="/hubs" element={<HubsDirectory />} />
-                  <Route path="/hubs/forum" element={<CommunityForum />} />
-                  <Route path="/hubs/transparency" element={<TransparencyHub />} />
-                  <Route path="/hubs/developer" element={<DeveloperPortal />} />
-                  <Route path="/hubs/creator" element={<CreatorHub />} />
-                  <Route path="/hubs/business" element={<BusinessSupport />} />
-                  <Route path="/hubs/wellbeing" element={<WellbeingCenter />} />
-                  <Route path="/hubs/education" element={<EducationalResourceCenter />} />
-                  <Route path="/hubs/accessibility" element={<AccessibilityHub />} />
-                  <Route path="/hubs/donation" element={<DonationHub />} />
                   <Route path="/login" element={<Login setUser={setInternalUser} />} />
-                  <Route path="/register" element={<Register setUser={setInternalUser} />} />
-                  <Route path="/reset-password" element={<ResetRequest />} />
-                  <Route path="/reset-password/:token" element={<ResetPassword />} />
-                  <Route path="/videos" element={<Videos user={internalUser} />} />
-                  <Route path="/shop" element={<Shop />} />
-                  <Route path="/blog" element={<Blog />} />
-                  <Route path="/docs" element={<Docs user={internalUser} />} />
-                  <Route path="/meetings" element={<Meetings user={internalUser} />} />
-                  <Route
-                    path="/meetings/:id"
-                    element={internalUser ? <MeetingRoom user={internalUser} /> : <Navigate to="/login" />}
-                  />
-                  <Route path="/meetings/guest/:id" element={<MeetingLobby />} />
-                  <Route path="/media" element={<MediaGallery />} />
-                  <Route
-                    path="/feed"
-                    element={internalUser ? <Feed user={internalUser} /> : <Navigate to="/login" />}
-                  />
-                  <Route
-                    path="/groups"
-                    element={internalUser ? <Groups user={internalUser} /> : <Navigate to="/login" />}
-                  />
-                  <Route
-                    path="/pages"
-                    element={internalUser ? <Pages user={internalUser} /> : <Navigate to="/login" />}
-                  />
-                  <Route
-                    path="/friends"
-                    element={internalUser ? <Friends user={internalUser} /> : <Navigate to="/login" />}
-                  />
-                  <Route
-                    path="/bookmarks"
-                    element={internalUser ? <Bookmarks user={internalUser} /> : <Navigate to="/login" />}
-                  />
-                  <Route
-                    path="/cart"
-                    element={internalUser ? <Cart /> : <Navigate to="/login" />}
-                  />
-                  <Route
-                    path="/chat"
-                    element={internalUser ? <Chat user={internalUser} /> : <Navigate to="/login" />}
-                  />
-                  <Route
-                    path="/profile"
-                    element={internalUser ? <Profile user={internalUser} /> : <Navigate to="/login" />}
-                  />
-                  <Route
-                    path="/profile/:id"
-                    element={internalUser ? <PublicProfile user={internalUser} /> : <Navigate to="/login" />}
-                  />
-                  <Route
-                    path="/profile/u/:id"
-                    element={internalUser ? <PublicProfile user={internalUser} /> : <Navigate to="/login" />}
-                  />
-                  <Route
-                    path="/:id"
-                    element={internalUser ? <PublicProfile user={internalUser} /> : <Navigate to="/login" />}
-                  />
                   <Route
                     path="/admin"
                     element={internalUser && (internalUser.role === 'admin' || internalUser.role === 'moderator') ? <AdminDashboard /> : <Navigate to="/login" />}
                   />
-                  <Route
-                    path="/security"
-                    element={internalUser ? <SecuritySettings /> : <Navigate to="/login" />}
-                  />
-                  <Route
-                    path="/analytics"
-                    element={internalUser ? <Analytics user={internalUser} /> : <Navigate to="/login" />}
-                  />
-                  {/* Phase 3 Features - Email Notifications */}
-                  <Route
-                    path="/notifications/email"
-                    element={internalUser ? <EmailPreferences /> : <Navigate to="/login" />}
-                  />
-                  {/* Phase 3 Features - OAuth Login */}
-                  <Route path="/login/oauth" element={<OAuthLogin />} />
-                  {/* Settings hub */}
-                  <Route path="/settings" element={<SettingsHub />} />
-                  {/* Phase 5 Features - Theme Settings */}
-                  <Route path="/settings/theme" element={<ThemeSettings />} />
-                  {/* Phase 5 Features - Accessibility Settings */}
-                  <Route path="/settings/accessibility" element={<AccessibilitySettings />} />
-                  {/* Advanced Appearance Settings */}
-                  <Route path="/settings/appearance" element={<AppearanceSettings />} />
-
-                  {/* Legal & policies */}
-                  <Route path="/privacy" element={<PrivacyPolicy />} />
-                  <Route path="/terms" element={<TermsOfService />} />
-                  <Route path="/cookies" element={<CookiePolicy />} />
-
-                  {/* Help Center */}
-                  <Route path="/helpcenter" element={<HelpCenter />} />
-                  <Route path="/helpcenter/manuals" element={<UserManuals />} />
-                  <Route path="/helpcenter/manuals/getting-started" element={<GettingStartedGuide />} />
-                  <Route path="/helpcenter/manuals/profile" element={<ProfileGuide />} />
-                  <Route path="/helpcenter/manuals/search" element={<SearchGuide />} />
-                  <Route path="/helpcenter/manuals/social" element={<SocialFeaturesGuide />} />
-                  <Route path="/helpcenter/manuals/groups" element={<GroupsGuide />} />
-                  <Route path="/helpcenter/manuals/bookmarks" element={<BookmarksGuide />} />
-                  <Route path="/helpcenter/manuals/messaging" element={<MessagingGuide />} />
-                  <Route path="/helpcenter/manuals/videos" element={<VideosGuide />} />
-                  <Route path="/helpcenter/manuals/meetings" element={<MeetingsGuide />} />
-                  <Route path="/helpcenter/manuals/docs" element={<DocsGuide />} />
-                  <Route path="/helpcenter/manuals/shop" element={<ShopGuide />} />
-                  <Route path="/helpcenter/manuals/cart" element={<CartGuide />} />
-                  <Route path="/helpcenter/manuals/blog" element={<BlogGuide />} />
-                  <Route path="/helpcenter/manuals/pages" element={<PagesGuide />} />
-                  <Route path="/helpcenter/manuals/live-radio" element={<LiveRadioGuide />} />
-                  <Route path="/helpcenter/manuals/live-tv" element={<LiveTvGuide />} />
-                  <Route path="/helpcenter/manuals/email-settings" element={<EmailSettingsGuide />} />
-                  <Route path="/helpcenter/faq" element={<FAQ />} />
-                  <Route path="/helpcenter/feedback" element={<Feedback />} />
-                  <Route path="/helpcenter/tickets" element={<SupportTicket />} />
-
-                  {/* Streaming Features - Radio & TV */}
-                  <Route
-                    path="/radio"
-                    element={internalUser ? <Radio /> : <Navigate to="/login" />}
-                  />
-                  <Route
-                    path="/tv"
-                    element={internalUser ? <TV /> : <Navigate to="/login" />}
-                  />
-
-                  {/* Error pages for testing & catch-all 404 */}
-                  <Route path="/error/401" element={<Error401 />} />
-                  <Route path="/error/403" element={<Error403 />} />
-                  <Route path="/error/429" element={<Error429 />} />
-                  <Route path="/error/503" element={<Error503 />} />
-                  <Route path="*" element={<Error404 />} />
+                  {/* Catch all - redirect to admin */}
+                  <Route path="*" element={<Navigate to="/admin" />} />
                 </Routes>
               </Suspense>
             </motion.div>
