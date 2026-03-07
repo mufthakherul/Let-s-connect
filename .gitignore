@@ -210,7 +210,9 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 
-# Backup files
+# Archive and backup directories
+archive_code/
+archives/
 *.bak
 *.backup
 *~
