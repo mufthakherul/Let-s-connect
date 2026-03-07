@@ -159,28 +159,6 @@ const AdminDashboard = () => {
             secondary: { main: '#dc004e' },
         },
     });
-    const [realTimeMetrics, setRealTimeMetrics] = useState([]);
-    const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
-
-    // Filters
-    const [userSearch, setUserSearch] = useState('');
-    const [userRole, setUserRole] = useState('');
-    const [flagStatus, setFlagStatus] = useState('pending');
-
-    // Dialogs
-    const [editUserDialog, setEditUserDialog] = useState(null);
-    const [flagDialog, setFlagDialog] = useState(null);
-    const [resolution, setResolution] = useState('');
-    const [systemSettings, setSystemSettings] = useState({ maintenance: false, registration: true });
-
-    // Real-time data
-    useEffect(() => {
-        const interval = setInterval(() => {
-            fetchRealTimeMetrics();
-        }, 30000); // Update every 30 seconds
-        return () => clearInterval(interval);
-    }, []);
-
     // Fetch system stats
     const fetchStats = async () => {
         try {
