@@ -6,7 +6,7 @@ require('dotenv').config({ quiet: true });
 
 // Import dynamic fetchers
 const RadioBrowserFetcher = require('./radio-browser-fetcher');
-const TVPlaylistFetcher = require('./tv-playlist-fetcher');
+const IPTVOrgDatabaseFetcher = require('./iptv-org-database-fetcher');
 const XiphFetcher = require('./xiph-fetcher');
 const RadiossFetcher = require('./radioss-fetcher');
 const YouTubeEnricher = require('./youtube-enricher');
@@ -15,7 +15,7 @@ const ChannelEnricher = require('./channel-enricher');
 
 // ==================== MODE CONFIGURATION ====================
 
-const CANONICAL_SEED_MODES = new Set(['skip', 'minimal', 'full', 'fast']);
+const CANONICAL_SEED_MODES = new Set(['skip', 'minimal', 'full', 'fast', 'dry-run']);
 
 function parseBoolean(value, fallback = false) {
     if (value === undefined || value === null || value === '') return fallback;
@@ -35,6 +35,7 @@ function normalizeSeedMode(raw) {
     if (candidate === 'none') return 'skip';
     if (candidate === 'quick' || candidate === 'lite') return 'minimal';
     if (candidate === 'complete') return 'full';
+    if (candidate === 'dry' || candidate === 'fetch-only') return 'dry-run';
 
     // Backward compatibility requirement: if SEED_MODE is unset and USE_FULL_SEED=true => full
     if (!candidate) {
@@ -52,6 +53,7 @@ const IS_SKIP_MODE = SEED_MODE === 'skip';
 const IS_MINIMAL_MODE = SEED_MODE === 'minimal';
 const IS_FULL_MODE = SEED_MODE === 'full';
 const IS_FAST_MODE = SEED_MODE === 'fast';
+const IS_DRY_RUN_MODE = SEED_MODE === 'dry-run';
 
 const SEED_MINIMAL_RADIO_LIMIT = parseNumber(process.env.SEED_MINIMAL_RADIO_LIMIT, 50);
 const SEED_MINIMAL_TV_LIMIT = parseNumber(process.env.SEED_MINIMAL_TV_LIMIT, 50);
@@ -195,7 +197,7 @@ function deduplicateByStreamUrl(items = []) {
 }
 
 /**
- * Fetch radio stations from online sources with fallback to static data
+ * Fetch radio stations from online sources with improved robustness
  */
 async function fetchRadioStations() {
     const staticPath = path.join(__dirname, 'seed-data', 'radio-stations.json');
@@ -212,29 +214,42 @@ async function fetchRadioStations() {
         const fetcher = new RadioBrowserFetcher({
             timeout: IS_FAST_MODE ? 10000 : 15000,
             retries: IS_FAST_MODE ? 1 : 3,
-            fetchWorldwide: true
+            fetchWorldwide: true  // Worldwide approach for maximum coverage
         });
 
         console.log('🔍 Initializing radio-browser.info API servers...');
         await fetcher.initializeServers();
         console.log('');
 
-        // Primary source: radio-browser (massive index)
+        // Primary source: radio-browser (worldwide)
         const rbStations = await fetcher.fetchMultipleCountries();
-        console.log(`  ✅ radio-browser: ${Array.isArray(rbStations) ? rbStations.length : 0} stations fetched`);
+        console.log(`  ✅ radio-browser: ${Array.isArray(rbStations) ? rbStations.length : 0} stations fetched worldwide`);
 
-        // Secondary: Xiph directory (yp.xml)
-        const xiph = new XiphFetcher({ timeout: 10000 });
-        const xiphStations = await xiph.fetchAll();
-        console.log(`  ✅ xiph directory: ${xiphStations.length} entries fetched`);
+        // Secondary: Xiph directory (yp.xml) - more robust
+        let xiphStations = [];
+        try {
+            const xiph = new XiphFetcher({ timeout: IS_FAST_MODE ? 8000 : 15000 });
+            xiphStations = await xiph.fetchAll();
+            console.log(`  ✅ xiph directory: ${xiphStations.length} entries fetched`);
+        } catch (error) {
+            console.log(`  ⚠️  xiph directory fetch failed: ${error.message}`);
+        }
 
         // Secondary: radioss.app (may be Cloudflare-protected) - try but tolerate failure
-        const radioss = new RadiossFetcher({ timeout: 10000, retries: 2 });
-        const radiossStations = await radioss.fetchAll();
-        if (radiossStations.length > 0) {
-            console.log(`  ✅ radioss.app: ${radiossStations.length} stations fetched`);
-        } else {
-            console.log('  ℹ️ radioss.app: no data (may be blocked); continuing with other sources');
+        let radiossStations = [];
+        try {
+            const radioss = new RadiossFetcher({
+                timeout: IS_FAST_MODE ? 5000 : 10000,
+                retries: IS_FAST_MODE ? 1 : 2
+            });
+            radiossStations = await radioss.fetchAll();
+            if (radiossStations.length > 0) {
+                console.log(`  ✅ radioss.app: ${radiossStations.length} stations fetched`);
+            } else {
+                console.log('  ℹ️ radioss.app: no data (may be blocked); continuing with other sources');
+            }
+        } catch (error) {
+            console.log(`  ⚠️  radioss.app fetch failed: ${error.message}`);
         }
 
         // Combine all sources into a name-keyed Map to collect alternative URLs
@@ -278,16 +293,41 @@ async function fetchRadioStations() {
         };
 
         // Add radio-browser stations (already normalized by fetcher)
-        for (const s of rbStations) add(s);
+        let rbAdded = 0;
+        for (const s of rbStations) {
+            add(s);
+            rbAdded++;
+        }
+
         // Add Xiph entries
-        for (const s of xiphStations) add(s);
+        let xiphAdded = 0;
+        for (const s of xiphStations) {
+            add(s);
+            xiphAdded++;
+        }
+
         // Add radioss entries
-        for (const s of radiossStations) add(s);
+        let radiossAdded = 0;
+        for (const s of radiossStations) {
+            add(s);
+            radiossAdded++;
+        }
+
         // Add static fallback as last-resort
-        for (const s of fallbackData) add(s);
+        let staticAdded = 0;
+        for (const s of fallbackData) {
+            add(s);
+            staticAdded++;
+        }
 
         const combined = Array.from(map.values());
-        console.log(`\n✅ Consolidated radio stations: ${combined.length} unique entries (collected alternative URLs where available)`);
+        console.log(`\n✅ Consolidated radio stations: ${combined.length} unique entries`);
+        console.log(`  - Radio-browser: ${rbAdded} stations`);
+        console.log(`  - Xiph directory: ${xiphAdded} stations`);
+        console.log(`  - Radioss: ${radiossAdded} stations`);
+        console.log(`  - Static fallback: ${staticAdded} stations`);
+        console.log(`  📊 Total unique: ${combined.length} (collected alternative URLs where available)`);
+
         return combined;
     } catch (error) {
         console.log(`\n⚠️  Could not fetch radio stations from online sources: ${error.message}`);
@@ -380,30 +420,30 @@ async function fetchYouTubeChannels() {
 }
 
 /**
- * Fetch TV channels from online sources with fallback to static data
+ * Fetch TV channels from IPTV-ORG database CSV files
  */
 async function fetchTVChannels() {
     const staticPath = path.join(__dirname, 'seed-data', 'tv-channels.json');
     const fallbackData = JSON.parse(fs.readFileSync(staticPath, 'utf8'));
 
-    console.log('🌐 Attempting to fetch TV channels from online sources...\n');
+    console.log('🌐 Attempting to fetch TV channels from IPTV-ORG database...\n');
 
     try {
-        const fetcher = new TVPlaylistFetcher({
-            timeout: IS_FAST_MODE ? 10000 : 15000,
-            retries: IS_FAST_MODE ? 1 : 2
+        const fetcher = new IPTVOrgDatabaseFetcher({
+            timeout: IS_FAST_MODE ? 15000 : 30000,
+            retries: IS_FAST_MODE ? 2 : 3
         });
 
-        const channels = await fetcher.fetchAllSources();
+        const channels = await fetcher.fetchAllChannels();
 
         if (channels && channels.length > 0) {
-            console.log(`\n✅ Successfully fetched ${channels.length} TV channels from online sources`);
+            console.log(`\n✅ Successfully fetched ${channels.length} TV channels from IPTV-ORG database`);
             return channels;
         } else {
-            throw new Error('No channels fetched');
+            throw new Error('No channels fetched from database');
         }
     } catch (error) {
-        console.log(`\n⚠️  Could not fetch from online sources: ${error.message}`);
+        console.log(`\n⚠️  Could not fetch from IPTV-ORG database: ${error.message}`);
         console.log(`📦 Falling back to ${fallbackData.length} static TV channels\n`);
         return fallbackData;
     }
@@ -448,6 +488,10 @@ const seed = async () => {
         console.log(`📋 Seed mode (raw): ${RAW_SEED_MODE || '(unset)'}`);
         console.log(`📋 Seed mode (normalized): ${SEED_MODE}\n`);
 
+        if (IS_DRY_RUN_MODE) {
+            console.log('🔍 DRY-RUN MODE: Fetching data without database operations\n');
+        }
+
         if (IS_FAST_MODE) {
             console.log('⚡ Fast mode optimizations:');
             console.log(`  - Stream validation disabled: ${FAST_DISABLE_STREAM_VALIDATION}`);
@@ -464,10 +508,14 @@ const seed = async () => {
             process.exit(0);
         }
 
-        // Sync database
-        console.log('🔧 Synchronizing database models...');
-        await syncWithPolicy(sequelize, 'streaming-service-seed');
-        console.log('✅ Database models sync step completed\n');
+        // Sync database (skip in dry-run mode)
+        if (!IS_DRY_RUN_MODE) {
+            console.log('🔧 Synchronizing database models...');
+            await syncWithPolicy(sequelize, 'streaming-service-seed');
+            console.log('✅ Database models sync step completed\n');
+        } else {
+            console.log('🔍 Skipping database sync in dry-run mode\n');
+        }
 
         // ========== RADIO STATIONS ==========
         console.log('═══════════════════════════════════════════');
@@ -503,52 +551,60 @@ const seed = async () => {
             console.log(`  - Total unique: ${mergedRadio.length}\n`);
         }
 
-        console.log(`🔄 Seeding ${mergedRadio.length} radio stations to database...\n`);
+        if (IS_DRY_RUN_MODE) {
+            console.log(`🔍 DRY-RUN: Would seed ${mergedRadio.length} radio stations to database\n`);
+            console.log('📊 Sample radio stations:');
+            mergedRadio.slice(0, 5).forEach((station, i) => {
+                console.log(`  ${i + 1}. ${station.name} (${station.country}) - ${station.streamUrl}`);
+            });
+            console.log('  ... (showing first 5 of', mergedRadio.length, 'stations)\n');
+        } else {
+            console.log(`🔄 Seeding ${mergedRadio.length} radio stations to database...\n`);
 
-        const radioReport = {
-            created: 0,
-            skipped: 0,
-            updatedAlternatives: 0,
-            byCountry: {},
-            bySource: {}
-        };
+            const radioReport = {
+                created: 0,
+                skipped: 0,
+                updatedAlternatives: 0,
+                byCountry: {},
+                bySource: {}
+            };
 
-        for (const station of mergedRadio) {
-            try {
-                // Try to find existing by streamUrl OR by strong name+country match
-                const where = (IS_FAST_MODE && FAST_SKIP_PER_ITEM_PRECHECK)
-                    ? { streamUrl: station.streamUrl }
-                    : {
-                        [Op.or]: [
-                            { streamUrl: station.streamUrl },
-                            {
-                                name: { [Op.iLike]: station.name || '' },
-                                country: station.country || null
-                            }
-                        ]
-                    };
+            for (const station of mergedRadio) {
+                try {
+                    // Try to find existing by streamUrl OR by strong name+country match
+                    const where = (IS_FAST_MODE && FAST_SKIP_PER_ITEM_PRECHECK)
+                        ? { streamUrl: station.streamUrl }
+                        : {
+                            [Op.or]: [
+                                { streamUrl: station.streamUrl },
+                                {
+                                    name: { [Op.iLike]: station.name || '' },
+                                    country: station.country || null
+                                }
+                            ]
+                        };
 
-                const existing = await RadioStation.findOne({ where });
+                    const existing = await RadioStation.findOne({ where });
 
-                if (existing) {
-                    const incomingUrl = (station.streamUrl || '').trim();
-                    const meta = existing.metadata || {};
-                    meta.alternativeUrls = meta.alternativeUrls || [];
+                    if (existing) {
+                        const incomingUrl = (station.streamUrl || '').trim();
+                        const meta = existing.metadata || {};
+                        meta.alternativeUrls = meta.alternativeUrls || [];
 
-                    // If this is a different URL, add as alternative URL (fallback)
-                    if (incomingUrl && incomingUrl !== existing.streamUrl && !meta.alternativeUrls.includes(incomingUrl)) {
-                        meta.alternativeUrls.unshift(incomingUrl);
-                        // allow many alternatives (cap for safety)
-                        meta.alternativeUrls = Array.from(new Set(meta.alternativeUrls)).slice(0, 1000);
+                        // If this is a different URL, add as alternative URL (fallback)
+                        if (incomingUrl && incomingUrl !== existing.streamUrl && !meta.alternativeUrls.includes(incomingUrl)) {
+                            meta.alternativeUrls.unshift(incomingUrl);
+                            // allow many alternatives (cap for safety)
+                            meta.alternativeUrls = Array.from(new Set(meta.alternativeUrls)).slice(0, 1000);
 
-                        await existing.update({ metadata: meta });
-                        radioReport.updatedAlternatives++;
-                    } else {
-                        radioReport.skipped++;
+                            await existing.update({ metadata: meta });
+                            radioReport.updatedAlternatives++;
+                        } else {
+                            radioReport.skipped++;
+                        }
+
+                        continue;
                     }
-
-                    continue;
-                }
 
                 const created = await RadioStation.create({
                     name: sanitizeString(station.name || 'Unknown', 512),
@@ -592,12 +648,15 @@ const seed = async () => {
                 console.log(`  ${index + 1}. ${country}: ${count} stations`);
             });
         }
+        }
 
-        if (Object.keys(radioReport.bySource).length > 0) {
-            console.log(`\n📡 Distribution by Source:`);
-            Object.entries(radioReport.bySource).forEach(([source, count]) => {
-                console.log(`  - ${source}: ${count} stations`);
-            });
+        if (!IS_DRY_RUN_MODE) {
+            if (Object.keys(radioReport.bySource).length > 0) {
+                console.log(`\n📡 Distribution by Source:`);
+                Object.entries(radioReport.bySource).forEach(([source, count]) => {
+                    console.log(`  - ${source}: ${count} stations`);
+                });
+            }
         }
 
         // ========== TV CHANNELS ==========
@@ -631,52 +690,28 @@ const seed = async () => {
                 process.exit(1);
             }
 
-            console.log('\n📡 Fetching TV channels from additional sources (IPTV-ORG, YouTube)...\n');
+            console.log('\n📡 Fetching additional TV channels (YouTube)...\n');
 
+            // Check if YouTube channels are already included in the database fetch
             const youtubeLocalCount = tvChannels.filter(ch =>
                 (ch.source === 'youtube') ||
+                (ch.metadata?.platform === 'YouTube') ||
                 (ch.playlistSource && String(ch.playlistSource).toLowerCase().includes('youtube'))
             ).length;
 
-            try {
-                iptvOrgChannels = await fetchIPTVOrgChannels();
-                console.log(`ℹ️ Fetched ${iptvOrgChannels.length} IPTV-ORG channels (used for merge/enrichment)`);
-            } catch (err) {
-                console.log(`⚠️ IPTV-ORG fetch failed: ${err.message}`);
-                iptvOrgChannels = [];
-            }
-
-            if (iptvOrgChannels.length > 0 && tvChannels.length > 0) {
-                const iptvMapByStream = new Map();
-                const iptvMapById = new Map();
-                for (const iptv of iptvOrgChannels) {
-                    if (iptv.streamUrl) iptvMapByStream.set((iptv.streamUrl || '').toLowerCase().trim(), iptv);
-                    if (iptv.metadata?.channelId) iptvMapById.set(iptv.metadata.channelId, iptv);
-                    if (iptv.metadata?.tvgId) iptvMapById.set(iptv.metadata.tvgId, iptv);
-                }
-
-                for (const ch of tvChannels) {
-                    const key = (ch.streamUrl || '').toLowerCase().trim();
-                    const match = iptvMapByStream.get(key) || (ch.metadata && iptvMapById.get(ch.metadata.channelId || ch.metadata.tvgId));
-                    if (match) {
-                        if (!ch.logoUrl && (match.logo || match.logoUrl)) ch.logoUrl = match.logo || match.logoUrl;
-                        ch.metadata = Object.assign({}, match.metadata || {}, ch.metadata || {});
-                    }
-                }
-            }
-
             if (youtubeLocalCount > 0) {
-                console.log(`ℹ️ Detected ${youtubeLocalCount} YouTube channels already loaded by TVPlaylistFetcher — skipping separate YouTube fetch.`);
+                console.log(`ℹ️ Detected ${youtubeLocalCount} YouTube channels already loaded from database — skipping separate YouTube fetch.`);
+                youtubeChannels = [];
             } else if (IS_FAST_MODE && FAST_DISABLE_YOUTUBE_ENRICHMENT) {
                 console.log('⚡ Fast mode: skipping optional YouTube enrichment/checks');
+                youtubeChannels = [];
             } else {
                 youtubeChannels = await fetchYouTubeChannels();
             }
 
-            const allChannels = [...tvChannels, ...iptvOrgChannels, ...youtubeChannels, ...staticTVData];
+            const allChannels = [...tvChannels, ...youtubeChannels, ...staticTVData];
             console.log(`\n📊 Combined sources: ${allChannels.length} total channels (before deduplication)`);
-            console.log(`  - Playlist channels: ${tvChannels.length}`);
-            console.log(`  - IPTV-ORG channels: ${iptvOrgChannels.length}`);
+            console.log(`  - Database channels: ${tvChannels.length}`);
             console.log(`  - YouTube channels: ${youtubeChannels.length}`);
             console.log(`  - Static fallback: ${staticTVData.length}\n`);
 
@@ -708,63 +743,71 @@ const seed = async () => {
         }
 
         // Report statistics
-        const iptvCount = mergedTV.filter(ch => ch.source === 'iptv-org').length;
+        const iptvCount = mergedTV.filter(ch => ch.source === 'iptv-org-database' || ch.source === 'iptv-org').length;
         const youtubeCount = mergedTV.filter(ch => ch.source === 'youtube' || ch.metadata?.platform === 'YouTube').length;
-        const playlistCount = mergedTV.filter(ch => ch.source === 'playlist').length;
-        const otherCount = mergedTV.length - iptvCount - youtubeCount - playlistCount;
+        const databaseCount = mergedTV.filter(ch => ch.source === 'iptv-org-database').length;
+        const otherCount = mergedTV.length - iptvCount - youtubeCount;
 
         console.log(`📊 Final Merged Channel Summary:`);
-        console.log(`  - IPTV-ORG channels: ${iptvCount}`);
+        console.log(`  - IPTV-ORG Database channels: ${databaseCount}`);
         console.log(`  - YouTube channels: ${youtubeCount}`);
-        console.log(`  - Playlist channels: ${playlistCount}`);
+        console.log(`  - Other IPTV-ORG sources: ${iptvCount - databaseCount}`);
         console.log(`  - Other sources: ${otherCount}`);
         console.log(`  📁 Total unique: ${mergedTV.length}\n`);
 
-        console.log(`🔄 Seeding ${mergedTV.length} TV channels to database...\n`);
+        if (IS_DRY_RUN_MODE) {
+            console.log(`🔍 DRY-RUN: Would seed ${mergedTV.length} TV channels to database\n`);
+            console.log('📊 Sample TV channels:');
+            mergedTV.slice(0, 5).forEach((channel, i) => {
+                console.log(`  ${i + 1}. ${channel.name} (${channel.country}) - ${channel.category} - ${channel.streamUrl}`);
+            });
+            console.log('  ... (showing first 5 of', mergedTV.length, 'channels)\n');
+        } else {
+            console.log(`🔄 Seeding ${mergedTV.length} TV channels to database...\n`);
 
-        const tvReport = {
-            created: 0,
-            skipped: 0,
-            updatedAlternatives: 0,
-            byCategory: {},
-            bySource: {}
-        };
+            const tvReport = {
+                created: 0,
+                skipped: 0,
+                updatedAlternatives: 0,
+                byCategory: {},
+                bySource: {}
+            };
 
-        // Process TV seed in chunks to avoid long single-run spikes and improve resilience
-        const chunkSize = mergedTV.length > 5000 ? 500 : 1000;
-        for (let i = 0; i < mergedTV.length; i += chunkSize) {
-            const chunk = mergedTV.slice(i, i + chunkSize);
+            // Process TV seed in chunks to avoid long single-run spikes and improve resilience
+            const chunkSize = mergedTV.length > 5000 ? 500 : 1000;
+            for (let i = 0; i < mergedTV.length; i += chunkSize) {
+                const chunk = mergedTV.slice(i, i + chunkSize);
 
-            for (const channel of chunk) {
-                try {
-                    // Try to find existing by streamUrl OR by name+country
-                    const where = (IS_FAST_MODE && FAST_SKIP_PER_ITEM_PRECHECK)
-                        ? { streamUrl: channel.streamUrl }
-                        : {
-                            [Op.or]: [
-                                { streamUrl: channel.streamUrl },
-                                {
-                                    name: { [Op.iLike]: channel.name || '' },
-                                    country: channel.country || null
-                                }
-                            ]
-                        };
+                for (const channel of chunk) {
+                    try {
+                        // Try to find existing by streamUrl OR by name+country
+                        const where = (IS_FAST_MODE && FAST_SKIP_PER_ITEM_PRECHECK)
+                            ? { streamUrl: channel.streamUrl }
+                            : {
+                                [Op.or]: [
+                                    { streamUrl: channel.streamUrl },
+                                    {
+                                        name: { [Op.iLike]: channel.name || '' },
+                                        country: channel.country || null
+                                    }
+                                ]
+                            };
 
-                    const existing = await TVChannel.findOne({ where });
+                        const existing = await TVChannel.findOne({ where });
 
-                    if (existing) {
-                        const incomingUrl = (channel.streamUrl || '').trim();
-                        const meta = existing.metadata || {};
-                        meta.alternativeUrls = meta.alternativeUrls || [];
+                        if (existing) {
+                            const incomingUrl = (channel.streamUrl || '').trim();
+                            const meta = existing.metadata || {};
+                            meta.alternativeUrls = meta.alternativeUrls || [];
 
-                        if (incomingUrl && incomingUrl !== existing.streamUrl && !meta.alternativeUrls.includes(incomingUrl)) {
-                            meta.alternativeUrls.unshift(incomingUrl);
-                            meta.alternativeUrls = Array.from(new Set(meta.alternativeUrls)).slice(0, 1000);
-                            await existing.update({ metadata: meta });
-                            tvReport.updatedAlternatives++;
-                        } else {
-                            tvReport.skipped++;
-                        }
+                            if (incomingUrl && incomingUrl !== existing.streamUrl && !meta.alternativeUrls.includes(incomingUrl)) {
+                                meta.alternativeUrls.unshift(incomingUrl);
+                                meta.alternativeUrls = Array.from(new Set(meta.alternativeUrls)).slice(0, 1000);
+                                await existing.update({ metadata: meta });
+                                tvReport.updatedAlternatives++;
+                            } else {
+                                tvReport.skipped++;
+                            }
 
                         continue;
                     }
@@ -802,26 +845,29 @@ const seed = async () => {
             }
         }
 
-        console.log(`\n📊 TV Channels Final Report:`);
-        console.log(`  ✅ Created: ${tvReport.created}`);
-        console.log(`  ⏭️  Skipped (duplicates): ${tvReport.skipped}`);
-        if (tvReport.updatedAlternatives) console.log(`  🔁 Updated alternatives: ${tvReport.updatedAlternatives}`);
-        console.log(`  📁 Total unique: ${tvReport.created + tvReport.skipped}`);
+        if (!IS_DRY_RUN_MODE) {
+            console.log(`\n📊 TV Channels Final Report:`);
+            console.log(`  ✅ Created: ${tvReport.created}`);
+            console.log(`  ⏭️  Skipped (duplicates): ${tvReport.skipped}`);
+            if (tvReport.updatedAlternatives) console.log(`  🔁 Updated alternatives: ${tvReport.updatedAlternatives}`);
+            console.log(`  📁 Total unique: ${tvReport.created + tvReport.skipped}`);
 
-        if (Object.keys(tvReport.byCategory).length > 0) {
-            console.log(`\n📑 Distribution by Category:`);
-            const sortedCategories = Object.entries(tvReport.byCategory)
-                .sort((a, b) => b[1] - a[1]);
-            sortedCategories.forEach(([category, count]) => {
-                console.log(`  - ${category}: ${count} channels`);
-            });
+            if (Object.keys(tvReport.byCategory).length > 0) {
+                console.log(`\n📑 Distribution by Category:`);
+                const sortedCategories = Object.entries(tvReport.byCategory)
+                    .sort((a, b) => b[1] - a[1]);
+                sortedCategories.forEach(([category, count]) => {
+                    console.log(`  - ${category}: ${count} channels`);
+                });
+            }
+
+            if (Object.keys(tvReport.bySource).length > 0) {
+                console.log(`\n📡 Distribution by Source:`);
+                Object.entries(tvReport.bySource).forEach(([source, count]) => {
+                    console.log(`  - ${source}: ${count} channels`);
+                });
+            }
         }
-
-        if (Object.keys(tvReport.bySource).length > 0) {
-            console.log(`\n📡 Distribution by Source:`);
-            Object.entries(tvReport.bySource).forEach(([source, count]) => {
-                console.log(`  - ${source}: ${count} channels`);
-            });
         }
 
         // ========== FINAL STATISTICS ==========
@@ -829,14 +875,21 @@ const seed = async () => {
         console.log('📈 FINAL STATISTICS');
         console.log('═══════════════════════════════════════════\n');
 
-        const totalRadio = await RadioStation.count();
-        const totalTV = await TVChannel.count();
-        const totalContent = totalRadio + totalTV;
+        if (IS_DRY_RUN_MODE) {
+            console.log(`📻 Radio Stations Fetched: ${mergedRadio.length}`);
+            console.log(`📺 TV Channels Fetched: ${mergedTV.length}`);
+            console.log(`🎬 Total Content Fetched: ${mergedRadio.length + mergedTV.length}`);
+            console.log(`⚙️  Mode completed: ${SEED_MODE} (dry-run - no database changes)`);
+        } else {
+            const totalRadio = await RadioStation.count();
+            const totalTV = await TVChannel.count();
+            const totalContent = totalRadio + totalTV;
 
-        console.log(`📻 Radio Stations: ${totalRadio}`);
-        console.log(`📺 TV Channels: ${totalTV}`);
-        console.log(`🎬 Total Streaming Content: ${totalContent}`);
-        console.log(`⚙️  Mode completed: ${SEED_MODE}`);
+            console.log(`📻 Radio Stations: ${totalRadio}`);
+            console.log(`📺 TV Channels: ${totalTV}`);
+            console.log(`🎬 Total Streaming Content: ${totalContent}`);
+            console.log(`⚙️  Mode completed: ${SEED_MODE}`);
+        }
         console.log(`\n✨ Database seeding completed successfully!\n`);
 
         process.exit(0);
