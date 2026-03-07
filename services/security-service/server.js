@@ -162,9 +162,17 @@ app.use(helmet({
 
 // CORS - restrict to localhost/admin front-end by default
 const adminCorsOrigins = (process.env.ADMIN_CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+
+// Add dynamic GitHub Codespaces URL if CODESPACE_NAME is available
+if (process.env.CODESPACE_NAME && process.env.REACT_APP_ADMIN_PORT) {
+    const codespaceUrl = `https://${process.env.CODESPACE_NAME}-${process.env.REACT_APP_ADMIN_PORT}.app.github.dev`;
+    adminCorsOrigins.push(codespaceUrl);
+    console.log(`Added GitHub Codespaces CORS origin: ${codespaceUrl}`);
+}
+
 const corsOptions = {
     origin: (origin, callback) => {
-        if (!origin || adminCorsOrigins.includes(origin) || origin.includes('localhost')) {
+        if (!origin || adminCorsOrigins.includes(origin) || origin.includes('localhost') || origin.includes('app.github.dev')) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
