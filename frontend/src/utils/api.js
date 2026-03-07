@@ -73,6 +73,10 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // include admin secret if provided (for admin panel running on separate port)
+    if (process.env.REACT_APP_ADMIN_SECRET) {
+      config.headers['x-admin-secret'] = process.env.REACT_APP_ADMIN_SECRET;
+    }
     return config;
   },
   (error) => {
