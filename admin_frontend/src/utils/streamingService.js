@@ -1,0 +1,355 @@
+import api, { getApiUrl } from './api';
+
+// Use the shared `api` instance which already applies the runtime base-url logic
+// (relative `/api` path in development, production origin, proxy support in
+// Codespaces, etc.).  We still export getApiUrl for any raw URL construction.
+
+const getAuthHeader = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// ==================== RADIO STATIONS ====================
+
+export const streamingService = {
+    // Get all radio stations
+    getRadioStations: async (params = {}) => {
+        const response = await api.get(`/streaming/radio/stations`, {
+            params,
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Get single radio station
+    getRadioStation: async (id) => {
+        const response = await api.get(`/streaming/radio/stations/${id}`, {
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Add new radio station
+    addRadioStation: async (stationData) => {
+        const response = await api.post(`/streaming/radio/stations`, stationData, {
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Update radio station
+    updateRadioStation: async (id, stationData) => {
+        const response = await api.put(`/streaming/radio/stations/${id}`, stationData, {
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Delete radio station
+    deleteRadioStation: async (id) => {
+        const response = await api.delete(`/streaming/radio/stations/${id}`, {
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Start listening to a radio station
+    startListening: async (id, type = 'radio') => {
+        const response = await api.post(
+            `/streaming/${type}/stations/${id}/listen`,
+            {},
+            { headers: getAuthHeader() }
+        );
+        return response.data;
+    },
+
+    // Stop listening to a radio station
+    stopListening: async (id, type = 'radio') => {
+        const response = await api.post(
+            `/streaming/${type}/stations/${id}/stop`,
+            {},
+            { headers: getAuthHeader() }
+        );
+        return response.data;
+    },
+
+    // Get popular radio stations
+    getPopularRadioStations: async (limit = 20) => {
+        const response = await api.get(`/streaming/radio/popular`, {
+            params: { limit },
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Get available radio genres
+    getRadioGenres: async () => {
+        const response = await api.get(`/streaming/radio/genres`, {
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // ==================== TV CHANNELS ====================
+
+    // Get all TV channels
+    getTVChannels: async (params = {}) => {
+        const response = await api.get(`/streaming/tv/channels`, {
+            params,
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Get single TV channel
+    getTVChannel: async (id) => {
+        const response = await api.get(`/streaming/tv/channels/${id}`, {
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Add new TV channel
+    addTVChannel: async (channelData) => {
+        const response = await api.post(`/streaming/tv/channels`, channelData, {
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Update TV channel
+    updateTVChannel: async (id, channelData) => {
+        const response = await api.put(`/streaming/tv/channels/${id}`, channelData, {
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Delete TV channel
+    deleteTVChannel: async (id) => {
+        const response = await api.delete(`/streaming/tv/channels/${id}`, {
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Start watching a TV channel
+    startWatching: async (id, type = 'tv') => {
+        const response = await api.post(
+            `/streaming/${type}/channels/${id}/watch`,
+            {},
+            { headers: getAuthHeader() }
+        );
+        return response.data;
+    },
+
+    // Stop watching a TV channel
+    stopWatching: async (id, type = 'tv') => {
+        const response = await api.post(
+            `/streaming/${type}/channels/${id}/stop`,
+            {},
+            { headers: getAuthHeader() }
+        );
+        return response.data;
+    },
+
+    // Get popular TV channels
+    getPopularTVChannels: async (limit = 20) => {
+        const response = await api.get(`/streaming/tv/popular`, {
+            params: { limit },
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Get available TV categories
+    getTVCategories: async (params = {}) => {
+        const response = await api.get(`/streaming/tv/categories`, {
+            params,
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Import custom TV playlist (M3U/M3U8)
+    importTVPlaylist: async ({ url, content, name }) => {
+        const response = await api.post(
+            `/streaming/tv/import`,
+            { url, content, name },
+            { headers: getAuthHeader() }
+        );
+        return response.data;
+    },
+
+    // ==================== FAVORITES ====================
+
+    // Get user favorites
+    getFavorites: async (type = null) => {
+        const response = await api.get(`/streaming/favorites`, {
+            params: type ? { type } : {},
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Add to favorites
+    addFavorite: async (itemId, itemType) => {
+        const response = await api.post(
+            `/streaming/favorites`,
+            { itemId, itemType },
+            { headers: getAuthHeader() }
+        );
+        return response.data;
+    },
+
+    // Remove from favorites
+    removeFavorite: async (id) => {
+        const response = await api.delete(`/streaming/favorites/${id}`, {
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // ==================== PLAYLISTS ====================
+
+    // Get user playlists
+    getPlaylists: async () => {
+        const response = await api.get(`/streaming/playlists`, {
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Create playlist
+    createPlaylist: async (playlistData) => {
+        const response = await api.post(`/streaming/playlists`, playlistData, {
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // Import M3U playlist
+    importM3UPlaylist: async (name, content, type) => {
+        const response = await api.post(
+            `/streaming/playlists/import`,
+            { name, content, type },
+            { headers: getAuthHeader() }
+        );
+        return response.data;
+    },
+
+    // Export playlist as M3U
+    exportPlaylist: async (id) => {
+        const response = await api.get(`/streaming/playlists/${id}/export`, {
+            headers: getAuthHeader(),
+            responseType: 'blob'
+        });
+        return response.data;
+    },
+
+    // ==================== HISTORY ====================
+
+    // Get user playback history
+    getHistory: async (type = null, limit = 50) => {
+        const response = await api.get(`/streaming/history`, {
+            params: { type, limit },
+            headers: getAuthHeader()
+        });
+        return response.data;
+    },
+
+    // ==================== SEARCH / RECOMMENDATIONS ====================
+
+    // Full-text channel search
+    searchChannels: async (q = '', options = {}) => {
+        const params = { q, ...options };
+        const response = await api.get(`/channels/search`, { params, headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Search suggestions
+    getSearchSuggestions: async (q = '', limit = 10) => {
+        const response = await api.get(`/channels/search/suggestions`, { params: { q, limit }, headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Search filters (categories/countries/languages)
+    getSearchFilters: async () => {
+        const response = await api.get(`/channels/search/filters`, { headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Get personalized recommendations
+    getRecommendations: async (params = {}) => {
+        const response = await api.get(`/recommendations`, { params, headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Track a channel view for recommendations
+    trackChannelView: async (payload = {}) => {
+        const response = await api.post(`/channels/view`, payload, { headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Rate a channel
+    rateChannel: async (payload = {}) => {
+        const response = await api.post(`/channels/rate`, payload, { headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Get similar channels
+    getSimilarChannels: async (channelId, limit = 10) => {
+        try {
+            const response = await api.get(`/channels/${channelId}/similar`, { params: { limit }, headers: getAuthHeader() });
+            return response.data;
+        } catch (error) {
+            // treat "not found" as an empty list rather than bubbling up
+            if (error.response && error.response.status === 404) {
+                return { success: false, similar: [] };
+            }
+            throw error;
+        }
+    },
+
+
+    // Recommendation stats
+    getRecommendationStats: async (userId) => {
+        const response = await api.get(`/recommendations/stats/${userId}`, { headers: getAuthHeader() });
+        return response.data;
+    },
+
+    getSystemRecommendationStats: async () => {
+        const response = await api.get(`/recommendations/system-stats`, { headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // ==================== TELEMETRY ====================
+
+    // Report fallback usage from the client
+    reportFallbackEvent: async (payload = {}) => {
+        const response = await api.post(`/streaming/telemetry/fallbacks`, payload, { headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Query fallback events
+    getFallbackEvents: async (params = {}) => {
+        const response = await api.get(`/streaming/telemetry/fallbacks`, { params, headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // Aggregated fallback report
+    getFallbackReport: async (params = {}) => {
+        const response = await api.get(`/streaming/telemetry/fallbacks/report`, { params, headers: getAuthHeader() });
+        return response.data;
+    },
+
+    // ==================== HEALTH ====================
+
+    // Health check
+    getHealth: async () => {
+        const response = await api.get(`/streaming/health`);
+        return response.data;
+    }
+};
+
+export default streamingService;
