@@ -36,7 +36,7 @@ RUN sed -i 's/\r$//' /docker-entrypoint.sh && \
     # Verify script exists and is executable
     ls -la /docker-entrypoint.sh
 
-EXPOSE 3000
+EXPOSE 3001
 
 # Entrypoint determines whether to run dev server or production build + Nginx
 ENTRYPOINT ["/docker-entrypoint.sh"]
