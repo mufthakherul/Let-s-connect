@@ -25,7 +25,8 @@ const healthChecker = new HealthChecker('api-gateway');
 // main HTTP port for user-facing API gateway
 const PORT = process.env.PORT || 8000;
 // port where the dedicated security (admin backend) service listens
-const SECURITY_PORT = process.env.SECURITY_PORT || 9101;
+// default moved to 9102 to avoid conflicts
+const SECURITY_PORT = process.env.SECURITY_PORT || 9102;
 
 const JWT_SECRET = getRequiredEnv('JWT_SECRET');
 const INTERNAL_GATEWAY_TOKEN = getRequiredEnv('INTERNAL_GATEWAY_TOKEN');

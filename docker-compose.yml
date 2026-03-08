@@ -53,9 +53,10 @@ services:
       dockerfile: security-service/Dockerfile
     restart: unless-stopped
     ports:
-      - "${SECURITY_PORT:-9101}:${SECURITY_PORT:-9101}"
+      - "${SECURITY_PORT:-9102}:${SECURITY_PORT:-9102}"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
+      - SECURITY_PORT=${SECURITY_PORT:-9102}
       - ADMIN_API_SECRET=${ADMIN_API_SECRET}
       - INTERNAL_GATEWAY_TOKEN=${INTERNAL_GATEWAY_TOKEN}
       - USER_SERVICE_URL=http://user-service:8002
@@ -69,7 +70,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:${SECURITY_PORT:-9101}/health > /dev/null 2>&1 || exit 1" ]
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:${SECURITY_PORT:-9102}/health > /dev/null 2>&1 || exit 1" ]
       interval: 15s
       timeout: 5s
       retries: 5

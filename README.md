@@ -175,8 +175,10 @@ docker-compose up --build
 ```
 
 4. **Access the platform**
-- Frontend: http://localhost:3000
+- Frontend (user): http://localhost:3000
+- Admin frontend: http://localhost:3001  (separate dev server)
 - API Gateway: http://localhost:8000
+- Security service (admin API): http://localhost:9102
 - MinIO Console: http://localhost:9001 (admin/admin)
 
 ### Cross-platform script runner (Windows/Linux/macOS/Termux)
