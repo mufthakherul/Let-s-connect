@@ -355,6 +355,26 @@ services:
     networks:
       - milonexa-network
 
+  # Admin Frontend (separate from user frontend)
+  admin_frontend:
+    build:
+      context: ./admin_frontend
+      args:
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - GENERATE_SOURCEMAP=${GENERATE_SOURCEMAP:-false}
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+      - REACT_APP_ADMIN_SECRET=${REACT_APP_ADMIN_SECRET}
+    ports:
+      - "3001:3001"
+    depends_on:
+      security-service:
+        condition: service_healthy
+    networks:
+      - milonexa-network
+
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine

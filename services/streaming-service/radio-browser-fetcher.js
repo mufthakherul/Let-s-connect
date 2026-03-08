@@ -146,8 +146,10 @@ class RadioBrowserFetcher {
                 const batchSize = 10000;
                 let hasMore = true;
                 let batchCount = 0;
+                const startTime = Date.now();
+                const maxDuration = 30 * 60 * 1000; // 30 minutes max
 
-                while (hasMore && batchCount < 80) { // Safety limit: 800k stations
+                while (hasMore && batchCount < 80 && (Date.now() - startTime) < maxDuration) { // Safety limit: 800k stations
                     try {
                         const url = `${this._getCurrentServer()}/json/stations?hidebroken=true&limit=${batchSize}&offset=${offset}`;
                         const stations = await this._fetchWithRetry(url, this.retries);
@@ -189,6 +191,12 @@ class RadioBrowserFetcher {
                             }
                         }
 
+                        if (batchAdded === 0) {
+                            console.log(`  ⏹️  Batch ${batchCount + 1}: no new stations added, stopping fetch`);
+                            hasMore = false;
+                            break;
+                        }
+
                         if (batchAdded > 0) {
                             batchCount++;
                             console.log(`  ⏳ Batch ${batchCount}: added ${batchAdded} stations (total: ${allStations.size})`);
@@ -203,7 +211,12 @@ class RadioBrowserFetcher {
                     }
                 }
 
-                console.log(`\n✅ Worldwide fetch complete: ${allStations.size} unique stations`);
+                const duration = (Date.now() - startTime) / 1000;
+                if ((Date.now() - startTime) >= maxDuration) {
+                    console.log(`⏰ Worldwide fetch timed out after ${duration.toFixed(1)}s: ${allStations.size} stations collected`);
+                } else {
+                    console.log(`\n✅ Worldwide fetch complete: ${allStations.size} unique stations (${duration.toFixed(1)}s)`);
+                }
                 return Array.from(allStations.values());
             } catch (error) {
                 console.error(`❌ Worldwide fetch failed after retries: ${error.message}`);
