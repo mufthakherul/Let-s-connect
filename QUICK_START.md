@@ -70,7 +70,8 @@ All services should show "Up" status.
 
 ### 5. Access Platform
 
-- **Frontend:** http://localhost:3000
+- **Frontend:** http://localhost:3000 (user)
+- **Admin frontend:** http://localhost:3001 (start with `cd admin_frontend && npm run start:admin`)
 - **API Gateway:** http://localhost:8000
 - **MinIO Console:** http://localhost:9001 (minioadmin/minioadmin)
 
@@ -229,7 +230,7 @@ npm install
 npm start
 ```
 
-Frontend will open at http://localhost:3000
+Frontend will open at http://localhost:3000 for users, and admin panel at http://localhost:3001
 
 ## Next Steps
 

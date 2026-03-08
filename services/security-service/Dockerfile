@@ -9,6 +9,6 @@ RUN npm install
 COPY shared/ ../shared/
 COPY security-service/ .
 
-EXPOSE 9101
+EXPOSE 9102
 
 CMD ["npm", "start"]

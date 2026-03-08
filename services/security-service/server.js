@@ -14,7 +14,9 @@ require('dotenv').config({ quiet: true });
 const { getRequiredEnv, isPlaceholderSecret } = require('../shared/security-utils');
 
 // configuration
-const PORT = process.env.SECURITY_PORT || 9101;
+// security-service listens on a configurable port (previously 9101)
+// change via SECURITY_PORT in environment (e.g. 9102 to avoid conflicts)
+const PORT = process.env.SECURITY_PORT || 9102;
 const ADMIN_API_SECRET = getRequiredEnv('ADMIN_API_SECRET');
 const INTERNAL_GATEWAY_TOKEN = getRequiredEnv('INTERNAL_GATEWAY_TOKEN');
 
