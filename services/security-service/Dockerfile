@@ -2,11 +2,12 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY security-service/package*.json ./
 
 RUN npm install
 
-COPY . .
+COPY shared/ ../shared/
+COPY security-service/ .
 
 EXPOSE 9101
 
