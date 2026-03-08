@@ -48,7 +48,6 @@ import {
     Speed,
     Assessment,
     Timeline,
-    PieChart,
     ExpandMore,
     Menu,
     Brightness4,
