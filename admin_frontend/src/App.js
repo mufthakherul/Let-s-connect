@@ -43,7 +43,7 @@ import { designTokens, getGlassyStyle } from './theme/designSystem';
 // Eager load critical components (needed for initial render)
 import Home from './components/Home';
 import Login from './components/Login';
-import Register from './components/Register';
+// registration is disabled for admin frontend
 
 // Lazy load non-critical components (Phase 4: Performance Optimization)
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
@@ -431,12 +431,6 @@ function AppContent() {
                 <ListItemText primary="Login" />
               </ListItemButton>
             </ListItem>
-            <ListItem disablePadding>
-              <ListItemButton component={Link} to="/register" onClick={() => setDrawerOpen(false)}>
-                <ListItemIcon><PersonAdd /></ListItemIcon>
-                <ListItemText primary="Register" />
-              </ListItemButton>
-            </ListItem>
           </>
         )}
       </List>
@@ -456,7 +450,7 @@ function AppContent() {
           else if (internalUser) variant = 'loggedIn';
           else if (path === '/' || path === '/unregister') variant = 'landing';
           else if (path.startsWith('/docs') || path.startsWith('/helpcenter') || path.startsWith('/videos')) variant = 'subtle';
-          else if (path.startsWith('/login') || path.startsWith('/register')) variant = 'none';
+          else if (path.startsWith('/login')) variant = 'none';
           else variant = 'auto';
 
           return <BackgroundAnimation variant={variant} isLoggedIn={!!internalUser} reducedMotion={accessibility.reducedMotion} />;

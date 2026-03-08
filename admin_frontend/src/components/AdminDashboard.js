@@ -79,18 +79,34 @@ import {
     ViewModule,
     Sort,
     ArrowUpward,
-    ArrowDownward
+    ArrowDownward,
+    ExitToApp
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import api from '../utils/api';
+import AdminLogin from './AdminLogin';
 
 const AdminDashboard = () => {
     useEffect(() => {
         document.title = 'Admin Control Center – Milonexa';
     }, []);
+
+    // authentication state
+    const tokenFromStorage = localStorage.getItem('adminToken');
+    const [isAuthenticated, setIsAuthenticated] = useState(!!tokenFromStorage);
+
+    useEffect(() => {
+        if (tokenFromStorage) {
+            api.defaults.headers.common['Authorization'] = `Bearer ${tokenFromStorage}`;
+        }
+    }, [tokenFromStorage]);
+
+    const handleLoginSuccess = (token) => {
+        setIsAuthenticated(true);
+    };
 
     const [currentTab, setCurrentTab] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -110,6 +126,13 @@ const AdminDashboard = () => {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [darkMode, setDarkMode] = useState(false);
     const [selectedLanguage, setSelectedLanguage] = useState('en');
+
+    const handleLogout = () => {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('token');
+        delete api.defaults.headers.common['Authorization'];
+        setIsAuthenticated(false);
+    };
     const [searchQuery, setSearchQuery] = useState('');
     const [filterOptions, setFilterOptions] = useState({});
     const [exportData, setExportData] = useState(null);
@@ -141,6 +164,12 @@ const AdminDashboard = () => {
         cacheEnabled: true,
         notificationsEnabled: true
     });
+
+    // Admin user creation dialog
+    const [newAdminDialog, setNewAdminDialog] = useState(false);
+    const [newAdminUsername, setNewAdminUsername] = useState('');
+    const [newAdminPassword, setNewAdminPassword] = useState('');
+    const [newAdminRole, setNewAdminRole] = useState('admin');
 
     // Real-time data
     useEffect(() => {
@@ -451,6 +480,28 @@ const AdminDashboard = () => {
             alert('Settings updated successfully');
         } catch (error) {
             console.error('Failed to update settings:', error);
+        }
+    };
+
+    // Create a new admin user
+    const handleCreateAdmin = async () => {
+        try {
+            setLoading(true);
+            await api.post('/admin/users', {
+                username: newAdminUsername,
+                password: newAdminPassword,
+                role: newAdminRole
+            });
+            setNewAdminDialog(false);
+            setNewAdminUsername('');
+            setNewAdminPassword('');
+            setNewAdminRole('admin');
+            alert('Admin user created');
+        } catch (error) {
+            console.error('Failed to create admin user:', error);
+            alert('Failed to create admin user');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -856,6 +907,16 @@ const AdminDashboard = () => {
                         </CardContent>
                     </Card>
                 </Grid>
+                <Grid item xs={12} md={6}>
+                    <Card>
+                        <CardContent>
+                            <Typography variant="h6" gutterBottom>Admin Accounts</Typography>
+                            <Button variant="contained" onClick={() => setNewAdminDialog(true)}>
+                                Create New Admin
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </Grid>
                 <Grid item xs={12}>
                     <Button variant="contained" onClick={() => setSettingsDialog(true)}>
                         Advanced Settings
@@ -1215,6 +1276,10 @@ const AdminDashboard = () => {
         </Box>
     );
 
+    if (!isAuthenticated) {
+        return <AdminLogin onLogin={handleLoginSuccess} />;
+    }
+
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline />
@@ -1247,6 +1312,9 @@ const AdminDashboard = () => {
                                     <MenuItem value="fr">Français</MenuItem>
                                 </Select>
                             </FormControl>
+                            <IconButton color="inherit" onClick={handleLogout} sx={{ ml: 1 }}>
+                                <ExitToApp />
+                            </IconButton>
                         </Toolbar>
                     </AppBar>
 
@@ -1398,6 +1466,42 @@ const AdminDashboard = () => {
                 <DialogActions>
                     <Button onClick={() => handleResolveFlag(flagDialog?.id, 'dismissed')}>Dismiss</Button>
                     <Button onClick={() => handleResolveFlag(flagDialog?.id, 'resolved')} color="primary">Resolve</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* New Admin Creation Dialog */}
+            <Dialog open={newAdminDialog} onClose={() => setNewAdminDialog(false)}>
+                <DialogTitle>Create Admin User</DialogTitle>
+                <DialogContent>
+                    <TextField
+                        fullWidth
+                        label="Username"
+                        margin="dense"
+                        value={newAdminUsername}
+                        onChange={(e) => setNewAdminUsername(e.target.value)}
+                    />
+                    <TextField
+                        fullWidth
+                        type="password"
+                        label="Password"
+                        margin="dense"
+                        value={newAdminPassword}
+                        onChange={(e) => setNewAdminPassword(e.target.value)}
+                    />
+                    <FormControl fullWidth sx={{ mt: 1 }}>
+                        <InputLabel>Role</InputLabel>
+                        <Select
+                            value={newAdminRole}
+                            onChange={(e) => setNewAdminRole(e.target.value)}
+                        >
+                            <MenuItem value="admin">Admin</MenuItem>
+                            <MenuItem value="superadmin">Super Admin</MenuItem>
+                        </Select>
+                    </FormControl>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setNewAdminDialog(false)}>Cancel</Button>
+                    <Button onClick={handleCreateAdmin} variant="contained">Create</Button>
                 </DialogActions>
             </Dialog>
 

@@ -6,6 +6,9 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const ipRangeCheck = require('ip-range-check');
 const speakeasy = require('speakeasy');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { Sequelize, DataTypes } = require('sequelize');
 require('dotenv').config({ quiet: true });
 
 const { getRequiredEnv, isPlaceholderSecret } = require('../shared/security-utils');
@@ -41,8 +44,25 @@ const strictLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-// helper middleware to check admin secret
+// helper middleware to check admin secret or JWT token
+// allows unauthenticated access to login endpoint
 function requireAdminSecret(req, res, next) {
+    if (req.path === '/admin/login') {
+        return next();
+    }
+    // check for Bearer token first
+    const auth = req.headers['authorization'];
+    if (auth && auth.startsWith('Bearer ')) {
+        const token = auth.slice(7);
+        try {
+            const decoded = jwt.verify(token, ADMIN_JWT_SECRET);
+            req.admin = decoded;
+            return next();
+        } catch (err) {
+            // fall through to secret check below
+        }
+    }
+
     const secret = req.headers['x-admin-secret'] || req.query.admin_secret;
     if (secret !== ADMIN_API_SECRET) {
         return res.status(403).json({ error: 'Forbidden - invalid admin token' });
@@ -52,6 +72,11 @@ function requireAdminSecret(req, res, next) {
 
 // IP whitelisting middleware
 function requireWhitelistedIP(req, res, next) {
+    // allow login endpoint regardless of IP
+    if (req.path === '/admin/login') {
+        return next();
+    }
+
     const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
 
     // Check individual IPs
@@ -78,6 +103,10 @@ function requireWhitelistedIP(req, res, next) {
 
 // 2FA verification middleware
 function require2FA(req, res, next) {
+    // skip 2FA for login
+    if (req.path === '/admin/login') {
+        return next();
+    }
     if (!ENABLE_2FA) return next();
 
     const token = req.headers['x-admin-2fa-token'];
@@ -126,6 +155,56 @@ const services = {
     'streaming-service': process.env.STREAMING_SERVICE_URL || 'http://streaming-service:8009'
     // add others as needed
 };
+
+// ---------- admin database setup ----------
+const ADMIN_DB_URL = process.env.ADMIN_DB_URL || 'postgres://postgres:postgres@postgres:5432/milonexa_admin';
+const adminSequelize = new Sequelize(ADMIN_DB_URL, { logging: false });
+
+const AdminUser = adminSequelize.define('AdminUser', {
+    username: { type: DataTypes.STRING, unique: true, allowNull: false },
+    passwordHash: { type: DataTypes.STRING, allowNull: false },
+    role: { type: DataTypes.STRING, allowNull: false, defaultValue: 'admin' }
+});
+
+// initialize table and optionally ensure master account exists
+(async () => {
+    await adminSequelize.sync({ alter: true });
+    if (process.env.ADMIN_MASTER_USERNAME && process.env.ADMIN_MASTER_PASSWORD) {
+        const [user, created] = await AdminUser.findOrCreate({
+            where: { username: process.env.ADMIN_MASTER_USERNAME },
+            defaults: { passwordHash: await bcrypt.hash(process.env.ADMIN_MASTER_PASSWORD, 10) }
+        });
+        if (!created) {
+            // if password env changed, update hash
+            const newHash = await bcrypt.hash(process.env.ADMIN_MASTER_PASSWORD, 10);
+            if (user.passwordHash !== newHash) {
+                user.passwordHash = newHash;
+                await user.save();
+            }
+        }
+    }
+})();
+
+const ADMIN_JWT_SECRET = getRequiredEnv('ADMIN_JWT_SECRET');
+
+function generateAdminToken(user) {
+    return jwt.sign({ id: user.id, username: user.username, role: user.role }, ADMIN_JWT_SECRET, { expiresIn: '2h' });
+}
+
+// middleware to verify Bearer JWT specifically
+function requireAdminJWT(req, res, next) {
+    const auth = req.headers['authorization'];
+    if (!auth || !auth.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Authorization header missing' });
+    }
+    const token = auth.slice(7);
+    try {
+        req.admin = jwt.verify(token, ADMIN_JWT_SECRET);
+        return next();
+    } catch (err) {
+        return res.status(401).json({ error: 'Invalid token' });
+    }
+}
 
 // generic proxy options to forward identity headers and internal token
 const proxyOptions = {
@@ -227,6 +306,46 @@ app.get('/health', (req, res) => {
             two_factor: ENABLE_2FA
         }
     });
+});
+
+// ---------- admin authentication routes ----------
+// master login / admin user sign in
+app.post('/admin/login', async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username and password required' });
+    }
+    try {
+        const user = await AdminUser.findOne({ where: { username } });
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+        const ok = await bcrypt.compare(password, user.passwordHash);
+        if (!ok) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+        const token = generateAdminToken(user);
+        res.json({ token, role: user.role });
+    } catch (err) {
+        console.error('login error', err);
+        res.status(500).json({ error: 'Login failed' });
+    }
+});
+
+// protected route to create additional admin users
+app.post('/admin/users', requireAdminJWT, async (req, res) => {
+    const { username, password, role } = req.body;
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username and password required' });
+    }
+    try {
+        const hash = await bcrypt.hash(password, 10);
+        const newUser = await AdminUser.create({ username, passwordHash: hash, role: role || 'admin' });
+        res.json({ id: newUser.id, username: newUser.username, role: newUser.role });
+    } catch (err) {
+        console.error('create admin user error', err);
+        res.status(500).json({ error: 'Failed to create user' });
+    }
 });
 
 // mount proxies dynamically
