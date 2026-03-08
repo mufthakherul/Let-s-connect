@@ -157,33 +157,62 @@ const services = {
 };
 
 // ---------- admin database setup ----------
-const ADMIN_DB_URL = process.env.ADMIN_DB_URL || 'postgres://postgres:postgres@postgres:5432/milonexa_admin';
-const adminSequelize = new Sequelize(ADMIN_DB_URL, { logging: false });
+// Use postgresql:// protocol (postgres:// is deprecated in newer versions)
+const ADMIN_DB_URL = (process.env.ADMIN_DB_URL || 'postgresql://postgres:postgres@postgres:5432/milonexa_admin').replace(/^postgres:/, 'postgresql:');
 
-const AdminUser = adminSequelize.define('AdminUser', {
-    username: { type: DataTypes.STRING, unique: true, allowNull: false },
-    passwordHash: { type: DataTypes.STRING, allowNull: false },
-    role: { type: DataTypes.STRING, allowNull: false, defaultValue: 'admin' }
-});
+let adminSequelize;
+let AdminUser;
+let dbInitialized = false;
 
-// initialize table and optionally ensure master account exists
-(async () => {
-    await adminSequelize.sync({ alter: true });
-    if (process.env.ADMIN_MASTER_USERNAME && process.env.ADMIN_MASTER_PASSWORD) {
-        const [user, created] = await AdminUser.findOrCreate({
-            where: { username: process.env.ADMIN_MASTER_USERNAME },
-            defaults: { passwordHash: await bcrypt.hash(process.env.ADMIN_MASTER_PASSWORD, 10) }
+async function initializeAdminDB() {
+    try {
+        adminSequelize = new Sequelize(ADMIN_DB_URL, { 
+            logging: false,
+            dialectOptions: {
+                connectTimeout: 10000
+            },
+            pool: {
+                max: 5,
+                min: 0,
+                acquire: 30000,
+                idle: 10000
+            }
         });
-        if (!created) {
-            // if password env changed, update hash
-            const newHash = await bcrypt.hash(process.env.ADMIN_MASTER_PASSWORD, 10);
-            if (user.passwordHash !== newHash) {
-                user.passwordHash = newHash;
-                await user.save();
+
+        AdminUser = adminSequelize.define('AdminUser', {
+            username: { type: DataTypes.STRING, unique: true, allowNull: false },
+            passwordHash: { type: DataTypes.STRING, allowNull: false },
+            role: { type: DataTypes.STRING, allowNull: false, defaultValue: 'admin' }
+        });
+
+        await adminSequelize.authenticate();
+        await adminSequelize.sync({ alter: true });
+        
+        if (process.env.ADMIN_MASTER_USERNAME && process.env.ADMIN_MASTER_PASSWORD) {
+            const [user, created] = await AdminUser.findOrCreate({
+                where: { username: process.env.ADMIN_MASTER_USERNAME },
+                defaults: { passwordHash: await bcrypt.hash(process.env.ADMIN_MASTER_PASSWORD, 10) }
+            });
+            if (!created) {
+                const newHash = await bcrypt.hash(process.env.ADMIN_MASTER_PASSWORD, 10);
+                if (user.passwordHash !== newHash) {
+                    user.passwordHash = newHash;
+                    await user.save();
+                }
             }
         }
+        
+        dbInitialized = true;
+        console.log('[Admin DB] Connected and initialized successfully');
+    } catch (err) {
+        console.error('[Admin DB] Initialization failed:', err.message);
+        // Retry after 5 seconds
+        setTimeout(initializeAdminDB, 5000);
     }
-})();
+}
+
+// Start initialization in background
+initializeAdminDB();
 
 const ADMIN_JWT_SECRET = getRequiredEnv('ADMIN_JWT_SECRET');
 
@@ -271,7 +300,21 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Security middleware chain
+// Health check endpoint (no middleware)
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        db_status: dbInitialized ? 'connected' : 'initializing',
+        security: {
+            ip_whitelisting: ALLOWED_IPS.length > 0 || ALLOWED_IP_RANGES.length > 0,
+            rate_limiting: true,
+            two_factor: ENABLE_2FA
+        }
+    });
+});
+
+// Security middleware chain (applied after health check)
 app.use(requireWhitelistedIP);
 app.use(requireAdminSecret);
 app.use(require2FA);
@@ -295,25 +338,15 @@ app.post('/setup-2fa', (req, res) => {
     }
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        security: {
-            ip_whitelisting: ALLOWED_IPS.length > 0 || ALLOWED_IP_RANGES.length > 0,
-            rate_limiting: true,
-            two_factor: ENABLE_2FA
-        }
-    });
-});
-
 // ---------- admin authentication routes ----------
 // master login / admin user sign in
 app.post('/admin/login', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) {
         return res.status(400).json({ error: 'Username and password required' });
+    }
+    if (!dbInitialized || !AdminUser) {
+        return res.status(503).json({ error: 'Admin database not ready, please try again' });
     }
     try {
         const user = await AdminUser.findOne({ where: { username } });
@@ -337,6 +370,9 @@ app.post('/admin/users', requireAdminJWT, async (req, res) => {
     const { username, password, role } = req.body;
     if (!username || !password) {
         return res.status(400).json({ error: 'Username and password required' });
+    }
+    if (!dbInitialized || !AdminUser) {
+        return res.status(503).json({ error: 'Admin database not ready, please try again' });
     }
     try {
         const hash = await bcrypt.hash(password, 10);

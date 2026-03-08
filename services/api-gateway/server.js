@@ -112,7 +112,6 @@ app.use(express.json());
 // --------- ADMIN ROUTING REDIRECT ----------
 // forward any /admin traffic to the dedicated security service
 // SECURITY_PORT should match the port where security-service is running
-const SECURITY_PORT = process.env.SECURITY_PORT || 9101;
 if (SECURITY_PORT) {
   app.use('/admin', proxy(`http://localhost:${SECURITY_PORT}`));
 }
