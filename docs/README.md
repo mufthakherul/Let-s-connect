@@ -6,11 +6,12 @@ Welcome to the Let's Connect documentation. This directory contains comprehensiv
 
 ### Getting Started
 - **[Quick Start Guide](../QUICK_START.md)** - Get up and running in 5 minutes
-- **[Features Overview](../FEATURES.md)** - Complete feature checklist
+- **[Features Overview](FEATURES.md)** - Complete feature checklist
 - **[README](../README.md)** - Project overview and introduction
 
 ### Architecture & Design
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and microservices design
+- **[WORKFLOW.md](WORKFLOW.md)** - Request lifecycle, data flows, and system interaction diagrams
 - **[API.md](API.md)** - Complete REST API reference for all services
 - **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)** - Current implementation status
 
@@ -86,11 +87,16 @@ Let-s-connect/
 │   ├── collaboration-service/ # Docs and wikis
 │   ├── media-service/     # File storage
 │   ├── shop-service/      # E-commerce
+│   ├── streaming-service/ # Streaming (radio, TV, live)
 │   └── ai-service/        # AI features
 ├── frontend/              # React frontend application
+├── admin_frontend/        # Admin dashboard frontend
 ├── k8s/                   # Kubernetes manifests
 ├── scripts/               # Utility scripts
-└── archives/              # Historical documentation
+├── deploy/                # Deployment configurations (Nginx, Caddy)
+└── Archives/              # Historical code and documentation
+    ├── Archive_codes/     # Deprecated/removed source code
+    └── Archive_docs/      # Deprecated/historical documentation
 
 ```
 

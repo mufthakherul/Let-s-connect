@@ -214,11 +214,11 @@ Notes:
 
 ### Getting Started
 - **[Quick Start Guide](./QUICK_START.md)** - Get running in 5 minutes
-- **[Features Overview](./FEATURES.md)** - Complete feature checklist
+- **[Features Overview](./docs/FEATURES.md)** - Complete feature checklist
 - **[Development Roadmap](./ROADMAP.md)** - Future plans and progress
 
 ### Deployment
-- **[📖 Comprehensive Deployment Guide](./DEPLOYMENT_GUIDE.md)** - **Complete step-by-step guide for Docker Compose & Kubernetes**
+- **[📖 Comprehensive Deployment Guide](./docs/DEPLOYMENT_GUIDE.md)** - **Complete step-by-step guide for Docker Compose & Kubernetes**
 - **[Deployment Quick Reference](./docs/DEPLOYMENT.md)** - Quick deployment reference
 - **[Kubernetes Setup](./k8s/README.md)** - Kubernetes manifests and configuration
 - **[Render Deployment](./docs/RENDER_DEPLOYMENT.md)** - Deploy to Render.com
@@ -226,6 +226,7 @@ Notes:
 ### Technical Documentation
 - **[Full Documentation Index](./docs/README.md)** - Complete documentation index
 - **[Architecture Guide](./docs/ARCHITECTURE.md)** - System design and microservices
+- **[Workflow Diagrams](./docs/WORKFLOW.md)** - Request lifecycle and data flow diagrams
 - **[API Reference](./docs/API.md)** - Complete REST API documentation
 - **[Streaming Features](./docs/STREAMING_FEATURES.md)** - Live Radio & TV documentation
 
@@ -235,7 +236,7 @@ Notes:
 ### Development Resources
 - **[Testing Guide](./TESTING.md)** - Testing strategies and guidelines
 - **[Security Notes](./SECURITY_NOTES.md)** - Security best practices
-- **[Changelog](./CHANGELOG.md)** - Version history
+- **[Changelog](./docs/CHANGELOG.md)** - Version history
 
 ## 🚀 Deployment
 
@@ -268,7 +269,19 @@ For detailed step-by-step instructions covering:
 - ✅ Production best practices
 - ✅ Troubleshooting
 
-**See: [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)**
+**See: [DEPLOYMENT_GUIDE.md](./docs/DEPLOYMENT_GUIDE.md)**
+
+## 🗄️ Archives
+
+Deprecated code and historical documentation are preserved in `Archives/`:
+
+```
+Archives/
+├── Archive_codes/    # Removed/superseded source code
+└── Archive_docs/     # Historical reports, phase docs, audit reports
+```
+
+See [Archives/README.md](./Archives/README.md) for the complete index.
 
 ## 🤝 Contributing
 
