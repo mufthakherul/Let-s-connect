@@ -1,297 +1,176 @@
-# Milonexa — A Next-Generation Platform for Connecting People Virtually
+# Milonexa
 
-A comprehensive enterprise-grade social collaboration platform combining features from Facebook, X (Twitter), YouTube, WhatsApp, Telegram, Discord, and Notion into one self-hosted application.
+**A unified self-hosted social collaboration platform** — combining the best of Facebook, Slack, YouTube, Telegram, Notion, and Google Drive into a single, privacy-respecting application your team controls.
 
-**Version 4.5** - Enterprise Features Complete ✅
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org)
+[![React](https://img.shields.io/badge/React-18-blue.svg)](https://react.dev)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue.svg)](https://postgresql.org)
+[![Docker](https://img.shields.io/badge/Docker-Compose-blue.svg)](docker-compose.yml)
 
-## ✨ What's New in v4.5 (Phase 8 - Enterprise Features)
+---
 
-### 🏢 Enterprise Authentication
-- **SAML 2.0** - Single Sign-On with enterprise identity providers
-- **LDAP/Active Directory** - Integrate with existing directory services
-- **SSO Session Management** - Centralized session control across services
-- **Advanced Session Tracking** - Device fingerprinting and suspicious activity detection
+## What Is Milonexa?
 
-### 📊 Advanced Analytics & BI
-- **Custom Dashboards** - Create personalized business intelligence dashboards
-- **User Behavior Tracking** - Track events, journeys, and interactions
-- **Feature Adoption Metrics** - Measure feature usage and adoption rates
-- **Cohort Analysis** - Analyze user groups and retention
-- **Performance Monitoring** - APM with distributed tracing
-- **Scheduled Reports** - Automated report generation and delivery
+Milonexa replaces a sprawling stack of SaaS tools with a single, self-hosted platform:
 
-### 🏛️ Multi-tenant Organizations
-- **Organization Hierarchy** - Parent-child organization structures
-- **Team Management** - Create and manage teams within organizations
-- **Shared Workspaces** - Collaborative spaces with templates
-- **Custom Roles** - Fine-grained permissions with inheritance
-- **Cross-workspace Search** - Search across all accessible workspaces
-- **Workspace Analytics** - Track workspace activity and engagement
+| SaaS Tool | Milonexa Equivalent |
+|-----------|-------------------|
+| Facebook / X | Social Feed, Groups, Bookmarks |
+| Slack / Discord | Real-time Chat, Channels, Voice/Video |
+| YouTube | Video platform, Radio, Live TV (60k+ channels) |
+| Telegram | Instant messaging, notifications |
+| Notion | Documents, Wikis, Project Boards |
+| Google Drive | File storage, Media gallery |
 
-### 🔄 Workflow Automation
-- **Custom Workflows** - Build trigger-action workflows
-- **Scheduled Tasks** - Automate recurring operations
-- **ETL Pipelines** - Extract, transform, and load data
-- **Zapier/Make Integration** - Connect with 1000+ apps
+---
 
-### 🔗 Enterprise Integrations
-- **Salesforce** - CRM integration for leads and opportunities
-- **Microsoft Teams** - Send messages and create meetings
-- **Jira** - Project management and issue tracking
-- **ServiceNow** - IT service management integration
+## Core Features
 
-### 🚀 Phase 8 & 9: Professional Backend Modernization
-- **Modular Microservices** - Refactored monolithic servers into high-performance layered architectures (Models/Controllers/Routes).
-- **Distributed Caching** - Redis-backed cache layer for Profiles and Feeds with smart invalidation.
-- **Advanced Observability** - Prometheus metrics and enhanced Readiness/Liveness health probes across all services.
-- **Database Optimization** - Strategic indexing and query optimization for high-traffic entities.
-- **Standardized Infrastructure** - Unified error handling, response wrapping, and structured logging.
-- **Archival System** - Automated archiving of legacy code for safe, rapid restoration.
+- **📱 Social Feed** — Posts, threads, reactions, comments, quote posts
+- **👥 Groups** — Public, private, and secret groups with admin controls
+- **💬 Real-time Chat** — DMs, channels, voice/video calls via WebRTC
+- **📺 Streaming** — 60,000+ live TV channels, internet radio, live streaming rooms
+- **📄 Collaboration** — Documents, wikis, Kanban boards, folder management
+- **🛒 Shop** — E-commerce with cart, orders, and product reviews
+- **🔖 Bookmarks** — Save and organize content
+- **🤖 AI** — Content moderation, smart suggestions (Gemini API)
+- **🔒 Security** — JWT auth, OAuth (Google/GitHub), RBAC, rate limiting
+- **🌙 Dark Mode** — Full system-wide dark mode with persistent preference
+- **♿ Accessibility** — WCAG-compliant with screen reader support
 
-### 🔒 Enhanced Security & Compliance
-- **IP Whitelisting** - Restrict access by IP address
-- **Audit Logging** - Comprehensive audit trail for compliance
-- **GDPR Compliance** - Data retention policies and right to be forgotten
-- **Security Headers** - CSP, HSTS, X-Frame-Options, and more
-- **Rate Limiting** - configurable via `RATE_LIMITING_ENABLED` environment variable (defaults to enabled); can be turned off for development or testing
+---
 
-## ✨ What's New in v1.1
+## Quick Start
 
-### 🎨 Modern UI/UX
-- **Dark Mode** - System-wide dark mode with persistent preference
-- **Infinite Scroll** - Smooth feed loading with lazy loading
-- **Responsive Design** - Mobile-friendly drawer navigation
-- **Toast Notifications** - Real-time feedback with elegant toasts
-- **Loading Skeletons** - Better loading states
-- **Professional Design** - Modern card layouts with hover effects
-
-### 🚀 New Features
-- **Groups** - Facebook-style groups with privacy settings (public, private, secret)
-- **Bookmarks** - Save posts, videos, and content for later (Twitter/X-style)
-- **Threads & Reposts UI** - Full Twitter/X-style thread and quote flow (reposts replace retweets)
-- **Awards UI** - Reddit-style awards on posts (currently only available for posts inside groups or communities)
-- **Channel Feed & Playlists UI** - YouTube-style channel browsing and playlists
-- **Server Discovery UI** - Discord-style public server discovery
-- **Project Board & Milestones UI** - GitHub-style boards with card movement
-- **In-app Notifications** - Notification center with unread badges
-- **Enhanced Feed** - Post interactions, visibility controls, media support
-- **Gradient Hero** - Beautiful landing page with feature highlights
-
-### 🛠️ Technical Upgrades
-- **React 18.3** - Latest React with concurrent features
-- **Zustand** - Lightweight state management
-- **React Query** - Efficient data fetching and caching
-- **React Intersection Observer** - Infinite scroll implementation
-- **Date-fns** - Modern date formatting
-- **Enhanced Theming** - Custom Material-UI theme with better colors
-
-## 🚀 Features
-
-### Public Access (No Signup Required)
-- 📺 **Video Platform** - Watch public videos like YouTube with channels
-- 📖 **Documentation** - Read public docs and wiki pages
-- 🛒 **Shop** - Browse products and marketplace with reviews
-
-### Private Access (Authentication Required)
-- 📱 **Social Feed** - Posts, images, hashtags, reactions, threads, reposts, awards
-- 👥 **Groups** - Create and join groups with privacy controls (NEW)
-- 🔖 **Bookmarks** - Save and organize content (NEW)
-- 💬 **Real-time Chat** - Instant messaging with Discord-style servers, roles, and discovery
-- 📞 **Voice/Video** - Calls and conferences (WebRTC ready)
-- 📝 **Collaboration** - Documents, wikis, issues, projects, milestones, boards
-- 📁 **File Sharing** - Upload and share files with S3-compatible storage
-- 🛍️ **E-commerce** - Shopping cart, reviews, wishlist, and order tracking
-- 🤖 **AI Assistant** - Smart features powered by Gemini 2.5 Flash
-- 🎯 **Communities** - Reddit-style communities with voting
-- 💡 **Skills** - LinkedIn-style skills and endorsements
-- 📊 **Projects** - GitHub-style project management
-- 🔔 **Notifications** - In-app notification center (NEW)
-- 📻 **Live Radio (IPFM)** - Stream radio stations from around the world (NEW)
-- 📺 **Live TV (IPTV)** - Watch live TV channels globally (NEW)
-
-## 🏗️ Architecture
-
-Built with **modular microservices** for scalability and maintainability:
-
-- **API Gateway** - Request routing, authentication, rate limiting
-- **User Service** - Authentication and profile management
-- **Content Service** - Posts, feeds, videos, groups, and bookmarks
-- **Messaging Service** - Real-time chat with Socket.IO
-- **Collaboration Service** - Docs, wiki, and task management
-- **Media Service** - File storage with MinIO (S3-compatible)
-- **Shop Service** - E-commerce and order management
-- **AI Service** - Gemini integration for smart features
-- **Streaming Service** - Live radio (IPFM) and TV (IPTV) streaming
-
-## 🛠️ Technology Stack
-
-### Backend
-- **Runtime**: Node.js 18, Express.js
-- **Database**: PostgreSQL 15
-- **Cache**: Redis 7
-- **Storage**: MinIO (S3-compatible)
-- **Real-time**: Socket.IO
-- **Security**: JWT auth, bcrypt, Helmet.js, rate limiting
-
-### Frontend
-- **Framework**: React 18.3 (latest)
-- **UI Library**: Material-UI v5
-- **State Management**: Zustand
-- **Data Fetching**: React Query (@tanstack/react-query)
-- **Routing**: React Router v6
-- **Notifications**: react-hot-toast
-- **Date Formatting**: date-fns
-- **Infinite Scroll**: react-intersection-observer
-- **HTTP Client**: Axios
-
-### Infrastructure
-- **Containers**: Docker, Docker Compose
-- **Reverse Proxy**: Nginx
-- **Deployment**: Self-hosted, production-ready
-
-## 📦 Quick Start
-
-### Prerequisites
-- Docker and Docker Compose installed
-- Git
-
-### Installation
-
-1. **Clone the repository**
 ```bash
-git clone https://github.com/mufthakherul/Milonexa.git
+# 1. Clone and configure
+git clone https://github.com/mufthakherul/Let-s-connect.git
 cd Let-s-connect
-```
-
-2. **Configure environment**
-```bash
 cp .env.example .env
-# Edit .env with your configuration
+# Edit .env — set JWT_SECRET, POSTGRES_PASSWORD, etc.
+
+# 2. Start infrastructure
+docker compose up postgres redis -d
+
+# 3. Start frontend
+cd frontend
+npm install --legacy-peer-deps
+PORT=3000 REACT_APP_API_URL=http://localhost:8000 npm start
 ```
 
-3. **Start all services**
+For the full guide, see [QUICK_START.md](QUICK_START.md).
+
+---
+
+## Architecture
+
+Milonexa uses a **modular microservices architecture** — 9 independent services behind a single API gateway:
+
+```
+Frontend (React :3000)
+        │
+  API Gateway (:8000)  ← Auth, Rate Limiting, Routing
+        │
+  ┌─────┼─────────────────────────────────────┐
+  │     │           │         │         │     │
+User  Content  Messaging  Collab   Media  Shop  Streaming
+:8001  :8002    :8003     :8004   :8005  :8006   :8008
+  │
+AI Service (:8007)  ·  Security Service (:9102)
+  │
+PostgreSQL · Redis · MinIO
+```
+
+See [docs/development/ARCHITECTURE.md](docs/development/ARCHITECTURE.md) for full architecture docs and [docs/development/WORKFLOW.md](docs/development/WORKFLOW.md) for request lifecycle diagrams.
+
+---
+
+## Documentation
+
+| Category | Index | Description |
+|----------|-------|-------------|
+| 👤 **User Docs** | [docs/user/](docs/user/README.md) | Features, streaming, TV guides |
+| 🛡️ **Admin Docs** | [docs/admin/](docs/admin/README.md) | Admin panel, help center setup |
+| 🚀 **Deployment** | [docs/deployment/](docs/deployment/README.md) | Docker, Kubernetes, Render, OAuth |
+| 🛠️ **Development** | [docs/development/](docs/development/README.md) | API, architecture, changelog |
+
+### Key References
+
+- [QUICK_START.md](QUICK_START.md) — Get running in 5 minutes
+- [ROADMAP.md](ROADMAP.md) — Future development plans
+- [TESTING.md](TESTING.md) — Testing guide
+- [SECURITY_NOTES.md](SECURITY_NOTES.md) — Security practices
+- [docs/development/API.md](docs/development/API.md) — Full API reference
+- [docs/development/CHANGELOG.md](docs/development/CHANGELOG.md) — Version history
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, Material-UI v5, Zustand, React Query |
+| Backend | Node.js 18+, Express (microservices) |
+| Database | PostgreSQL 15, Sequelize ORM |
+| Cache | Redis 7 |
+| Storage | MinIO (S3-compatible) |
+| Real-time | Socket.IO |
+| AI | Google Gemini API |
+| Auth | JWT + OAuth 2.0 (Google, GitHub) |
+| Infrastructure | Docker Compose, Kubernetes |
+| Monitoring | Prometheus, Grafana |
+
+---
+
+## Deployment
+
+### Development
 ```bash
-docker-compose up --build
+docker compose up postgres redis -d
+cd frontend && npm install --legacy-peer-deps && npm start
 ```
 
-4. **Access the platform**
-- Frontend (user): http://localhost:3000
-- Admin frontend: http://localhost:3001  (separate dev server)
-- API Gateway: http://localhost:8000
-- Security service (admin API): http://localhost:9102
-- MinIO Console: http://localhost:9001 (admin/admin)
-
-### Cross-platform script runner (Windows/Linux/macOS/Termux)
-
-Shebang headers (`#!/...`) are read by the OS before a script starts, so they cannot be changed dynamically at runtime.
-
-Use the portable launcher below to auto-detect the current environment and run scripts consistently:
-
+### Production (Docker Compose)
 ```bash
-node scripts/run-portable.js test-performance
-node scripts/run-portable.js monitor-cache
-node scripts/run-portable.js init-databases
+docker compose up --build -d
 ```
 
-Notes:
-- On Windows, this launcher uses `bash` (Git Bash or WSL bash in PATH).
-- On Linux/macOS/Termux, it runs scripts directly with `bash`.
-- If Windows does not have bash, it automatically falls back to native PowerShell for:
-	- `test-performance`
-	- `monitor-cache`
-- `init-databases` remains shell-only (it is intended for container init context).
-
-## 🔒 Security
-
-- **JWT Authentication** with secure token-based auth
-- **Role-Based Access Control** (user, moderator, admin)
-- **Rate Limiting** to prevent API abuse
-- **Password Hashing** using bcrypt
-- **Content Moderation** with AI
-- **HTTPS Ready** for production deployment
-
-## 📚 Documentation
-
-### Getting Started
-- **[Quick Start Guide](./QUICK_START.md)** - Get running in 5 minutes
-- **[Features Overview](./FEATURES.md)** - Complete feature checklist
-- **[Development Roadmap](./ROADMAP.md)** - Future plans and progress
-
-### Deployment
-- **[📖 Comprehensive Deployment Guide](./DEPLOYMENT_GUIDE.md)** - **Complete step-by-step guide for Docker Compose & Kubernetes**
-- **[Deployment Quick Reference](./docs/DEPLOYMENT.md)** - Quick deployment reference
-- **[Kubernetes Setup](./k8s/README.md)** - Kubernetes manifests and configuration
-- **[Render Deployment](./docs/RENDER_DEPLOYMENT.md)** - Deploy to Render.com
-
-### Technical Documentation
-- **[Full Documentation Index](./docs/README.md)** - Complete documentation index
-- **[Architecture Guide](./docs/ARCHITECTURE.md)** - System design and microservices
-- **[API Reference](./docs/API.md)** - Complete REST API documentation
-- **[Streaming Features](./docs/STREAMING_FEATURES.md)** - Live Radio & TV documentation
-
-### Configuration & Setup
-- **[OAuth & Email Setup](./docs/OAUTH_MAILGUN_SETUP.md)** - Configure OAuth and Mailgun
-
-### Development Resources
-- **[Testing Guide](./TESTING.md)** - Testing strategies and guidelines
-- **[Security Notes](./SECURITY_NOTES.md)** - Security best practices
-- **[Changelog](./CHANGELOG.md)** - Version history
-
-## 🚀 Deployment
-
-The platform is designed for **self-hosted deployment** with Docker Compose for development and Kubernetes for production:
-
-### Development (Docker Compose)
+### With Admin Panel
 ```bash
-# Start all services
-docker-compose up --build
-
-# Access at http://localhost:3000
+# Admin frontend is opt-in (Docker profile)
+docker compose --profile admin up --build -d
 ```
 
-### Production (Kubernetes)
-```bash
-# Deploy to Kubernetes cluster
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/secrets.yaml
-kubectl apply -f k8s/
+### Kubernetes
+See [k8s/README.md](k8s/README.md) for Kubernetes manifests.
+
+Full deployment guide: [docs/deployment/DEPLOYMENT_GUIDE.md](docs/deployment/DEPLOYMENT_GUIDE.md)
+
+---
+
+## 🗄️ Archives
+
+Deprecated code and superseded documentation are preserved in `Archives/`:
+
+```
+Archives/
+├── Archive_codes/    # Deprecated/removed source code
+└── Archive_docs/     # Historical reports and documentation
 ```
 
-### 📖 Complete Deployment Guide
+See [Archives/README.md](Archives/README.md) for the full index.
 
-For detailed step-by-step instructions covering:
-- ✅ Docker Compose setup and configuration
-- ✅ Kubernetes cluster deployment
-- ✅ Database and infrastructure setup
-- ✅ SSL/TLS certificate configuration
-- ✅ Monitoring and scaling
-- ✅ Production best practices
-- ✅ Troubleshooting
+---
 
-**See: [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)**
+## Contributing
 
-## 🤝 Contributing
+Contributions are welcome. Please read [TESTING.md](TESTING.md) and [SECURITY_NOTES.md](SECURITY_NOTES.md) before submitting a pull request.
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## License
 
-## 📝 License
+MIT License. See [LICENSE](LICENSE) for details.
 
-This project is licensed under the MIT License.
+---
 
-## 🙏 Acknowledgments
-
-Inspired by the best features from:
-- Facebook (Social Feed, Reactions, Pages)
-- X/Twitter (Microblogging, Hashtags, Trending)
-- YouTube (Video Platform, Channels, Subscriptions)
-- WhatsApp/Telegram (Messaging, Groups)
-- Discord (Servers, Roles, Channels)
-- Notion (Collaboration, Docs, Wiki)
-- Reddit (Communities, Voting, Karma)
-- LinkedIn (Skills, Endorsements, Professional Network)
-- GitHub (Issues, Projects, Task Management)
-- Amazon/AliExpress (E-commerce, Reviews, Cart)
-
-## 📧 Support
-
-For issues and questions, please use the [GitHub Issues](https://github.com/mufthakherul/Milonexa/issues) page.
+*Milonexa — Own your collaboration.*
