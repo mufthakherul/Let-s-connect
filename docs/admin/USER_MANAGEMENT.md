@@ -1,6 +1,6 @@
 # User Management Guide for Administrators
 
-> **Detailed guide for managing users, roles, and access control on the Let's Connect platform**
+> **Detailed guide for managing users, roles, and access control on the Milonexa platform**
 
 ## Table of Contents
 
@@ -99,7 +99,7 @@ User (Default)
 **Admin Customization:**
 ```javascript
 // Configure in user-service
-WELCOME_MESSAGE="Welcome to Let's Connect!"
+WELCOME_MESSAGE="Welcome to Milonexa!"
 ONBOARDING_ENABLED=true
 REQUIRE_EMAIL_VERIFICATION=true
 ```

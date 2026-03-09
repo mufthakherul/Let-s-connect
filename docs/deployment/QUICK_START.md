@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get Let's Connect running in 5 minutes!
+Get Milonexa running in 5 minutes!
 
 ## Prerequisites
 
@@ -262,4 +262,4 @@ Frontend will open at http://localhost:3000 for users, and admin panel at http:/
 ✅ Docker deployment
 ✅ Self-hosted solution
 
-Enjoy building with Let's Connect! 🚀
+Enjoy building with Milonexa! 🚀

@@ -1,6 +1,6 @@
 # Archives
 
-This directory contains all deprecated, removed, or superseded code and documentation for the **Let's Connect** platform. Files here are preserved for reference only and should not be imported into the active codebase.
+This directory contains all deprecated, removed, or superseded code and documentation for the **Milonexa** platform. Files here are preserved for reference only and should not be imported into the active codebase.
 
 ## Directory Structure
 

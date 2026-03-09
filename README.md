@@ -1,4 +1,4 @@
-# Let's Connect
+# Milonexa
 
 <!-- markdownlint-disable MD022 MD032 MD047 MD060 -->
 
@@ -15,7 +15,7 @@ This repository contains:
 
 ## Platform Overview
 
-Let's Connect combines social, communication, collaboration, commerce, media, and AI capabilities in one platform:
+Milonexa combines social, communication, collaboration, commerce, media, and AI capabilities in one platform:
 
 - Social feed, profiles, friends, groups, pages, bookmarks
 - Real-time messaging and notifications

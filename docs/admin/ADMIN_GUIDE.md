@@ -1,6 +1,6 @@
 # Complete Administrator Guide
 
-> **Comprehensive guide for platform administrators to monitor, manage, and control the Let's Connect platform**
+> **Comprehensive guide for platform administrators to monitor, manage, and control the Milonexa platform**
 
 ## 📋 Table of Contents
 

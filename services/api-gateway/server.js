@@ -17,8 +17,20 @@ const { globalErrorHandler, AppError, catchAsync } = require('../shared/errorHan
 const { v4: uuidv4 } = require('uuid');
 const { HealthChecker } = require('../shared/monitoring');
 const { getRequiredEnv } = require('../shared/security-utils');
+const { assertEnvValid } = require('../shared/env-validator');
 const compression = require('compression');
 require('dotenv').config({ quiet: true });
+
+// Validate environment at startup
+try {
+  assertEnvValid({
+    strict: process.env.NODE_ENV === 'production',
+    additionalSecrets: ['ADMIN_API_SECRET']
+  });
+} catch (err) {
+  console.error(err.message);
+  process.exit(1);
+}
 
 const app = express();
 const healthChecker = new HealthChecker('api-gateway');

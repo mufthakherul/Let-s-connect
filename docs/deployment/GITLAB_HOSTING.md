@@ -1,6 +1,6 @@
-# GitLab Hosting Guide for Let's Connect
+# GitLab Hosting Guide for Milonexa
 
-This guide will help you deploy Let's Connect on GitLab infrastructure in 1-3 hours.
+This guide will help you deploy Milonexa on GitLab infrastructure in 1-3 hours.
 
 ## Table of Contents
 

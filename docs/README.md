@@ -1,6 +1,6 @@
 # Documentation
 
-Welcome to the Let's Connect platform documentation. Documentation is organized into topic-focused directories.
+Welcome to the Milonexa platform documentation. Documentation is organized into topic-focused directories.
 
 ## 📂 Directory Structure
 
