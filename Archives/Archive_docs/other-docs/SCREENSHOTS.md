@@ -36,7 +36,7 @@ The landing page showcases the platform's features and provides quick access to 
 - Technology stack information
 - Call-to-action buttons
 
-![Home Page](screenshots/01-home-page.png)
+![Home Page](../../../screenshots/01-home-page.png)
 
 ---
 
@@ -51,7 +51,7 @@ Simple and clean login interface for existing users.
 - Password
 - Login button
 
-![Login Page](screenshots/02-login-page.png)
+![Login Page](../../../screenshots/02-login-page.png)
 
 ---
 
@@ -69,7 +69,7 @@ User registration form to create a new account.
 - Last Name (optional)
 - Register button
 
-![Register Page](screenshots/03-register-page.png)
+![Register Page](../../../screenshots/03-register-page.png)
 
 ---
 
@@ -86,7 +86,7 @@ YouTube-style video platform with channels and playlists.
 - Tabs: Explore, Channels, Playlists
 - Share functionality
 
-![Videos Page](screenshots/04-videos-page.png)
+![Videos Page](../../../screenshots/04-videos-page.png)
 
 ---
 
@@ -102,7 +102,7 @@ E-commerce platform for browsing products.
 - Product reviews
 - Categories and search
 
-![Shop Page](screenshots/05-shop-page.png)
+![Shop Page](../../../screenshots/05-shop-page.png)
 
 ---
 
@@ -118,7 +118,7 @@ Documentation and wiki platform for knowledge sharing.
 - Projects tab
 - Notion-style collaboration tools
 
-![Docs Page](screenshots/06-docs-page.png)
+![Docs Page](../../../screenshots/06-docs-page.png)
 
 ---
 
@@ -138,7 +138,7 @@ Social media feed with Facebook/Twitter-style posting and interaction.
 - Posts feed with reactions and comments
 - Real-time updates
 
-![Feed Page](screenshots/07-feed-page.png)
+![Feed Page](../../../screenshots/07-feed-page.png)
 
 ---
 
@@ -159,7 +159,7 @@ Facebook-style groups with privacy controls.
 - Member count display
 - Group descriptions and metadata
 
-![Groups Page](screenshots/08-groups-page.png)
+![Groups Page](../../../screenshots/08-groups-page.png)
 
 ---
 
@@ -176,7 +176,7 @@ Twitter/X-style bookmarks for saving content.
 - See when content was saved
 - Empty state with helpful message
 
-![Bookmarks Page](screenshots/09-bookmarks-page.png)
+![Bookmarks Page](../../../screenshots/09-bookmarks-page.png)
 
 ---
 
@@ -194,7 +194,7 @@ Real-time messaging platform with Discord/WhatsApp features.
 - Message input with emoji support
 - Server browsing and joining
 
-![Chat Page](screenshots/10-chat-page.png)
+![Chat Page](../../../screenshots/10-chat-page.png)
 
 ---
 
@@ -215,7 +215,7 @@ User profile management.
 - Update profile button
 - LinkedIn-style professional information
 
-![Profile Page](screenshots/11-profile-page.png)
+![Profile Page](../../../screenshots/11-profile-page.png)
 
 ---
 
@@ -231,7 +231,7 @@ The platform features a complete dark mode theme that can be toggled using the s
 - Improved readability in low-light conditions
 - Material-UI theme integration
 
-![Home Page - Dark Mode](screenshots/12-home-dark-mode.png)
+![Home Page - Dark Mode](../../../screenshots/12-home-dark-mode.png)
 
 ---
 
@@ -271,17 +271,17 @@ The platform features a complete dark mode theme that can be toggled using the s
 3. Start services: `docker-compose up --build`
 4. Access the application: `http://localhost:3000`
 
-For detailed instructions, see [QUICK_START.md](QUICK_START.md)
+For detailed instructions, see [QUICK_START.md](../../../QUICK_START.md)
 
 ---
 
 ## Additional Resources
 
-- [README.md](README.md) - Main documentation
-- [QUICK_START.md](QUICK_START.md) - Quick setup guide
-- [FEATURES.md](FEATURES.md) - Detailed feature list
+- [README.md](../../../README.md) - Main documentation
+- [QUICK_START.md](../../../QUICK_START.md) - Quick setup guide
+- [FEATURES.md](../../../docs/FEATURES.md) - Detailed feature list
 - [VISUAL_GUIDE.md](VISUAL_GUIDE.md) - Visual feature guide
-- [API Documentation](docs/API.md) - API reference
+- [API Documentation](../../../docs/API.md) - API reference
 
 ---
 

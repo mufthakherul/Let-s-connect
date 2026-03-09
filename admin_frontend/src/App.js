@@ -4,21 +4,15 @@ import {
   AppBar, Toolbar, Typography, Button, Container, Box, IconButton,
   CssBaseline, ThemeProvider, createTheme, Drawer, List,
   ListItem, ListItemButton, ListItemIcon, ListItemText, useMediaQuery, Divider, Avatar,
-  CircularProgress, Collapse, Menu, MenuItem, Tooltip, ListItemAvatar, Badge,
+  CircularProgress, Menu, MenuItem, Tooltip, Badge,
   Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import { grey } from '@mui/material/colors';
 import {
-  Brightness4, Brightness7, Menu as MenuIcon, Home as HomeIcon,
-  VideoLibrary, ShoppingCart, Description, Chat as ChatIcon,
-  Person, ExitToApp, Login as LoginIcon,
-  PersonAdd, Feed as FeedIcon, Group as GroupIcon, Bookmark,
-  ShoppingCartOutlined, Article, Pages as PagesIcon, Work as WorkIcon,
-  Dashboard as DashboardIcon, Search as SearchIcon, Folder as FolderIcon,
-  Phone as PhoneIcon, Storage as DatabaseIcon, CompareArrows as DiffIcon,
-  Event as EventIcon,
-  Settings as SettingsIcon, MoreHoriz as MoreHorizIcon, Apps as AppsIcon, PeopleAlt as PeopleIcon, SwapHoriz as SwapHorizIcon, Close as CloseIcon,
-  AccessibilityNew, ExpandLess, ExpandMore, Radio as RadioIcon, Tv as TvIcon, Security, VerifiedUser, Palette as PaletteIcon,
+  Brightness4, Brightness7, Menu as MenuIcon,
+  ExitToApp, Login as LoginIcon,
+  Dashboard as DashboardIcon,
+  Settings as SettingsIcon, Close as CloseIcon,
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -33,19 +27,14 @@ import Error503 from './components/errors/Error503';
 import Error429 from './components/errors/Error429';
 import Error401 from './components/errors/Error401';
 import Error403 from './components/errors/Error403';
-import Breadcrumbs from './components/common/Breadcrumbs';
-import QuickAccessMenu from './components/common/QuickAccessMenu';
-import Onboarding from './components/common/Onboarding';
 import BackgroundAnimation from './components/common/BackgroundAnimation';
 import { GlobalStyles } from '@mui/material';
 import { designTokens, getGlassyStyle } from './theme/designSystem';
 
-// Eager load critical components (needed for initial render)
-import Home from './components/Home';
+// Eager load critical components
 import Login from './components/Login';
-// registration is disabled for admin frontend
 
-// Lazy load non-critical components (Phase 4: Performance Optimization)
+// Lazy load admin panel
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 
 const queryClient = new QueryClient({
@@ -100,7 +89,6 @@ function AppContent() {
   React.useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [location.pathname]);
-  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   // Registered navbar specific state
@@ -308,39 +296,7 @@ function AppContent() {
   };
 
   const navigationItems = [
-    { label: 'Home', path: '/', icon: <HomeIcon />, public: true },
-    { label: 'Search', path: '/search', icon: <SearchIcon />, public: true },
-    { label: 'Community Hubs', path: '/hubs', icon: <AppsIcon />, public: true },
-    { label: 'Videos', path: '/videos', icon: <VideoLibrary />, public: true },
-    { label: 'Shop', path: '/shop', icon: <ShoppingCart />, public: true },
-    { label: 'Blog', path: '/blog', icon: <Article />, public: true },
-    { label: 'Docs', path: '/docs', icon: <Description />, public: true },
-    { label: 'Privacy', path: '/privacy', icon: <Security />, public: true },
-    { label: 'Terms', path: '/terms', icon: <Article />, public: true },
-    { label: 'Cookies', path: '/cookies', icon: <VerifiedUser sx={{ fontSize: 20 }} />, public: true },
-    { label: 'Meetings', path: '/meetings', icon: <EventIcon />, public: true },
-    { label: 'Feed', path: '/feed', icon: <FeedIcon />, public: false },
-    { label: 'Friends', path: '/friends', icon: <PeopleIcon />, public: false },
-    { label: 'Groups', path: '/groups', icon: <GroupIcon />, public: false },
-    { label: 'Pages', path: '/pages', icon: <PagesIcon />, public: false },
-    { label: 'Radio', path: '/radio', icon: <RadioIcon />, public: false },
-    { label: 'TV', path: '/tv', icon: <TvIcon />, public: false },
-    { label: 'Cart', path: '/cart', icon: <ShoppingCartOutlined />, public: false },
-    { label: 'Bookmarks', path: '/bookmarks', icon: <Bookmark />, public: false },
-    { label: 'Chat', path: '/chat', icon: <ChatIcon />, public: false },
-    { label: 'Profile', path: '/profile', icon: <Person />, public: false },
-    { label: 'Email Settings', path: '/notifications/email', icon: <Article />, public: false },
-    {
-      label: 'Settings',
-      icon: <SettingsIcon />,
-      public: true,
-      submenu: [
-        { label: 'Theme', path: '/settings/theme', icon: <SettingsIcon />, public: true },
-        { label: 'Accessibility', path: '/settings/accessibility', icon: <AccessibilityNew /> },
-        { label: 'Appearance', path: '/settings/appearance', icon: <PaletteIcon />, public: false },
-      ]
-    },
-    { label: 'Admin', path: '/admin', icon: <DashboardIcon />, public: false, adminOnly: true },
+    { label: 'Admin Dashboard', path: '/admin', icon: <DashboardIcon />, public: false, adminOnly: true },
   ];
 
   const drawer = (
@@ -363,46 +319,6 @@ function AppContent() {
         {navigationItems.map((item) => {
           if (!item.public && !internalUser) return null;
           if (item.adminOnly && (!internalUser || (internalUser.role !== 'admin' && internalUser.role !== 'moderator'))) return null;
-
-          if (item.submenu) {
-            return (
-              <React.Fragment key={item.label}>
-                <ListItem disablePadding>
-                  <ListItemButton
-                    onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
-                    sx={{
-                      '&:hover': { backgroundColor: 'action.hover' },
-                      backgroundColor: settingsMenuOpen ? 'action.selected' : 'transparent'
-                    }}
-                  >
-                    <ListItemIcon>{item.icon}</ListItemIcon>
-                    <ListItemText primary={item.label} />
-                    {settingsMenuOpen ? <ExpandLess /> : <ExpandMore />}
-                  </ListItemButton>
-                </ListItem>
-                <Collapse in={settingsMenuOpen} timeout="auto" unmountOnExit>
-                  <List component="div" disablePadding>
-                    {item.submenu
-                      .filter(subItem => subItem.public || internalUser)
-                      .map((subItem) => (
-                        <ListItem disablePadding key={subItem.path} sx={{ pl: 4 }}>
-                          <ListItemButton
-                            component={Link}
-                            to={subItem.path}
-                            onClick={() => setDrawerOpen(false)}
-                          >
-                            <ListItemIcon sx={{ minWidth: 40 }}>
-                              {subItem.icon}
-                            </ListItemIcon>
-                            <ListItemText primary={subItem.label} />
-                          </ListItemButton>
-                        </ListItem>
-                      ))}
-                  </List>
-                </Collapse>
-              </React.Fragment>
-            );
-          }
 
           return (
             <ListItem disablePadding key={item.path}>
@@ -1054,7 +970,6 @@ function AppContent() {
         </Drawer>
 
         <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-          <Breadcrumbs />
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -1082,8 +997,6 @@ function AppContent() {
             </motion.div>
           </AnimatePresence>
         </Container>
-        <QuickAccessMenu />
-        <Onboarding />
       </ErrorBoundary>
     </ThemeProvider>
   );

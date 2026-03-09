@@ -180,3 +180,190 @@ The platform is now production-ready with comprehensive features across all doma
 ---
 
 **Next Step:** Start Phase 9 discovery with UX prototypes for Debate, Round Table, and Virtual Court modes.
+
+---
+
+---
+
+# Future Roadmap — Next Improvements (2026+)
+
+## Phase 13: Mobile & PWA (v7.0)
+**Priority: High**
+
+### 13.1 Progressive Web App
+- [ ] Full offline support with service workers
+- [ ] Push notifications (Web Push API)
+- [ ] App install banner with PWA manifest optimization
+- [ ] Background sync for offline posts/messages
+
+### 13.2 Mobile-First Refinements
+- [ ] Bottom navigation bar for mobile (touch-optimized)
+- [ ] Swipe gestures for feed navigation
+- [ ] Camera access for in-app media capture
+- [ ] Haptic feedback for interactions
+
+### 13.3 React Native / Expo
+- [ ] iOS app (React Native + Expo)
+- [ ] Android app (React Native + Expo)
+- [ ] Shared API layer between web and mobile
+
+---
+
+## Phase 14: Notifications & Real-Time (v7.5)
+**Priority: High**
+
+### 14.1 Push Notifications
+- [ ] Browser push notifications (non-intrusive)
+- [ ] Email digest notifications (daily/weekly summary)
+- [ ] In-app notification center with grouped updates
+- [ ] Notification preferences per category
+
+### 14.2 Real-Time Enhancements
+- [ ] Typing indicators in group chats
+- [ ] Message delivery receipts (sent/delivered/read)
+- [ ] Online presence indicators with custom status
+- [ ] Live reaction overlays in streams
+
+### 14.3 Event-Driven Architecture
+- [ ] Message broker (Redis Streams or Kafka) for cross-service events
+- [ ] Webhook support for external integrations
+- [ ] Event replay for missed notifications
+
+---
+
+## Phase 15: Search & Discovery (v8.0)
+**Priority: High**
+
+### 15.1 Full-Text Search
+- [ ] Elasticsearch integration for posts, wikis, documents
+- [ ] Faceted search (filter by type, date, author)
+- [ ] Search result highlighting and snippets
+- [ ] Saved search queries
+
+### 15.2 Discovery
+- [ ] Trending topics and hashtags
+- [ ] People you may know / follow recommendations
+- [ ] Group discovery by interest
+- [ ] Content recommendations (collaborative filtering)
+
+### 15.3 AI-Powered Search
+- [ ] Semantic search using embeddings
+- [ ] Natural language query support
+- [ ] Summarized search results via AI
+- [ ] Smart content deduplication
+
+---
+
+## Phase 16: Monetization & Creator Economy (v8.5)
+**Priority: Medium**
+
+### 16.1 Creator Tools
+- [ ] Subscription-based content (paid posts/channels)
+- [ ] Tipping system for creators
+- [ ] Creator analytics dashboard (views, earnings, growth)
+- [ ] Sponsored post management
+
+### 16.2 E-commerce Expansion
+- [ ] Stripe / PayPal payment integration
+- [ ] Digital product downloads
+- [ ] Subscription plans for premium features
+- [ ] Discount codes and promotions
+
+### 16.3 Marketplace
+- [ ] Service marketplace (skills, gigs)
+- [ ] Event ticketing
+- [ ] Fundraising and donation pages
+
+---
+
+## Phase 17: Enterprise & Team Features (v9.0)
+**Priority: Medium**
+
+### 17.1 Organizations & Teams
+- [ ] Organization hierarchies (parent/child)
+- [ ] Team-level workspaces with isolated data
+- [ ] SSO (SAML 2.0 / LDAP) for enterprise login
+- [ ] Custom domain support (white-labeling)
+
+### 17.2 Compliance & Governance
+- [ ] GDPR data export and right-to-erasure
+- [ ] Audit logs for admin actions
+- [ ] Data retention policies (auto-archive old content)
+- [ ] Content moderation workflows (AI-assisted review queues)
+
+### 17.3 Integrations
+- [ ] Zapier/Make webhook triggers
+- [ ] Slack import (migrate Slack workspace data)
+- [ ] Calendar integrations (Google Calendar, Outlook)
+- [ ] GitHub/GitLab integration for developer teams
+
+---
+
+## Phase 18: AI & Intelligence (v9.5)
+**Priority: Medium**
+
+### 18.1 Content Intelligence
+- [ ] Auto-tagging of posts and documents
+- [ ] Sentiment analysis on discussions
+- [ ] Automatic meeting summaries from transcripts
+- [ ] Spam and harmful content detection (real-time)
+
+### 18.2 Personalization
+- [ ] Personalized feed algorithm (ML-based ranking)
+- [ ] Smart digest: surface important content from while you were away
+- [ ] AI writing assistant for posts and documents
+- [ ] Automatic language translation for international teams
+
+### 18.3 AI Infrastructure
+- [ ] Vector database for semantic embeddings (Pinecone/pgvector)
+- [ ] Fine-tuned content moderation model
+- [ ] Real-time AI suggestions in chat (opt-in)
+
+---
+
+## Phase 19: Performance & Scalability (v10.0)
+**Priority: Ongoing**
+
+### 19.1 Backend Performance
+- [ ] Horizontal scaling for user and content services
+- [ ] Read replicas for PostgreSQL (high-traffic queries)
+- [ ] CDN integration for static assets and media
+- [ ] Connection pooling optimization (PgBouncer)
+
+### 19.2 Frontend Performance
+- [ ] Code splitting and route-based lazy loading (review and tighten)
+- [ ] Image optimization pipeline (WebP/AVIF auto-conversion)
+- [ ] Virtual scrolling for large lists (feeds, chats)
+- [ ] Performance monitoring (Core Web Vitals tracking)
+
+### 19.3 Infrastructure
+- [ ] Kubernetes auto-scaling (HPA)
+- [ ] Multi-region deployment
+- [ ] Disaster recovery and automated backups
+- [ ] Blue-green deployments with zero downtime
+
+---
+
+## Technical Debt & Maintenance (Ongoing)
+
+### Code Quality
+- [ ] Increase test coverage to >80% (unit + integration)
+- [ ] End-to-end tests with Playwright for critical flows
+- [ ] ESLint + Prettier enforcement in CI
+- [ ] TypeScript migration for frontend (incremental)
+
+### Security
+- [ ] Automated dependency vulnerability scanning (Dependabot)
+- [ ] Regular penetration testing
+- [ ] Secret rotation procedures documented
+- [ ] OWASP Top 10 compliance review
+
+### Documentation
+- [ ] Interactive API documentation (Swagger UI)
+- [ ] Video walkthrough for setup and deployment
+- [ ] Contribution guide (CONTRIBUTING.md)
+- [ ] Storybook for UI components
+
+---
+
+*Roadmap updated: March 2026*
