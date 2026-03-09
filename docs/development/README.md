@@ -4,17 +4,46 @@ Technical references for contributors and developers building on Let's Connect.
 
 ## Contents
 
+### Getting Started
+
+| Document | Description |
+|----------|-------------|
+| [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) | **Complete developer guide** — architecture, setup, best practices |
+| [QUICK_REFERENCE.md](QUICK_REFERENCE.md) | Quick reference card for common tasks |
+
+### Technical Architecture & API
+
 | Document | Description |
 |----------|-------------|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture and microservices design |
 | [WORKFLOW.md](WORKFLOW.md) | Request lifecycle, data flows, and system diagrams |
 | [API.md](API.md) | Complete REST API reference for all services |
 | [CHANGELOG.md](CHANGELOG.md) | Version history and changes |
-| [QUICK_REFERENCE.md](QUICK_REFERENCE.md) | Quick reference card for common tasks |
 | [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) | Current implementation status |
+
+### Data & Seeding
+
+| Document | Description |
+|----------|-------------|
 | [ELASTICSEARCH_IMPLEMENTATION.md](ELASTICSEARCH_IMPLEMENTATION.md) | Elasticsearch search setup |
 | [DYNAMIC_SEEDING_GUIDE.md](DYNAMIC_SEEDING_GUIDE.md) | Database seeding guide |
 | [DYNAMIC_SEEDING_QUICK_START.md](DYNAMIC_SEEDING_QUICK_START.md) | Quick start for seeding data |
+| [STREAMING_SEEDING_QUICK_START.md](STREAMING_SEEDING_QUICK_START.md) | Seed streaming data quickly |
+| [STREAMING_SEEDING_OPTIMIZATION.md](STREAMING_SEEDING_OPTIMIZATION.md) | Streaming data optimization guide |
+
+### Streaming & TV Features
+
+| Document | Description |
+|----------|-------------|
+| [TV_QUICK_START.md](TV_QUICK_START.md) | Get started with the TV system in 5 minutes |
+| [TV_ADVANCED_FEATURES.md](TV_ADVANCED_FEATURES.md) | Search, health checks, recommendations |
+| [TV_PROFESSIONAL_UPGRADE.md](TV_PROFESSIONAL_UPGRADE.md) | 60,000+ TV channels with enrichment |
+| [TV_API_INTEGRATION.md](TV_API_INTEGRATION.md) | TV API integration reference |
+
+### Testing & Audits
+
+| Document | Description |
+|----------|-------------|
 | [ENGINEERING_AUDIT_REPORT_2026-03-02.md](ENGINEERING_AUDIT_REPORT_2026-03-02.md) | Full code/runtime audit |
 | [FULL_FEATURE_TEST_PLAN_2026-03-02.md](FULL_FEATURE_TEST_PLAN_2026-03-02.md) | Feature test plan |
 

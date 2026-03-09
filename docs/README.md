@@ -21,6 +21,9 @@ For platform administrators managing users, content, and the admin panel.
 | Document | Description |
 |----------|-------------|
 | [admin/README.md](admin/README.md) | Admin documentation index |
+| [admin/ADMIN_GUIDE.md](admin/ADMIN_GUIDE.md) | **Complete admin guide** — dashboard, users, moderation |
+| [admin/USER_MANAGEMENT.md](admin/USER_MANAGEMENT.md) | User & role management guide |
+| [admin/CONTENT_MODERATION.md](admin/CONTENT_MODERATION.md) | Content moderation policies & procedures |
 | [admin/HELPCENTER_SETUP.md](admin/HELPCENTER_SETUP.md) | Help center setup guide |
 
 ---
@@ -32,9 +35,9 @@ For end users and feature documentation.
 | Document | Description |
 |----------|-------------|
 | [user/README.md](user/README.md) | User documentation index |
+| [user/USER_GUIDE.md](user/USER_GUIDE.md) | **Complete user guide** — social, messaging, commerce, media |
 | [user/FEATURES.md](user/FEATURES.md) | Complete feature list |
 | [user/STREAMING_FEATURES.md](user/STREAMING_FEATURES.md) | Radio & TV streaming |
-| [user/TV_QUICK_START.md](user/TV_QUICK_START.md) | TV system quick start |
 
 ---
 
@@ -61,6 +64,7 @@ For contributors and developers building on the platform.
 | Document | Description |
 |----------|-------------|
 | [development/README.md](development/README.md) | Development documentation index |
+| [development/DEVELOPER_GUIDE.md](development/DEVELOPER_GUIDE.md) | **Complete developer guide** — setup, APIs, testing, deployment |
 | [development/ARCHITECTURE.md](development/ARCHITECTURE.md) | System architecture |
 | [development/WORKFLOW.md](development/WORKFLOW.md) | Request lifecycle & data flows |
 | [development/API.md](development/API.md) | REST API reference |

@@ -8,13 +8,7 @@ Feature guides and references for end users of the Let's Connect platform.
 |----------|-------------|
 | [FEATURES.md](FEATURES.md) | Complete feature checklist and capabilities |
 | [STREAMING_FEATURES.md](STREAMING_FEATURES.md) | Live Radio & TV streaming overview |
-| [TV_QUICK_START.md](TV_QUICK_START.md) | Get started with the TV system in 5 minutes |
-| [TV_ADVANCED_FEATURES.md](TV_ADVANCED_FEATURES.md) | Search, health checks, recommendations |
-| [TV_PROFESSIONAL_UPGRADE.md](TV_PROFESSIONAL_UPGRADE.md) | 60,000+ TV channels with enrichment |
-| [TV_API_INTEGRATION.md](TV_API_INTEGRATION.md) | TV API integration reference |
-| [TV_QUICK_REFERENCE.md](TV_QUICK_REFERENCE.md) | TV system quick reference card |
-| [STREAMING_SEEDING_QUICK_START.md](STREAMING_SEEDING_QUICK_START.md) | Seed streaming data quickly |
-| [STREAMING_SEEDING_OPTIMIZATION.md](STREAMING_SEEDING_OPTIMIZATION.md) | Streaming data optimization guide |
+| [USER_GUIDE.md](USER_GUIDE.md) | **Complete user guide** for all platform features |
 
 ## Feature Highlights
 

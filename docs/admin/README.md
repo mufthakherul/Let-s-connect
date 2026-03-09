@@ -6,6 +6,9 @@ Technical guides and references for platform administrators.
 
 | Document | Description |
 |----------|-------------|
+| [ADMIN_GUIDE.md](ADMIN_GUIDE.md) | Complete administrator guide for platform management |
+| [USER_MANAGEMENT.md](USER_MANAGEMENT.md) | Detailed guide for managing users, roles, and permissions |
+| [CONTENT_MODERATION.md](CONTENT_MODERATION.md) | Comprehensive content moderation guide and best practices |
 | [HELPCENTER_SETUP.md](HELPCENTER_SETUP.md) | Help center configuration and management |
 
 ## Admin Frontend
