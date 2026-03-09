@@ -14,16 +14,16 @@ Let's Connect is built on a **modular microservices architecture** designed for 
 │                    API Gateway (Express)                     │
 │    Authentication, Routing, Rate Limiting, Security          │
 │                     http://localhost:8000                    │
-└──┬──────┬────────┬────────┬────────┬────────┬────────┬──────┘
-   │      │        │        │        │        │        │
-   ▼      ▼        ▼        ▼        ▼        ▼        ▼
-┌──────┬────────┬────────┬────────┬────────┬────────┬────────┐
-│ User │Content │Message │Collab  │ Media  │ Shop   │   AI   │
-│      │        │        │        │        │        │        │
-│:8001 │ :8002  │ :8003  │ :8004  │ :8005  │ :8006  │ :8007  │
-└──┬───┴────┬───┴────┬───┴────┬───┴────┬───┴────┬───┴────┬───┘
-   │        │        │        │        │        │        │
-   └────────┴────────┴────────┴────────┴────────┴────────┘
+└──┬──────┬────────┬────────┬────────┬────────┬────────┬──┬───┘
+   │      │        │        │        │        │        │  │
+   ▼      ▼        ▼        ▼        ▼        ▼        ▼  ▼
+┌──────┬────────┬────────┬────────┬────────┬────────┬──────┬────────┐
+│ User │Content │Message │Collab  │ Media  │ Shop   │  AI  │Stream  │
+│      │        │        │        │        │        │      │        │
+│:8001 │ :8002  │ :8003  │ :8004  │ :8005  │ :8006  │:8007 │ :8008  │
+└──┬───┴────┬───┴────┬───┴────┬───┴────┬───┴────┬───┴──┬───┴────┬───┘
+   │        │        │        │        │        │      │        │
+   └────────┴────────┴────────┴────────┴────────┴──────┴────────┘
                             │
             ┌───────────────┼───────────────┐
             ▼               ▼               ▼
@@ -216,6 +216,30 @@ Let's Connect is built on a **modular microservices architecture** designed for 
 - Node.js + Express
 - Gemini API (Google Generative AI)
 - Redis for caching responses
+
+### 9. Streaming Service (Port 8008)
+
+**Responsibilities:**
+- Internet radio station discovery and playback
+- Live TV channel aggregation (60,000+ channels)
+- Live streaming rooms
+- Video on demand (VOD)
+- Streaming history and favorites
+
+**Features:**
+- Batch loading to prevent N+1 queries
+- 15+ database indexes for performance
+- Genre/category caching (5-min TTL)
+- TV channel health checks and recommendations
+- Auto-discovery of new stations/channels
+
+**Technology:**
+- Node.js + Express
+- PostgreSQL + Sequelize
+- Redis caching
+- External streaming APIs (m3u8/HLS)
+
+> ⚠️ **Protected:** Streaming features are preserved as-is and must not be modified without explicit approval.
 
 ## Data Layer
 
