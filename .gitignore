@@ -55,6 +55,7 @@ node_modules/.cache/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+gateway_logs.txt
 
 # OS generated files
 .DS_Store
@@ -211,9 +212,9 @@ Thumbs.db
 *.sqlite3
 
 # Archive and backup directories
+# NOTE: Archives/ (capital A) is the canonical archive directory and IS tracked
 archive_code/
 archives/
-*.bak
 *.backup
 *~
 
