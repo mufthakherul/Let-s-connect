@@ -326,26 +326,41 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
 
 ## Phased Delivery Plan
 
-## Phase 0 — Stabilization (Weeks 1–2)
+## Phase 0 — Stabilization (Weeks 1–2) ✅ **COMPLETED**
 
 **Objective:** reduce immediate platform risk.
 
-### Deliverables
-- Gateway policy cleanup (rate-limit/auth consistency)
-- Environment/secret validation checks
-- Critical security and config hardening updates
-- Initial smoke validation of core routes
+### Deliverables ✅
+- ✅ Gateway policy cleanup (rate-limit/auth consistency)
+- ✅ Environment/secret validation checks (env-validator.js)
+- ✅ Critical security and config hardening updates (K8s secrets, CORS)
+- ✅ Initial smoke validation of core routes (verify-health-checks.sh)
 
-### Exit criteria
-- No contradictory gateway policy states
-- Required secrets enforced and documented
-- Core health endpoints verified
+### Exit criteria ✅
+- ✅ No contradictory gateway policy states
+- ✅ Required secrets enforced and documented
+- ✅ Core health endpoints verified
+
+**Status:** Completed March 9, 2026. All deliverables merged to main.
 
 ---
 
-## Phase 1 — Foundation (Weeks 3–8)
+## Phase 1 — Foundation (Weeks 3–8) 🚧 **IN PROGRESS**
 
 **Objective:** establish quality and architecture baseline.
+
+### Progress update (March 9, 2026)
+- ✅ Backend testing bootstrap delivered for `services/user-service` (Jest + Supertest tooling)
+- ✅ User-service backend test suites passing locally (**4 suites, 25 tests**)
+- ✅ Frontend testing bootstrap validated with React Testing Library
+- ✅ First service-level validation standards introduced in user-service auth routes:
+  - `POST /register`
+  - `POST /login`
+  - `GET /check-username`
+- 🔄 Next Phase 1 focus:
+  - Expand validation patterns to additional services and endpoints
+  - Begin frontend app-shell modularization (`frontend/src/App.js` split)
+  - Introduce CI gating for lint + tests
 
 ### Deliverables
 - Testing bootstrap for frontend + backend
@@ -502,4 +517,4 @@ This modernization initiative is successful when:
 
 ---
 
-**Status:** Ready for execution planning and phase kickoff.
+**Status:** Phase 0 completed; Phase 1 execution active.
