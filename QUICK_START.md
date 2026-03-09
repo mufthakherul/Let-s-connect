@@ -235,9 +235,9 @@ Frontend will open at http://localhost:3000 for users, and admin panel at http:/
 ## Next Steps
 
 - Read [Full Documentation](./docs/README.md)
-- Check [API Reference](./docs/API.md)
-- Learn about [Architecture](./docs/ARCHITECTURE.md)
-- Deploy to production: [Deployment Guide](./docs/DEPLOYMENT.md)
+- Check [API Reference](./docs/development/API.md)
+- Learn about [Architecture](./docs/development/ARCHITECTURE.md)
+- Deploy to production: [Deployment Guide](./docs/deployment/DEPLOYMENT.md)
 
 ## Support
 

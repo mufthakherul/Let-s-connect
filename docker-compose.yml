@@ -356,7 +356,10 @@ services:
       - milonexa-network
 
   # Admin Frontend (separate from user frontend)
+  # Set ENABLE_ADMIN_FRONTEND=true to start this service
   admin_frontend:
+    profiles:
+      - admin
     build:
       context: ./admin_frontend
       args:
