@@ -1,6 +1,6 @@
 # Deployment & Operations Documentation
 
-Guides for deploying, configuring, and operating the Let's Connect platform.
+Guides for deploying, configuring, and operating the Milonexa platform.
 
 ## Contents
 

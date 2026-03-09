@@ -185,6 +185,10 @@ spec:
           configMap:
             name: prometheus-config
         - name: storage
+          # SECURITY: emptyDir loses data on pod restart. For production, use:
+          # persistentVolumeClaim:
+          #   claimName: prometheus-pvc
+          # For now using emptyDir - metrics reset on pod restart:
           emptyDir: {}
 
 ---

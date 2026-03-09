@@ -1,4 +1,4 @@
-# GitLab CI/CD Pipeline for Let's Connect
+# GitLab CI/CD Pipeline for Milonexa
 
 stages:
   - build

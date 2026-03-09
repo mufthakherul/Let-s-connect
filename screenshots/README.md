@@ -1,6 +1,6 @@
-# Let's Connect - Application Screenshots
+# Milonexa - Application Screenshots
 
-This directory contains screenshots of the Let's Connect platform showcasing various features and pages.
+This directory contains screenshots of the Milonexa platform showcasing various features and pages.
 
 ## Main Application Screenshots
 

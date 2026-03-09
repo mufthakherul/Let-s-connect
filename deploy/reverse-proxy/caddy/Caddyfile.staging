@@ -1,4 +1,4 @@
-# Let's Connect staging reverse proxy (home server)
+# Milonexa staging reverse proxy (home server)
 # Replace domains before use.
 
 staging.yourdomain.com {

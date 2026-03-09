@@ -1,6 +1,6 @@
 # Comprehensive Deployment Guide
 
-This guide provides detailed, step-by-step instructions for deploying the Let's Connect platform in both development (Docker Compose) and production (Kubernetes) environments.
+This guide provides detailed, step-by-step instructions for deploying the Milonexa platform in both development (Docker Compose) and production (Kubernetes) environments.
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ This guide provides detailed, step-by-step instructions for deploying the Let's 
 
 ## Overview
 
-Let's Connect is a microservices-based social platform with the following architecture:
+Milonexa is a microservices-based social platform with the following architecture:
 
 **Services:**
 - **API Gateway** (Port 8000): Main entry point, routes requests to microservices
@@ -38,7 +38,7 @@ Let's Connect is a microservices-based social platform with the following archit
 
 ## Installing Prerequisites
 
-This section provides detailed instructions for installing all the tools you need to deploy Let's Connect. Choose the appropriate section based on your operating system.
+This section provides detailed instructions for installing all the tools you need to deploy Milonexa. Choose the appropriate section based on your operating system.
 
 ### 1. Installing Git
 

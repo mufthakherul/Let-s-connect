@@ -1,10 +1,10 @@
 # Render Deployment Guide (with Supabase)
 
-Complete guide for deploying Let's Connect to Render using Supabase as the database backend.
+Complete guide for deploying Milonexa to Render using Supabase as the database backend.
 
 ## Prerequisites
 
-- GitHub account with Let's Connect repository
+- GitHub account with Milonexa repository
 - Supabase account (free tier available)
 - Cloudflare account for R2 storage (optional, can use Supabase Storage)
 - Render account (no payment method required for free tier)
@@ -25,7 +25,7 @@ Complete guide for deploying Let's Connect to Render using Supabase as the datab
 
 ### 1.2 Configure Database Schema
 
-Supabase uses a single PostgreSQL database. Let's Connect needs 6 separate databases, so we'll use **schemas** instead:
+Supabase uses a single PostgreSQL database. Milonexa needs 6 separate databases, so we'll use **schemas** instead:
 
 1. Go to **SQL Editor** in Supabase dashboard (left sidebar)
 2. Click **New Query** button and run this SQL to create schemas:
@@ -902,7 +902,7 @@ WHERE nspname IN ('users', 'content', 'messages', 'collaboration', 'media', 'sho
 
 - **Render Docs:** https://render.com/docs
 - **Supabase Docs:** https://supabase.com/docs
-- **Let's Connect Repo:** https://github.com/mufthakherul/Let-s-connect
+- **Milonexa Repo:** https://github.com/mufthakherul/Let-s-connect
 - **Issues:** Open GitHub issue for bugs/questions
 
 ---

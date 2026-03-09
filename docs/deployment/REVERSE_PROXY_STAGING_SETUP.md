@@ -1,6 +1,6 @@
 # Reverse Proxy Setup for Staging (Namecheap + Home Server)
 
-This document provides **project-specific**, copy/paste-ready reverse proxy setup for Let's Connect staging using:
+This document provides **project-specific**, copy/paste-ready reverse proxy setup for Milonexa staging using:
 
 - `staging.yourdomain.com` → `frontend` (`localhost:3000`)
 - `api-staging.yourdomain.com` → `api-gateway` (`localhost:8000`)

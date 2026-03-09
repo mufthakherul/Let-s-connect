@@ -1,6 +1,6 @@
 # Home Server Staging with Namecheap Subdomain (VPS Production Later)
 
-This guide helps you run **Let's Connect** from your **local machine/home server** for testing and performance checks using a **subdomain from your existing Namecheap domain**, then move to a **VPS for production** when ready.
+This guide helps you run **Milonexa** from your **local machine/home server** for testing and performance checks using a **subdomain from your existing Namecheap domain**, then move to a **VPS for production** when ready.
 
 ---
 
@@ -12,7 +12,7 @@ This guide helps you run **Let's Connect** from your **local machine/home server
 4. [Choose your staging subdomains](#choose-your-staging-subdomains)
 5. [Configure DNS in Namecheap](#configure-dns-in-namecheap)
 6. [Prepare home network and server](#prepare-home-network-and-server)
-7. [Deploy Let's Connect on home server](#deploy-lets-connect-on-home-server)
+7. [Deploy Milonexa on home server](#deploy-milonexa-on-home-server)
 8. [Configure reverse proxy + HTTPS](#configure-reverse-proxy--https)
 9. [Environment variables and CORS checklist](#environment-variables-and-cors-checklist)
 10. [Validation checklist](#validation-checklist)
@@ -131,7 +131,7 @@ Allow inbound TCP:
 
 ---
 
-## Deploy Let's Connect on home server
+## Deploy Milonexa on home server
 
 From project root:
 

@@ -25,11 +25,12 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
     
-    # CORS settings
+    # CORS settings - restrict to known origins in production
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
-    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    # SECURITY: Replace with your actual domain (not "*")
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://yourdomain.com, https://admin.yourdomain.com"
+    nginx.ingress.kubernetes.io/cors-expose-headers: "Content-Length,Content-Range"
     
     # SSL/TLS configuration (cert-manager integration)
     cert-manager.io/cluster-issuer: "letsencrypt-prod"

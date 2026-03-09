@@ -1,4 +1,4 @@
-# Let's Connect — Professional Modernization Roadmap (2026)
+# Milonexa — Professional Modernization Roadmap (2026)
 
 <!-- markdownlint-disable MD022 MD024 MD032 MD047 -->
 

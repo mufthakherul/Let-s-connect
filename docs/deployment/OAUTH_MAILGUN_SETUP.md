@@ -2,7 +2,7 @@
 
 ## 🚀 Quick Start
 
-This guide walks you through setting up OAuth authentication (Google & GitHub) and Mailgun email service for the Let's Connect platform.
+This guide walks you through setting up OAuth authentication (Google & GitHub) and Mailgun email service for the Milonexa platform.
 
 ---
 
