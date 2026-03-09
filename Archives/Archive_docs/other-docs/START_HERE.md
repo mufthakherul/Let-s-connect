@@ -21,12 +21,12 @@
 
 #### Google OAuth (10 minutes)
 1. Go to: https://console.cloud.google.com
-2. Create a new project (or select an existing one)
-3. Go to: **APIs & Services → OAuth consent screen** and configure it (choose user type, add app name, support email), then save
-4. Go to: **APIs & Services → Credentials**
-5. Click **Create credentials → OAuth client ID**, choose **Web application**
+2. Create new project
+3. Search: "Google+ API" → Enable it
+4. Go to: APIs & Services → Credentials
+5. Create OAuth 2.0 Client ID (Web app)
 6. Add redirect URI: `http://localhost:8001/oauth/google/callback`
-7. Copy: **Client ID** and **Client Secret**
+7. Copy: Client ID and Client Secret
 
 #### GitHub OAuth (10 minutes)
 1. Go to: https://github.com/settings/developers

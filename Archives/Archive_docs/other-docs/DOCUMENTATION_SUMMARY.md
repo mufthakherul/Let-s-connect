@@ -1,5 +1,3 @@
-> **Note:** This document was written before the 2026 archive reorganization. The `/archives/` directory referenced below is now at `Archives/Archive_docs/`.
-
 # Documentation Organization Summary
 
 > **Date:** February 10, 2026  
@@ -46,7 +44,7 @@ This repository has been reorganized to provide clear, professional documentatio
 ### Archives Folder
 
 ```
-/Archives/Archive_docs/
+/archives/
 ├── README.md                   # Archive index explaining organization
 ├── audit-reports/              # 7 audit and assessment reports
 ├── phase-reports/              # 11 phase completion reports

@@ -56,7 +56,7 @@ PostgreSQL      Redis        MinIO
 
 ### Public Features (No Auth) ✅
 - 📺 Video watching
-- 📖 Documentation reading
+- �� Documentation reading
 - 🛒 Shop browsing
 - 📚 Wiki browsing
 

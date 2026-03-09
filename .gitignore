@@ -15,7 +15,7 @@
 
 # Development files
 .git/
-.github/
+#.github/
 # Allow editor and devcontainer files for remote development (do not ignore)
 # .vscode/
 # .devcontainer/
