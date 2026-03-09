@@ -6,6 +6,7 @@ Enforces correct archiving of unused code and documentation. Ensures all depreca
 ## Workflow
 - Move unused code to `Archives/Archive_codes/`
 - Move unused docs to `Archives/Archive_docs/`
+- Move unused test-scripts to `Archives/Archive_tests/`
 - Update `README.md` indexes in archive directories
 - Avoid placing archives in any other location
 

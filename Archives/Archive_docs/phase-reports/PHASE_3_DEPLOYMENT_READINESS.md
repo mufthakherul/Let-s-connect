@@ -36,12 +36,14 @@ app.get('/auth/oauth/github/authorize', (req, res) => {
 // Proxy OAuth callback routes
 app.get('/auth/oauth/google/callback', proxyMiddleware.createProxyMiddleware({
   target: 'http://user-service:3003',
-  changeOrigin: true
+  changeOrigin: true,
+  pathRewrite: { '^/auth/oauth': '/oauth' }
 }));
 
 app.get('/auth/oauth/github/callback', proxyMiddleware.createProxyMiddleware({
   target: 'http://user-service:3003',
-  changeOrigin: true
+  changeOrigin: true,
+  pathRewrite: { '^/auth/oauth': '/oauth' }
 }));
 ```
 
