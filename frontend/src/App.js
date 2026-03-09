@@ -14,7 +14,7 @@ import {
   Person, ExitToApp, Login as LoginIcon,
   PersonAdd, Feed as FeedIcon, Group as GroupIcon, Bookmark,
   ShoppingCartOutlined, Article, Pages as PagesIcon, Work as WorkIcon,
-  Dashboard as DashboardIcon, Search as SearchIcon, Folder as FolderIcon,
+  Search as SearchIcon, Folder as FolderIcon,
   Phone as PhoneIcon, Storage as DatabaseIcon, CompareArrows as DiffIcon,
   Event as EventIcon,
   Settings as SettingsIcon, MoreHoriz as MoreHorizIcon, Apps as AppsIcon, PeopleAlt as PeopleIcon, SwapHoriz as SwapHorizIcon, Close as CloseIcon,
@@ -58,7 +58,6 @@ const Groups = lazy(() => import('./components/Groups'));
 const Bookmarks = lazy(() => import('./components/Bookmarks'));
 const Cart = lazy(() => import('./components/Cart'));
 const Blog = lazy(() => import('./components/Blog'));
-const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const ThemeSettings = lazy(() => import('./components/ThemeSettings'));
 const AccessibilitySettings = lazy(() => import('./components/AccessibilitySettings'));
 const SecuritySettings = lazy(() => import('./components/SecuritySettings'));
@@ -406,7 +405,6 @@ function AppContent() {
         { label: 'Appearance', path: '/settings/appearance', icon: <PaletteIcon />, public: false },
       ]
     },
-    { label: 'Admin', path: '/admin', icon: <DashboardIcon />, public: false, adminOnly: true },
   ];
 
   const drawer = (
@@ -1216,10 +1214,6 @@ function AppContent() {
                   <Route
                     path="/:id"
                     element={internalUser ? <PublicProfile user={internalUser} /> : <Navigate to="/login" />}
-                  />
-                  <Route
-                    path="/admin"
-                    element={internalUser && (internalUser.role === 'admin' || internalUser.role === 'moderator') ? <AdminDashboard /> : <Navigate to="/login" />}
                   />
                   <Route
                     path="/security"

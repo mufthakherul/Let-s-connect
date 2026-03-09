@@ -26,3 +26,11 @@ Legacy React components replaced by modern implementations:
 - `apiEnhanced.js` — Enhanced API utility (merged into api.js)
 - `helpcenter/` — Legacy help center guides (replaced by current docs structure)
 - `meeting-modes/` — Meeting mode components (migrated to `frontend/src/components/meeting-modes/`)
+
+### `admin_frontend/components/`
+User-facing page components removed from the admin frontend to reduce bundle size. The admin frontend now only contains admin-specific components (`AdminDashboard.js`, `AdminLogin.js`, `Login.js`) and shared utilities (`common/`, `errors/`).
+
+Archived user-side components include: AccessibilitySettings, Analytics, AppearanceSettings, Blog, Bookmarks, Cart, Chat, ContentHistoryViewer, CookiePolicy, Docs, EmailPreferences, Feed, Friends, Groups, Home, Homepage, MediaGallery, MeetingLobby, MeetingRoom, Meetings, OAuthLogin, Pages, PrivacyPolicy, ProductReview, Profile, PublicProfile, Radio, Register, ResetPassword, ResetRequest, Search, SecuritySettings, SettingsHub, Shop, TV, TermsOfService, ThemeSettings, UnregisterLanding, Videos, plus `hubs/`, `discord/`, and `meeting-modes/` subdirectories.
+
+### `frontend/AdminDashboard.js`
+Admin dashboard panel removed from user frontend. Admin functionality is now exclusively in the dedicated `admin_frontend` application.
