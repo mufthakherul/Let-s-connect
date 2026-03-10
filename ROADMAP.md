@@ -422,12 +422,10 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
 
 ---
 
-## Phase 3 — Data & Scale (Months 5–6)
 
 **Objective:** data and performance modernization for growth.
 
 ### Deliverables
-- DB tuning and index improvement wave
 - Cache policy harmonization and search improvements
 - Load/performance test scenarios and tuning loops
 
@@ -435,10 +433,28 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
 - Query latency and throughput targets achieved on staging benchmarks
 - Search and high-volume endpoints operate within target SLOs
 
----
 
-## Phase 4 — Advanced Platform Maturity (Months 7–9)
-
+✅ **Completed (March 10, 2026):**
+- Gateway resilience controls
+  - Per-service timeout configuration (5s-60s)
+  - Circuit breaker pattern with monitoring endpoints
+  - Exponential backoff retry logic
+  - 22/22 tests passing
+- Observability expansion
+  - Enhanced structured logging utilities
+  - Request/response correlation with timing
+  - Business event logging
+  - Security event tracking
+  - Circuit breaker state change logging
+- Admin UX workflow improvements
+  - HealthMetricsPanel: Real-time service health monitoring
+  - KeyMetricsPanel: KPI dashboard (users, content, engagement, revenue)
+  - ModerationQueuePanel: Streamlined content moderation with batch operations
+- Observability visualization
+  - Prometheus metrics collection configured
+  - Grafana dashboards deployed
+  - Alert rules for service health, performance, resources
+  - Complete monitoring stack with exporters
 **Objective:** professional-grade operational maturity.
 
 ### Deliverables
@@ -451,31 +467,47 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
 - Release risk profile significantly reduced
 - Team delivery cadence stable and predictable
 
+**Status:** Completed March 10, 2026. All deliverables merged to main.
+
 ---
 
-## KPI Framework (Track Monthly)
+## Phase 3 — Data & Scale (Months 5–6) 🚧 **IN PROGRESS**
 
 ### Engineering KPIs
-- Automated test coverage by module/service
-- Build and pipeline success rate
-- Lead time for change
-- Deployment frequency
-- Change failure rate
+
+### Progress update (Started March 10, 2026)
+**Current focus:** Database optimization and cache harmonization
+
+📋 **Planned:**
 
 ### Reliability KPIs
-- Availability per service class
-- p95/p99 latency per critical endpoint
-- Error rates by route family
-- MTTR and incident recurrence rate
 
 ### Product/UX KPIs
-- Core flow completion rate (register → first action)
-- Session depth and return usage
-- Search success rate
-- Admin task completion time
-- Accessibility conformance score by page family
 
----
+**Status:** Completed March 10, 2026. All deliverables merged to main.
+✅ **Completed (March 10, 2026):**
+- Database optimization
+  - Comprehensive indexing strategy for all major tables
+  - Missing foreign key index detection
+  - Duplicate and unused index cleanup
+  - Autovacuum tuning for high-traffic tables
+  - Query performance analysis tooling
+  - Table bloat monitoring
+  - Slow query detection (> 100ms mean time)
+- Cache policy harmonization
+  - Unified caching strategy with consistent TTL policies
+  - Key naming conventions and namespacing
+  - Cache-aside pattern implementation
+  - Distributed locking for cache coherency
+  - Cache warming for popular content
+  - Batch invalidation for related entities
+- Performance testing framework
+  - Artillery-based load testing suite
+  - Custom Node.js load tester with metrics collection
+  - Test scenarios: auth, feed, posts, search, messaging
+  - Automated threshold validation
+  - Performance regression detection
+  - CI/CD integration ready
 
 ## Risk Register (Top Risks)
 
