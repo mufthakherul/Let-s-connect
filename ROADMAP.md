@@ -534,7 +534,8 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
      prometheus (20Gi), grafana (5Gi)
    - Tiered storage classes: `fast-ssd`, `standard`, `slow-hdd` with Retain policy
    - StorageClass definitions with cloud provider annotations
-   - Fixed `backup-cronjob.yaml` secret inconsistency (`postgres-secret` → `milonexa-secrets`)
+    - Fixed `backup-cronjob.yaml` secret inconsistency (`postgres-secret` → `milonexa-secrets`)
+    - Replaced backup/restore ConfigMap placeholder scripts with executable pg/redis backup + restore logic
 
 2. ✅ **Pod Disruption Budgets** (`k8s/pod-disruption-budgets.yaml`)
    - PDB for 17 workloads: api-gateway (minAvailable: 2), all backend services
@@ -602,6 +603,7 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
 2. ✅ **Alerting rules for error rate, saturation, and dependency failures**
   - Existing Prometheus alert packs in `deploy/monitoring/alerts/`
   - In-cluster Prometheus alert rule loading wired in `k8s/prometheus.yaml`
+  - Alert routing wired to in-cluster Alertmanager (`k8s/alertmanager.yaml`, target `alertmanager:9093`)
   - Fast/slow burn-rate, latency SLO, and canary guard alerts enabled
 
 3. ✅ **Incident response runbooks and escalation matrix**

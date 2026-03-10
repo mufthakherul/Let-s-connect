@@ -97,20 +97,87 @@ metadata:
 data:
   backup-db.sh: |
     #!/bin/bash
-    # NOTE: This is a placeholder. In production:
-    # 1. Option A: Build scripts into the container image
-    # 2. Option B: Mount actual scripts from a Git-synced volume
-    # 3. Option C: Use kubectl create configmap --from-file=services/shared/backup-db.sh
-    #
-    # The actual backup script is located at: services/shared/backup-db.sh
-    # To populate this ConfigMap with the real script, run:
-    # kubectl create configmap backup-scripts --from-file=backup-db.sh=services/shared/backup-db.sh --from-file=restore-db.sh=services/shared/restore-db.sh -n milonexa
-    echo "Error: Backup script not configured. See ConfigMap comments for setup instructions."
-    exit 1
+    set -euo pipefail
+
+    BACKUP_DIR="${BACKUP_DIR:-/backups}"
+    RETENTION_DAYS="${RETENTION_DAYS:-30}"
+    TIMESTAMP="$(date -u +%Y%m%d_%H%M%S)"
+    DATABASES=(users content messages collaboration media shop ai)
+
+    PG_HOST="${POSTGRES_HOST:-postgres}"
+    PG_PORT="${POSTGRES_PORT:-5432}"
+    PG_USER="${POSTGRES_USER:-postgres}"
+
+    if [[ -z "${POSTGRES_PASSWORD:-}" ]]; then
+      echo "POSTGRES_PASSWORD must be set"
+      exit 1
+    fi
+
+    export PGPASSWORD="${POSTGRES_PASSWORD}"
+    mkdir -p "${BACKUP_DIR}"
+
+    echo "[backup] starting backup at ${TIMESTAMP}"
+
+    for db in "${DATABASES[@]}"; do
+      file="${BACKUP_DIR}/${db}_${TIMESTAMP}.sql.gz"
+      if pg_dump -h "${PG_HOST}" -p "${PG_PORT}" -U "${PG_USER}" -d "${db}" | gzip > "${file}"; then
+        echo "[backup] ${db} -> ${file}"
+      else
+        echo "[backup] WARNING: failed to backup ${db}"
+      fi
+    done
+
+    if command -v redis-cli >/dev/null 2>&1; then
+      REDIS_HOST="${REDIS_HOST:-redis}"
+      REDIS_PORT="${REDIS_PORT:-6379}"
+      redis-cli -h "${REDIS_HOST}" -p "${REDIS_PORT}" --rdb "${BACKUP_DIR}/redis_${TIMESTAMP}.rdb" || \
+        echo "[backup] WARNING: redis backup failed"
+    fi
+
+    find "${BACKUP_DIR}" -name "*.sql.gz" -mtime +"${RETENTION_DAYS}" -delete || true
+    find "${BACKUP_DIR}" -name "*.rdb" -mtime +"${RETENTION_DAYS}" -delete || true
+
+    echo "[backup] completed"
   restore-db.sh: |
     #!/bin/bash
-    echo "Error: Restore script not configured. See ConfigMap comments for setup instructions."
-    exit 1
+    set -euo pipefail
+
+    BACKUP_DIR="${BACKUP_DIR:-/backups}"
+    PG_HOST="${POSTGRES_HOST:-postgres}"
+    PG_PORT="${POSTGRES_PORT:-5432}"
+    PG_USER="${POSTGRES_USER:-postgres}"
+
+    if [[ -z "${POSTGRES_PASSWORD:-}" ]]; then
+      echo "POSTGRES_PASSWORD must be set"
+      exit 1
+    fi
+
+    export PGPASSWORD="${POSTGRES_PASSWORD}"
+
+    DB_NAME="${DB_NAME:-}"
+    BACKUP_FILE="${BACKUP_FILE:-}"
+
+    if [[ -z "${DB_NAME}" || -z "${BACKUP_FILE}" ]]; then
+      echo "Usage: DB_NAME=<database> BACKUP_FILE=<file.sql.gz> /scripts/restore-db.sh"
+      exit 1
+    fi
+
+    if [[ "${BACKUP_FILE}" != /* ]]; then
+      BACKUP_FILE="${BACKUP_DIR}/${BACKUP_FILE}"
+    fi
+
+    if [[ ! -f "${BACKUP_FILE}" ]]; then
+      echo "Backup file not found: ${BACKUP_FILE}"
+      exit 1
+    fi
+
+    echo "[restore] restoring ${DB_NAME} from ${BACKUP_FILE}"
+    psql -h "${PG_HOST}" -p "${PG_PORT}" -U "${PG_USER}" -d postgres -v dbname="${DB_NAME}" -c \
+      "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = :'dbname' AND pid <> pg_backend_pid();" || true
+    psql -h "${PG_HOST}" -p "${PG_PORT}" -U "${PG_USER}" -d postgres -c "DROP DATABASE IF EXISTS \"${DB_NAME}\";"
+    psql -h "${PG_HOST}" -p "${PG_PORT}" -U "${PG_USER}" -d postgres -c "CREATE DATABASE \"${DB_NAME}\";"
+    gunzip -c "${BACKUP_FILE}" | psql -h "${PG_HOST}" -p "${PG_PORT}" -U "${PG_USER}" -d "${DB_NAME}"
+    echo "[restore] completed"
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -223,15 +290,12 @@ spec:
         - name: POSTGRES_PORT
           value: "5432"
         - name: POSTGRES_USER
-          valueFrom:
-            secretKeyRef:
-              name: postgres-secret
-              key: username
+          value: "postgres"
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: postgres-secret
-              key: password
+              name: milonexa-secrets
+              key: DATABASE_PASSWORD
         - name: BACKUP_DIR
           value: "/backups"
         ports:
