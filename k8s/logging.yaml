@@ -1,0 +1,245 @@
+##############################################################################
+# logging.yaml — Centralized structured log ingestion
+#
+# Deploys Fluent Bit as a DaemonSet to collect container logs from all nodes,
+# enrich with Kubernetes metadata, parse JSON/Pino logs, and ship to
+# Elasticsearch for centralized search and analysis.
+#
+# Pipeline:
+#   /var/log/containers/*.log  -> Fluent Bit -> Elasticsearch (milonexa-logs-*)
+##############################################################################
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluent-bit
+  namespace: milonexa
+  labels:
+    app: fluent-bit
+    component: logging
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fluent-bit-read
+  labels:
+    app: fluent-bit
+    component: logging
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fluent-bit-read
+  labels:
+    app: fluent-bit
+    component: logging
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fluent-bit-read
+subjects:
+  - kind: ServiceAccount
+    name: fluent-bit
+    namespace: milonexa
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+  namespace: milonexa
+  labels:
+    app: fluent-bit
+    component: logging
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush                     1
+        Daemon                    Off
+        Log_Level                 info
+        Parsers_File              parsers.conf
+        HTTP_Server               On
+        HTTP_Listen               0.0.0.0
+        HTTP_Port                 2020
+        storage.path              /var/fluent-bit/state
+        storage.sync              normal
+        storage.checksum          off
+        storage.backlog.mem_limit 50M
+
+    # Read all container logs from the node
+    [INPUT]
+        Name                tail
+        Path                /var/log/containers/*.log
+        Exclude_Path        /var/log/containers/*_kube-system_*.log
+        multiline.parser    docker, cri
+        Tag                 kube.*
+        Parser              cri
+        DB                  /var/fluent-bit/state/flb_kube.db
+        Mem_Buf_Limit       100MB
+        Skip_Long_Lines     On
+        Refresh_Interval    5
+
+    # Enrich with pod / namespace metadata
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Kube_Tag_Prefix     kube.var.log.containers.
+        Merge_Log           On
+        Merge_Log_Trim      On
+        Keep_Log            On
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude Off
+
+    # Keep only application namespace logs
+    [FILTER]
+        Name                grep
+        Match               kube.*
+        Regex               $kubernetes['namespace_name'] ^milonexa$
+
+    # Parse JSON log message if app emitted structured pino/json logs
+    [FILTER]
+        Name                parser
+        Match               kube.*
+        Key_Name            log
+        Parser              pino_json
+        Preserve_Key        On
+        Reserve_Data        On
+
+    # Add normalized platform labels used by SRE dashboards
+    [FILTER]
+        Name                modify
+        Match               kube.*
+        Add                 platform milonexa
+        Add                 environment production
+
+    # Ship to Elasticsearch (in-cluster service)
+    [OUTPUT]
+        Name                es
+        Match               kube.*
+        Host                elasticsearch
+        Port                9200
+        Logstash_Format     On
+        Logstash_Prefix     milonexa-logs
+        Replace_Dots        On
+        Retry_Limit         False
+        Generate_ID         On
+        Trace_Output        Off
+
+  parsers.conf: |
+    [PARSER]
+        Name         cri
+        Format       regex
+        Regex        ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<flags>[^ ]*) (?<log>.*)$
+        Time_Key     time
+        Time_Format  %Y-%m-%dT%H:%M:%S.%L%z
+
+    [PARSER]
+        Name         pino_json
+        Format       json
+        Time_Key     time
+        Time_Format  %Y-%m-%dT%H:%M:%S.%LZ
+        Time_Keep    On
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: milonexa
+  labels:
+    app: fluent-bit
+    component: logging
+spec:
+  selector:
+    matchLabels:
+      app: fluent-bit
+  template:
+    metadata:
+      labels:
+        app: fluent-bit
+        component: logging
+    spec:
+      serviceAccountName: fluent-bit
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: fluent-bit
+          image: cr.fluentbit.io/fluent/fluent-bit:3.1.8
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 2020
+              name: metrics
+          env:
+            - name: FLUENT_ELASTICSEARCH_HOST
+              value: elasticsearch
+            - name: FLUENT_ELASTICSEARCH_PORT
+              value: "9200"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: fluent-bit-config
+              mountPath: /fluent-bit/etc/
+            - name: fluent-bit-state
+              mountPath: /var/fluent-bit/state
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 2020
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 2020
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: fluent-bit-config
+          configMap:
+            name: fluent-bit-config
+        - name: fluent-bit-state
+          hostPath:
+            path: /var/fluent-bit/state
+            type: DirectoryOrCreate
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fluent-bit
+  namespace: milonexa
+  labels:
+    app: fluent-bit
+    component: logging
+spec:
+  selector:
+    app: fluent-bit
+  ports:
+    - name: metrics
+      port: 2020
+      targetPort: 2020
+      protocol: TCP
+  type: ClusterIP

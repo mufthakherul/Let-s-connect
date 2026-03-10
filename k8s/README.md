@@ -24,6 +24,8 @@ This directory contains Kubernetes deployment manifests for all services.
 - `redis.yaml` - Redis cache with persistence
 - `elasticsearch.yaml` - Elasticsearch for full-text search
 - `minio.yaml` - MinIO S3-compatible object storage with auto-setup
+- `storage.yaml` - Centralized production PVC definitions and storage classes
+- `pod-disruption-budgets.yaml` - High-availability disruption policies
 
 **Application Services:**
 - `api-gateway.yaml` - API Gateway (main entry point)
@@ -40,6 +42,7 @@ This directory contains Kubernetes deployment manifests for all services.
 - `ingress.yaml` - Load balancing and routing ✅
 - `prometheus.yaml` - Monitoring and metrics collection ✅
 - `grafana.yaml` - Metrics visualization and dashboards ✅
+- `logging.yaml` - Centralized structured log ingestion (Fluent Bit → Elasticsearch) ✅
 
 **To deploy the platform**:
 
@@ -57,6 +60,7 @@ kubectl apply -f k8s/secrets.yaml
 kubectl apply -f k8s/configmap.yaml
 
 # 4. Deploy infrastructure services
+kubectl apply -f k8s/storage.yaml
 kubectl apply -f k8s/postgres.yaml
 kubectl apply -f k8s/redis.yaml
 kubectl apply -f k8s/elasticsearch.yaml
@@ -94,6 +98,8 @@ kubectl apply -f k8s/ingress.yaml
 # 8. Deploy Monitoring Stack (Phase 4)
 kubectl apply -f k8s/prometheus.yaml
 kubectl apply -f k8s/grafana.yaml
+kubectl apply -f k8s/logging.yaml
+kubectl apply -f k8s/pod-disruption-budgets.yaml
 
 # 9. Verify all components
 kubectl get pods -n milonexa
@@ -166,8 +172,11 @@ kubectl exec deployment/user-service -n milonexa -- curl localhost:8001/health
 - `postgres.yaml` - PostgreSQL StatefulSet
 - `redis.yaml` - Redis Deployment
 - `minio.yaml` - MinIO Deployment (S3-compatible storage)
+- `storage.yaml` - Persistent storage definitions
+- `pod-disruption-budgets.yaml` - Disruption safety policies
 - `*-service.yaml` - Individual microservice deployments
 - `ingress.yaml` - Ingress controller configuration
+- `logging.yaml` - Fluent Bit logging pipeline to Elasticsearch
 - `hpa.yaml` - Horizontal Pod Autoscaler configurations
 
 ## Environment Variables

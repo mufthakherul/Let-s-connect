@@ -17,8 +17,15 @@ const logger = require('./logger');
  * @param {string} serviceName - Name of the service
  */
 function createRequestLogger(req, serviceName) {
+    const traceContext = req.traceContext || {};
+
     const requestContext = {
         requestId: req.id || req.headers['x-request-id'],
+        correlationId: req.headers['x-correlation-id'] || req.id || req.headers['x-request-id'],
+        traceId: traceContext.traceId,
+        spanId: traceContext.spanId,
+        parentSpanId: traceContext.parentSpanId,
+        traceparent: req.headers.traceparent || traceContext.traceparent,
         service: serviceName,
         method: req.method,
         path: req.path,

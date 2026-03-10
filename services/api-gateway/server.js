@@ -67,6 +67,17 @@ const proxy = (target, options = {}) => {
 
       if (srcReq?.id) {
         decoratedOpts.headers['x-request-id'] = srcReq.id;
+        decoratedOpts.headers['x-correlation-id'] = srcReq.id;
+      }
+
+      if (srcReq?.traceContext?.traceparent) {
+        decoratedOpts.headers.traceparent = srcReq.traceContext.traceparent;
+      } else if (srcReq?.headers?.traceparent) {
+        decoratedOpts.headers.traceparent = srcReq.headers.traceparent;
+      }
+
+      if (srcReq?.headers?.tracestate) {
+        decoratedOpts.headers.tracestate = srcReq.headers.tracestate;
       }
 
       return decoratedOpts;
@@ -154,8 +165,12 @@ app.use((req, res, next) => {
   const requestId = req.headers['x-request-id'] || uuidv4();
   req.id = requestId;
   res.setHeader('X-Request-Id', requestId);
+  res.setHeader('X-Correlation-Id', requestId);
   next();
 });
+
+// Distributed trace context propagation (W3C traceparent)
+app.use(healthChecker.tracingMiddleware());
 
 // Enhanced structured logging (Phase 2)
 app.use(requestLoggingMiddleware('api-gateway'));

@@ -25,6 +25,10 @@ data:
         - static_configs:
             - targets: []
 
+    # Alert rule files
+    rule_files:
+      - /etc/prometheus/alerts/*.yml
+
     # Scrape configurations
     scrape_configs:
       # Prometheus itself
@@ -121,6 +125,160 @@ data:
             replacement: '${1}'
 
 ---
+# Prometheus Alert Rules (Workstream I)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-alert-rules
+  namespace: milonexa
+data:
+  service-alerts.yml: |
+    groups:
+      - name: service_health
+        interval: 30s
+        rules:
+          - alert: ServiceDown
+            expr: up == 0
+            for: 1m
+            labels:
+              severity: critical
+              category: availability
+            annotations:
+              summary: "Service {{ $labels.job }} is down"
+              description: "{{ $labels.job }} at {{ $labels.instance }} has been down for more than 1 minute."
+
+          - alert: HighErrorRate
+            expr: |
+              (
+                sum by(job) (rate(http_requests_total{status=~"5.."}[5m]))
+                /
+                clamp_min(sum by(job) (rate(http_requests_total[5m])), 0.001)
+              ) > 0.05
+            for: 10m
+            labels:
+              severity: warning
+              category: reliability
+            annotations:
+              summary: "High error rate on {{ $labels.job }}"
+              description: "{{ $labels.job }} has >5% 5xx over 5m."
+
+          - alert: CircuitBreakerOpen
+            expr: circuit_breaker_state{state="OPEN"} == 1
+            for: 2m
+            labels:
+              severity: critical
+              category: resilience
+            annotations:
+              summary: "Circuit breaker open for {{ $labels.service }}"
+              description: "Circuit breaker for {{ $labels.service }} has been OPEN for 2+ minutes."
+
+      - name: capacity
+        interval: 30s
+        rules:
+          - alert: HighMemoryUsage
+            expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) < 0.10
+            for: 5m
+            labels:
+              severity: warning
+              category: infrastructure
+            annotations:
+              summary: "High memory usage on {{ $labels.instance }}"
+              description: "Available memory below 10%."
+
+          - alert: HighCPUUsage
+            expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+            for: 10m
+            labels:
+              severity: warning
+              category: infrastructure
+            annotations:
+              summary: "High CPU usage on {{ $labels.instance }}"
+              description: "CPU usage is above 80%."
+
+  slo-alerts.yml: |
+    groups:
+      - name: slo_error_budget
+        interval: 30s
+        rules:
+          - alert: ErrorBudgetBurnFast
+            expr: |
+              (
+                sum by(job) (rate(http_requests_total{status=~"5.."}[5m]))
+                /
+                clamp_min(sum by(job) (rate(http_requests_total[5m])), 0.001)
+              ) / 0.001 > 14.4
+            for: 5m
+            labels:
+              severity: critical
+              category: reliability
+            annotations:
+              summary: "Fast error budget burn on {{ $labels.job }}"
+              description: "{{ $labels.job }} is consuming error budget >14.4x over 5m (SLO=99.9%)."
+
+          - alert: ErrorBudgetBurnSlow
+            expr: |
+              (
+                sum by(job) (rate(http_requests_total{status=~"5.."}[1h]))
+                /
+                clamp_min(sum by(job) (rate(http_requests_total[1h])), 0.001)
+              ) / 0.001 > 2
+            for: 30m
+            labels:
+              severity: warning
+              category: reliability
+            annotations:
+              summary: "Sustained error budget burn on {{ $labels.job }}"
+              description: "{{ $labels.job }} is consuming error budget >2x over 1h."
+
+      - name: slo_latency
+        interval: 30s
+        rules:
+          - alert: LatencyP95SLOBreached
+            expr: |
+              histogram_quantile(
+                0.95,
+                sum by(le, job) (rate(http_request_duration_seconds_bucket[5m]))
+              ) > 0.5
+            for: 15m
+            labels:
+              severity: warning
+              category: performance
+            annotations:
+              summary: "P95 latency SLO breached on {{ $labels.job }}"
+              description: "P95 latency for {{ $labels.job }} exceeded 500ms for 15 minutes."
+
+          - alert: LatencyP99SLOBreached
+            expr: |
+              histogram_quantile(
+                0.99,
+                sum by(le, job) (rate(http_request_duration_seconds_bucket[5m]))
+              ) > 1
+            for: 15m
+            labels:
+              severity: warning
+              category: performance
+            annotations:
+              summary: "P99 latency SLO breached on {{ $labels.job }}"
+              description: "P99 latency for {{ $labels.job }} exceeded 1s for 15 minutes."
+
+      - name: release_canary
+        interval: 30s
+        rules:
+          - alert: CanaryErrorRateHigh
+            expr: |
+              sum by(job) (rate(http_requests_total{deployment="canary",status=~"5.."}[5m]))
+              /
+              clamp_min(sum by(job) (rate(http_requests_total{deployment="canary"}[5m])), 0.001)
+              > 0.02
+            for: 5m
+            labels:
+              severity: critical
+              category: release
+            annotations:
+              summary: "Canary error rate high for {{ $labels.job }}"
+              description: "Canary deployment for {{ $labels.job }} has >2% 5xx rate over 5m."
+
+---
 # Prometheus Deployment
 apiVersion: apps/v1
 kind: Deployment
@@ -159,6 +317,8 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/prometheus
+            - name: alerts
+              mountPath: /etc/prometheus/alerts
             - name: storage
               mountPath: /prometheus
           resources:
@@ -184,12 +344,12 @@ spec:
         - name: config
           configMap:
             name: prometheus-config
+        - name: alerts
+          configMap:
+            name: prometheus-alert-rules
         - name: storage
-          # SECURITY: emptyDir loses data on pod restart. For production, use:
-          # persistentVolumeClaim:
-          #   claimName: prometheus-pvc
-          # For now using emptyDir - metrics reset on pod restart:
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: prometheus-pvc
 
 ---
 # Prometheus Service
@@ -256,17 +416,3 @@ subjects:
     name: prometheus
     namespace: milonexa
 
----
-# Prometheus PersistentVolumeClaim (Optional - for persistent storage)
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: prometheus-storage
-  namespace: milonexa
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 10Gi
-  storageClassName: standard
