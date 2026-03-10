@@ -9,6 +9,7 @@
  */
 
 const logger = require('../shared/logger');
+const { logCircuitBreakerStateChange, createTimer } = require('../shared/logging-utils');
 
 /**
  * Service-specific timeout and retry configuration
@@ -92,7 +93,7 @@ class CircuitBreaker {
       const timeSinceFailure = now - this.lastFailureTime;
       
       if (timeSinceFailure > this.timeout) {
-        logger.info(`Circuit breaker for ${this.serviceName} moving to HALF_OPEN`);
+        logCircuitBreakerStateChange(logger, this.serviceName, 'OPEN', 'HALF_OPEN', 'Timeout expired');
         this.state = 'HALF_OPEN';
         return true;
       }
@@ -113,7 +114,7 @@ class CircuitBreaker {
    */
   recordSuccess() {
     if (this.state === 'HALF_OPEN') {
-      logger.info(`Circuit breaker for ${this.serviceName} closing after successful request`);
+      logCircuitBreakerStateChange(logger, this.serviceName, 'HALF_OPEN', 'CLOSED', 'Successful request');
       this.state = 'CLOSED';
       this.failureCount = 0;
     } else if (this.state === 'CLOSED') {
@@ -132,10 +133,10 @@ class CircuitBreaker {
     this.lastFailureTime = Date.now();
 
     if (this.state === 'HALF_OPEN') {
-      logger.warn(`Circuit breaker for ${this.serviceName} reopening after failure`, { error: error.message });
+      logCircuitBreakerStateChange(logger, this.serviceName, 'HALF_OPEN', 'OPEN', `Failure: ${error.message}`);
       this.state = 'OPEN';
     } else if (this.failureCount >= this.failureThreshold) {
-      logger.error(`Circuit breaker for ${this.serviceName} opening after ${this.failureCount} failures`);
+      logCircuitBreakerStateChange(logger, this.serviceName, 'CLOSED', 'OPEN', `${this.failureCount} failures reached threshold`);
       this.state = 'OPEN';
     }
   }
