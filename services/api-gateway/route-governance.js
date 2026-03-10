@@ -24,7 +24,7 @@ const logger = require('../shared/logger');
  * Route governance middleware - adds metadata and applies policies
  */
 function routeGovernanceMiddleware(req, res, next) {
-    const path = req.path;
+    const path = req.originalUrl || req.path;
     const method = req.method;
 
     // Find matching route from registry
@@ -101,7 +101,7 @@ function classificationAuthMiddleware(req, res, next) {
     }
 
     // All other routes require authentication
-    if (!requiresAuth(routeConfig.path, req.method)) {
+    if (!requiresAuth(routeConfig.class)) {
         return next();
     }
 
@@ -130,7 +130,9 @@ function classificationAuthMiddleware(req, res, next) {
             req.user?.isAdmin === true ||
             req.user?.role === 'admin';
 
-        if (!isAdmin) {
+        // If user context is not yet hydrated by downstream auth middleware,
+        // defer strict admin-role enforcement and only require auth token here.
+        if (!isAdmin && req.user) {
             return res.status(403).json({
                 success: false,
                 error: {

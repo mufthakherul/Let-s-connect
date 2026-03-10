@@ -23,7 +23,7 @@ data:
     alerting:
       alertmanagers:
         - static_configs:
-            - targets: []
+            - targets: ['alertmanager:9093']
 
     # Alert rule files
     rule_files:

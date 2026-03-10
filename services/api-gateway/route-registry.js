@@ -385,14 +385,60 @@ const routeRegistry = [
     }
 ];
 
+function normalizePath(inputPath) {
+    if (!inputPath || typeof inputPath !== 'string') {
+        return '/';
+    }
+
+    let path = inputPath.split('?')[0] || '/';
+
+    // Normalize common gateway forms:
+    // - /api/v1/user/login -> /user/login
+    // - /v1/api/user/login -> /user/login
+    // - /api/user/login    -> /user/login
+    // - /v1/user/login     -> /user/login
+    path = path
+        .replace(/^\/api\/v\d+(?=\/|$)/, '')
+        .replace(/^\/v\d+(?=\/|$)/, '')
+        .replace(/^\/api(?=\/|$)/, '')
+        .replace(/^\/v\d+(?=\/|$)/, '');
+
+    if (!path.startsWith('/')) {
+        path = `/${path}`;
+    }
+
+    // Remove trailing slash except for root
+    if (path.length > 1) {
+        path = path.replace(/\/+$/, '');
+    }
+
+    return path;
+}
+
+function routePathToRegex(routePath) {
+    const normalized = normalizePath(routePath);
+
+    // Escape regex special chars except '*' and ':' parameters
+    const escaped = normalized.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+
+    // Convert wildcard and param segments to regex patterns
+    const withWildcards = escaped.replace(/\*/g, '.*');
+    const withParams = withWildcards.replace(/:[^/]+/g, '[^/]+');
+
+    return new RegExp(`^${withParams}$`);
+}
+
 /**
  * Helper: Get route config by path and method
  */
 function getRouteConfig(path, method) {
+    const normalizedPath = normalizePath(path);
+    const upperMethod = String(method || 'GET').toUpperCase();
+
     return routeRegistry.find(route => {
-        const pathMatch = route.path === path ||
-            (route.path.includes('*') && path.startsWith(route.path.replace('*', '')));
-        const methodMatch = route.methods.includes(method.toUpperCase());
+        const matcher = routePathToRegex(route.path);
+        const pathMatch = matcher.test(normalizedPath);
+        const methodMatch = route.methods.includes(upperMethod);
         return pathMatch && methodMatch;
     });
 }
@@ -406,10 +452,28 @@ function getRateLimitPolicy(routeClass) {
 
 /**
  * Helper: Check if route requires authentication
+ *
+ * Supports both call signatures:
+ *  - requiresAuth(routeClass)
+ *  - requiresAuth(path, method)
  */
-function requiresAuth(routeClass) {
-    return routeClass === ROUTE_CLASSES.AUTHENTICATED ||
-        routeClass === ROUTE_CLASSES.ADMIN;
+function requiresAuth(routeOrClass, method = null) {
+    const routeClasses = Object.values(ROUTE_CLASSES);
+
+    if (routeClasses.includes(routeOrClass)) {
+        return routeOrClass === ROUTE_CLASSES.AUTHENTICATED ||
+            routeOrClass === ROUTE_CLASSES.ADMIN;
+    }
+
+    if (typeof routeOrClass === 'string' && method) {
+        const routeConfig = getRouteConfig(routeOrClass, method);
+        if (!routeConfig) {
+            return false;
+        }
+        return requiresAuth(routeConfig.class);
+    }
+
+    return false;
 }
 
 /**

@@ -21,6 +21,13 @@ const { assertEnvValid } = require('../shared/env-validator');
 const compression = require('compression');
 const { getServiceTimeout, executeWithRetry, getCircuitBreakerStates, resetCircuitBreaker } = require('./resilience-config');
 const { requestLoggingMiddleware } = require('../shared/logging-utils');
+const {
+  routeGovernanceMiddleware,
+  classificationAuthMiddleware,
+  routeRegistryHandler,
+  routeOwnershipHandler,
+  selectRateLimiter
+} = require('./route-governance');
 require('dotenv').config({ quiet: true });
 
 // Validate environment at startup
@@ -320,6 +327,30 @@ const applyUserLimiter = (req, res, next) => {
   next();
 };
 
+// Route-governance-aware limiter selector
+const governanceRateLimiter = (req, res, next) => {
+  if (!RATE_LIMITING_ENABLED || process.env.NODE_ENV === 'development') {
+    return next();
+  }
+
+  const limiter = selectRateLimiter(req.routeConfig, {
+    global: globalLimiter,
+    user: userLimiter,
+    admin: userLimiter
+  });
+
+  if (!limiter) {
+    return next();
+  }
+
+  // Global limiter is already attached app-wide above.
+  if (limiter === globalLimiter) {
+    return next();
+  }
+
+  return limiter(req, res, next);
+};
+
 // rate limiting has been disabled entirely; no middleware applied.
 // Authentication middleware for private routes
 const authMiddleware = (req, res, next) => {
@@ -571,6 +602,13 @@ const versionMiddleware = (req, res, next) => {
 
 // Apply version middleware globally
 app.use(versionMiddleware);
+
+// Apply route governance on all API routes
+app.use('/api', routeGovernanceMiddleware, governanceRateLimiter, classificationAuthMiddleware);
+
+// Governance introspection endpoints (admin secret required)
+app.get('/api/internal/routes', requireAdminSecret, routeRegistryHandler);
+app.get('/api/internal/route-ownership', requireAdminSecret, routeOwnershipHandler);
 
 // API version info endpoint
 app.get('/api/version', (req, res) => {

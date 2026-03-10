@@ -50,19 +50,21 @@ docker-compose -f docker-compose.monitoring.yml up -d
 
 1. **Create namespace**:
 ```bash
-kubectl create namespace milonexa-monitoring
+kubectl create namespace milonexa
 ```
 
 2. **Apply configurations**:
 ```bash
 kubectl apply -f k8s/prometheus.yaml
+kubectl apply -f k8s/alertmanager.yaml
 kubectl apply -f k8s/grafana.yaml
 ```
 
 3. **Port forward** (for local access):
 ```bash
-kubectl port-forward -n milonexa-monitoring svc/grafana 3000:3000
-kubectl port-forward -n milonexa-monitoring svc/prometheus 9090:9090
+kubectl port-forward -n milonexa svc/grafana 3000:3000
+kubectl port-forward -n milonexa svc/prometheus 9090:9090
+kubectl port-forward -n milonexa svc/alertmanager 9093:9093
 ```
 
 ## Architecture

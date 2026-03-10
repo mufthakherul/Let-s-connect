@@ -41,6 +41,7 @@ This directory contains Kubernetes deployment manifests for all services.
 **Networking & Monitoring (Phase 4):**
 - `ingress.yaml` - Load balancing and routing ✅
 - `prometheus.yaml` - Monitoring and metrics collection ✅
+- `alertmanager.yaml` - Alert routing and notifications ✅
 - `grafana.yaml` - Metrics visualization and dashboards ✅
 - `logging.yaml` - Centralized structured log ingestion (Fluent Bit → Elasticsearch) ✅
 
@@ -97,6 +98,7 @@ kubectl apply -f k8s/ingress.yaml
 
 # 8. Deploy Monitoring Stack (Phase 4)
 kubectl apply -f k8s/prometheus.yaml
+kubectl apply -f k8s/alertmanager.yaml
 kubectl apply -f k8s/grafana.yaml
 kubectl apply -f k8s/logging.yaml
 kubectl apply -f k8s/pod-disruption-budgets.yaml
@@ -113,6 +115,10 @@ kubectl get ingress -n milonexa
 # Port-forward Prometheus
 kubectl port-forward svc/prometheus 9090:9090 -n milonexa
 # Access at: http://localhost:9090
+
+# Port-forward Alertmanager
+kubectl port-forward svc/alertmanager 9093:9093 -n milonexa
+# Access at: http://localhost:9093
 
 # Port-forward Grafana  
 kubectl port-forward svc/grafana 3000:3000 -n milonexa
@@ -176,6 +182,9 @@ kubectl exec deployment/user-service -n milonexa -- curl localhost:8001/health
 - `pod-disruption-budgets.yaml` - Disruption safety policies
 - `*-service.yaml` - Individual microservice deployments
 - `ingress.yaml` - Ingress controller configuration
+- `prometheus.yaml` - Metrics scraping and alert rule evaluation
+- `alertmanager.yaml` - Alert routing and notification delivery
+- `grafana.yaml` - Monitoring dashboards
 - `logging.yaml` - Fluent Bit logging pipeline to Elasticsearch
 - `hpa.yaml` - Horizontal Pod Autoscaler configurations
 
@@ -195,6 +204,12 @@ stringData:
   DATABASE_PASSWORD: "your-db-password-here"
   S3_ACCESS_KEY: "your-s3-key-here"
   S3_SECRET_KEY: "your-s3-secret-here"
+  GRAFANA_ADMIN_PASSWORD: "your-grafana-admin-password"
+  SMTP_HOST: "smtp.example.com"
+  SMTP_PORT: "587"
+  SMTP_USER: "smtp-user"
+  SMTP_PASSWORD: "smtp-password"
+  SMTP_FROM_EMAIL: "alerts@example.com"
 ```
 
 ## Scaling
@@ -229,6 +244,10 @@ kubectl exec deployment/user-service -n milonexa -- curl localhost:8001/metrics
 # Check Prometheus status
 kubectl get pods -n milonexa -l app=prometheus
 kubectl logs -f deployment/prometheus -n milonexa
+
+# Check Alertmanager status
+kubectl get pods -n milonexa -l app=alertmanager
+kubectl logs -f deployment/alertmanager -n milonexa
 
 # Check Grafana status
 kubectl get pods -n milonexa -l app=grafana
