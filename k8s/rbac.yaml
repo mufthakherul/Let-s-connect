@@ -1,0 +1,714 @@
+# RBAC Configuration for Kubernetes Production
+# Role-Based Access Control for Milonexa Microservices
+
+---
+
+# ==================== NAMESPACES ====================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: milonexa
+  labels:
+    name: milonexa
+    environment: production
+
+---
+
+# ==================== SERVICE ACCOUNTS ====================
+# One service account per microservice, following least-privilege principle
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api-gateway
+  namespace: milonexa
+  labels:
+    app: milonexa
+    component: api-gateway
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: user-service
+  namespace: milonexa
+  labels:
+    app: milonexa
+    component: user-service
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: content-service
+  namespace: milonexa
+  labels:
+    app: milonexa
+    component: content-service
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: messaging-service
+  namespace: milonexa
+  labels:
+    app: milonexa
+    component: messaging-service
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: media-service
+  namespace: milonexa
+  labels:
+    app: milonexa
+    component: media-service
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: shop-service
+  namespace: milonexa
+  labels:
+    app: milonexa
+    component: shop-service
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ai-service
+  namespace: milonexa
+  labels:
+    app: milonexa
+    component: ai-service
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: security-service
+  namespace: milonexa
+  labels:
+    app: milonexa
+    component: security-service
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: collaboration-service
+  namespace: milonexa
+  labels:
+    app: milonexa
+    component: collaboration-service
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: streaming-service
+  namespace: milonexa
+  labels:
+    app: milonexa
+    component: streaming-service
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pod-reader
+  namespace: milonexa
+  labels:
+    app: milonexa
+    role: monitoring
+
+---
+
+# ==================== ROLES ====================
+# Define permissions for different roles
+
+# Role: API Gateway - Can read configs, secrets, manage pods
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: api-gateway-role
+  namespace: milonexa
+rules:
+# Read service discovery
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+# Read config and secrets
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["milonexa-core-secrets", "milonexa-database-secrets", "milonexa-cache-secrets"]
+  verbs: ["get"]
+# Health check and pod discovery
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+
+---
+
+# Role: Backend Services - Can read configs, limited secret access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backend-service-role
+  namespace: milonexa
+rules:
+# Service discovery
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list"]
+# Config maps
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
+# Limited secret access (only service-specific secrets)
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["milonexa-core-secrets", "milonexa-database-secrets", "milonexa-cache-secrets"]
+  verbs: ["get"]
+
+---
+
+# Role: Media Service - Can read configs, secrets, and list pods
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: media-service-role
+  namespace: milonexa
+rules:
+# Service discovery
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list"]
+# Config maps
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
+# Secrets for storage credentials
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["milonexa-core-secrets", "milonexa-storage-secrets"]
+  verbs: ["get"]
+# Pod discovery for health checks
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+
+---
+
+# Role: AI Service - Can access AI secrets and storage
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-service-role
+  namespace: milonexa
+rules:
+# Service discovery
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list"]
+# Config access
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
+# Secrets for AI/LLM APIs
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["milonexa-core-secrets", "milonexa-ai-secrets", "milonexa-storage-secrets"]
+  verbs: ["get"]
+
+---
+
+# Role: Security Service - Can read secrets and audit logs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: security-service-role
+  namespace: milonexa
+rules:
+# Service discovery
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list"]
+# Read config
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
+# Read secrets (security service needs broad access for auditing)
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+# Audit pod activity
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list", "watch"]
+
+---
+
+# Role: Monitoring - Read-only access for Prometheus/Grafana
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-reader-role
+  namespace: milonexa
+rules:
+# Read pod metrics
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+# Read pod logs for monitoring
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+
+---
+
+# ==================== ROLE BINDINGS ====================
+# Bind roles to service accounts
+
+# API Gateway RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: api-gateway-rolebinding
+  namespace: milonexa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: api-gateway-role
+subjects:
+- kind: ServiceAccount
+  name: api-gateway
+  namespace: milonexa
+
+---
+
+# User Service RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: user-service-rolebinding
+  namespace: milonexa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backend-service-role
+subjects:
+- kind: ServiceAccount
+  name: user-service
+  namespace: milonexa
+
+---
+
+# Content Service RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: content-service-rolebinding
+  namespace: milonexa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backend-service-role
+subjects:
+- kind: ServiceAccount
+  name: content-service
+  namespace: milonexa
+
+---
+
+# Messaging Service RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: messaging-service-rolebinding
+  namespace: milonexa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backend-service-role
+subjects:
+- kind: ServiceAccount
+  name: messaging-service
+  namespace: milonexa
+
+---
+
+# Media Service RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: media-service-rolebinding
+  namespace: milonexa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: media-service-role
+subjects:
+- kind: ServiceAccount
+  name: media-service
+  namespace: milonexa
+
+---
+
+# Shop Service RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: shop-service-rolebinding
+  namespace: milonexa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backend-service-role
+subjects:
+- kind: ServiceAccount
+  name: shop-service
+  namespace: milonexa
+
+---
+
+# AI Service RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-service-rolebinding
+  namespace: milonexa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ai-service-role
+subjects:
+- kind: ServiceAccount
+  name: ai-service
+  namespace: milonexa
+
+---
+
+# Security Service RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: security-service-rolebinding
+  namespace: milonexa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: security-service-role
+subjects:
+- kind: ServiceAccount
+  name: security-service
+  namespace: milonexa
+
+---
+
+# Collaboration Service RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: collaboration-service-rolebinding
+  namespace: milonexa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backend-service-role
+subjects:
+- kind: ServiceAccount
+  name: collaboration-service
+  namespace: milonexa
+
+---
+
+# Streaming Service RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: streaming-service-rolebinding
+  namespace: milonexa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backend-service-role
+subjects:
+- kind: ServiceAccount
+  name: streaming-service
+  namespace: milonexa
+
+---
+
+# Pod Reader (Monitoring) RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pod-reader-rolebinding
+  namespace: milonexa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-reader-role
+subjects:
+- kind: ServiceAccount
+  name: pod-reader
+  namespace: milonexa
+
+---
+
+# ==================== CLUSTER ROLE BINDINGS ====================
+# For cluster-wide operations (DNS, node discovery, etc.)
+
+# Allow pods to read pod information cluster-wide (for service discovery)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-reader-cluster
+rules:
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pod-reader-cluster-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pod-reader-cluster
+subjects:
+- kind: ServiceAccount
+  name: api-gateway
+  namespace: milonexa
+
+---
+
+# ==================== NETWORK POLICIES ====================
+# Control traffic between pods
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: milonexa
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+
+---
+
+# Allow traffic from api-gateway to all backend services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-api-gateway
+  namespace: milonexa
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: api-gateway
+    ports:
+    - port: 3000
+      protocol: TCP
+
+---
+
+# Allow inter-service communication (backend to backend)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-inter-service
+  namespace: milonexa
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: milonexa
+    ports:
+    - port: 3000
+      protocol: TCP
+
+---
+
+# Deny egress except to DNS and specific services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: milonexa
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+
+---
+
+# Allow DNS egress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: milonexa
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+
+---
+
+# Allow egress to external APIs (configurable)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-external-apis
+  namespace: milonexa
+spec:
+  podSelector:
+    matchLabels:
+      allow-external-apis: "true"
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - port: 443
+      protocol: TCP
+
+---
+
+# ==================== POD SECURITY POLICIES ====================
+# Define security standards for all pods
+
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: restricted
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'runtime/default'
+    apparmor.security.beta.kubernetes.io/allowedProfileNames: 'runtime/default'
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: 'runtime/default'
+    apparmor.security.beta.kubernetes.io/defaultProfileName: 'runtime/default'
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+  - ALL
+  volumes:
+  - 'configMap'
+  - 'emptyDir'
+  - 'projected'
+  - 'secret'
+  - 'downwardAPI'
+  - 'persistentVolumeClaim'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'MustRunAs'
+    seLinuxOptions:
+      level: "s0:c123,c456"
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+    - min: 1
+      max: 65535
+  readOnlyRootFilesystem: false
+
+---
+
+# Bind PSP to all service accounts
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: restricted-psp-user
+rules:
+- apiGroups: ['policy']
+  resources: ['podsecuritypolicies']
+  verbs: ['use']
+  resourceNames:
+  - restricted
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: restricted-psp-all-serviceaccounts
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: restricted-psp-user
+subjects:
+- kind: Group
+  name: system:serviceaccounts
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
+# ==================== AUDIT LOGGING ====================
+# Enable and configure audit logging for security and compliance
+
+# Application: Audit Policy
+# kind: Policy
+# rules:
+# - level: RequestResponse
+#   omitStages:
+#   - RequestReceived
+#   resources:
+#   - group: ""
+#     resources: ["secrets"]
+#   - group: "rbac.authorization.k8s.io"
+#     resources: ["clusterroles", "clusterrolebindings"]
+# - level: Metadata
+#   omitStages:
+#   - RequestReceived
+# 
+# Place at: /etc/kubernetes/audit-policy.yaml
+# Enable in kube-apiserver with flags:
+# --audit-policy-file=/etc/kubernetes/audit-policy.yaml
+# --audit-log-maxage=30
+# --audit-log-maxbackup=10
+# --audit-log-maxsize=100
