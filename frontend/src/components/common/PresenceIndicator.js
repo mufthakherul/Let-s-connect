@@ -3,17 +3,17 @@ import { Tooltip, Box } from '@mui/material';
 import api from '../../utils/api';
 
 const STATUS_COLORS = {
-  online: '#44b700',
-  away: '#f59e0b',
-  busy: '#ef4444',
-  offline: '#9e9e9e'
+    online: '#44b700',
+    away: '#f59e0b',
+    busy: '#ef4444',
+    offline: '#9e9e9e'
 };
 
 const STATUS_LABELS = {
-  online: 'Online',
-  away: 'Away',
-  busy: 'Do not disturb',
-  offline: 'Offline'
+    online: 'Online',
+    away: 'Away',
+    busy: 'Do not disturb',
+    offline: 'Offline'
 };
 
 /**
@@ -27,48 +27,48 @@ const STATUS_LABELS = {
  *                 to skip the REST fetch
  */
 const PresenceIndicator = ({ userId, size = 10, style = {}, knownStatus }) => {
-  const [status, setStatus] = useState(knownStatus || 'offline');
-  const [customStatus, setCustomStatus] = useState('');
+    const [status, setStatus] = useState(knownStatus || 'offline');
+    const [customStatus, setCustomStatus] = useState('');
 
-  useEffect(() => {
-    if (knownStatus !== undefined) {
-      setStatus(knownStatus);
-      return;
-    }
-    if (!userId) return;
-
-    let cancelled = false;
-    api.get(`/messaging/presence/${userId}`)
-      .then((res) => {
-        if (!cancelled) {
-          setStatus(res.data?.status || 'offline');
-          setCustomStatus(res.data?.customStatus || '');
+    useEffect(() => {
+        if (knownStatus !== undefined) {
+            setStatus(knownStatus);
+            return;
         }
-      })
-      .catch(() => { /* presence is best-effort */ });
+        if (!userId) return;
 
-    return () => { cancelled = true; };
-  }, [userId, knownStatus]);
+        let cancelled = false;
+        api.get(`/messaging/presence/${userId}`)
+            .then((res) => {
+                if (!cancelled) {
+                    setStatus(res.data?.status || 'offline');
+                    setCustomStatus(res.data?.customStatus || '');
+                }
+            })
+            .catch(() => { /* presence is best-effort */ });
 
-  const color = STATUS_COLORS[status] || STATUS_COLORS.offline;
-  const label = customStatus || STATUS_LABELS[status] || 'Offline';
+        return () => { cancelled = true; };
+    }, [userId, knownStatus]);
 
-  return (
-    <Tooltip title={label} placement="top">
-      <Box
-        component="span"
-        sx={{
-          display: 'inline-block',
-          width: size,
-          height: size,
-          borderRadius: '50%',
-          bgcolor: color,
-          flexShrink: 0,
-          ...style
-        }}
-      />
-    </Tooltip>
-  );
+    const color = STATUS_COLORS[status] || STATUS_COLORS.offline;
+    const label = customStatus || STATUS_LABELS[status] || 'Offline';
+
+    return (
+        <Tooltip title={label} placement="top">
+            <Box
+                component="span"
+                sx={{
+                    display: 'inline-block',
+                    width: size,
+                    height: size,
+                    borderRadius: '50%',
+                    bgcolor: color,
+                    flexShrink: 0,
+                    ...style
+                }}
+            />
+        </Tooltip>
+    );
 };
 
 export default PresenceIndicator;

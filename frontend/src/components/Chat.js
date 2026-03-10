@@ -436,12 +436,12 @@ function Chat({ user }) {
                         {/* Phase 14: Online presence indicator for DM conversations */}
                         {getConversationType(conv) === 'u2u' &&
                           conv.participants?.some(pid => pid !== user?.id && onlineUsers.has(pid)) && (
-                          <Box
-                            component="span"
-                            sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main', flexShrink: 0 }}
-                            title="Online"
-                          />
-                        )}
+                            <Box
+                              component="span"
+                              sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main', flexShrink: 0 }}
+                              title="Online"
+                            />
+                          )}
                       </Box>
                     }
                     secondary={conv.lastMessage}
@@ -589,7 +589,7 @@ function Chat({ user }) {
               ))}
             </Box>
 
-              <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+            <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
               {/* Phase 2: Show replying indicator */}
               {replyingTo && (
                 <Box
