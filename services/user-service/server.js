@@ -58,7 +58,15 @@ app.use(healthChecker.metricsMiddleware());
 // Log requests
 app.use((req, res, next) => {
   req.id = req.headers['x-request-id'] || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  logger.info({ method: req.method, path: req.url, requestId: req.id });
+  logger.info({
+    method: req.method,
+    path: req.url,
+    requestId: req.id,
+    correlationId: req.headers['x-correlation-id'] || req.id,
+    traceId: req.traceContext?.traceId,
+    spanId: req.traceContext?.spanId,
+    traceparent: req.headers.traceparent || req.traceContext?.traceparent
+  });
   next();
 });
 

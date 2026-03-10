@@ -218,6 +218,43 @@ What it validates:
 - Prometheus readiness
 - No critical firing alerts and no fast error-budget burn
 
+## Error Budget Reporting
+
+Generate reliability report artifacts from live Prometheus data:
+
+```bash
+./scripts/error-budget-report.sh
+```
+
+Optional stricter gate (non-zero exit on budget breach):
+
+```bash
+./scripts/error-budget-report.sh --window 7d --fail-on-breach
+```
+
+Reports are written to:
+
+- `docs/development/operations/reports/error-budget-report-<timestamp>.md`
+
+## Centralized Structured Logging (Fluent Bit → Elasticsearch)
+
+Apply the in-cluster log ingestion pipeline:
+
+```bash
+kubectl apply -f k8s/logging.yaml
+```
+
+This deploys Fluent Bit as a DaemonSet and ships enriched JSON/Kubernetes logs to Elasticsearch indices:
+
+- `milonexa-logs-*`
+
+Verify ingestion:
+
+```bash
+kubectl get pods -n milonexa -l app=fluent-bit
+kubectl logs -n milonexa -l app=fluent-bit --tail=100
+```
+
 ## Scaling Considerations
 
 For production deployments:
