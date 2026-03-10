@@ -1,6 +1,7 @@
 const express = require('express');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
+const { HealthChecker, checkDatabase } = require('../shared/monitoring');
 const { syncWithPolicy } = require('../shared/db-sync-policy');
 const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
 const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
@@ -9,9 +10,11 @@ require('dotenv').config({ quiet: true });
 const app = express();
 const PORT = process.env.PORT || 8006;
 const dbPoolProfile = process.env.DB_POOL_PROFILE || 'standard';
+const healthChecker = new HealthChecker('shop-service');
 
 app.use(express.json());
 app.use(createForwardedIdentityGuard());
+app.use(healthChecker.metricsMiddleware());
 
 // Database
 const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/shop', {
@@ -19,6 +22,8 @@ const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgr
   logging: false,
   ...getPoolConfig(dbPoolProfile)
 });
+
+healthChecker.registerCheck('database', () => checkDatabase(sequelize));
 
 // Phase 4: Caching integration
 let cacheEnabled = false;
@@ -209,7 +214,22 @@ WishlistItem.belongsTo(Product, { foreignKey: 'productId' });
 // Routes
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', service: 'shop-service' });
+  res.json(healthChecker.getBasicHealth());
+});
+
+app.get('/health/ready', async (req, res) => {
+  try {
+    const health = await healthChecker.runChecks();
+    const statusCode = health.status === 'healthy' ? 200 : 503;
+    res.status(statusCode).json(health);
+  } catch (error) {
+    res.status(503).json({ status: 'unhealthy', error: error.message });
+  }
+});
+
+app.get('/metrics', (req, res) => {
+  res.set('Content-Type', 'text/plain');
+  res.send(healthChecker.getPrometheusMetrics());
 });
 
 if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_QUERY_DEBUG_ENDPOINT === 'true') {

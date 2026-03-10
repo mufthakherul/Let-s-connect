@@ -2,13 +2,16 @@ const express = require('express');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Redis = require('ioredis');
 const crypto = require('crypto');
+const { HealthChecker, checkRedis } = require('../shared/monitoring');
 const { CacheKeyBuilder, CacheTTL, getCacheStats } = require('../shared/cache-strategy');
 require('dotenv').config({ quiet: true });
 
 const app = express();
 const PORT = process.env.PORT || 8007;
+const healthChecker = new HealthChecker('ai-service');
 
 app.use(express.json());
+app.use(healthChecker.metricsMiddleware());
 
 // Gemini Configuration
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
@@ -18,6 +21,12 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 const LONG_TERM_CACHE_TTL = 86400 * 30;
 const TRENDING_CACHE_TTL = 900;
+
+healthChecker.registerCheck('redis', () => checkRedis(redis));
+healthChecker.registerCheck('geminiApiKey', async () => ({
+  healthy: Boolean(process.env.GEMINI_API_KEY),
+  message: process.env.GEMINI_API_KEY ? 'Configured' : 'Missing GEMINI_API_KEY'
+}));
 
 const hashCacheSegment = (value) => crypto.createHash('sha1').update(String(value)).digest('hex');
 const buildHashedAiKey = (prefix, payload) => CacheKeyBuilder.custom('ai', prefix, hashCacheSegment(payload));
@@ -92,7 +101,22 @@ const parseJsonFromText = (text) => {
 // Routes
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', service: 'ai-service' });
+  res.json(healthChecker.getBasicHealth());
+});
+
+app.get('/health/ready', async (req, res) => {
+  try {
+    const health = await healthChecker.runChecks();
+    const statusCode = health.status === 'healthy' ? 200 : 503;
+    res.status(statusCode).json(health);
+  } catch (error) {
+    res.status(503).json({ status: 'unhealthy', error: error.message });
+  }
+});
+
+app.get('/metrics', (req, res) => {
+  res.set('Content-Type', 'text/plain');
+  res.send(healthChecker.getPrometheusMetrics());
 });
 
 if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_QUERY_DEBUG_ENDPOINT === 'true') {

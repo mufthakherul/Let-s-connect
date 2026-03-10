@@ -8,6 +8,7 @@ const webpush = require('web-push');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { startServiceWithDatabase } = require('../shared/startup');
 const { buildSocketCorsOptions } = require('../shared/cors-config');
+const { HealthChecker, checkDatabase, checkRedis } = require('../shared/monitoring');
 const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
 const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
 require('dotenv').config({ quiet: true });
@@ -22,9 +23,11 @@ const PORT = process.env.PORT || 8003;
 const BOT_SYSTEM_USER_ID = process.env.BOT_SYSTEM_USER_ID || '00000000-0000-0000-0000-000000000001';
 const TELEGRAM_BOT_WEBHOOK_TOKEN = process.env.TELEGRAM_BOT_WEBHOOK_TOKEN || '';
 const dbPoolProfile = process.env.DB_POOL_PROFILE || 'heavy';
+const healthChecker = new HealthChecker('messaging-service');
 
 app.use(express.json());
 app.use(createForwardedIdentityGuard());
+app.use(healthChecker.metricsMiddleware());
 
 // VAPID keys should be generated once and kept in .env
 const VAPID_PUBLIC_KEY = (process.env.VAPID_PUBLIC_KEY || '').trim();
@@ -63,6 +66,9 @@ const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgr
 // Redis for pub/sub
 const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 const redisSub = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
+
+healthChecker.registerCheck('database', () => checkDatabase(sequelize));
+healthChecker.registerCheck('redis', () => checkRedis(redis));
 
 // Models
 const Conversation = sequelize.define('Conversation', {
@@ -854,7 +860,22 @@ redisSub.on('message', (channel, message) => {
 // REST API Routes
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', service: 'messaging-service' });
+  res.json(healthChecker.getBasicHealth());
+});
+
+app.get('/health/ready', async (req, res) => {
+  try {
+    const health = await healthChecker.runChecks();
+    const statusCode = health.status === 'healthy' ? 200 : 503;
+    res.status(statusCode).json(health);
+  } catch (error) {
+    res.status(503).json({ status: 'unhealthy', error: error.message });
+  }
+});
+
+app.get('/metrics', (req, res) => {
+  res.set('Content-Type', 'text/plain');
+  res.send(healthChecker.getPrometheusMetrics());
 });
 
 if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_QUERY_DEBUG_ENDPOINT === 'true') {

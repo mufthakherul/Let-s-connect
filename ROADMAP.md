@@ -761,12 +761,12 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
 
 ---
 
-## Phase 4 — Advanced Platform Maturity (Months 7–9) 🚧 **IN PROGRESS**
+## Phase 4 — Advanced Platform Maturity (Months 7–9) ✅ **COMPLETED**
 
 **Objective:** professional-grade operational maturity.
 
-### Progress update (Started March 10, 2026)
-**Current focus:** Security/compliance playbooks and reliability process hardening
+### Completion update (March 10, 2026)
+**Current focus achieved:** Security/compliance playbooks and reliability process hardening wired into runtime and workflows
 
 ✅ **Completed:**
 - Extended security/compliance controls
@@ -778,13 +778,16 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
   - SLO/error-budget/canary alert rules
   - Release health gate automation script
   - CI reliability gate extension to additional backend services (user-service, api-gateway, content-service)
-  - Operational drill execution script (`run-game-day-drill.sh`) and reporting workflow
+  - Operational drill execution script (`run-game-day-drill.sh`) and reporting workflows (`.github/workflows/operations-reporting.yml`)
   - Monitoring documentation updates
 - Operational drill cadence
-  - Formal bi-weekly/monthly drill schedule
+  - Recurring scheduled drill/report workflow + manual scenario execution controls
   - Game-day scenario template for incident/rollback/security exercises
+- Runtime observability parity for Prometheus-scraped services
+  - Standardized `/metrics` and `/health/ready` endpoints wired in messaging, collaboration, shop, and AI services
+  - Shared latency/error/in-flight instrumentation middleware applied across all scraped services
 
-📋 **Planned:**
+📋 **Deferred to Additional Important Phases:**
 - Optional deeper type-safety migration strategy execution
 
 ### Deliverables
@@ -797,7 +800,7 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
 - Release risk profile significantly reduced
 - Team delivery cadence stable and predictable
 
-**Status:** In progress as of March 10, 2026.
+**Status:** Completed March 10, 2026.
 
 ## Risk Register (Top Risks)
 
@@ -869,7 +872,7 @@ This modernization initiative is successful when:
 
 ---
 
-**Status:** Phases 0–3 completed; Phase 4 in progress.
+**Status:** Phases 0–4 completed.
 
 
 #### ADDITIONL IMPORTANT PHASES

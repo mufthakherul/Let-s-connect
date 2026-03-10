@@ -192,9 +192,53 @@ jobs:
           echo "  Image Tag: ${{ env.IMAGE_TAG }}"
           echo "  Commit: ${{ github.event.head_commit.message }}"
 
+  staging-release-health-gate:
+    name: Staging Release Health Gate
+    needs: [deploy-staging]
+    runs-on: ubuntu-latest
+    if: needs.deploy-staging.result == 'success' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    environment:
+      name: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl context
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+          kubectl config use-context staging
+
+      - name: Run release health gate script
+        run: |
+          set -euo pipefail
+
+          kubectl -n milonexa port-forward svc/api-gateway 18000:8000 >/tmp/pf-api-gateway.log 2>&1 &
+          PF_API=$!
+
+          kubectl -n milonexa port-forward svc/prometheus 19090:9090 >/tmp/pf-prometheus.log 2>&1 &
+          PF_PROM=$!
+
+          cleanup() {
+            kill "${PF_API}" "${PF_PROM}" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          sleep 8
+
+          API_GATEWAY_URL="http://127.0.0.1:18000" \
+          PROMETHEUS_URL="http://127.0.0.1:19090" \
+          bash ./scripts/release-health-check.sh
+
   deploy-production:
     name: Deploy to Production
-    needs: [build-and-push, verify-images, deploy-staging]
+    needs: [build-and-push, verify-images, deploy-staging, staging-release-health-gate]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     environment:
@@ -357,7 +401,7 @@ jobs:
   deployment-summary:
     name: Deployment Summary
     runs-on: ubuntu-latest
-    needs: [build-and-push, verify-images, deploy-staging]
+    needs: [build-and-push, verify-images, deploy-staging, staging-release-health-gate]
     if: always()
     
     steps:
@@ -372,6 +416,7 @@ jobs:
           echo ""
           echo "Release Phase:"
           echo "  - Staging deployment: ${{ needs.deploy-staging.result }}"
+          echo "  - Staging release-health gate: ${{ needs.staging-release-health-gate.result }}"
           echo ""
           echo "Production Phase:"
           echo "  - Requires tag (v*): ${{ startsWith(github.ref, 'refs/tags/v') }}"
