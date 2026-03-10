@@ -327,36 +327,74 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
 
 ## Workstream G — Quality Engineering & Automated Testing
 
-### Status: 🟡 Started March 10, 2026
+### Status: ✅ Completed March 10, 2026
 
 **Documentation:** See [WORKSTREAM_G_BASELINE.md](docs/development/WORKSTREAM_G_BASELINE.md)
 
-**Baseline deliverables started:**
-- ✅ Cross-service critical-path harness (`tests/critical-path/`)
-- ✅ Initial suites for auth/feed/messaging/media/shop/admin controls
-- ✅ CI baseline gate (`critical-path-baseline` job in `.github/workflows/ci.yml`)
+**Deliverables:**
+- ✅ G1: Testing pyramid rollout with 7 test suites (6 flows + 1 contract test)
+- ✅ G2: Critical-path suites with strict assertions and response validation
+- ✅ G3: CI quality gates with coverage thresholds and flaky-test detection
+- ✅ G4: Strict assertion framework (assertStatus, assertProperties, assertUUID, assertEmail, assertTrue, assertEqual)
+- ✅ G5: Contract testing for gateway-to-service interactions
+- ✅ G6: Deterministic test fixtures for users, posts, products, conversations, orders, media
+- ✅ G7: Coverage thresholds (40% global, 60% user-service, 50% api-gateway)
+- ✅ G8: Flaky test detection framework with quarantine policy
+- ✅ G9: Test artifact collection (JUnit XML, logs, 7-day retention)
 
-### Goals
-- Build confidence for continuous delivery
+**Implementation Files:**
+- `tests/critical-path/_helpers.js` - 10+ assertion helpers + fixtures
+- `tests/critical-path/fixtures.js` - Deterministic seeded test data
+- `tests/critical-path/auth-register-login-reset.test.js` - Auth flow with strict assertions
+- `tests/critical-path/feed-create-read-engage.test.js` - Feed flow with strict assertions
+- `tests/critical-path/messaging-send-receive-reconnect.test.js` - Messaging flow with strict assertions
+- `tests/critical-path/media-upload-list-delete.test.js` - Media flow with strict assertions
+- `tests/critical-path/shop-browse-cart-order.test.js` - Shop flow with strict assertions
+- `tests/critical-path/admin-login-controls.test.js` - Admin flow with strict assertions
+- `tests/critical-path/contract-gateway-services.test.js` - Gateway contract tests
+- `jest.config.critical-path.js` - Jest config with coverage thresholds and JUnit reporter
+- `tests/quarantine/README.md` - Flaky test quarantine policy
+- `.github/workflows/ci.yml` - Enhanced with 3 new jobs (coverage-thresholds, flaky-test-detection, quality-gates updated)
 
-### G1. Testing pyramid rollout
-- Unit tests for business logic and validators
-- Integration tests for service endpoints and repository behavior
-- Contract tests for gateway-service interactions
-- E2E tests for critical user and admin journeys
+**Key Features:**
+- 7 test suites passing or gracefully skipping when services unreachable
+- 10+ assertion types for strict response validation
+- Deterministic fixtures with 50+ pre-defined test objects
+- Jest configuration with global and service-specific coverage thresholds
+- Flaky test detection framework with automatic quarantine policy
+- CI integration with JUnit XML artifact collection (7-day retention)
+- GitHub Actions jobs for coverage validation and test stability monitoring
 
-### G2. Initial critical-path test suites
-- Auth/register/login/reset
-- Feed create/read/engage flow
-- Messaging send/receive/reconnect
-- Media upload/list/delete
-- Shop browse/cart/order
-- Admin login/moderation/user controls
+### Goals ✅
+- ✅ Build confidence for continuous delivery
+- ✅ Establish testing pyramid baseline (unit + integration + contract + E2E)
+- ✅ Create executable, non-blocking critical-path harness
+- ✅ Implement strict assertion framework vs. capability probes
+- ✅ Add deterministic test fixtures
+- ✅ Establish coverage threshold policy
+- ✅ Create flaky test detection and quarantine process
 
-### G3. CI quality gates
-- Mandatory lint + test pass before merge
-- Test artifact collection and flaky-test quarantine process
-- Coverage threshold policy per module
+### G1. Testing Pyramid Rollout ✅
+- ✅ Unit and integration tests retained from services
+- ✅ Cross-service critical-path harness with 7 suites
+- ✅ Contract tests for gateway-service interactions
+- ✅ E2E capability validation for all major flows
+
+### G2. Critical-Path Test Suites ✅
+- ✅ Auth: register/login/check-username/password-reset
+- ✅ Feed: create/read/engage/reactions
+- ✅ Messaging: create conversation/list/fetch messages/reconnect
+- ✅ Media: upload/get signed URL/delete capability
+- ✅ Shop: browse/create product/cart/order
+- ✅ Admin: login/controls guard/debug endpoint guard
+- ✅ Gateway contracts: routing/error envelope/resilience behavior
+
+### G3. CI Quality Gates ✅
+- ✅ Mandatory test pass before merge
+- ✅ Coverage thresholds enforced per service
+- ✅ Flaky test detection and quarantine automation
+- ✅ Test artifact collection with 7-day retention
+- ✅ Detailed quality gates summary in workflow
 
 ---
 

@@ -171,7 +171,7 @@ let dbInitialized = false;
 
 async function initializeAdminDB() {
     try {
-        adminSequelize = new Sequelize(ADMIN_DB_URL, { 
+        adminSequelize = new Sequelize(ADMIN_DB_URL, {
             logging: false,
             dialectOptions: {
                 connectTimeout: 10000
@@ -194,7 +194,7 @@ async function initializeAdminDB() {
 
         await adminSequelize.authenticate();
         await adminSequelize.sync({ alter: true });
-        
+
         if (process.env.ADMIN_MASTER_USERNAME && process.env.ADMIN_MASTER_PASSWORD) {
             const [user, created] = await AdminUser.findOrCreate({
                 where: { username: process.env.ADMIN_MASTER_USERNAME },
@@ -208,7 +208,7 @@ async function initializeAdminDB() {
                 }
             }
         }
-        
+
         dbInitialized = true;
         console.log('[Admin DB] Connected and initialized successfully');
     } catch (err) {
@@ -294,8 +294,8 @@ const corsOptions = {
         }
     },
     credentials: true,
-    methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-    allowedHeaders: ['Authorization','Content-Type','X-Requested-With','X-User-Id','X-Admin-Secret','X-Admin-2FA-Token','X-Admin-User-Id']
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'X-User-Id', 'X-Admin-Secret', 'X-Admin-2FA-Token', 'X-Admin-User-Id']
 };
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
