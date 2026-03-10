@@ -1,26 +1,44 @@
 /* eslint-disable no-restricted-globals */
 
-// generate a new cache version on each build/refresh by using timestamp
-const CACHE_VERSION = `v${Date.now()}`;
+// Bump manually when cache invalidation is required.
+const CACHE_VERSION = 'v13-mobile-pwa-1';
 const CACHE_NAME = `milonexa-${CACHE_VERSION}`;
+
+const SYNC_DB_NAME = 'milonexa-sync-db';
+const SYNC_STORE_NAME = 'queued-requests';
+const MAX_SYNC_ATTEMPTS = 5;
 
 // Assets to cache on install
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/offline.html'
+  '/offline.html',
+  '/icon.svg',
+  '/logo.png'
 ];
 
 // API patterns that should be cached
 const API_CACHE_PATTERNS = [
   /\/api\/user\/profile/,
   /\/api\/content\/posts/,
-  /\/api\/content\/blogs/
+  /\/api\/content\/blogs/,
+  /\/api\/messaging\/notifications/
 ];
 
-// Max age for cached API responses (2 minutes for real-time content)
-const API_CACHE_MAX_AGE = 2 * 60 * 1000;
+// Max age for cached API responses (5 minutes)
+const API_CACHE_MAX_AGE = 5 * 60 * 1000;
+
+const MUTATION_SYNC_PATTERNS = [
+  {
+    tag: 'sync-posts',
+    pattern: /\/api\/content\/posts(\/|$)/
+  },
+  {
+    tag: 'sync-messages',
+    pattern: /\/api\/messaging\/(conversations\/[^/]+\/messages|messages)(\/|$)/
+  }
+];
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
@@ -61,8 +79,12 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests
+  // Handle offline queue for selected mutating requests
   if (request.method !== 'GET') {
+    const syncTag = getSyncTagForRequest(request);
+    if (syncTag) {
+      event.respondWith(handleMutationRequest(request, syncTag));
+    }
     return;
   }
 
@@ -213,6 +235,233 @@ function shouldCacheAPIRequest(request) {
   return API_CACHE_PATTERNS.some(pattern => pattern.test(url.pathname));
 }
 
+function getSyncTagForRequest(request) {
+  const url = new URL(request.url);
+  const matched = MUTATION_SYNC_PATTERNS.find(({ pattern }) => pattern.test(url.pathname));
+  return matched?.tag || null;
+}
+
+async function handleMutationRequest(request, syncTag) {
+  try {
+    return await fetch(request.clone());
+  } catch (error) {
+    const queued = await queueRequestForSync(request, syncTag);
+
+    if (queued) {
+      await registerSyncTag(syncTag);
+      return new Response(JSON.stringify({
+        queued: true,
+        offline: true,
+        message: 'Request queued and will sync when online'
+      }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    return new Response(JSON.stringify({
+      error: 'Network unavailable',
+      offline: true
+    }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+async function queueRequestForSync(request, tag) {
+  try {
+    const payload = await serializeRequestForQueue(request, tag);
+    if (!payload) {
+      return false;
+    }
+
+    await addQueuedRequest(payload);
+    console.log('[Service Worker] Request queued for sync:', tag, payload.url);
+    return true;
+  } catch (error) {
+    console.error('[Service Worker] Failed to queue request for sync:', error);
+    return false;
+  }
+}
+
+async function serializeRequestForQueue(request, tag) {
+  const headers = {};
+  request.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+
+  const contentType = request.headers.get('content-type') || '';
+  let body = null;
+
+  if (!['GET', 'HEAD'].includes(request.method)) {
+    if (contentType.includes('multipart/form-data')) {
+      // Binary uploads are skipped for now and should be retried by the app.
+      return null;
+    }
+
+    body = await request.clone().text();
+  }
+
+  return {
+    url: request.url,
+    method: request.method,
+    headers,
+    body,
+    tag,
+    queuedAt: Date.now(),
+    attempts: 0
+  };
+}
+
+function openSyncDb() {
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in self)) {
+      reject(new Error('IndexedDB is not available in this environment'));
+      return;
+    }
+
+    const openRequest = indexedDB.open(SYNC_DB_NAME, 1);
+
+    openRequest.onupgradeneeded = () => {
+      const db = openRequest.result;
+      if (!db.objectStoreNames.contains(SYNC_STORE_NAME)) {
+        const store = db.createObjectStore(SYNC_STORE_NAME, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('tag', 'tag', { unique: false });
+      }
+    };
+
+    openRequest.onsuccess = () => resolve(openRequest.result);
+    openRequest.onerror = () => reject(openRequest.error || new Error('Failed to open sync database'));
+  });
+}
+
+async function addQueuedRequest(payload) {
+  const db = await openSyncDb();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(SYNC_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(SYNC_STORE_NAME);
+    const addRequest = store.add(payload);
+
+    addRequest.onsuccess = () => resolve(addRequest.result);
+    addRequest.onerror = () => reject(addRequest.error);
+
+    transaction.oncomplete = () => db.close();
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+async function getQueuedRequestsByTag(tag) {
+  const db = await openSyncDb();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(SYNC_STORE_NAME, 'readonly');
+    const store = transaction.objectStore(SYNC_STORE_NAME);
+    const index = store.index('tag');
+    const getRequest = index.getAll(tag);
+
+    getRequest.onsuccess = () => resolve(getRequest.result || []);
+    getRequest.onerror = () => reject(getRequest.error);
+
+    transaction.oncomplete = () => db.close();
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+async function deleteQueuedRequest(id) {
+  const db = await openSyncDb();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(SYNC_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(SYNC_STORE_NAME);
+    const deleteRequest = store.delete(id);
+
+    deleteRequest.onsuccess = () => resolve(true);
+    deleteRequest.onerror = () => reject(deleteRequest.error);
+
+    transaction.oncomplete = () => db.close();
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+async function updateQueuedRequest(item) {
+  const db = await openSyncDb();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(SYNC_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(SYNC_STORE_NAME);
+    const putRequest = store.put(item);
+
+    putRequest.onsuccess = () => resolve(true);
+    putRequest.onerror = () => reject(putRequest.error);
+
+    transaction.oncomplete = () => db.close();
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+async function registerSyncTag(tag) {
+  if (!('sync' in self.registration)) {
+    return;
+  }
+
+  try {
+    await self.registration.sync.register(tag);
+  } catch (error) {
+    console.warn('[Service Worker] Unable to register sync tag:', tag, error);
+  }
+}
+
+async function incrementSyncAttempt(item) {
+  const attempts = (item.attempts || 0) + 1;
+
+  if (attempts >= MAX_SYNC_ATTEMPTS) {
+    await deleteQueuedRequest(item.id);
+    return;
+  }
+
+  await updateQueuedRequest({ ...item, attempts });
+}
+
+async function replayQueuedRequests(tag) {
+  const queuedRequests = await getQueuedRequestsByTag(tag);
+
+  for (const item of queuedRequests) {
+    try {
+      const response = await fetch(item.url, {
+        method: item.method,
+        headers: item.headers,
+        body: item.body,
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        await deleteQueuedRequest(item.id);
+      } else if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+        // Client-side validation/auth errors should not loop forever.
+        await deleteQueuedRequest(item.id);
+      } else {
+        await incrementSyncAttempt(item);
+      }
+    } catch (error) {
+      await incrementSyncAttempt(item);
+    }
+  }
+}
+
 // Background sync for offline actions
 self.addEventListener('sync', (event) => {
   console.log('[Service Worker] Background sync:', event.tag);
@@ -225,15 +474,13 @@ self.addEventListener('sync', (event) => {
 });
 
 async function syncPosts() {
-  // Sync queued posts when back online
   console.log('[Service Worker] Syncing posts...');
-  // Implementation would fetch from IndexedDB and POST to API
+  await replayQueuedRequests('sync-posts');
 }
 
 async function syncMessages() {
-  // Sync queued messages when back online
   console.log('[Service Worker] Syncing messages...');
-  // Implementation would fetch from IndexedDB and POST to API
+  await replayQueuedRequests('sync-messages');
 }
 
 // Push notifications
@@ -244,12 +491,13 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Let\'s Connect';
   const options = {
     body: data.body || 'You have a new notification',
-    icon: '/icon-192x192.png',
-    badge: '/icon-192x192.png',
+    icon: '/logo.png',
+    badge: '/icon.svg',
     tag: data.tag || 'default',
     data: data.data || {},
     actions: data.actions || [],
-    requireInteraction: data.priority === 'high'
+    requireInteraction: data.priority === 'high',
+    vibrate: data.vibrate || [120, 40, 120]
   };
 
   event.waitUntil(
@@ -271,16 +519,20 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
+        const destination = event.notification.data?.url || '/';
+
         // Check if there's already a window open
         for (const client of clientList) {
           if (client.url.includes(self.location.origin) && 'focus' in client) {
+            if ('navigate' in client) {
+              client.navigate(destination);
+            }
             return client.focus();
           }
         }
 
         // Open new window
-        const url = event.notification.data?.url || '/';
-        return clients.openWindow(url);
+        return clients.openWindow(destination);
       })
   );
 });
@@ -299,7 +551,11 @@ self.addEventListener('message', (event) => {
     );
   } else if (event.data.type === 'CLEAR_CACHE') {
     event.waitUntil(
-      caches.delete(CACHE_NAME)
+      caches.keys().then((cacheNames) => Promise.all(cacheNames.map((name) => caches.delete(name))))
+    );
+  } else if (event.data.type === 'REGISTER_SYNC' && event.data.tag) {
+    event.waitUntil(
+      registerSyncTag(event.data.tag)
     );
   }
 });

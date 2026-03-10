@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container,
   Grid,
@@ -27,9 +27,12 @@ import {
   CloudUpload,
   Delete,
   Image as ImageIcon,
-  Close
+  Close,
+  CameraAlt,
+  PhotoCamera
 } from '@mui/icons-material';
 import api from '../utils/api';
+import { requestCameraStream, supportsCameraCapture, triggerHapticFeedback } from '../utils/mobile';
 
 /**
  * Media Gallery Component
@@ -50,6 +53,11 @@ function MediaGallery() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [visibility, setVisibility] = useState('public');
+  const [cameraDialogOpen, setCameraDialogOpen] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [capturingPhoto, setCapturingPhoto] = useState(false);
+  const videoRef = useRef(null);
+  const cameraStreamRef = useRef(null);
 
   // Fetch public media files
   const fetchFiles = async () => {
@@ -89,12 +97,102 @@ function MediaGallery() {
       setFiles([response.data, ...files]);
       setUploadDialogOpen(false);
       setSelectedFile(null);
+      triggerHapticFeedback('success');
     } catch (err) {
       setError(err.message);
     } finally {
       setUploading(false);
     }
   };
+
+  const stopCameraStream = () => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const closeCameraDialog = () => {
+    setCameraDialogOpen(false);
+    setCapturingPhoto(false);
+    stopCameraStream();
+  };
+
+  const openCameraDialog = async () => {
+    setCameraError('');
+    setCameraDialogOpen(true);
+
+    if (!supportsCameraCapture()) {
+      setCameraError('Camera is not supported in this browser/device.');
+      return;
+    }
+
+    try {
+      const stream = await requestCameraStream();
+      cameraStreamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      triggerHapticFeedback('selection');
+    } catch (err) {
+      console.error('Failed to access camera:', err);
+      setCameraError(err.message || 'Unable to access camera. Check device permissions.');
+    }
+  };
+
+  const captureFromCamera = () => {
+    if (!videoRef.current) {
+      return;
+    }
+
+    const video = videoRef.current;
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+    const canvas = document.createElement('canvas');
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      setCameraError('Failed to initialize capture context.');
+      return;
+    }
+
+    context.drawImage(video, 0, 0, width, height);
+    setCapturingPhoto(true);
+
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setCameraError('Failed to capture image from camera.');
+        setCapturingPhoto(false);
+        return;
+      }
+
+      const capturedFile = new File([blob], `camera-${Date.now()}.jpg`, {
+        type: 'image/jpeg',
+        lastModified: Date.now()
+      });
+
+      setSelectedFile(capturedFile);
+      triggerHapticFeedback('success');
+      setCapturingPhoto(false);
+      closeCameraDialog();
+    }, 'image/jpeg', 0.9);
+  };
+
+  useEffect(() => {
+    return () => {
+      stopCameraStream();
+    };
+  }, []);
 
   // Handle file delete
   const handleDelete = async (fileId) => {
@@ -252,8 +350,19 @@ function MediaGallery() {
                 type="file"
                 hidden
                 accept="image/*"
+                capture="environment"
                 onChange={(e) => setSelectedFile(e.target.files[0])}
               />
+            </Button>
+
+            <Button
+              variant="text"
+              fullWidth
+              startIcon={<CameraAlt />}
+              onClick={openCameraDialog}
+              sx={{ mb: 1 }}
+            >
+              Capture with Camera
             </Button>
 
             {selectedFile && (
@@ -284,6 +393,50 @@ function MediaGallery() {
           >
             {uploading ? <CircularProgress size={24} /> : 'Upload'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Camera Capture Dialog */}
+      <Dialog open={cameraDialogOpen} onClose={closeCameraDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Capture Image</DialogTitle>
+        <DialogContent>
+          {cameraError ? (
+            <Alert severity="error" sx={{ mt: 1 }}>
+              {cameraError}
+            </Alert>
+          ) : (
+            <Box sx={{ mt: 1 }}>
+              <Box
+                sx={{
+                  width: '100%',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  bgcolor: 'black'
+                }}
+              >
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{ width: '100%', display: 'block' }}
+                />
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeCameraDialog}>Cancel</Button>
+          {!cameraError && (
+            <Button
+              variant="contained"
+              onClick={captureFromCamera}
+              startIcon={capturingPhoto ? null : <PhotoCamera />}
+              disabled={capturingPhoto}
+            >
+              {capturingPhoto ? <CircularProgress size={20} /> : 'Capture'}
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
     </Container>

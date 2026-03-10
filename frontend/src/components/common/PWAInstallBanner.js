@@ -14,6 +14,7 @@ import {
   PhoneIphone as PhoneIcon
 } from '@mui/icons-material';
 import { setupInstallPrompt, showInstallPrompt, isPWA } from '../../utils/pwa';
+import { triggerHapticFeedback } from '../../utils/mobile';
 
 function PWAInstallBanner() {
   const [showBanner, setShowBanner] = useState(false);
@@ -45,6 +46,7 @@ function PWAInstallBanner() {
 
       if (outcome === 'accepted') {
         console.log('User accepted the install prompt');
+        triggerHapticFeedback('success');
         setShowBanner(false);
       } else if (outcome === 'dismissed') {
         console.log('User dismissed the install prompt');
@@ -60,6 +62,7 @@ function PWAInstallBanner() {
   const handleDismiss = () => {
     setShowBanner(false);
     localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+    triggerHapticFeedback('light');
   };
 
   if (!showBanner) {

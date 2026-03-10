@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   Box,
   Card,
@@ -55,6 +55,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { designTokens, getGlassyStyle } from '../theme/designSystem';
 import { useTheme } from '@mui/material/styles';
 import { Tooltip } from '@mui/material';
+import PullToRefresh from './common/PullToRefresh';
+import { triggerHapticFeedback } from '../utils/mobile';
 
 const VISIBILITY_OPTIONS = [
   { value: 'public', label: 'Public', icon: <Public fontSize="small" /> },
@@ -70,6 +72,8 @@ const REACTIONS = [
   { value: 'sad', label: 'Sad', emoji: '😢' },
   { value: 'angry', label: 'Angry', emoji: '😡' }
 ];
+
+const FEED_SWIPE_ROUTES = ['/groups', '/feed', '/chat', '/bookmarks'];
 
 const containerVariants = {
   hidden: { opacity: 0, y: 12 },
@@ -134,6 +138,8 @@ function Feed({ user }) {
   const [awardMessage, setAwardMessage] = useState('');
   const [bookmarks, setBookmarks] = useState({});
   const [postAnonymous, setPostAnonymous] = useState(false); // new toggle for anonymous posting
+  const swipeStartRef = useRef({ x: 0, y: 0, interactive: false });
+  const swipeDeltaRef = useRef({ x: 0, y: 0 });
   const { ref, inView } = useInView();
 
   useEffect(() => {
@@ -194,9 +200,17 @@ function Feed({ user }) {
         anonymous: postAnonymous
       });
 
-      setPosts([response.data, ...posts]);
+      if (response.data?.queued) {
+        resetComposer();
+        triggerHapticFeedback('light');
+        toast.success('You are offline. Post queued and will sync automatically.');
+        return;
+      }
+
+      setPosts((prev) => [response.data, ...prev]);
       resetComposer();
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      triggerHapticFeedback('success');
       toast.success('Post created successfully!');
     } catch (err) {
       console.error('Failed to create post:', err);
@@ -218,6 +232,7 @@ function Feed({ user }) {
         setPosts([created[0], ...posts]);
       }
       resetComposer();
+      triggerHapticFeedback('success');
       toast.success('Thread created successfully!');
     } catch (err) {
       console.error('Failed to create thread:', err);
@@ -337,6 +352,7 @@ function Feed({ user }) {
         replies: [...(prev?.replies || []), response.data]
       }));
       setReplyText('');
+      triggerHapticFeedback('light');
     } catch (err) {
       console.error('Failed to reply:', err);
       toast.error(err.response?.data?.error || 'Failed to reply');
@@ -462,6 +478,80 @@ function Feed({ user }) {
     return option?.icon || <Public fontSize="small" />;
   };
 
+  const refreshFeed = async () => {
+    setHasMore(true);
+    await fetchPosts(1);
+    triggerHapticFeedback('selection');
+  };
+
+  const resetSwipe = () => {
+    swipeStartRef.current = { x: 0, y: 0, interactive: false };
+    swipeDeltaRef.current = { x: 0, y: 0 };
+  };
+
+  const handleFeedTouchStart = (event) => {
+    const touch = event.touches?.[0];
+    if (!touch) {
+      return;
+    }
+
+    const target = event.target;
+    const interactive = Boolean(
+      target?.closest?.('input, textarea, button, a, [role="button"], [role="menuitem"], [contenteditable="true"]')
+    );
+
+    swipeStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      interactive
+    };
+    swipeDeltaRef.current = { x: 0, y: 0 };
+  };
+
+  const handleFeedTouchMove = (event) => {
+    if (swipeStartRef.current.interactive) {
+      return;
+    }
+
+    const touch = event.touches?.[0];
+    if (!touch) {
+      return;
+    }
+
+    swipeDeltaRef.current = {
+      x: touch.clientX - swipeStartRef.current.x,
+      y: touch.clientY - swipeStartRef.current.y
+    };
+  };
+
+  const handleFeedTouchEnd = () => {
+    if (swipeStartRef.current.interactive) {
+      resetSwipe();
+      return;
+    }
+
+    const { x, y } = swipeDeltaRef.current;
+    const absX = Math.abs(x);
+    const absY = Math.abs(y);
+
+    if (absX < 70 || absX < absY * 1.2) {
+      resetSwipe();
+      return;
+    }
+
+    const currentIndex = FEED_SWIPE_ROUTES.indexOf('/feed');
+    const nextIndex = x < 0
+      ? Math.min(currentIndex + 1, FEED_SWIPE_ROUTES.length - 1)
+      : Math.max(currentIndex - 1, 0);
+
+    if (nextIndex !== currentIndex) {
+      triggerHapticFeedback('selection');
+      navigate(FEED_SWIPE_ROUTES[nextIndex]);
+    }
+
+    resetSwipe();
+  };
+
   const renderAwardsSummary = (postId) => {
     const awardsForPost = postAwards[postId] || [];
     if (!awardsForPost.length) return null;
@@ -482,7 +572,17 @@ function Feed({ user }) {
   };
 
   return (
-    <Box component={motion.div} variants={containerVariants} initial="hidden" animate="visible" sx={{ maxWidth: 720, mx: 'auto', py: 2 }}>
+    <PullToRefresh onRefresh={refreshFeed} disabled={loading} useWindowScroll>
+      <Box
+        component={motion.div}
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        onTouchStart={handleFeedTouchStart}
+        onTouchMove={handleFeedTouchMove}
+        onTouchEnd={handleFeedTouchEnd}
+        sx={{ maxWidth: 720, mx: 'auto', py: 2 }}
+      >
       <Typography variant="h4" fontWeight="bold" sx={{ mb: 3 }}>
         Feed
       </Typography>
@@ -696,7 +796,7 @@ function Feed({ user }) {
               <Button size="small" startIcon={<Forum />} onClick={() => handleViewThread(post.id)}>
                 Thread
               </Button>
-              <Button size="small" startIcon={<Repeat />} onClick={(event) => handleRetweetMenu(event, post)}>
+              <Button size="small" startIcon={<Repeat />} onClick={(event) => handleRepostMenu(event, post)}>
                 {formatNumber(post.shares || 0)}
               </Button>
               <Button size="small" startIcon={<AutoAwesome />} onClick={() => openAwards(post)}>
@@ -861,7 +961,8 @@ function Feed({ user }) {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+      </Box>
+    </PullToRefresh>
   );
 }
 
