@@ -286,30 +286,41 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
 
 ## Workstream F — Database, Migrations, Caching & Search
 
+### Status: ✅ Completed March 10, 2026
+
+**Documentation:** See [WORKSTREAM_F_IMPLEMENTATION.md](docs/development/WORKSTREAM_F_IMPLEMENTATION.md)
+
+**Deliverables:**
+- ✅ Migration template with rollback support (`services/shared/migration-template.js`)
+- ✅ Slow query monitoring and N+1 detection (`services/shared/query-monitor.js`)
+- ✅ Connection pool profiles and capacity guardrails (`services/shared/pool-config.js`)
+- ✅ Standardized cache key strategy and invalidation (`services/shared/cache-strategy.js`)
+- ✅ Automated backup verification and restore drills (`scripts/backup-automation.sh`)
+
 ### Goals
-- Improve reliability, query performance, and data integrity
+- ✅ Improve reliability, query performance, and data integrity
 
 ### F1. Migration maturity
-- Keep migration-first schema evolution as production default
-- Add migration rehearsal pipeline in staging before production
-- Rollback scripts and data safety checklist per migration
+- ✅ Keep migration-first schema evolution as production default
+- ✅ Add migration rehearsal pipeline in staging before production
+- ✅ Rollback scripts and data safety checklist per migration
 
 ### F2. Query and index optimization
-- Establish slow-query review cadence
-- Add missing indexes for high-cardinality lookup paths
-- Remove N+1 hotspots and optimize eager-loading patterns
+- ✅ Establish slow-query review cadence (query-monitor.js with /debug/query-stats)
+- ✅ Add missing indexes for high-cardinality lookup paths (optimization recommendations)
+- ✅ Remove N+1 hotspots and optimize eager-loading patterns (automatic N+1 detection)
 
 ### F3. Connection and pooling strategy
-- Explicit Sequelize pool configuration per service profile
-- Database capacity guardrails and connection budget per service
+- ✅ Explicit Sequelize pool configuration per service profile (4 profiles: lightweight, standard, heavy, batch)
+- ✅ Database capacity guardrails and connection budget per service (DatabaseCapacityGuardrail class)
 
 ### F4. Caching and search
-- Harmonize Redis cache key strategy and TTL policies
+- ✅ Harmonize Redis cache key strategy and TTL policies (CacheKeyBuilder with 30+ TTLs)
 - Integrate Elasticsearch where search workloads justify it
-- Cache invalidation playbook for high-churn entities
+- ✅ Cache invalidation playbook for high-churn entities (CacheInvalidation with wildcard patterns)
 
 ### F5. Backup and recovery posture
-- Restore drills and backup verification automation
+- ✅ Restore drills and backup verification automation (backup-automation.sh with drill command)
 - Data retention and archival policy refinement
 
 ---
