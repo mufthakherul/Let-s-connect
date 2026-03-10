@@ -12,11 +12,14 @@ const { Sequelize, DataTypes } = require('sequelize');
 require('dotenv').config({ quiet: true });
 
 const { getRequiredEnv, isPlaceholderSecret } = require('../shared/security-utils');
+const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
+const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
 
 // configuration
 // security-service listens on a configurable port (previously 9101)
 // change via SECURITY_PORT in environment (e.g. 9102 to avoid conflicts)
 const PORT = process.env.SECURITY_PORT || 9102;
+const adminDbPoolProfile = process.env.ADMIN_DB_POOL_PROFILE || 'lightweight';
 const ADMIN_API_SECRET = getRequiredEnv('ADMIN_API_SECRET');
 const INTERNAL_GATEWAY_TOKEN = getRequiredEnv('INTERNAL_GATEWAY_TOKEN');
 
@@ -173,13 +176,15 @@ async function initializeAdminDB() {
             dialectOptions: {
                 connectTimeout: 10000
             },
-            pool: {
-                max: 5,
-                min: 0,
-                acquire: 30000,
-                idle: 10000
-            }
+            ...getPoolConfig(adminDbPoolProfile)
         });
+
+        setupQueryMonitoring(adminSequelize, {
+            slowQueryThreshold: parseInt(process.env.SLOW_QUERY_THRESHOLD || '100', 10),
+            n1Threshold: parseInt(process.env.N1_QUERY_THRESHOLD || '5', 10),
+            enableStackTrace: process.env.NODE_ENV !== 'production'
+        });
+        monitorPoolHealth(adminSequelize, getPoolConfig(adminDbPoolProfile));
 
         AdminUser = adminSequelize.define('AdminUser', {
             username: { type: DataTypes.STRING, unique: true, allowNull: false },
@@ -385,6 +390,8 @@ app.post('/admin/users', requireAdminJWT, async (req, res) => {
         res.status(500).json({ error: 'Failed to create user' });
     }
 });
+
+app.get('/admin/debug/query-stats', requireAdminJWT, queryStatsMiddleware);
 
 // mount proxies dynamically
 app.use('/:service', (req, res, next) => {

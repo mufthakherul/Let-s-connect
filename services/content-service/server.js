@@ -10,9 +10,12 @@ const { MigrationManager } = require('../shared/migrations-manager');
 const { syncWithPolicy } = require('../shared/db-sync-policy');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { buildCorsOptions } = require('../shared/cors-config');
+const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
+const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
 require('dotenv').config({ quiet: true });
 
 const PORT = process.env.PORT || 8002;
+const dbPoolProfile = process.env.DB_POOL_PROFILE || 'standard';
 
 const app = express();
 const healthChecker = new HealthChecker('content-service');
@@ -80,6 +83,10 @@ app.get('/health', (req, res) => {
     res.json(healthChecker.getBasicHealth());
 });
 
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_QUERY_DEBUG_ENDPOINT === 'true') {
+    app.get('/debug/query-stats', queryStatsMiddleware);
+}
+
 // Friendly root endpoint (avoid default "Cannot GET /")
 app.get('/', (req, res) => {
     res.status(200).json({
@@ -108,6 +115,13 @@ const startServer = async () => {
     try {
         await sequelize.authenticate();
         console.log('[Content Service] Database connected.');
+
+        setupQueryMonitoring(sequelize, {
+            slowQueryThreshold: parseInt(process.env.SLOW_QUERY_THRESHOLD || '100', 10),
+            n1Threshold: parseInt(process.env.N1_QUERY_THRESHOLD || '5', 10),
+            enableStackTrace: process.env.NODE_ENV !== 'production'
+        });
+        monitorPoolHealth(sequelize, getPoolConfig(dbPoolProfile));
 
         await ensureSchemaBootstrapIfMissing();
 

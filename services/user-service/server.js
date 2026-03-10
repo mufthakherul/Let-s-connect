@@ -17,6 +17,8 @@ const { initGracefulShutdown, createDatabaseCleanup, createRedisCleanup } = requ
 const { createHealthCheck, setupHealthRoutes } = require('../shared/health-check');
 const { validateEnv } = require('../shared/env-validator');
 const { securityAuditMiddleware } = require('../shared/sanitization');
+const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
+const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
 require('dotenv').config({ quiet: true });
 
 const app = express();
@@ -39,6 +41,7 @@ if (!envValidation.valid) {
 }
 
 const PORT = process.env.PORT || 8001;
+const dbPoolProfile = process.env.DB_POOL_PROFILE || 'heavy';
 
 // Middleware
 app.use(helmet());
@@ -87,6 +90,11 @@ app.get('/metrics', (req, res) => {
 
 // Note: /health and /ready are now handled by Workstream E health-check.js via setupHealthRoutes()
 
+// Workstream F2: query profiling endpoint (disabled by default in production)
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_QUERY_DEBUG_ENDPOINT === 'true') {
+  app.get('/debug/query-stats', queryStatsMiddleware);
+}
+
 // Friendly root endpoint (avoid default "Cannot GET /")
 app.get('/', (req, res) => {
   res.status(200).json({
@@ -133,6 +141,14 @@ async function startServer() {
   try {
     await sequelize.authenticate();
     logger.info('Database connection established');
+
+    // Workstream F2/F3: Query monitoring + pool health checks
+    setupQueryMonitoring(sequelize, {
+      slowQueryThreshold: parseInt(process.env.SLOW_QUERY_THRESHOLD || '100', 10),
+      n1Threshold: parseInt(process.env.N1_QUERY_THRESHOLD || '5', 10),
+      enableStackTrace: process.env.NODE_ENV !== 'production'
+    });
+    monitorPoolHealth(sequelize, getPoolConfig(dbPoolProfile));
 
     await ensureSchemaBootstrapIfMissing();
 

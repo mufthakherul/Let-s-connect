@@ -7,6 +7,8 @@ const NodeCache = require('node-cache');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { syncWithPolicy } = require('../shared/db-sync-policy');
 const { buildCorsOptions } = require('../shared/cors-config');
+const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
+const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
 require('dotenv').config({ quiet: true });
 
 // Advanced TV services (search, health, recommendations)
@@ -21,6 +23,7 @@ let recommender = null;
 
 const app = express();
 const PORT = process.env.PORT || 8009;
+const dbPoolProfile = process.env.DB_POOL_PROFILE || 'standard';
 
 // Middleware
 app.use(cors(buildCorsOptions()));
@@ -55,7 +58,8 @@ const sequelize = new Sequelize(
     process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/streaming',
     {
         dialect: 'postgres',
-        logging: false
+        logging: false,
+        ...getPoolConfig(dbPoolProfile)
     }
 );
 
@@ -1768,6 +1772,10 @@ app.get('/health', async (req, res) => {
     }
 });
 
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_QUERY_DEBUG_ENDPOINT === 'true') {
+    app.get('/debug/query-stats', queryStatsMiddleware);
+}
+
 // Friendly root endpoint (avoid default "Cannot GET /")
 app.get('/', (req, res) => {
     res.status(200).json({
@@ -1793,6 +1801,14 @@ app.use((req, res) => {
 
 async function startServer() {
     try {
+        await sequelize.authenticate();
+        setupQueryMonitoring(sequelize, {
+            slowQueryThreshold: parseInt(process.env.SLOW_QUERY_THRESHOLD || '100', 10),
+            n1Threshold: parseInt(process.env.N1_QUERY_THRESHOLD || '5', 10),
+            enableStackTrace: process.env.NODE_ENV !== 'production'
+        });
+        monitorPoolHealth(sequelize, getPoolConfig(dbPoolProfile));
+
         await syncWithPolicy(sequelize, 'streaming-service');
         await ensureStreamingSchemaBootstrap();
         console.log('[Streaming] Database synced');

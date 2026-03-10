@@ -2,10 +2,13 @@ const express = require('express');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { syncWithPolicy } = require('../shared/db-sync-policy');
+const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
+const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
 require('dotenv').config({ quiet: true });
 
 const app = express();
 const PORT = process.env.PORT || 8006;
+const dbPoolProfile = process.env.DB_POOL_PROFILE || 'standard';
 
 app.use(express.json());
 app.use(createForwardedIdentityGuard());
@@ -13,7 +16,8 @@ app.use(createForwardedIdentityGuard());
 // Database
 const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/shop', {
   dialect: 'postgres',
-  logging: false
+  logging: false,
+  ...getPoolConfig(dbPoolProfile)
 });
 
 // Phase 4: Caching integration
@@ -207,6 +211,10 @@ WishlistItem.belongsTo(Product, { foreignKey: 'productId' });
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', service: 'shop-service' });
 });
+
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_QUERY_DEBUG_ENDPOINT === 'true') {
+  app.get('/debug/query-stats', queryStatsMiddleware);
+}
 
 // Public: Browse products
 app.get('/public/products', cacheProducts, async (req, res) => {
@@ -742,6 +750,13 @@ async function startServer() {
     if (!dbReady) {
       throw lastError || new Error('Database connection failed after retries');
     }
+
+    setupQueryMonitoring(sequelize, {
+      slowQueryThreshold: parseInt(process.env.SLOW_QUERY_THRESHOLD || '100', 10),
+      n1Threshold: parseInt(process.env.N1_QUERY_THRESHOLD || '5', 10),
+      enableStackTrace: process.env.NODE_ENV !== 'production'
+    });
+    monitorPoolHealth(sequelize, getPoolConfig(dbPoolProfile));
 
     await ensureSchemaBootstrapIfMissing();
     await syncWithPolicy(sequelize, 'shop-service');
