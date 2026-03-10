@@ -11,6 +11,10 @@ import BackgroundAnimation from '../components/common/BackgroundAnimation';
 import Error500 from '../components/errors/Error500';
 import QuickAccessMenu from '../components/common/QuickAccessMenu';
 import Onboarding from '../components/common/Onboarding';
+import PWAInstallBanner from '../components/common/PWAInstallBanner';
+import OfflineIndicator from '../components/common/OfflineIndicator';
+import PWARuntimeManager from '../components/common/PWARuntimeManager';
+import MobileBottomNav from '../components/common/MobileBottomNav';
 
 /**
  * MainLayout - Main application layout
@@ -87,6 +91,8 @@ export default function MainLayout({
         reducedMotion={accessibility.reducedMotion}
       />
 
+      <OfflineIndicator />
+
       {/* Toast notifications */}
       <Toaster
         position="top-right"
@@ -129,7 +135,13 @@ export default function MainLayout({
         />
 
         {/* Main content area */}
-        <Container id="main-content" component="main" role="main" maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+        <Container
+          id="main-content"
+          component="main"
+          role="main"
+          maxWidth="xl"
+          sx={{ mt: 4, mb: 4, pb: { xs: 10, md: 2 } }}
+        >
           <Breadcrumbs />
           {children}
         </Container>
@@ -137,6 +149,13 @@ export default function MainLayout({
         {/* Quick Access Menu & Onboarding */}
         <QuickAccessMenu />
         <Onboarding />
+
+        {/* PWA runtime UX */}
+        <PWARuntimeManager user={user} />
+        <PWAInstallBanner />
+
+        {/* Mobile-first navigation */}
+        {isMobile && <MobileBottomNav user={user} />}
       </ErrorBoundary>
     </>
   );

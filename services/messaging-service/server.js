@@ -882,6 +882,15 @@ if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_QUERY_DEBUG_ENDP
   app.get('/debug/query-stats', queryStatsMiddleware);
 }
 
+// Expose VAPID public key for browser push subscription bootstrap
+app.get('/push/public-key', (req, res) => {
+  if (!pushNotificationsEnabled) {
+    return res.status(503).json({ error: 'Push notifications are disabled (VAPID not configured)' });
+  }
+
+  return res.json({ publicKey: VAPID_PUBLIC_KEY });
+});
+
 // Subscribe to push notifications
 app.post('/push/subscribe', async (req, res) => {
   if (!pushNotificationsEnabled) {

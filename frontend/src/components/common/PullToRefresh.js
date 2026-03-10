@@ -8,6 +8,7 @@ const PullToRefresh = ({
   disabled = false,
   pullDownThreshold = 80,
   refreshingDuration = 1500,
+  useWindowScroll = false,
 }) => {
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -20,7 +21,11 @@ const PullToRefresh = ({
     
     // Only enable pull-to-refresh when scrolled to top
     const container = containerRef.current;
-    if (container && container.scrollTop === 0) {
+    const isAtTop = useWindowScroll
+      ? (typeof window !== 'undefined' && window.scrollY <= 0)
+      : (container && container.scrollTop === 0);
+
+    if (isAtTop) {
       setCanPull(true);
       touchStartY.current = e.touches[0].clientY;
     }
@@ -97,8 +102,8 @@ const PullToRefresh = ({
       onTouchEnd={handleTouchEnd}
       sx={{
         position: 'relative',
-        overflow: 'auto',
-        height: '100%',
+        overflow: useWindowScroll ? 'visible' : 'auto',
+        height: useWindowScroll ? 'auto' : '100%',
         width: '100%',
         WebkitOverflowScrolling: 'touch',
       }}

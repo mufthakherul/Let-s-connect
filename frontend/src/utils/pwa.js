@@ -131,7 +131,7 @@ export function setupOnlineStatus(onStatusChange) {
 
 // Background Sync
 export async function registerBackgroundSync(tag) {
-  if ('serviceWorker' in navigator && 'sync' in navigator.serviceWorker) {
+  if ('serviceWorker' in navigator && 'SyncManager' in window) {
     try {
       const registration = await navigator.serviceWorker.ready;
       await registration.sync.register(tag);
@@ -168,13 +168,32 @@ export async function subscribeToPushNotifications() {
 
       // Subscribe to push notifications
       // Note: You need a VAPID public key from your backend
-      const vapidPublicKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+      let vapidPublicKey = (process.env.REACT_APP_VAPID_PUBLIC_KEY || '').trim();
+
+      if (!vapidPublicKey) {
+        try {
+          const response = await fetch('/api/messaging/push/public-key', {
+            credentials: 'include'
+          });
+
+          if (response.ok) {
+            const payload = await response.json();
+            vapidPublicKey = (payload.publicKey || payload.vapidPublicKey || '').trim();
+          }
+        } catch (error) {
+          console.warn('[PWA] Failed to load VAPID key from backend:', error);
+        }
+      }
+
       if (vapidPublicKey) {
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
         });
         console.log('[PWA] Push notification subscription created');
+      } else {
+        console.warn('[PWA] Missing VAPID public key. Push subscription skipped.');
+        return null;
       }
     }
 
