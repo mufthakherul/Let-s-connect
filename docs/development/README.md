@@ -47,6 +47,15 @@ Technical references for contributors and developers building on Let's Connect.
 | [ENGINEERING_AUDIT_REPORT_2026-03-02.md](ENGINEERING_AUDIT_REPORT_2026-03-02.md) | Full code/runtime audit |
 | [FULL_FEATURE_TEST_PLAN_2026-03-02.md](FULL_FEATURE_TEST_PLAN_2026-03-02.md) | Feature test plan |
 
+### Operations & Reliability
+
+| Document | Description |
+|----------|-------------|
+| [operations/INCIDENT_RESPONSE_RUNBOOK.md](operations/INCIDENT_RESPONSE_RUNBOOK.md) | Production incident triage, mitigation, escalation |
+| [operations/POST_INCIDENT_REVIEW_TEMPLATE.md](operations/POST_INCIDENT_REVIEW_TEMPLATE.md) | Standard PIR template for SEV incidents |
+| [operations/ERROR_BUDGET_POLICY.md](operations/ERROR_BUDGET_POLICY.md) | SLO policy, burn-rate thresholds, delivery guardrails |
+| [operations/RELEASE_HEALTH_AND_CANARY_CHECKLIST.md](operations/RELEASE_HEALTH_AND_CANARY_CHECKLIST.md) | Release gate checklist and canary rollback criteria |
+
 ## Technology Stack
 
 | Layer | Technology |
@@ -76,6 +85,7 @@ All shared backend utilities live in `services/shared/`:
 | `monitoring.js` | Prometheus metrics + health checks |
 | `security-utils.js` | Env validation, identity guards |
 | `startup.js` | Graceful startup/shutdown |
+| `cache-policy.js` | Unified Redis cache policy and invalidation helpers |
 
 ## Development Workflow
 

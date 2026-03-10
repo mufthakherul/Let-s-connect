@@ -85,6 +85,11 @@ Located in `alerts/service-alerts.yml`:
 - **Database**: Connection pool exhaustion, slow queries
 - **Business**: Low registration rates, high failed logins
 
+Located in `alerts/slo-alerts.yml`:
+- **Error Budget Burn**: Fast and slow burn-rate alerts for 99.9% availability SLO
+- **Latency SLO**: p95/p99 breach alerts for core HTTP services
+- **Canary Safety**: Canary-specific error-rate alert for release progression/rollback
+
 ### Dashboards
 
 Located in `grafana-dashboards/`:
@@ -199,6 +204,20 @@ To add metrics to a new service:
 3. Add service to `prometheus.yml` scrape configs
 4. Restart Prometheus: `docker-compose -f docker-compose.monitoring.yml restart prometheus`
 
+## Release Health Gate
+
+Use the release safety script before each canary progression:
+
+```bash
+./scripts/release-health-check.sh
+```
+
+What it validates:
+- Baseline service health endpoints
+- Gateway readiness and circuit breaker status
+- Prometheus readiness
+- No critical firing alerts and no fast error-budget burn
+
 ## Scaling Considerations
 
 For production deployments:
@@ -218,3 +237,4 @@ For production deployments:
 
 - **March 10, 2026**: Initial setup with Prometheus, Grafana, Alertmanager
 - Phase 2 observability expansion complete
+- **March 10, 2026**: Added SLO/error-budget/canary alert pack and release health gate script (Phase 4)
