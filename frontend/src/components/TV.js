@@ -296,12 +296,12 @@ const TV = () => {
                 shakaPlayerRef.current = null;
             }
 
-                        /*
-             * Shaka Player introduced a breaking change in v5; initializing with
-             * a mediaElement is deprecated and triggers a warning in the console.
-             * The new pattern is to construct the player first and then call
-             * `attach(videoElement)` so we use that here to keep the logs clean.
-             */
+            /*
+ * Shaka Player introduced a breaking change in v5; initializing with
+ * a mediaElement is deprecated and triggers a warning in the console.
+ * The new pattern is to construct the player first and then call
+ * `attach(videoElement)` so we use that here to keep the logs clean.
+ */
             const player = new shaka.Player();
             player.attach(videoRef.current);
             const ui = new shaka.ui.Overlay(player, playerRef.current, videoRef.current);
@@ -692,288 +692,291 @@ const TV = () => {
                                 }}
                             />
                         )}
-                    </Box>
-                    {playerError && (
-                        <Alert severity="error" sx={{ mt: 2 }}>
-                            {playerError}
-                        </Alert>
-                    )}
-                    {/* Phase 14: Reaction bar */}
-                    <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
-                            React:
-                        </Typography>
-                        {STREAM_REACTION_EMOJIS.map(emoji => (
-                            <Tooltip key={emoji} title="Send reaction">
-                                <IconButton
-                                    size="small"
-                                    onClick={() => sendReaction(emoji)}
-                                    sx={{
-                                        fontSize: '1.2rem',
-                                        borderRadius: 2,
-                                        px: 0.75,
-                                        '&:hover': { bgcolor: 'action.hover' },
-                                    }}
-                                >
-                                    {emoji}
-                                </IconButton>
-                            </Tooltip>
-                        ))}
-                    </Box>
-                    <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <Avatar
-                                src={currentChannel.logoUrl}
-                                alt={currentChannel.name}
-                                sx={{ width: 50, height: 50 }}
-                            />
-                            <Box>
-                                <Typography variant="h6">{currentChannel.name}</Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                    {currentChannel.category} • {currentChannel.viewers || 0} watching
-                                </Typography>
-
-                                {similarChannels && similarChannels.length > 0 && (
-                                    <Box sx={{ mt: 1, display: 'flex', gap: 1, alignItems: 'center', overflowX: 'auto' }}>
-                                        <Typography variant="caption" sx={{ mr: 1, color: 'text.secondary' }}>Similar:</Typography>
-                                        {similarChannels.slice(0, 8).map(sc => (
-                                            <Button
-                                                key={sc.id || sc.name}
-                                                size="small"
-                                                onClick={(e) => { e.stopPropagation(); handlePlay(sc); }}
-                                                sx={{ textTransform: 'none' }}
-                                            >
-                                                <Avatar src={safeImageUrl(sc.logoUrl) || undefined} sx={{ width: 28, height: 28, mr: 1 }} />
-                                                <Typography variant="caption" noWrap>{sc.name}</Typography>
-                                            </Button>
-                                        ))}
-                                    </Box>
-                                )}
-                            </Box>
-                        </Box>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                            <Tooltip title="Fullscreen">
-                                <IconButton onClick={handleFullscreen}>
-                                    <Fullscreen />
-                                </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Toggle Favorite">
-                                <IconButton onClick={() => handleToggleFavorite(currentChannel)}>
-                                    {isFavorite(currentChannel.id) ? <Favorite color="error" /> : <FavoriteBorder />}
-                                </IconButton>
-                            </Tooltip>
-                        </Box>
-                    </Box>
-                </Paper>
-            )}
-
-            {/* Search and Filters */}
-            <Box sx={{ mb: 3 }}>
-                <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} sm={6}>
-                        <TextField
-                            fullWidth
-                            placeholder="Search channels..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            InputProps={{
-                                startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
-                            }}
-                        />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                        <FormControl fullWidth>
-                            <InputLabel>Category</InputLabel>
-                            <Select
-                                value={selectedCategory}
-                                label="Category"
-                                onChange={(e) => setSelectedCategory(e.target.value)}
-                            >
-                                <MenuItem value="">All Categories</MenuItem>
-                                {categories.map(category => (
-                                    <MenuItem key={category} value={category}>{category}</MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    </Grid>
-                    <Grid item xs={12} sm={2}>
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            startIcon={<Add />}
-                            onClick={() => setAddChannelOpen(true)}
-                        >
-                            Add Channel
-                        </Button>
-                    </Grid>
-                </Grid>
-            </Box>
-
-            {/* Tabs */}
-            <Tabs value={currentTab} onChange={(e, v) => setCurrentTab(v)} sx={{ mb: 3 }}>
-                <Tab icon={<TvIcon />} label="All Channels" />
-                <Tab icon={<Star />} label={`Favorites (${favorites.length})`} />
-                <Tab icon={<HistoryIcon />} label="History" />
-            </Tabs>
-
-            {/* Content */}
-            {loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                    <CircularProgress />
                 </Box>
-            ) : (
-                <>
-                    {/* All Channels Tab */}
-                    {currentTab === 0 && (
-                        <Grid container spacing={2}>
-                            {channels.length === 0 ? (
-                                <Grid item xs={12}>
-                                    <Alert severity="info">No TV channels found. Try adjusting your filters.</Alert>
-                                </Grid>
-                            ) : (
-                                channels.map(channel => renderChannelCard(channel))
-                            )}
-                        </Grid>
-                    )}
+                    {playerError && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                    {playerError}
+                </Alert>
+            )}
+            {/* Phase 14: Reaction bar */}
+            <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
+                    React:
+                </Typography>
+                {STREAM_REACTION_EMOJIS.map(emoji => (
+                    <Tooltip key={emoji} title="Send reaction">
+                        <IconButton
+                            size="small"
+                            onClick={() => sendReaction(emoji)}
+                            sx={{
+                                fontSize: '1.2rem',
+                                borderRadius: 2,
+                                px: 0.75,
+                                '&:hover': { bgcolor: 'action.hover' },
+                            }}
+                        >
+                            {emoji}
+                        </IconButton>
+                    </Tooltip>
+                ))}
+            </Box>
+            <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Avatar
+                        src={currentChannel.logoUrl}
+                        alt={currentChannel.name}
+                        sx={{ width: 50, height: 50 }}
+                    />
+                    <Box>
+                        <Typography variant="h6">{currentChannel.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            {currentChannel.category} • {currentChannel.viewers || 0} watching
+                        </Typography>
 
-                    {/* Favorites Tab */}
-                    {currentTab === 1 && (
-                        <Grid container spacing={2}>
-                            {favorites.length === 0 ? (
-                                <Grid item xs={12}>
-                                    <Alert severity="info">No favorite channels yet. Add some by clicking the heart icon!</Alert>
-                                </Grid>
-                            ) : (
-                                favorites.map(fav => fav.item && renderChannelCard(fav.item))
-                            )}
-                        </Grid>
-                    )}
-
-                    {/* History Tab */}
-                    {currentTab === 2 && (
-                        <List>
-                            {history.length === 0 ? (
-                                <Alert severity="info">No viewing history yet.</Alert>
-                            ) : (
-                                history.map((item, index) => item.item && (
-                                    <ListItem
-                                        key={index}
-                                        secondaryAction={
-                                            <IconButton onClick={() => handlePlay(item.item)}>
-                                                <PlayArrow />
-                                            </IconButton>
-                                        }
+                        {similarChannels && similarChannels.length > 0 && (
+                            <Box sx={{ mt: 1, display: 'flex', gap: 1, alignItems: 'center', overflowX: 'auto' }}>
+                                <Typography variant="caption" sx={{ mr: 1, color: 'text.secondary' }}>Similar:</Typography>
+                                {similarChannels.slice(0, 8).map(sc => (
+                                    <Button
+                                        key={sc.id || sc.name}
+                                        size="small"
+                                        onClick={(e) => { e.stopPropagation(); handlePlay(sc); }}
+                                        sx={{ textTransform: 'none' }}
                                     >
-                                        <ListItemAvatar>
-                                            <Avatar src={item.item.logoUrl} />
-                                        </ListItemAvatar>
-                                        <ListItemText
-                                            primary={item.item.name}
-                                            secondary={new Date(item.createdAt).toLocaleString()}
-                                        />
-                                    </ListItem>
-                                ))
-                            )}
-                        </List>
+                                        <Avatar src={safeImageUrl(sc.logoUrl) || undefined} sx={{ width: 28, height: 28, mr: 1 }} />
+                                        <Typography variant="caption" noWrap>{sc.name}</Typography>
+                                    </Button>
+                                ))}
+                            </Box>
+                        )}
+                    </Box>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Tooltip title="Fullscreen">
+                        <IconButton onClick={handleFullscreen}>
+                            <Fullscreen />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Toggle Favorite">
+                        <IconButton onClick={() => handleToggleFavorite(currentChannel)}>
+                            {isFavorite(currentChannel.id) ? <Favorite color="error" /> : <FavoriteBorder />}
+                        </IconButton>
+                    </Tooltip>
+                </Box>
+            </Box>
+        </Paper>
+    )
+}
+
+{/* Search and Filters */ }
+<Box sx={{ mb: 3 }}>
+    <Grid container spacing={2} alignItems="center">
+        <Grid item xs={12} sm={6}>
+            <TextField
+                fullWidth
+                placeholder="Search channels..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                    startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
+                }}
+            />
+        </Grid>
+        <Grid item xs={12} sm={4}>
+            <FormControl fullWidth>
+                <InputLabel>Category</InputLabel>
+                <Select
+                    value={selectedCategory}
+                    label="Category"
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                >
+                    <MenuItem value="">All Categories</MenuItem>
+                    {categories.map(category => (
+                        <MenuItem key={category} value={category}>{category}</MenuItem>
+                    ))}
+                </Select>
+            </FormControl>
+        </Grid>
+        <Grid item xs={12} sm={2}>
+            <Button
+                fullWidth
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => setAddChannelOpen(true)}
+            >
+                Add Channel
+            </Button>
+        </Grid>
+    </Grid>
+</Box>
+
+{/* Tabs */ }
+<Tabs value={currentTab} onChange={(e, v) => setCurrentTab(v)} sx={{ mb: 3 }}>
+    <Tab icon={<TvIcon />} label="All Channels" />
+    <Tab icon={<Star />} label={`Favorites (${favorites.length})`} />
+    <Tab icon={<HistoryIcon />} label="History" />
+</Tabs>
+
+{/* Content */ }
+{
+    loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+            <CircularProgress />
+        </Box>
+    ) : (
+        <>
+            {/* All Channels Tab */}
+            {currentTab === 0 && (
+                <Grid container spacing={2}>
+                    {channels.length === 0 ? (
+                        <Grid item xs={12}>
+                            <Alert severity="info">No TV channels found. Try adjusting your filters.</Alert>
+                        </Grid>
+                    ) : (
+                        channels.map(channel => renderChannelCard(channel))
                     )}
-                </>
+                </Grid>
             )}
 
-            {/* Add Channel Dialog */}
-            <Dialog open={addChannelOpen} onClose={() => setAddChannelOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Add TV Channel</DialogTitle>
-                <DialogContent>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-                        <TextField
-                            label="Channel Name"
-                            value={newChannel.name}
-                            onChange={(e) => setNewChannel({ ...newChannel, name: e.target.value })}
-                            required
-                        />
-                        <TextField
-                            label="Description"
-                            value={newChannel.description}
-                            onChange={(e) => setNewChannel({ ...newChannel, description: e.target.value })}
-                            multiline
-                            rows={2}
-                        />
-                        <TextField
-                            label="Stream URL"
-                            value={newChannel.streamUrl}
-                            onChange={(e) => setNewChannel({ ...newChannel, streamUrl: e.target.value })}
-                            required
-                            helperText="M3U8 or direct stream URL"
-                        />
-                        <TextField
-                            label="EPG URL"
-                            value={newChannel.epgUrl}
-                            onChange={(e) => setNewChannel({ ...newChannel, epgUrl: e.target.value })}
-                            helperText="Electronic Program Guide URL (optional)"
-                        />
-                        <TextField
-                            label="Logo URL"
-                            value={newChannel.logoUrl}
-                            onChange={(e) => setNewChannel({ ...newChannel, logoUrl: e.target.value })}
-                        />
-                        <Grid container spacing={2}>
-                            <Grid item xs={6}>
-                                <TextField
-                                    fullWidth
-                                    label="Category"
-                                    value={newChannel.category}
-                                    onChange={(e) => setNewChannel({ ...newChannel, category: e.target.value })}
-                                    helperText="e.g., News, Sports"
-                                />
-                            </Grid>
-                            <Grid item xs={6}>
-                                <TextField
-                                    fullWidth
-                                    label="Country"
-                                    value={newChannel.country}
-                                    onChange={(e) => setNewChannel({ ...newChannel, country: e.target.value })}
-                                />
-                            </Grid>
+            {/* Favorites Tab */}
+            {currentTab === 1 && (
+                <Grid container spacing={2}>
+                    {favorites.length === 0 ? (
+                        <Grid item xs={12}>
+                            <Alert severity="info">No favorite channels yet. Add some by clicking the heart icon!</Alert>
                         </Grid>
-                        <Grid container spacing={2}>
-                            <Grid item xs={6}>
-                                <TextField
-                                    fullWidth
-                                    label="Language"
-                                    value={newChannel.language}
-                                    onChange={(e) => setNewChannel({ ...newChannel, language: e.target.value })}
+                    ) : (
+                        favorites.map(fav => fav.item && renderChannelCard(fav.item))
+                    )}
+                </Grid>
+            )}
+
+            {/* History Tab */}
+            {currentTab === 2 && (
+                <List>
+                    {history.length === 0 ? (
+                        <Alert severity="info">No viewing history yet.</Alert>
+                    ) : (
+                        history.map((item, index) => item.item && (
+                            <ListItem
+                                key={index}
+                                secondaryAction={
+                                    <IconButton onClick={() => handlePlay(item.item)}>
+                                        <PlayArrow />
+                                    </IconButton>
+                                }
+                            >
+                                <ListItemAvatar>
+                                    <Avatar src={item.item.logoUrl} />
+                                </ListItemAvatar>
+                                <ListItemText
+                                    primary={item.item.name}
+                                    secondary={new Date(item.createdAt).toLocaleString()}
                                 />
-                            </Grid>
-                            <Grid item xs={6}>
-                                <FormControl fullWidth>
-                                    <InputLabel>Resolution</InputLabel>
-                                    <Select
-                                        value={newChannel.resolution}
-                                        label="Resolution"
-                                        onChange={(e) => setNewChannel({ ...newChannel, resolution: e.target.value })}
-                                    >
-                                        <MenuItem value="">Unknown</MenuItem>
-                                        <MenuItem value="SD">SD</MenuItem>
-                                        <MenuItem value="HD">HD</MenuItem>
-                                        <MenuItem value="FHD">Full HD</MenuItem>
-                                        <MenuItem value="4K">4K</MenuItem>
-                                    </Select>
-                                </FormControl>
-                            </Grid>
-                        </Grid>
-                    </Box>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setAddChannelOpen(false)}>Cancel</Button>
-                    <Button
-                        onClick={handleAddChannel}
-                        variant="contained"
-                        disabled={!newChannel.name || !newChannel.streamUrl}
-                    >
-                        Add Channel
-                    </Button>
-                </DialogActions>
-            </Dialog>
-        </Container>
+                            </ListItem>
+                        ))
+                    )}
+                </List>
+            )}
+        </>
+    )
+}
+
+{/* Add Channel Dialog */ }
+<Dialog open={addChannelOpen} onClose={() => setAddChannelOpen(false)} maxWidth="sm" fullWidth>
+    <DialogTitle>Add TV Channel</DialogTitle>
+    <DialogContent>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+                label="Channel Name"
+                value={newChannel.name}
+                onChange={(e) => setNewChannel({ ...newChannel, name: e.target.value })}
+                required
+            />
+            <TextField
+                label="Description"
+                value={newChannel.description}
+                onChange={(e) => setNewChannel({ ...newChannel, description: e.target.value })}
+                multiline
+                rows={2}
+            />
+            <TextField
+                label="Stream URL"
+                value={newChannel.streamUrl}
+                onChange={(e) => setNewChannel({ ...newChannel, streamUrl: e.target.value })}
+                required
+                helperText="M3U8 or direct stream URL"
+            />
+            <TextField
+                label="EPG URL"
+                value={newChannel.epgUrl}
+                onChange={(e) => setNewChannel({ ...newChannel, epgUrl: e.target.value })}
+                helperText="Electronic Program Guide URL (optional)"
+            />
+            <TextField
+                label="Logo URL"
+                value={newChannel.logoUrl}
+                onChange={(e) => setNewChannel({ ...newChannel, logoUrl: e.target.value })}
+            />
+            <Grid container spacing={2}>
+                <Grid item xs={6}>
+                    <TextField
+                        fullWidth
+                        label="Category"
+                        value={newChannel.category}
+                        onChange={(e) => setNewChannel({ ...newChannel, category: e.target.value })}
+                        helperText="e.g., News, Sports"
+                    />
+                </Grid>
+                <Grid item xs={6}>
+                    <TextField
+                        fullWidth
+                        label="Country"
+                        value={newChannel.country}
+                        onChange={(e) => setNewChannel({ ...newChannel, country: e.target.value })}
+                    />
+                </Grid>
+            </Grid>
+            <Grid container spacing={2}>
+                <Grid item xs={6}>
+                    <TextField
+                        fullWidth
+                        label="Language"
+                        value={newChannel.language}
+                        onChange={(e) => setNewChannel({ ...newChannel, language: e.target.value })}
+                    />
+                </Grid>
+                <Grid item xs={6}>
+                    <FormControl fullWidth>
+                        <InputLabel>Resolution</InputLabel>
+                        <Select
+                            value={newChannel.resolution}
+                            label="Resolution"
+                            onChange={(e) => setNewChannel({ ...newChannel, resolution: e.target.value })}
+                        >
+                            <MenuItem value="">Unknown</MenuItem>
+                            <MenuItem value="SD">SD</MenuItem>
+                            <MenuItem value="HD">HD</MenuItem>
+                            <MenuItem value="FHD">Full HD</MenuItem>
+                            <MenuItem value="4K">4K</MenuItem>
+                        </Select>
+                    </FormControl>
+                </Grid>
+            </Grid>
+        </Box>
+    </DialogContent>
+    <DialogActions>
+        <Button onClick={() => setAddChannelOpen(false)}>Cancel</Button>
+        <Button
+            onClick={handleAddChannel}
+            variant="contained"
+            disabled={!newChannel.name || !newChannel.streamUrl}
+        >
+            Add Channel
+        </Button>
+    </DialogActions>
+</Dialog>
+        </Container >
     );
 };
 

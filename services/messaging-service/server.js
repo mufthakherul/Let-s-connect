@@ -821,10 +821,13 @@ async function triggerWebhooks(eventType, data) {
         const url = new URL(wh.endpoint || wh.avatarUrl || ''); // endpoint stored in avatarUrl field if missing
         const lib = url.protocol === 'https:' ? https : http;
         const req = lib.request(
-          { hostname: url.hostname, port: url.port || (url.protocol === 'https:' ? 443 : 80),
+          {
+            hostname: url.hostname, port: url.port || (url.protocol === 'https:' ? 443 : 80),
             path: url.pathname + url.search, method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body),
-                       'X-Milonexa-Event': eventType, 'X-Webhook-Token': wh.token || '' }
+            headers: {
+              'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body),
+              'X-Milonexa-Event': eventType, 'X-Webhook-Token': wh.token || ''
+            }
           },
           (res) => { res.resume(); }
         );
@@ -1067,22 +1070,22 @@ io.on('connection', (socket) => {
     await setUserPresence(userId, 'online');
   });
 
-    // Phase 14: Live stream reactions
-    socket.on('join-stream', (channelId) => {
-      if (channelId) socket.join(`stream-${channelId}`);
-    });
+  // Phase 14: Live stream reactions
+  socket.on('join-stream', (channelId) => {
+    if (channelId) socket.join(`stream-${channelId}`);
+  });
 
-    socket.on('leave-stream', (channelId) => {
-      if (channelId) socket.leave(`stream-${channelId}`);
-    });
+  socket.on('leave-stream', (channelId) => {
+    if (channelId) socket.leave(`stream-${channelId}`);
+  });
 
-    socket.on('stream-reaction', (data) => {
-      const { channelId, emoji } = data || {};
-      if (!channelId || !emoji) return;
-      const payload = { emoji, userId: socket.userId || null, id: Date.now() + Math.random() };
-      io.to(`stream-${channelId}`).emit('stream-reaction', payload);
-      publishEvent('stream.reaction', { channelId, emoji, userId: socket.userId });
-    });
+  socket.on('stream-reaction', (data) => {
+    const { channelId, emoji } = data || {};
+    if (!channelId || !emoji) return;
+    const payload = { emoji, userId: socket.userId || null, id: Date.now() + Math.random() };
+    io.to(`stream-${channelId}`).emit('stream-reaction', payload);
+    publishEvent('stream.reaction', { channelId, emoji, userId: socket.userId });
+  });
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
