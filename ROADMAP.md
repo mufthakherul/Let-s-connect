@@ -200,25 +200,48 @@ By the end of this roadmap, the platform should achieve:
 
 ---
 
-## Workstream D — API Gateway, Routing & Contract Modernization
+## Workstream D — API Gateway, Routing & Contract Modernization ✅
+
+**Status:** ✅ Completed March 10, 2026
+
+**Deliverables:**
+- ✅ D1: Policy hardening - Error envelopes, trace propagation, normalized auth guards
+- ✅ D2: Route governance - Route registry, API versioning, OpenAPI contracts, ownership
+- ✅ D3: Reliability controls - Timeouts, retries, circuit breakers (pre-existing, integrated)
+
+**Implementation Files:**
+- `services/api-gateway/route-registry.js` - Central route definitions with classifications, SLA tiers, rate limit policies
+- `services/api-gateway/error-envelope.js` - Standardized error responses with trace context
+- `services/api-gateway/contract-generator.js` - OpenAPI 3.0 spec generation from route registry
+- `services/api-gateway/route-governance.js` - Route policy enforcement middleware
+- `docs/development/WORKSTREAM_D_IMPLEMENTATION.md` - Complete implementation guide
+
+**Key Features:**
+- 30+ routes registered with governance metadata (class, SLA, owner, version)
+- 10 standard error categories with trace propagation
+- 4 route classifications: PUBLIC, AUTHENTICATED, ADMIN, INTERNAL
+- 3 SLA tiers: CRITICAL (99.9%), STANDARD (99.5%), BEST_EFFORT (95%)
+- Auto-generated OpenAPI 3.0 contracts from route registry
+- API versioning lifecycle with deprecation windows
+- Classification-based rate limiting policies
 
 ### Goals
-- Make gateway behavior predictable, secure, and resilient
+- Make gateway behavior predictable, secure, and resilient ✅
 
-### D1. Policy hardening
-- Re-enable/normalize rate-limiting policy behavior by route class
-- Normalize auth/public route guard strategy and route-level metadata
-- Standardize error envelopes and gateway trace propagation
+### D1. Policy hardening ✅
+- ✅ Re-enable/normalize rate-limiting policy behavior by route class
+- ✅ Normalize auth/public route guard strategy and route-level metadata
+- ✅ Standardize error envelopes and gateway trace propagation
 
-### D2. Route governance
-- Introduce explicit API version lifecycle policy (`v1`, `v2`, deprecation windows)
-- Define contract publication strategy (OpenAPI artifacts, release notes)
-- Add route ownership tags (service owner, SLA class)
+### D2. Route governance ✅
+- ✅ Introduce explicit API version lifecycle policy (`v1`, `v2`, deprecation windows)
+- ✅ Define contract publication strategy (OpenAPI artifacts, release notes)
+- ✅ Add route ownership tags (service owner, SLA class)
 
-### D3. Reliability controls
-- Timeouts, retries, and circuit-breaker policy for downstream services
-- Better fallback responses for degraded dependencies
-- Gateway-level traffic observability and saturation metrics
+### D3. Reliability controls ✅
+- ✅ Timeouts, retries, and circuit-breaker policy for downstream services (pre-existing in resilience-config.js)
+- ✅ Better fallback responses for degraded dependencies
+- ✅ Gateway-level traffic observability and saturation metrics
 
 ---
 
