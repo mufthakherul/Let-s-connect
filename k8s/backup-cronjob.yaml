@@ -8,8 +8,8 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 50Gi
-  storageClassName: standard
+      storage: 100Gi
+  storageClassName: slow-hdd
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -54,15 +54,12 @@ spec:
             - name: POSTGRES_PORT
               value: "5432"
             - name: POSTGRES_USER
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: username
+              value: "postgres"
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
-                  key: password
+                  name: milonexa-secrets
+                  key: DATABASE_PASSWORD
             - name: REDIS_HOST
               value: "redis"
             - name: REDIS_PORT

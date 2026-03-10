@@ -1,0 +1,307 @@
+##############################################################################
+# pod-disruption-budgets.yaml
+#
+# PodDisruptionBudgets (PDBs) ensure that voluntary disruptions (node drain,
+# cluster upgrades, scaling events) never take down all replicas of a critical
+# service simultaneously.
+#
+# Policy:
+#   Stateless services  → minAvailable: 1   (at least one pod stays up)
+#   Stateful singletons → minAvailable: 1   (prevents eviction)
+#   High-traffic APIs   → minAvailable: 2   (extra cushion for API gateway)
+#
+# IMPORTANT: These PDBs assume each Deployment has been scaled to ≥2 replicas
+# in staging/production. A PDB with minAvailable=1 on a 1-replica Deployment
+# will BLOCK node drains. Verify replica counts match before applying.
+##############################################################################
+
+# ── API Gateway (external traffic entry point — keep ≥2 active) ──────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-api-gateway
+  namespace: milonexa
+  labels:
+    app: api-gateway
+    tier: ingress
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+
+---
+# ── User Service ──────────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-user-service
+  namespace: milonexa
+  labels:
+    app: user-service
+    tier: backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: user-service
+
+---
+# ── Content Service ───────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-content-service
+  namespace: milonexa
+  labels:
+    app: content-service
+    tier: backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: content-service
+
+---
+# ── Messaging Service ─────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-messaging-service
+  namespace: milonexa
+  labels:
+    app: messaging-service
+    tier: backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: messaging-service
+
+---
+# ── Media Service ─────────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-media-service
+  namespace: milonexa
+  labels:
+    app: media-service
+    tier: backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: media-service
+
+---
+# ── Shop Service ──────────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-shop-service
+  namespace: milonexa
+  labels:
+    app: shop-service
+    tier: backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: shop-service
+
+---
+# ── Collaboration Service ─────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-collaboration-service
+  namespace: milonexa
+  labels:
+    app: collaboration-service
+    tier: backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: collaboration-service
+
+---
+# ── AI Service ────────────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-ai-service
+  namespace: milonexa
+  labels:
+    app: ai-service
+    tier: backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: ai-service
+
+---
+# ── Security Service ──────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-security-service
+  namespace: milonexa
+  labels:
+    app: security-service
+    tier: backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: security-service
+
+---
+# ── Streaming Service ─────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-streaming-service
+  namespace: milonexa
+  labels:
+    app: streaming-service
+    tier: backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: streaming-service
+
+---
+# ── PostgreSQL StatefulSet ────────────────────────────────────────────────────
+# Single-replica PostgreSQL — PDB protects against accidental eviction.
+# If you run a HA postgres cluster (e.g. Patroni), increase minAvailable.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-postgres
+  namespace: milonexa
+  labels:
+    app: postgres
+    tier: database
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: postgres
+
+---
+# ── Redis ─────────────────────────────────────────────────────────────────────
+# Redis is single-node. PDB prevents eviction while node is draining.
+# Extend to minAvailable: 1 with maxUnavailable: 0 for sentinel setups.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-redis
+  namespace: milonexa
+  labels:
+    app: redis
+    tier: cache
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: redis
+
+---
+# ── Elasticsearch ─────────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-elasticsearch
+  namespace: milonexa
+  labels:
+    app: elasticsearch
+    tier: search
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: elasticsearch
+
+---
+# ── MinIO (object storage) ────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-minio
+  namespace: milonexa
+  labels:
+    app: minio
+    tier: object-storage
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: minio
+
+---
+# ── Frontend ──────────────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-frontend
+  namespace: milonexa
+  labels:
+    app: frontend
+    tier: frontend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: frontend
+
+---
+# ── Admin Frontend ────────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-admin-frontend
+  namespace: milonexa
+  labels:
+    app: admin-frontend
+    tier: frontend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: admin-frontend
+
+---
+# ── Prometheus ────────────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-prometheus
+  namespace: milonexa
+  labels:
+    app: prometheus
+    tier: monitoring
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: prometheus
+
+---
+# ── Grafana ───────────────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-grafana
+  namespace: milonexa
+  labels:
+    app: grafana
+    tier: monitoring
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: grafana
