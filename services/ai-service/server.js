@@ -352,11 +352,11 @@ app.post('/search/summary', async (req, res) => {
 
     const normalizedResults = Array.isArray(results)
       ? results.slice(0, 12).map((item) => ({
-          title: item.title || item.name || item.text || 'Untitled',
-          snippet: item.snippet || item.description || item.content || '',
-          type: item.type || item.category || 'result',
-          score: item._score || item.score || 0,
-        }))
+        title: item.title || item.name || item.text || 'Untitled',
+        snippet: item.snippet || item.description || item.content || '',
+        type: item.type || item.category || 'result',
+        score: item._score || item.score || 0,
+      }))
       : [];
 
     const cacheKey = buildHashedAiKey('search-summary', JSON.stringify({ query, summary, results: normalizedResults }));
