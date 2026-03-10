@@ -7,11 +7,18 @@ const { AppError, catchAsync } = require('../../../shared/errorHandling');
 const response = require('../../../shared/response-wrapper');
 const logger = require('../../../shared/logger');
 const { getRequiredEnv } = require('../../../shared/security-utils');
+// Workstream E: Input sanitization
+const { sanitizeText, sanitizeEmail } = require('../../../shared/sanitization');
 
 const JWT_SECRET = getRequiredEnv('JWT_SECRET');
 
 exports.register = catchAsync(async (req, res, next) => {
-    const { username, email, password, firstName, lastName } = req.body;
+    // Workstream E: Sanitize inputs
+    const username = sanitizeText(req.body.username, { maxLength: 30, lowercase: true });
+    const email = sanitizeEmail(req.body.email);
+    const password = req.body.password; // Don't sanitize passwords (needed as-is for hashing)
+    const firstName = sanitizeText(req.body.firstName, { maxLength: 50 });
+    const lastName = sanitizeText(req.body.lastName, { maxLength: 50 });
 
     const existingUser = await User.findOne({ where: { [Op.or]: [{ username }, { email }] } });
     if (existingUser) {
@@ -27,13 +34,19 @@ exports.register = catchAsync(async (req, res, next) => {
 
     const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '24h' });
 
-    logger.info({ message: 'User registered', userId: user.id });
+    logger.info('User registered', { userId: user.id, requestId: req.id });
 
-    response.success(res, { user: { id: user.id, username: user.username, email: user.email }, token }, 'User registered successfully', 201);
+    // Workstream E: Use new response format
+    return response.success(req, res, { 
+        user: { id: user.id, username: user.username, email: user.email }, 
+        token 
+    }, {}, 201);
 });
 
 exports.login = catchAsync(async (req, res, next) => {
-    const { email, password } = req.body;
+    // Workstream E: Sanitize email input
+    const email = sanitizeEmail(req.body.email);
+    const password = req.body.password;
 
     const user = await User.findOne({ where: { email } });
     if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -42,9 +55,13 @@ exports.login = catchAsync(async (req, res, next) => {
 
     const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '24h' });
 
-    logger.info({ message: 'User logged in', userId: user.id });
+    logger.info('User logged in', { userId: user.id, requestId: req.id });
 
-    response.success(res, { user: { id: user.id, username: user.username, email: user.email, role: user.role }, token }, 'Login successful');
+    // Workstream E: Use new response format
+    return response.success(req, res, { 
+        user: { id: user.id, username: user.username, email: user.email, role: user.role }, 
+        token 
+    });
 });
 
 exports.checkUsername = catchAsync(async (req, res, next) => {
