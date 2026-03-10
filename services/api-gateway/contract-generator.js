@@ -72,7 +72,7 @@ function generateOpenAPISpec(version = 'v1') {
  */
 function generateTags() {
     const services = [...new Set(routeRegistry.map(r => r.service))];
-    
+
     return services.map(service => ({
         name: service,
         description: `${service} endpoints`
@@ -84,22 +84,22 @@ function generateTags() {
  */
 function generatePaths(version) {
     const paths = {};
-    
+
     const versionRoutes = routeRegistry.filter(r => r.version === version);
-    
+
     versionRoutes.forEach(route => {
         const path = route.path;
-        
+
         if (!paths[path]) {
             paths[path] = {};
         }
-        
+
         route.methods.forEach(method => {
             const methodLower = method.toLowerCase();
             paths[path][methodLower] = generateOperation(route, method);
         });
     });
-    
+
     return paths;
 }
 
@@ -303,12 +303,12 @@ function generateSchemas() {
  */
 function generateCommonResponses() {
     const responses = {};
-    
+
     Object.entries(ERROR_CATEGORIES).forEach(([key, category]) => {
-        const responseName = key.split('_').map(word => 
+        const responseName = key.split('_').map(word =>
             word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
         ).join('');
-        
+
         responses[responseName] = {
             description: category.message,
             content: {
@@ -331,7 +331,7 @@ function generateCommonResponses() {
             }
         };
     });
-    
+
     return responses;
 }
 
@@ -341,7 +341,7 @@ function generateCommonResponses() {
 function generateMarkdownDocs() {
     let markdown = '# API Gateway Route Documentation\n\n';
     markdown += `Generated: ${new Date().toISOString()}\n\n`;
-    
+
     // API versions
     markdown += '## API Versions\n\n';
     Object.values(apiVersions).forEach(version => {
@@ -355,7 +355,7 @@ function generateMarkdownDocs() {
         }
         markdown += '\n';
     });
-    
+
     // Group routes by service
     const serviceGroups = {};
     routeRegistry.forEach(route => {
@@ -364,42 +364,42 @@ function generateMarkdownDocs() {
         }
         serviceGroups[route.service].push(route);
     });
-    
+
     markdown += '## Routes by Service\n\n';
-    
+
     Object.entries(serviceGroups).forEach(([service, routes]) => {
         markdown += `### ${service}\n\n`;
         markdown += '| Path | Methods | Class | SLA | Description |\n';
         markdown += '|------|---------|-------|-----|-------------|\n';
-        
+
         routes.forEach(route => {
             const deprecated = route.deprecated ? ' ⚠️ DEPRECATED' : '';
             markdown += `| \`${route.path}\` | ${route.methods.join(', ')} | ${route.class} | ${route.sla} | ${route.description}${deprecated} |\n`;
         });
-        
+
         markdown += '\n';
     });
-    
+
     // Route statistics
     markdown += '## Route Statistics\n\n';
     const stats = require('./route-registry').getRouteStats();
     markdown += `- **Total Routes:** ${stats.total}\n`;
     markdown += `- **Services:** ${stats.services}\n\n`;
-    
+
     markdown += '**By Classification:**\n';
     Object.entries(stats.byClass).forEach(([key, count]) => {
         markdown += `- ${key}: ${count}\n`;
     });
-    
+
     markdown += '\n**By SLA Tier:**\n';
     Object.entries(stats.bySLA).forEach(([key, count]) => {
         markdown += `- ${key}: ${count}\n`;
     });
-    
+
     if (stats.deprecated > 0) {
         markdown += `\n**⚠️ Deprecated Routes:** ${stats.deprecated}\n`;
     }
-    
+
     return markdown;
 }
 
@@ -408,12 +408,12 @@ function generateMarkdownDocs() {
  */
 function exportContract(version = 'v1', format = 'json') {
     const spec = generateOpenAPISpec(version);
-    
+
     if (format === 'yaml') {
         const yaml = require('js-yaml');
         return yaml.dump(spec);
     }
-    
+
     return JSON.stringify(spec, null, 2);
 }
 

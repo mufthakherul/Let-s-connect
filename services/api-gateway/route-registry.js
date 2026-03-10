@@ -390,8 +390,8 @@ const routeRegistry = [
  */
 function getRouteConfig(path, method) {
     return routeRegistry.find(route => {
-        const pathMatch = route.path === path || 
-                          (route.path.includes('*') && path.startsWith(route.path.replace('*', '')));
+        const pathMatch = route.path === path ||
+            (route.path.includes('*') && path.startsWith(route.path.replace('*', '')));
         const methodMatch = route.methods.includes(method.toUpperCase());
         return pathMatch && methodMatch;
     });
@@ -408,8 +408,8 @@ function getRateLimitPolicy(routeClass) {
  * Helper: Check if route requires authentication
  */
 function requiresAuth(routeClass) {
-    return routeClass === ROUTE_CLASSES.AUTHENTICATED || 
-           routeClass === ROUTE_CLASSES.ADMIN;
+    return routeClass === ROUTE_CLASSES.AUTHENTICATED ||
+        routeClass === ROUTE_CLASSES.ADMIN;
 }
 
 /**

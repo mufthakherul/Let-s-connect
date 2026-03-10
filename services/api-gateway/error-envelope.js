@@ -47,7 +47,7 @@ const ERROR_CATEGORIES = {
         statusCode: 429,
         message: 'Rate limit exceeded'
     },
-    
+
     // Server errors (5xx)
     INTERNAL_ERROR: {
         code: 'INTERNAL_ERROR',
@@ -98,7 +98,7 @@ class StandardError extends Error {
         this.statusCode = category.statusCode;
         this.details = details;
         this.originalError = originalError;
-        
+
         Error.captureStackTrace(this, this.constructor);
     }
 
@@ -235,13 +235,13 @@ function successEnvelope(req, data, meta = {}) {
  * Generate trace context for request
  */
 function generateTraceContext(req) {
-    const requestId = req.headers['x-request-id'] || 
-                      req.id || 
-                      require('uuid').v4();
-    
+    const requestId = req.headers['x-request-id'] ||
+        req.id ||
+        require('uuid').v4();
+
     const parentSpanId = req.headers['x-parent-span-id'] || null;
     const traceId = req.headers['x-trace-id'] || requestId;
-    
+
     return {
         requestId,
         traceId,
@@ -258,16 +258,16 @@ function generateTraceContext(req) {
  * Attach trace context to request
  */
 function traceContextMiddleware(req, res, next) {
-  const traceContext = generateTraceContext(req);
-    
-  // Attach to request object
+    const traceContext = generateTraceContext(req);
+
+    // Attach to request object
     req.traceContext = traceContext;
     req.id = traceContext.requestId;
-    
+
     // Set response headers for client-side tracing
     res.setHeader('X-Request-Id', traceContext.requestId);
     res.setHeader('X-Trace-Id', traceContext.traceId);
-    
+
     // Log request start
     logger.info('Gateway request received', {
         requestId: traceContext.requestId,
@@ -277,13 +277,13 @@ function traceContextMiddleware(req, res, next) {
         ip: traceContext.ip,
         userAgent: traceContext.userAgent
     });
-    
+
     // Track request timing
     const startTime = Date.now();
-    
+
     res.on('finish', () => {
         const duration = Date.now() - startTime;
-        
+
         // Log request completion
         logger.info('Gateway request completed', {
             requestId: traceContext.requestId,
@@ -294,7 +294,7 @@ function traceContextMiddleware(req, res, next) {
             duration: `${duration}ms`
         });
     });
-    
+
     next();
 }
 
@@ -304,7 +304,7 @@ function traceContextMiddleware(req, res, next) {
  */
 function getTraceHeaders(req) {
     const traceContext = req.traceContext || {};
-    
+
     return {
         'x-request-id': traceContext.requestId || req.id,
         'x-trace-id': traceContext.traceId || req.id,
@@ -326,7 +326,7 @@ function validationError(fields) {
         value: field.value,
         constraint: field.constraint || field.type
     }));
-    
+
     return createError(ERROR_CATEGORIES.VALIDATION_ERROR, details);
 }
 
@@ -338,7 +338,7 @@ function rateLimitError(retryAfter) {
         retryAfter: retryAfter || 60,
         message: `Rate limit exceeded. Retry after ${retryAfter || 60} seconds.`
     };
-    
+
     return createError(ERROR_CATEGORIES.RATE_LIMIT_EXCEEDED, details);
 }
 
