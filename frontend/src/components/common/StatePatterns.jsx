@@ -9,7 +9,7 @@ import { getStatePattern } from '../../theme/designSystem';
  */
 
 // Empty State Component
-export const EmptyState = ({ 
+export const EmptyState = ({
     icon: Icon = Inbox,
     title = 'No items found',
     description = 'There are no items to display at the moment.',
@@ -38,7 +38,7 @@ export const EmptyState = ({
 };
 
 // Loading State Component
-export const LoadingState = ({ 
+export const LoadingState = ({
     message = 'Loading...',
     size = 40,
 }) => {
@@ -102,7 +102,7 @@ export const SkeletonCard = ({ mode = 'dark' }) => (
             width: '100%',
             height: '200px',
             borderRadius: '12px',
-            background: mode === 'dark' 
+            background: mode === 'dark'
                 ? 'linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%)'
                 : 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
             backgroundSize: '200% 100%',

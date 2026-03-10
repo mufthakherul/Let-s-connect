@@ -84,27 +84,27 @@ export default function SettingsHub() {
                 {primaryCards
                     .filter((card) => card.visible)
                     .map((card) => (
-                <Grid item xs={12} sm={6} md={4} key={card.title}>
-                    <Paper
-                        sx={{
-                            p: 2,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 2,
-                            borderRadius: 3,
-                            border: (theme) => `1px solid ${theme.palette.divider}`,
-                            height: '100%',
-                        }}
-                        elevation={1}
-                    >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            {card.icon}
-                            <Typography variant="h6">{card.title}</Typography>
-                        </Box>
-                        <Typography variant="body2" color="text.secondary">{card.description}</Typography>
-                        <Button component={Link} to={card.to} variant="outlined">{card.cta}</Button>
-                    </Paper>
-                </Grid>
+                        <Grid item xs={12} sm={6} md={4} key={card.title}>
+                            <Paper
+                                sx={{
+                                    p: 2,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 2,
+                                    borderRadius: 3,
+                                    border: (theme) => `1px solid ${theme.palette.divider}`,
+                                    height: '100%',
+                                }}
+                                elevation={1}
+                            >
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    {card.icon}
+                                    <Typography variant="h6">{card.title}</Typography>
+                                </Box>
+                                <Typography variant="body2" color="text.secondary">{card.description}</Typography>
+                                <Button component={Link} to={card.to} variant="outlined">{card.cta}</Button>
+                            </Paper>
+                        </Grid>
                     ))}
 
                 <Grid item xs={12} sm={6} md={4}>
