@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getBoolean, getJSON, getString, removeItem, setBoolean, setJSON, setString } from '../utils/storage';
 
 // Default accent colors for each theme
 const DEFAULT_ACCENT_COLORS = {
@@ -20,76 +21,50 @@ const getSystemTheme = () => {
 
 // Initialize theme mode
 const initializeThemeMode = () => {
-  try {
-    const savedMode = localStorage.getItem('theme-mode');
-    const useSystemTheme = localStorage.getItem('use-system-theme') === 'true';
+  const savedMode = getString('theme-mode', null);
+  const useSystemTheme = getBoolean('use-system-theme', false);
 
-    if (useSystemTheme) {
-      return getSystemTheme();
-    }
-
-    return savedMode || 'light';
-  } catch {
-    return 'light';
+  if (useSystemTheme) {
+    return getSystemTheme();
   }
+
+  return savedMode || 'light';
 };
 
 // Initialize accent color
 const initializeAccentColor = () => {
-  try {
-    const savedColor = localStorage.getItem('accent-color');
-    return savedColor ? JSON.parse(savedColor) : null;
-  } catch {
-    return null;
-  }
+  return getJSON('accent-color', null);
 };
 
 // Initialize accessibility settings
 const initializeAccessibilitySettings = () => {
-  try {
-    const saved = localStorage.getItem('accessibility-settings');
-    return saved ? JSON.parse(saved) : {
-      highContrast: false,
-      largeText: false,
-      textScale: 1.0,
-      colorBlindSupport: null, // null, 'deuteranopia', 'protanopia', 'tritanopia'
-      magnification: 1.0,
-      reducedMotion: false,
-      fontFamily: 'default', // 'default', 'dyslexic', 'high-legibility'
-      glassmorphism: true, // NEW: Toggle for premium glass effects
-    };
-  } catch {
-    return {
-      highContrast: false,
-      largeText: false,
-      textScale: 1.0,
-      colorBlindSupport: null,
-      magnification: 1.0,
-      reducedMotion: false,
-      fontFamily: 'default',
-      glassmorphism: true,
-    };
-  }
+  const defaults = {
+    highContrast: false,
+    largeText: false,
+    textScale: 1.0,
+    colorBlindSupport: null,
+    magnification: 1.0,
+    reducedMotion: false,
+    fontFamily: 'default',
+    glassmorphism: true,
+  };
+
+  const saved = getJSON('accessibility-settings', null);
+  return saved ? { ...defaults, ...saved } : defaults;
 };
 
 export const useThemeStore = create((set, get) => ({
   mode: initializeThemeMode(),
-  useSystemTheme: (() => {
-    try {
-      return localStorage.getItem('use-system-theme') === 'true';
-    } catch {
-      return false;
-    }
-  })(),
+  useSystemTheme: getBoolean('use-system-theme', false),
   accentColor: initializeAccentColor(),
   accessibility: initializeAccessibilitySettings(),
 
   toggleTheme: () => set((state) => {
     const newMode = state.mode === 'light' ? 'dark' : 'light';
     try {
-      localStorage.setItem('theme-mode', newMode);
+      setString('theme-mode', newMode);
       // Disable system theme when manually toggling
-      localStorage.setItem('use-system-theme', 'false');
+      setBoolean('use-system-theme', false);
     } catch (error) {
       console.error('Failed to save theme preference:', error);
     }
@@ -98,8 +73,8 @@ export const useThemeStore = create((set, get) => ({
 
   setMode: (mode) => {
     try {
-      localStorage.setItem('theme-mode', mode);
-      localStorage.setItem('use-system-theme', 'false');
+      setString('theme-mode', mode);
+      setBoolean('use-system-theme', false);
     } catch (error) {
       console.error('Failed to save theme preference:', error);
     }
@@ -110,7 +85,7 @@ export const useThemeStore = create((set, get) => ({
   updateAccessibilitySetting: (key, value) => set((state) => {
     const newAccessibility = { ...state.accessibility, [key]: value };
     try {
-      localStorage.setItem('accessibility-settings', JSON.stringify(newAccessibility));
+      setJSON('accessibility-settings', newAccessibility);
     } catch (error) {
       console.error('Failed to save accessibility settings:', error);
     }
@@ -126,9 +101,10 @@ export const useThemeStore = create((set, get) => ({
       magnification: 1.0,
       reducedMotion: false,
       fontFamily: 'default',
+      glassmorphism: true,
     };
     try {
-      localStorage.setItem('accessibility-settings', JSON.stringify(defaultSettings));
+      setJSON('accessibility-settings', defaultSettings);
     } catch (error) {
       console.error('Failed to reset accessibility settings:', error);
     }
@@ -136,10 +112,10 @@ export const useThemeStore = create((set, get) => ({
   },
   setUseSystemTheme: (useSystem) => {
     try {
-      localStorage.setItem('use-system-theme', useSystem.toString());
+      setBoolean('use-system-theme', useSystem);
       if (useSystem) {
         const systemMode = getSystemTheme();
-        localStorage.setItem('theme-mode', systemMode);
+        setString('theme-mode', systemMode);
         set({ useSystemTheme: useSystem, mode: systemMode });
       } else {
         set({ useSystemTheme: useSystem });
@@ -153,7 +129,7 @@ export const useThemeStore = create((set, get) => ({
     const newValue = !state.accessibility.glassmorphism;
     const newAccessibility = { ...state.accessibility, glassmorphism: newValue };
     try {
-      localStorage.setItem('accessibility-settings', JSON.stringify(newAccessibility));
+      setJSON('accessibility-settings', newAccessibility);
     } catch (error) {
       console.error('Failed to save glassmorphism preference:', error);
     }
@@ -163,9 +139,9 @@ export const useThemeStore = create((set, get) => ({
   setAccentColor: (color) => {
     try {
       if (color) {
-        localStorage.setItem('accent-color', JSON.stringify(color));
+        setJSON('accent-color', color);
       } else {
-        localStorage.removeItem('accent-color');
+        removeItem('accent-color');
       }
     } catch (error) {
       console.error('Failed to save accent color:', error);
@@ -188,7 +164,7 @@ export const useThemeStore = create((set, get) => ({
       if (state.useSystemTheme) {
         const newMode = e.matches ? 'dark' : 'light';
         try {
-          localStorage.setItem('theme-mode', newMode);
+          setString('theme-mode', newMode);
         } catch (error) {
           console.error('Failed to save theme preference:', error);
         }
