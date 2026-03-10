@@ -98,6 +98,170 @@ const parseJsonFromText = (text) => {
   }
 };
 
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const safeText = (value) => String(value || '').trim();
+const normalizeText = (value) => safeText(value).toLowerCase().replace(/\s+/g, ' ');
+const tokenize = (value) => normalizeText(value).split(/[^a-z0-9#@]+/i).filter(Boolean);
+
+const STOP_WORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'but', 'if', 'for', 'to', 'from', 'of', 'in', 'on', 'at', 'by', 'with', 'without',
+  'is', 'am', 'are', 'was', 'were', 'be', 'been', 'being', 'it', 'this', 'that', 'these', 'those', 'as', 'we', 'you',
+  'they', 'he', 'she', 'them', 'his', 'her', 'our', 'your', 'their', 'i', 'me', 'my', 'mine', 'yours', 'ours', 'theirs'
+]);
+
+const POSITIVE_TERMS = new Set(['great', 'awesome', 'love', 'excellent', 'happy', 'amazing', 'fantastic', 'good', 'nice', 'thanks']);
+const NEGATIVE_TERMS = new Set(['bad', 'hate', 'angry', 'terrible', 'awful', 'sad', 'worse', 'worst', 'annoyed', 'upset']);
+const HARMFUL_TERMS = ['kill', 'hate', 'stupid', 'idiot', 'racist', 'abuse', 'threat', 'attack', 'die'];
+const SPAM_TERMS = ['buy now', 'free money', 'click here', 'limited offer', 'subscribe now', '100% guaranteed'];
+
+const DEFAULT_MODERATION_POLICY = {
+  toxicityThreshold: 0.72,
+  spamThreshold: 0.7,
+  severeCategories: ['hate', 'violence', 'self_harm'],
+  maxRepeatedChars: 8,
+  blockedKeywords: [],
+  updatedAt: null
+};
+
+const getModerationPolicyKey = (tenantId = 'global') => CacheKeyBuilder.custom('ai', 'moderation-policy', tenantId);
+
+const getModerationPolicy = async (tenantId = 'global') => {
+  const key = getModerationPolicyKey(tenantId);
+  const raw = await redis.get(key);
+  if (!raw) {
+    return { ...DEFAULT_MODERATION_POLICY };
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_MODERATION_POLICY, ...parsed };
+  } catch {
+    return { ...DEFAULT_MODERATION_POLICY };
+  }
+};
+
+const setModerationPolicy = async (tenantId = 'global', policy = {}) => {
+  const merged = {
+    ...(await getModerationPolicy(tenantId)),
+    ...policy,
+    updatedAt: new Date().toISOString()
+  };
+
+  await redis.setex(getModerationPolicyKey(tenantId), LONG_TERM_CACHE_TTL, JSON.stringify(merged));
+  return merged;
+};
+
+const extractTopKeywords = (text, maxTags = 8) => {
+  const frequencies = new Map();
+  tokenize(text).forEach((token) => {
+    if (token.length < 3 || STOP_WORDS.has(token) || token.startsWith('#')) return;
+    frequencies.set(token, (frequencies.get(token) || 0) + 1);
+  });
+
+  return [...frequencies.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, maxTags)
+    .map(([token]) => token);
+};
+
+const extractHashtags = (text) => {
+  const hashtags = String(text || '').match(/#[\w-]+/g) || [];
+  return [...new Set(hashtags.map((tag) => tag.replace(/^#/, '').toLowerCase()))];
+};
+
+const scoreSentiment = (text) => {
+  const tokens = tokenize(text);
+  if (!tokens.length) {
+    return { score: 0, label: 'neutral', confidence: 0 };
+  }
+
+  let pos = 0;
+  let neg = 0;
+  for (const token of tokens) {
+    if (POSITIVE_TERMS.has(token)) pos += 1;
+    if (NEGATIVE_TERMS.has(token)) neg += 1;
+  }
+
+  const score = clamp((pos - neg) / Math.max(tokens.length / 3, 1), -1, 1);
+  const abs = Math.abs(score);
+  const label = score > 0.15 ? 'positive' : score < -0.15 ? 'negative' : 'neutral';
+  const confidence = clamp(abs + (pos + neg > 0 ? 0.2 : 0), 0, 1);
+  return { score: Number(score.toFixed(4)), label, confidence: Number(confidence.toFixed(4)) };
+};
+
+const scoreSpam = (text) => {
+  const normalized = normalizeText(text);
+  if (!normalized) return 0;
+
+  const links = (normalized.match(/https?:\/\//g) || []).length;
+  const repeats = (normalized.match(/(.)\1{4,}/g) || []).length;
+  const capsRatio = (() => {
+    const letters = String(text || '').replace(/[^A-Za-z]/g, '');
+    if (!letters.length) return 0;
+    const caps = letters.replace(/[^A-Z]/g, '').length;
+    return caps / letters.length;
+  })();
+  const spamTermHits = SPAM_TERMS.filter((term) => normalized.includes(term)).length;
+
+  return clamp((links * 0.22) + (repeats * 0.2) + (capsRatio * 0.35) + (spamTermHits * 0.25), 0, 1);
+};
+
+const scoreHarmful = (text, blockedKeywords = []) => {
+  const normalized = normalizeText(text);
+  if (!normalized) return { score: 0, hits: [] };
+
+  const candidates = [...HARMFUL_TERMS, ...(blockedKeywords || []).map((term) => normalizeText(term)).filter(Boolean)];
+  const hits = [...new Set(candidates.filter((term) => normalized.includes(term)))];
+  const score = clamp(hits.length * 0.24, 0, 1);
+  return { score, hits };
+};
+
+const deterministicEmbedding = (text, dimensions = 128) => {
+  const dims = clamp(parseInt(dimensions, 10) || 128, 16, 1024);
+  const vector = new Array(dims).fill(0);
+  const normalized = normalizeText(text);
+
+  if (!normalized) return vector;
+
+  const tokens = tokenize(normalized);
+  if (!tokens.length) return vector;
+
+  for (const token of tokens) {
+    const hash = crypto.createHash('sha1').update(token).digest();
+    for (let i = 0; i < dims; i += 1) {
+      const byte = hash[i % hash.length];
+      vector[i] += ((byte / 255) * 2) - 1;
+    }
+  }
+
+  const norm = Math.sqrt(vector.reduce((sum, value) => sum + (value * value), 0)) || 1;
+  return vector.map((value) => Number((value / norm).toFixed(8)));
+};
+
+const cosineSimilarity = (a = [], b = []) => {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length || !a.length) return 0;
+  let dot = 0;
+  let aNorm = 0;
+  let bNorm = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    const av = Number(a[i]) || 0;
+    const bv = Number(b[i]) || 0;
+    dot += av * bv;
+    aNorm += av * av;
+    bNorm += bv * bv;
+  }
+  const denom = (Math.sqrt(aNorm) * Math.sqrt(bNorm)) || 1;
+  return dot / denom;
+};
+
+const parseJsonSafely = (text) => {
+  try {
+    return parseJsonFromText(text);
+  } catch {
+    return null;
+  }
+};
+
 // Routes
 
 app.get('/health', (req, res) => {
@@ -174,6 +338,103 @@ app.post('/summarize', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Summarization failed' });
+  }
+});
+
+// Search result summarization
+app.post('/search/summary', async (req, res) => {
+  try {
+    const { query, results = [], summary = '' } = req.body;
+
+    if (!query) {
+      return res.status(400).json({ error: 'query required' });
+    }
+
+    const normalizedResults = Array.isArray(results)
+      ? results.slice(0, 12).map((item) => ({
+          title: item.title || item.name || item.text || 'Untitled',
+          snippet: item.snippet || item.description || item.content || '',
+          type: item.type || item.category || 'result',
+          score: item._score || item.score || 0,
+        }))
+      : [];
+
+    const cacheKey = buildHashedAiKey('search-summary', JSON.stringify({ query, summary, results: normalizedResults }));
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      return res.json({ ...JSON.parse(cached), cached: true });
+    }
+
+    const responseText = await generateTextFromPrompt({
+      system: 'You are a search analyst. Summarize search results clearly and concisely. Return JSON only with keys: summary (string), themes (string[]), nextQueries (string[]). Keep the summary to 2-3 sentences and the lists short.',
+      prompt: `Query: ${query}\nExisting summary: ${summary || 'none'}\nResults: ${JSON.stringify(normalizedResults, null, 2)}`,
+      maxOutputTokens: 300,
+    });
+
+    let payload = null;
+    try {
+      payload = parseJsonFromText(responseText);
+    } catch (error) {
+      payload = null;
+    }
+
+    const output = {
+      summary: payload?.summary || responseText.trim() || 'No summary available.',
+      themes: Array.isArray(payload?.themes) ? payload.themes.slice(0, 6) : [],
+      nextQueries: Array.isArray(payload?.nextQueries) ? payload.nextQueries.slice(0, 6) : [],
+    };
+
+    await redis.setex(cacheKey, CacheTTL.LONG, JSON.stringify(output));
+
+    res.json({ ...output, cached: false });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Search summary generation failed', details: error.message });
+  }
+});
+
+// Semantic query expansion
+app.post('/search/semantic-expand', async (req, res) => {
+  try {
+    const { query, limit = 8 } = req.body;
+
+    if (!query) {
+      return res.status(400).json({ error: 'query required' });
+    }
+
+    const cacheKey = buildHashedAiKey('semantic-expand', JSON.stringify({ query, limit }));
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      return res.json({ ...JSON.parse(cached), cached: true });
+    }
+
+    const responseText = await generateTextFromPrompt({
+      system: 'You are a semantic search assistant. Expand a user query with related concepts, synonyms, narrower terms, and broader terms. Return JSON only with keys: expandedQuery (string), relatedTerms (string[]), intent (string). Keep relatedTerms concise.',
+      prompt: `Query: ${query}\nMaximum related terms: ${limit}`,
+      maxOutputTokens: 250,
+    });
+
+    let payload = null;
+    try {
+      payload = parseJsonFromText(responseText);
+    } catch (error) {
+      payload = null;
+    }
+
+    const output = {
+      expandedQuery: payload?.expandedQuery || String(query).trim(),
+      relatedTerms: Array.isArray(payload?.relatedTerms) ? payload.relatedTerms.slice(0, limit) : [],
+      intent: payload?.intent || 'general search',
+    };
+
+    await redis.setex(cacheKey, CacheTTL.LONG, JSON.stringify(output));
+
+    res.json({ ...output, cached: false });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Semantic query expansion failed', details: error.message });
   }
 });
 

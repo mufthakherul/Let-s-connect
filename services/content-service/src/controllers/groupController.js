@@ -18,15 +18,33 @@ exports.createGroup = catchAsync(async (req, res, next) => {
         return createdGroup;
     });
 
-    response.success(res, group, 'Group created successfully', 201);
+    response.success(req, res, group, { message: 'Group created successfully' }, 201);
 });
 
 exports.getGroups = catchAsync(async (req, res, next) => {
     const userId = req.header('x-user-id');
-    const groups = await Group.findAll({ order: [['createdAt', 'DESC']] });
+    const search = String(req.query.search || req.query.query || '').trim();
+    const category = String(req.query.category || '').trim();
+
+    const where = {};
+    if (category) {
+        where.category = { [Op.iLike]: `%${category}%` };
+    }
+    if (search) {
+        where[Op.or] = [
+            { name: { [Op.iLike]: `%${search}%` } },
+            { description: { [Op.iLike]: `%${search}%` } },
+            { category: { [Op.iLike]: `%${search}%` } },
+        ];
+    }
+
+    const groups = await Group.findAll({
+        where,
+        order: [['memberCount', 'DESC'], ['createdAt', 'DESC']]
+    });
 
     // Privacy filtering logic here
-    response.success(res, groups);
+    response.success(req, res, groups);
 });
 
 exports.joinGroup = catchAsync(async (req, res, next) => {
@@ -40,7 +58,7 @@ exports.joinGroup = catchAsync(async (req, res, next) => {
     const membership = await GroupMember.create({ userId, groupId, role: 'member', status });
 
     if (status === 'active') await group.increment('memberCount');
-    response.success(res, membership, 'Join request processed', 201);
+    response.success(req, res, membership, { message: 'Join request processed' }, 201);
 });
 
 exports.createEvent = catchAsync(async (req, res, next) => {
@@ -52,5 +70,5 @@ exports.createEvent = catchAsync(async (req, res, next) => {
         groupId, title, description, startDate, endDate, createdBy: userId
     });
 
-    response.success(res, event, 'Event created', 201);
+    response.success(req, res, event, { message: 'Event created' }, 201);
 });
