@@ -1,0 +1,222 @@
+/**
+ * Performance Testing Suite for Milonexa
+ * Phase 3 - Data & Scale
+ * 
+ * Uses Artillery for load testing
+ * Install: npm install -g artillery
+ * Run: artillery run performance-test.yml
+ */
+
+config:
+  target: "http://localhost:8000"
+  phases:
+    # Warm-up phase
+    - duration: 60
+      arrivalRate: 5
+      name: "Warm-up"
+    
+    # Ramp-up phase
+    - duration: 120
+      arrivalRate: 10
+      rampTo: 50
+      name: "Ramp-up to 50 users/sec"
+    
+    # Sustained load
+    - duration: 300
+      arrivalRate: 50
+      name: "Sustained load - 50 users/sec"
+    
+    # Peak load
+    - duration: 120
+      arrivalRate: 50
+      rampTo: 100
+      name: "Peak load - 100 users/sec"
+    
+    # Cool down
+    - duration: 60
+      arrivalRate: 10
+      name: "Cool down"
+
+  # Performance thresholds
+  ensure:
+    maxErrorRate: 1       # Max 1% error rate
+    p95: 500              # 95th percentile < 500ms
+    p99: 1000             # 99th percentile < 1000ms
+
+  # Request defaults
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+  # Test data
+  variables:
+    userEmails:
+      - "testuser1@example.com"
+      - "testuser2@example.com"
+      - "testuser3@example.com"
+      - "testuser4@example.com"
+      - "testuser5@example.com"
+    
+  # Custom plugins
+  plugins:
+    expect: {}
+    metrics-by-endpoint:
+      stripQueryString: true
+
+# ===================================================================
+# TEST SCENARIOS
+# ===================================================================
+
+scenarios:
+  # ==== Authentication Flow ====
+  - name: "User Authentication"
+    weight: 20
+    flow:
+      - post:
+          url: "/user/login"
+          json:
+            email: "{{ userEmails }}"
+            password: "TestPassword123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 200
+            - contentType: json
+            - hasProperty: "token"
+      
+      - get:
+          url: "/user/profile"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+
+  # ==== Feed Operations ====
+  - name: "Feed Browsing"
+    weight: 30
+    flow:
+      - post:
+          url: "/user/login"
+          json:
+            email: "testuser1@example.com"
+            password: "TestPassword123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      
+      - get:
+          url: "/content/feed"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          qs:
+            page: 1
+            limit: 20
+          expect:
+            - statusCode: 200
+            - contentType: json
+      
+      - get:
+          url: "/content/feed"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          qs:
+            page: 2
+            limit: 20
+          expect:
+            - statusCode: 200
+
+  # ==== Post Creation and Interaction ====
+  - name: "Create and Interact with Posts"
+    weight: 25
+    flow:
+      - post:
+          url: "/user/login"
+          json:
+            email: "{{ userEmails }}"
+            password: "TestPassword123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      
+      - post:
+          url: "/content/posts"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            content: "This is a performance test post #testing"
+            visibility: "public"
+          capture:
+            - json: "$.post.id"
+              as: "postId"
+          expect:
+            - statusCode: 201
+      
+      - get:
+          url: "/content/posts/{{ postId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      
+      - post:
+          url: "/content/posts/{{ postId }}/react"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            type: "like"
+          expect:
+            - statusCode: 200
+      
+      - post:
+          url: "/content/posts/{{ postId }}/comments"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            content: "Great post!"
+          expect:
+            - statusCode: 201
+
+  # ==== Search Operations ====
+  - name: "Search"
+    weight: 15
+    flow:
+      - get:
+          url: "/content/search"
+          qs:
+            q: "test"
+            type: "posts"
+            page: 1
+          expect:
+            - statusCode: 200
+            - contentType: json
+
+  # ==== Messaging ====
+  - name: "Messaging"
+    weight: 10
+    flow:
+      - post:
+          url: "/user/login"
+          json:
+            email: "testuser1@example.com"
+            password: "TestPassword123!"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      
+      - get:
+          url: "/messaging/conversations"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      
+      - post:
+          url: "/messaging/messages"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            recipientId: 2
+            content: "Hello from performance test"
+          expect:
+            - statusCode: 201
