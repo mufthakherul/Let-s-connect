@@ -18,6 +18,11 @@ import shaka from 'shaka-player/dist/shaka-player.ui';
 import 'shaka-player/dist/controls.css';
 import { makePlaceholder } from '../utils/placeholder';
 
+import io from 'socket.io-client';
+
+const STREAM_REACTION_EMOJIS = ['❤️', '🔥', '👏', '😂', '🎉', '😮', '💯', '🎶'];
+const REACTION_LIFETIME_MS = 3500;
+
 const TV = () => {
     const [channels, setChannels] = useState([]);
     const [favorites, setFavorites] = useState([]);
@@ -41,6 +46,47 @@ const TV = () => {
     // Track stream attempt index per channel (0 = primary, 1..n = alternatives)
     const streamAttemptRef = useRef({});
     const [similarChannels, setSimilarChannels] = useState([]);
+
+    // --- Phase 14: Live reaction overlays ---
+    const [floatingReactions, setFloatingReactions] = useState([]);
+    const socketRef = useRef(null);
+    const reactionCounterRef = useRef(0);
+
+    useEffect(() => {
+        const messagingUrl = (window._env_?.REACT_APP_MESSAGING_SERVICE_URL || process.env.REACT_APP_MESSAGING_SERVICE_URL || 'http://localhost:3002');
+        const socket = io(messagingUrl, { transports: ['websocket', 'polling'] });
+        socketRef.current = socket;
+
+        socket.on('stream-reaction', (data) => {
+            const id = ++reactionCounterRef.current;
+            const x = 10 + Math.random() * 80; // % from left
+            setFloatingReactions(prev => [...prev, { id, emoji: data.emoji, x }]);
+            setTimeout(() => {
+                setFloatingReactions(prev => prev.filter(r => r.id !== id));
+            }, REACTION_LIFETIME_MS);
+        });
+
+        return () => {
+            socket.disconnect();
+            socketRef.current = null;
+        };
+    }, []);
+
+    useEffect(() => {
+        const socket = socketRef.current;
+        if (!socket || !currentChannel) return;
+        socket.emit('join-stream', currentChannel.id);
+        return () => {
+            socket.emit('leave-stream', currentChannel.id);
+        };
+    }, [currentChannel]);
+
+    const sendReaction = (emoji) => {
+        const socket = socketRef.current;
+        if (!socket || !currentChannel) return;
+        socket.emit('stream-reaction', { channelId: currentChannel.id, emoji });
+    };
+    // --- end Phase 14 ---
 
     const getStreamForChannel = (channel) => {
         if (!channel) return null;
@@ -609,6 +655,40 @@ const TV = () => {
                                     left: 0,
                                     width: '100%',
                                     height: '100%'
+                                                        {/* Phase 14: Floating reaction overlay */}
+                                                        <Box
+                                                            sx={{
+                                                                position: 'absolute',
+                                                                inset: 0,
+                                                                pointerEvents: 'none',
+                                                                overflow: 'hidden',
+                                                                zIndex: 10,
+                                                                '@keyframes tvReactionFloat': {
+                                                                    '0%':   { opacity: 1,   transform: 'translateY(0)    scale(1)' },
+                                                                    '70%':  { opacity: 0.9, transform: 'translateY(-80px) scale(1.3)' },
+                                                                    '100%': { opacity: 0,   transform: 'translateY(-140px) scale(1.5)' },
+                                                                },
+                                                            }}
+                                                        >
+                                                            {floatingReactions.map(r => (
+                                                                <Box
+                                                                    key={r.id}
+                                                                    sx={{
+                                                                        position: 'absolute',
+                                                                        bottom: '15%',
+                                                                        left: `${r.x}%`,
+                                                                        fontSize: '2rem',
+                                                                        lineHeight: 1,
+                                                                        animation: `tvReactionFloat ${REACTION_LIFETIME_MS}ms ease-out forwards`,
+                                                                        willChange: 'transform, opacity',
+                                                                        userSelect: 'none',
+                                                                    }}
+                                                                >
+                                                                    {r.emoji}
+                                                                </Box>
+                                                            ))}
+                                                        </Box>
+                                                    </Box>
                                 }}
                             />
                         )}
@@ -618,6 +698,28 @@ const TV = () => {
                             {playerError}
                         </Alert>
                     )}
+                    {/* Phase 14: Reaction bar */}
+                    <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
+                            React:
+                        </Typography>
+                        {STREAM_REACTION_EMOJIS.map(emoji => (
+                            <Tooltip key={emoji} title="Send reaction">
+                                <IconButton
+                                    size="small"
+                                    onClick={() => sendReaction(emoji)}
+                                    sx={{
+                                        fontSize: '1.2rem',
+                                        borderRadius: 2,
+                                        px: 0.75,
+                                        '&:hover': { bgcolor: 'action.hover' },
+                                    }}
+                                >
+                                    {emoji}
+                                </IconButton>
+                            </Tooltip>
+                        ))}
+                    </Box>
                     <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                             <Avatar

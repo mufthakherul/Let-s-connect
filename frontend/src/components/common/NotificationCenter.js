@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Popover, List, ListItem, ListItemText, ListItemAvatar,
   Avatar, Typography, Box, IconButton, Badge, Divider, Button,
   Dialog, DialogTitle, DialogContent, DialogActions,
   Switch, FormControlLabel, FormGroup, TextField, Chip,
-  MenuItem, Select, FormControl, InputLabel, CircularProgress
+  MenuItem, Select, FormControl, CircularProgress
 } from '@mui/material';
 import {
   Notifications as NotificationsIcon,
-  Clear,
   Settings,
   FavoriteBorder,
   Comment,
@@ -22,13 +21,32 @@ import {
   ShoppingCart,
   Info,
   Delete,
-  Refresh
+  Refresh,
+  Call
 } from '@mui/icons-material';
+import io from 'socket.io-client';
 import { useNotificationStore } from '../../store/notificationStore';
 import { formatRelativeTime } from '../../utils/helpers';
 import api from '../../utils/api';
+import config from '../../config/api';
 
-const NotificationCenter = () => {
+// Group notifications by time bucket for better UX
+function groupNotifications(notifications) {
+  const now = Date.now();
+  const oneDayMs = 86400000;
+  const oneWeekMs = 7 * oneDayMs;
+
+  const groups = { today: [], thisWeek: [], older: [] };
+  for (const n of notifications) {
+    const age = now - new Date(n.createdAt).getTime();
+    if (age < oneDayMs) groups.today.push(n);
+    else if (age < oneWeekMs) groups.thisWeek.push(n);
+    else groups.older.push(n);
+  }
+  return groups;
+}
+
+const NotificationCenter = ({ user }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -37,8 +55,22 @@ const NotificationCenter = () => {
   const [preferences, setPreferences] = useState(null);
   const [filterType, setFilterType] = useState('all');
 
+  // Real-time socket for live notifications (Phase 14)
+  useEffect(() => {
+    if (!user?.id) return;
+    const socket = io(config.MESSAGING_SERVICE_URL, { transports: ['websocket', 'polling'], withCredentials: true });
+    socket.on('connect', () => {
+      socket.emit('user-connect', { userId: user.id });
+    });
+    socket.on('notification', (notification) => {
+      setNotifications((prev) => [notification, ...prev]);
+      setUnreadCount((c) => c + 1);
+    });
+    return () => socket.disconnect();
+  }, [user?.id]);
+
   // Fetch notifications
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true);
       const params = {};
@@ -53,7 +85,7 @@ const NotificationCenter = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterType]);
 
   // Fetch preferences
   const fetchPreferences = async () => {
@@ -65,12 +97,11 @@ const NotificationCenter = () => {
     }
   };
 
-  // Auto-refresh notifications every 30 seconds
   useEffect(() => {
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
-  }, [filterType]);
+  }, [fetchNotifications]);
 
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget);
@@ -148,6 +179,7 @@ const NotificationCenter = () => {
       post_share: <Share />,
       video_upload: <VideoLibrary />,
       order_status: <ShoppingCart />,
+      call: <Call />,
       system: <Info />
     };
     return iconMap[type] || <NotificationsIcon />;
@@ -234,7 +266,7 @@ const NotificationCenter = () => {
           </Box>
           <Divider />
 
-          {/* Notifications List */}
+          {/* Notifications List — grouped by time (Phase 14) */}
           {loading ? (
             <Box sx={{ p: 4, textAlign: 'center' }}>
               <CircularProgress />
@@ -246,73 +278,81 @@ const NotificationCenter = () => {
               </Typography>
             </Box>
           ) : (
-            <List sx={{ p: 0, maxHeight: 400, overflow: 'auto' }}>
-              {notifications.map((notification) => (
-                <React.Fragment key={notification.id}>
-                  <ListItem
-                    sx={{
-                      bgcolor: notification.isRead ? 'transparent' : 'action.hover',
-                      '&:hover': { bgcolor: 'action.selected' },
-                      cursor: notification.actionUrl ? 'pointer' : 'default'
-                    }}
-                    onClick={() => {
-                      if (notification.actionUrl) {
-                        window.location.href = notification.actionUrl;
-                      }
-                      if (!notification.isRead) {
-                        handleMarkAsRead(notification.id);
-                      }
-                    }}
-                  >
-                    <ListItemAvatar>
-                      <Avatar sx={{ bgcolor: notification?.isRead ? 'grey.400' : 'primary.main' }}>
-                        {getNotificationIcon(notification?.type)}
-                      </Avatar>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="subtitle2">{notification.title}</Typography>
-                          {notification.priority !== 'normal' && (
-                            <Chip
-                              label={notification.priority}
-                              size="small"
-                              color={getPriorityColor(notification.priority)}
+            <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+              {(() => {
+                const groups = groupNotifications(notifications);
+                const sections = [
+                  { label: 'Today', items: groups.today },
+                  { label: 'This Week', items: groups.thisWeek },
+                  { label: 'Older', items: groups.older }
+                ];
+                return sections.map(({ label, items }) => items.length === 0 ? null : (
+                  <React.Fragment key={label}>
+                    <Box sx={{ px: 2, py: 0.75, bgcolor: 'action.hover' }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        {label}
+                      </Typography>
+                    </Box>
+                    <List sx={{ p: 0 }}>
+                      {items.map((notification) => (
+                        <React.Fragment key={notification.id}>
+                          <ListItem
+                            sx={{
+                              bgcolor: notification.isRead ? 'transparent' : 'action.hover',
+                              '&:hover': { bgcolor: 'action.selected' },
+                              cursor: notification.actionUrl ? 'pointer' : 'default'
+                            }}
+                            onClick={() => {
+                              if (notification.actionUrl) window.location.href = notification.actionUrl;
+                              if (!notification.isRead) handleMarkAsRead(notification.id);
+                            }}
+                          >
+                            <ListItemAvatar>
+                              <Avatar sx={{ bgcolor: notification.isRead ? 'grey.400' : 'primary.main' }}>
+                                {getNotificationIcon(notification.type)}
+                              </Avatar>
+                            </ListItemAvatar>
+                            <ListItemText
+                              primary={
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Typography variant="subtitle2">{notification.title}</Typography>
+                                  {notification.priority && notification.priority !== 'normal' && (
+                                    <Chip label={notification.priority} size="small" color={getPriorityColor(notification.priority)} />
+                                  )}
+                                </Box>
+                              }
+                              secondary={
+                                <>
+                                  <Typography variant="body2" component="span">
+                                    {notification.body || notification.message}
+                                  </Typography>
+                                  <Typography variant="caption" display="block" color="text.secondary">
+                                    {formatRelativeTime(notification.createdAt)}
+                                  </Typography>
+                                </>
+                              }
                             />
-                          )}
-                        </Box>
-                      }
-                      secondary={
-                        <>
-                          <Typography variant="body2" component="span">
-                            {notification.message}
-                          </Typography>
-                          <Typography variant="caption" display="block" color="text.secondary">
-                            {formatRelativeTime(notification.createdAt)}
-                          </Typography>
-                        </>
-                      }
-                    />
-                    <IconButton
-                      edge="end"
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(notification.id);
-                      }}
-                    >
-                      <Delete fontSize="small" />
-                    </IconButton>
-                  </ListItem>
-                  <Divider />
-                </React.Fragment>
-              ))}
-            </List>
+                            <IconButton
+                              edge="end"
+                              size="small"
+                              onClick={(e) => { e.stopPropagation(); handleDelete(notification.id); }}
+                            >
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </ListItem>
+                          <Divider />
+                        </React.Fragment>
+                      ))}
+                    </List>
+                  </React.Fragment>
+                ));
+              })()}
+            </Box>
           )}
         </Box>
       </Popover>
 
-      {/* Preferences Dialog */}
+      {/* Preferences Dialog — uses correct backend field names (Phase 14) */}
       <Dialog open={prefsOpen} onClose={() => setPrefsOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Notification Preferences</DialogTitle>
         <DialogContent>
@@ -325,30 +365,33 @@ const NotificationCenter = () => {
                 <FormControlLabel
                   control={
                     <Switch
-                      checked={preferences.inAppNotifications}
-                      onChange={(e) => setPreferences({ ...preferences, inAppNotifications: e.target.checked })}
-                    />
-                  }
-                  label="In-App Notifications"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={preferences.emailNotifications}
-                      onChange={(e) => setPreferences({ ...preferences, emailNotifications: e.target.checked })}
-                    />
-                  }
-                  label="Email Notifications"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={preferences.pushNotifications}
-                      onChange={(e) => setPreferences({ ...preferences, pushNotifications: e.target.checked })}
+                      checked={!!preferences.enablePushNotifications}
+                      onChange={(e) => setPreferences({ ...preferences, enablePushNotifications: e.target.checked })}
                     />
                   }
                   label="Push Notifications"
                 />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={!!preferences.enableEmailDigest}
+                      onChange={(e) => setPreferences({ ...preferences, enableEmailDigest: e.target.checked })}
+                    />
+                  }
+                  label="Email Digest"
+                />
+                {preferences.enableEmailDigest && (
+                  <FormControl size="small" sx={{ ml: 4, mt: 1, mb: 1, minWidth: 160 }}>
+                    <Select
+                      value={preferences.digestFrequency || 'daily'}
+                      onChange={(e) => setPreferences({ ...preferences, digestFrequency: e.target.value })}
+                    >
+                      <MenuItem value="daily">Daily</MenuItem>
+                      <MenuItem value="weekly">Weekly</MenuItem>
+                      <MenuItem value="never">Never</MenuItem>
+                    </Select>
+                  </FormControl>
+                )}
               </FormGroup>
 
               <Divider sx={{ my: 2 }} />
@@ -357,22 +400,27 @@ const NotificationCenter = () => {
                 Notification Types
               </Typography>
               <FormGroup>
-                {Object.entries(preferences.notificationTypes || {}).map(([type, enabled]) => (
+                {[
+                  { field: 'enableMessages', label: 'Messages' },
+                  { field: 'enableMentions', label: 'Mentions' },
+                  { field: 'enableReplies', label: 'Replies' },
+                  { field: 'enableReactions', label: 'Reactions' },
+                  { field: 'enableCalls', label: 'Calls' },
+                  { field: 'enableFriendRequests', label: 'Friend Requests' },
+                  { field: 'enableServerInvites', label: 'Server Invites' },
+                  { field: 'enableRoleUpdates', label: 'Role Updates' },
+                  { field: 'enableSystem', label: 'System' },
+                  { field: 'enableAnnouncements', label: 'Announcements' }
+                ].map(({ field, label }) => (
                   <FormControlLabel
-                    key={type}
+                    key={field}
                     control={
                       <Switch
-                        checked={enabled}
-                        onChange={(e) => setPreferences({
-                          ...preferences,
-                          notificationTypes: {
-                            ...preferences.notificationTypes,
-                            [type]: e.target.checked
-                          }
-                        })}
+                        checked={preferences[field] !== false}
+                        onChange={(e) => setPreferences({ ...preferences, [field]: e.target.checked })}
                       />
                     }
-                    label={type.replace('_', ' ').toUpperCase()}
+                    label={label}
                   />
                 ))}
               </FormGroup>
@@ -382,33 +430,23 @@ const NotificationCenter = () => {
               <Typography variant="subtitle2" gutterBottom>
                 Quiet Hours
               </Typography>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={preferences.quietHoursEnabled}
-                    onChange={(e) => setPreferences({ ...preferences, quietHoursEnabled: e.target.checked })}
-                  />
-                }
-                label="Enable Quiet Hours"
-              />
-              {preferences.quietHoursEnabled && (
-                <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-                  <TextField
-                    label="Start Time"
-                    type="time"
-                    value={preferences.quietHoursStart || '22:00'}
-                    onChange={(e) => setPreferences({ ...preferences, quietHoursStart: e.target.value })}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                  <TextField
-                    label="End Time"
-                    type="time"
-                    value={preferences.quietHoursEnd || '08:00'}
-                    onChange={(e) => setPreferences({ ...preferences, quietHoursEnd: e.target.value })}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Box>
-              )}
+              <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
+                <TextField
+                  label="Start Time"
+                  type="time"
+                  value={preferences.quietHoursStart || '22:00'}
+                  onChange={(e) => setPreferences({ ...preferences, quietHoursStart: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                  helperText="Leave blank to disable"
+                />
+                <TextField
+                  label="End Time"
+                  type="time"
+                  value={preferences.quietHoursEnd || '08:00'}
+                  onChange={(e) => setPreferences({ ...preferences, quietHoursEnd: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Box>
             </Box>
           )}
         </DialogContent>
