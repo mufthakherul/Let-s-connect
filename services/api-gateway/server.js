@@ -20,6 +20,7 @@ const { getRequiredEnv } = require('../shared/security-utils');
 const { assertEnvValid } = require('../shared/env-validator');
 const compression = require('compression');
 const { getServiceTimeout, executeWithRetry, getCircuitBreakerStates, resetCircuitBreaker } = require('./resilience-config');
+const { requestLoggingMiddleware } = require('../shared/logging-utils');
 require('dotenv').config({ quiet: true });
 
 // Validate environment at startup
@@ -156,16 +157,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Log requests
-app.use((req, res, next) => {
-  logger.info({
-    method: req.method,
-    path: req.originalUrl,
-    ip: req.ip,
-    requestId: req.id
-  });
-  next();
-});
+// Enhanced structured logging (Phase 2)
+app.use(requestLoggingMiddleware('api-gateway'));
 
 // Phase 7: Reduced Data Mode for mobile optimization
 app.use(addDataModeHeaders);

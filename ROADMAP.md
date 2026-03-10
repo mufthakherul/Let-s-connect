@@ -389,18 +389,25 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
 **Objective:** visible UX upgrades + stronger reliability controls.
 
 ### Progress update (Started March 10, 2026)
-**Current focus:** Gateway resilience and observability foundation
+**Current focus:** Page UX modernization and Admin improvements
 
-🔄 **In Progress:**
-- Gateway resilience controls implementation
-  - Timeout configuration per service
-  - Retry policies for transient failures
-  - Circuit breaker pattern for dependency failures
+✅ **Completed:**
+- Gateway resilience controls
+  - Per-service timeout configuration (5s-60s)
+  - Circuit breaker pattern with monitoring endpoints
+  - Exponential backoff retry logic
+  - 22/22 tests passing
+- Observability expansion
+  - Enhanced structured logging utilities
+  - Request/response correlation with timing
+  - Business event logging
+  - Security event tracking
+  - Circuit breaker state change logging
 
 📋 **Planned:**
-- Observability expansion (structured logs + distributed tracing)
 - Page family UX modernization (landing, auth, core pages)
 - Admin UX workflow improvements
+- Deploy observability stack (Prometheus/Grafana metrics)
 
 ### Deliverables
 - Page family redesign rollout (public + core authenticated pages)
