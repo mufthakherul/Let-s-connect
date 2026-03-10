@@ -482,7 +482,7 @@ app.get('/health', (req, res) => {
 app.get('/health/circuits', (req, res) => {
   const circuits = getCircuitBreakerStates();
   const hasOpenCircuits = circuits.some(c => c.state === 'OPEN');
-  
+
   res.status(hasOpenCircuits ? 503 : 200).json({
     status: hasOpenCircuits ? 'degraded' : 'healthy',
     circuits,
@@ -494,7 +494,7 @@ app.get('/health/circuits', (req, res) => {
 app.post('/health/circuits/:serviceName/reset', requireAdminSecret, (req, res) => {
   const { serviceName } = req.params;
   const success = resetCircuitBreaker(serviceName);
-  
+
   if (success) {
     logger.info(`Circuit breaker reset for ${serviceName}`);
     res.json({ success: true, message: `Circuit breaker for ${serviceName} reset` });
