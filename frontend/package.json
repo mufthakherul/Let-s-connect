@@ -32,6 +32,7 @@
     "start:admin": "PORT=3001 BROWSER=none react-scripts start",
     "prebuild": "node scripts/strip-shaka-sourcemaps.js",
     "build": "react-scripts build",
+    "check:bundle": "node scripts/check-build-budget.js",
     "test": "react-scripts test",
     "test:e2e": "playwright test",
     "eject": "react-scripts eject",

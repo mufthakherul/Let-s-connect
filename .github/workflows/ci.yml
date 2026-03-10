@@ -39,6 +39,9 @@ jobs:
         env:
           CI: false
 
+      - name: Bundle budget check
+        run: npm run check:bundle
+
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest

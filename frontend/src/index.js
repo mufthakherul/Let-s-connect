@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { registerServiceWorker } from './utils/pwa';
+import { startWebVitalsCollection } from './utils/webVitals';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
@@ -14,6 +15,16 @@ root.render(
 const isCodespaces = window.location.origin.includes('.app.github.dev');
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const shouldRegisterSW = true; // Enabled for testing push notifications
+
+// Workstream B: Core Web Vitals instrumentation (non-blocking)
+startWebVitalsCollection((metric) => {
+  try {
+    window.__webVitals = window.__webVitals || [];
+    window.__webVitals.push({ ...metric, ts: Date.now() });
+  } catch {
+    // no-op when window is unavailable
+  }
+});
 
 console.info('[PWA] Config:', {
   origin: window.location.origin,
