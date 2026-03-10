@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -32,7 +32,9 @@ import {
   Forward,
   MoreVert,
   Person,
-  Groups
+  Groups,
+  DoneAll,
+  Done
 } from '@mui/icons-material';
 import io from 'socket.io-client';
 import toast from 'react-hot-toast';
@@ -70,6 +72,14 @@ function Chat({ user }) {
   const [forwardDialogOpen, setForwardDialogOpen] = useState(false);
   const [chatMode, setChatMode] = useState('all');
 
+  // Phase 14: Typing indicators, presence, delivery receipts
+  const [typingUsers, setTypingUsers] = useState({}); // { conversationId: { userId: timeout } }
+  const [onlineUsers, setOnlineUsers] = useState(new Set()); // set of online userIds
+  const [deliveredMessages, setDeliveredMessages] = useState(new Set()); // messageIds known delivered
+  const [readMessages, setReadMessages] = useState(new Set());
+  const typingTimerRef = useRef(null);
+  const presenceHeartbeatRef = useRef(null);
+
   useEffect(() => {
     fetchConversations();
     const newSocket = io(config.MESSAGING_SERVICE_URL, {
@@ -78,8 +88,48 @@ function Chat({ user }) {
     });
     setSocket(newSocket);
 
-    return () => newSocket.close();
-  }, []);
+    // Phase 14: Register user presence on connect
+    newSocket.on('connect', () => {
+      if (user?.id) {
+        newSocket.emit('user-connect', { userId: user.id });
+        // Heartbeat every 60s to keep presence alive
+        presenceHeartbeatRef.current = setInterval(() => {
+          newSocket.emit('presence-heartbeat', { userId: user.id });
+        }, 60000);
+      }
+    });
+
+    // Phase 14: Presence events
+    newSocket.on('user-online', ({ userId }) => {
+      setOnlineUsers((prev) => new Set([...prev, userId]));
+    });
+    newSocket.on('user-offline', ({ userId }) => {
+      setOnlineUsers((prev) => { const next = new Set(prev); next.delete(userId); return next; });
+    });
+
+    // Phase 14: Delivery receipts
+    newSocket.on('message-delivered', ({ messageId }) => {
+      setDeliveredMessages((prev) => new Set([...prev, messageId]));
+    });
+    newSocket.on('message-read-receipt', ({ messageId }) => {
+      setReadMessages((prev) => new Set([...prev, messageId]));
+    });
+
+    return () => {
+      newSocket.close();
+      clearInterval(presenceHeartbeatRef.current);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Phase 14: Typing indicator helpers
+  const emitTyping = useCallback(() => {
+    if (!socket || !selectedConversation || !user?.id) return;
+    socket.emit('typing', { conversationId: selectedConversation.id, userId: user.id });
+    clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
+      socket.emit('stop-typing', { conversationId: selectedConversation.id, userId: user.id });
+    }, 2000);
+  }, [socket, selectedConversation, user]);
 
   const fetchConversations = async () => {
     try {
@@ -291,15 +341,45 @@ function Chat({ user }) {
 
       const handleNewMessage = (message) => {
         setMessages((prev) => [...prev, message]);
+        // Phase 14: Emit read receipt for received messages
+        if (message.senderId !== user?.id) {
+          socket.emit('message-read', {
+            messageId: message.id,
+            conversationId: selectedConversation.id,
+            readerId: user?.id
+          });
+        }
+      };
+
+      // Phase 14: Typing indicators
+      const handleUserTyping = ({ userId, conversationId }) => {
+        if (userId === user?.id) return;
+        setTypingUsers((prev) => ({
+          ...prev,
+          [conversationId]: { ...(prev[conversationId] || {}), [userId]: Date.now() }
+        }));
+      };
+      const handleUserStoppedTyping = ({ userId, conversationId }) => {
+        setTypingUsers((prev) => {
+          const updated = { ...prev };
+          if (updated[conversationId]) {
+            delete updated[conversationId][userId];
+          }
+          return updated;
+        });
       };
 
       socket.on('new-message', handleNewMessage);
+      socket.on('user-typing', handleUserTyping);
+      socket.on('user-stopped-typing', handleUserStoppedTyping);
 
       return () => {
         socket.off('new-message', handleNewMessage);
+        socket.off('user-typing', handleUserTyping);
+        socket.off('user-stopped-typing', handleUserStoppedTyping);
       };
     }
-  }, [socket, selectedConversation]);
+  }, [socket, selectedConversation, user]);
 
   useEffect(() => {
     if (tab === 1) {
@@ -353,6 +433,15 @@ function Chat({ user }) {
                           icon={getConversationType(conv) === 'u2g' ? <Groups fontSize="small" /> : <Person fontSize="small" />}
                           label={getConversationType(conv) === 'u2g' ? 'U2G' : 'U2U'}
                         />
+                        {/* Phase 14: Online presence indicator for DM conversations */}
+                        {getConversationType(conv) === 'u2u' &&
+                          conv.participants?.some(pid => pid !== user?.id && onlineUsers.has(pid)) && (
+                          <Box
+                            component="span"
+                            sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main', flexShrink: 0 }}
+                            title="Online"
+                          />
+                        )}
                       </Box>
                     }
                     secondary={conv.lastMessage}
@@ -430,13 +519,22 @@ function Chat({ user }) {
 
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                       <Typography variant="body2">{message.content}</Typography>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => handleMessageMenuOpen(e, message)}
-                        sx={{ ml: 1 }}
-                      >
-                        <MoreVert fontSize="small" />
-                      </IconButton>
+                      <Box sx={{ display: 'flex', alignItems: 'center', ml: 1, gap: 0.5 }}>
+                        {/* Phase 14: Delivery / read receipt for own messages */}
+                        {message.senderId === user?.id && (
+                          <Tooltip title={readMessages.has(message.id) ? 'Read' : deliveredMessages.has(message.id) ? 'Delivered' : 'Sent'}>
+                            {readMessages.has(message.id)
+                              ? <DoneAll fontSize="inherit" sx={{ color: 'primary.main', fontSize: 14 }} />
+                              : <Done fontSize="inherit" sx={{ color: 'text.disabled', fontSize: 14 }} />}
+                          </Tooltip>
+                        )}
+                        <IconButton
+                          size="small"
+                          onClick={(e) => handleMessageMenuOpen(e, message)}
+                        >
+                          <MoreVert fontSize="small" />
+                        </IconButton>
+                      </Box>
                     </Box>
 
                     {/* Phase 2: Show reactions */}
@@ -491,7 +589,7 @@ function Chat({ user }) {
               ))}
             </Box>
 
-            <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+              <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
               {/* Phase 2: Show replying indicator */}
               {replyingTo && (
                 <Box
@@ -519,13 +617,24 @@ function Chat({ user }) {
                 </Box>
               )}
 
+              {/* Phase 14: Typing indicator */}
+              {selectedConversation && Object.keys(typingUsers[selectedConversation.id] || {}).length > 0 && (
+                <Box sx={{ mb: 0.5, px: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    {Object.keys(typingUsers[selectedConversation.id]).length === 1
+                      ? 'Someone is typing…'
+                      : `${Object.keys(typingUsers[selectedConversation.id]).length} people are typing…`}
+                  </Typography>
+                </Box>
+              )}
+
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <TextField
                   fullWidth
                   size="small"
                   placeholder={selectedConversation ? `Message in ${getConversationType(selectedConversation) === 'u2g' ? 'group/channel' : 'direct chat'}...` : 'Select a conversation first...'}
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={(e) => { setNewMessage(e.target.value); emitTyping(); }}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                   disabled={!selectedConversation}
                 />

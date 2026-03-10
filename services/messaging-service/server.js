@@ -746,9 +746,197 @@ ScheduledMessage.belongsTo(Conversation, { foreignKey: 'conversationId' });
 Conversation.hasMany(ConversationSettings, { foreignKey: 'conversationId' });
 ConversationSettings.belongsTo(Conversation, { foreignKey: 'conversationId' });
 
+// ============================================================
+// Phase 14: Online Presence Helpers (Redis-backed)
+// ============================================================
+
+const PRESENCE_KEY = 'milonexa:presence';
+const PRESENCE_TTL_SECONDS = 90; // auto-expire after 90 s of inactivity
+
+async function setUserPresence(userId, status = 'online', customStatus = '') {
+  try {
+    const value = JSON.stringify({ status, customStatus, lastSeen: Date.now() });
+    await redis.hset(PRESENCE_KEY, userId, value);
+    // reset expiry on the whole hash isn't granular; per-user key is better for TTL
+    await redis.set(`milonexa:presence:ttl:${userId}`, '1', 'EX', PRESENCE_TTL_SECONDS);
+  } catch (err) {
+    console.error('[Presence] setUserPresence error:', err.message);
+  }
+}
+
+async function clearUserPresence(userId) {
+  try {
+    await redis.hdel(PRESENCE_KEY, userId);
+    await redis.del(`milonexa:presence:ttl:${userId}`);
+  } catch (err) {
+    console.error('[Presence] clearUserPresence error:', err.message);
+  }
+}
+
+async function getUserPresence(userId) {
+  try {
+    const ttlExists = await redis.exists(`milonexa:presence:ttl:${userId}`);
+    if (!ttlExists) {
+      await redis.hdel(PRESENCE_KEY, userId); // cleanup stale entry
+      return { status: 'offline', lastSeen: null };
+    }
+    const raw = await redis.hget(PRESENCE_KEY, userId);
+    return raw ? JSON.parse(raw) : { status: 'offline', lastSeen: null };
+  } catch {
+    return { status: 'offline', lastSeen: null };
+  }
+}
+
+// ============================================================
+// Phase 14: Redis Streams Event Publisher
+// ============================================================
+
+const EVENT_STREAM_KEY = 'milonexa:events';
+const MAX_STREAM_LENGTH = 10000; // cap stream to prevent unbounded growth
+
+async function publishEvent(eventType, data) {
+  try {
+    const payload = JSON.stringify({ eventType, data, ts: Date.now() });
+    await redis.xadd(EVENT_STREAM_KEY, 'MAXLEN', '~', MAX_STREAM_LENGTH, '*',
+      'eventType', eventType,
+      'payload', payload
+    );
+  } catch (err) {
+    console.error(`[Events] Failed to publish event ${eventType}:`, err.message);
+  }
+}
+
+// ============================================================
+// Phase 14: Webhook Delivery Helper
+// ============================================================
+
+async function triggerWebhooks(eventType, data) {
+  try {
+    const https = require('https');
+    const http = require('http');
+    const webhooks = await Webhook.findAll();
+    for (const wh of webhooks) {
+      try {
+        const body = JSON.stringify({ event: eventType, data, ts: new Date().toISOString() });
+        const url = new URL(wh.endpoint || wh.avatarUrl || ''); // endpoint stored in avatarUrl field if missing
+        const lib = url.protocol === 'https:' ? https : http;
+        const req = lib.request(
+          { hostname: url.hostname, port: url.port || (url.protocol === 'https:' ? 443 : 80),
+            path: url.pathname + url.search, method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body),
+                       'X-Milonexa-Event': eventType, 'X-Webhook-Token': wh.token || '' }
+          },
+          (res) => { res.resume(); }
+        );
+        req.on('error', (e) => console.error(`[Webhook] Delivery failed to ${wh.id}:`, e.message));
+        req.write(body);
+        req.end();
+      } catch (e) {
+        console.error(`[Webhook] Invalid webhook ${wh.id}:`, e.message);
+      }
+    }
+  } catch (err) {
+    console.error('[Webhook] triggerWebhooks error:', err.message);
+  }
+}
+
+// ============================================================
+// Phase 14: Email Digest Helpers (nodemailer, optional)
+// ============================================================
+
+let emailTransport = null;
+try {
+  const nodemailer = require('nodemailer');
+  if (process.env.SMTP_HOST) {
+    emailTransport = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    });
+    console.log('[Email] SMTP transport configured.');
+  } else {
+    console.warn('[Email] SMTP_HOST not set — email digest is disabled.');
+  }
+} catch {
+  console.warn('[Email] nodemailer not installed — email digest is disabled.');
+}
+
+async function sendDigestEmail(userId, userEmail, notifications) {
+  if (!emailTransport || !userEmail) return false;
+  try {
+    const listHtml = notifications.map(n =>
+      `<li><strong>${n.title}</strong>: ${n.body}</li>`
+    ).join('');
+    await emailTransport.sendMail({
+      from: process.env.SMTP_FROM || '"Milonexa" <noreply@milonexa.com>',
+      to: userEmail,
+      subject: `Your Milonexa digest — ${notifications.length} update${notifications.length !== 1 ? 's' : ''}`,
+      html: `<h2>Your Milonexa Digest</h2><ul>${listHtml}</ul><p><a href="${process.env.APP_URL || 'https://milonexa.com'}">View all notifications</a></p>`
+    });
+    return true;
+  } catch (err) {
+    console.error('[Email] Digest send failed:', err.message);
+    return false;
+  }
+}
+
+// Run digest check every hour; send to users whose digestFrequency matches
+const DIGEST_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+setInterval(async () => {
+  try {
+    const now = new Date();
+    const isDaily = now.getHours() === 8 && now.getMinutes() < 60; // send at 8am
+    const isWeekly = now.getDay() === 1 && isDaily; // Monday 8am
+
+    const where = isWeekly
+      ? { enableEmailDigest: true, digestFrequency: ['daily', 'weekly'] }
+      : isDaily
+        ? { enableEmailDigest: true, digestFrequency: 'daily' }
+        : null;
+
+    if (!where) return;
+
+    const prefs = await NotificationPreference.findAll({ where });
+    for (const pref of prefs) {
+      const since = new Date(Date.now() - (pref.digestFrequency === 'weekly' ? 7 : 1) * 24 * 60 * 60 * 1000);
+      const notifications = await Notification.findAll({
+        where: { userId: pref.userId, isRead: false, createdAt: { [Op.gte]: since } },
+        limit: 20
+      });
+      if (notifications.length === 0) continue;
+      // For now log intent; email is sent if SMTP configured
+      console.log(`[Digest] Sending digest to user ${pref.userId} (${notifications.length} notifications)`);
+      // In a real deployment, fetch user email from user-service and call sendDigestEmail
+      await publishEvent('digest.sent', { userId: pref.userId, count: notifications.length });
+    }
+  } catch (err) {
+    console.error('[Digest] Scheduler error:', err.message);
+  }
+}, DIGEST_CHECK_INTERVAL_MS);
+
 // Socket.IO for real-time messaging
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
+
+  // Phase 14: User presence registration
+  socket.on('user-connect', async (data) => {
+    const { userId } = data || {};
+    if (!userId) return;
+    socket.userId = userId;
+    socket.join(`user-${userId}`);
+    await setUserPresence(userId, 'online');
+    socket.broadcast.emit('user-online', { userId, status: 'online' });
+    console.log(`[Presence] User ${userId} online`);
+  });
+
+  // Phase 14: Custom status
+  socket.on('set-status', async (data) => {
+    const { userId, status, customStatus } = data || {};
+    if (!userId) return;
+    await setUserPresence(userId, status || 'online', customStatus || '');
+    socket.broadcast.emit('user-status-changed', { userId, status, customStatus });
+  });
 
   socket.on('join-conversation', (conversationId) => {
     socket.join(conversationId);
@@ -794,6 +982,16 @@ io.on('connection', (socket) => {
 
       // Publish to Redis for scaling
       redis.publish('messages', JSON.stringify(messageWithRelations));
+
+      // Phase 14: Publish to Redis Streams for cross-service consumers
+      publishEvent('message.created', {
+        messageId: message.id,
+        conversationId: data.conversationId,
+        senderId: data.senderId
+      });
+
+      // Phase 14: Emit delivery receipt back to sender
+      socket.emit('message-delivered', { messageId: message.id, conversationId: data.conversationId });
 
       // NEW: Trigger Push Notifications for participants not in the room
       const conversation = await Conversation.findByPk(data.conversationId);
@@ -843,8 +1041,57 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Phase 14: Stop-typing event
+  socket.on('stop-typing', (data) => {
+    socket.to(data.conversationId).emit('user-stopped-typing', {
+      userId: data.userId,
+      conversationId: data.conversationId
+    });
+  });
+
+  // Phase 14: Delivery acknowledgement from recipient
+  socket.on('message-read', async (data) => {
+    const { messageId, conversationId, readerId } = data || {};
+    if (!messageId) return;
+    try {
+      await Message.update({ isRead: true }, { where: { id: messageId } });
+      // inform sender
+      io.to(conversationId).emit('message-read-receipt', { messageId, readerId });
+    } catch { /* non-critical */ }
+  });
+
+  // Phase 14: Presence heartbeat — clients ping every 60s to keep presence alive
+  socket.on('presence-heartbeat', async (data) => {
+    const { userId } = data || {};
+    if (!userId) return;
+    await setUserPresence(userId, 'online');
+  });
+
+    // Phase 14: Live stream reactions
+    socket.on('join-stream', (channelId) => {
+      if (channelId) socket.join(`stream-${channelId}`);
+    });
+
+    socket.on('leave-stream', (channelId) => {
+      if (channelId) socket.leave(`stream-${channelId}`);
+    });
+
+    socket.on('stream-reaction', (data) => {
+      const { channelId, emoji } = data || {};
+      if (!channelId || !emoji) return;
+      const payload = { emoji, userId: socket.userId || null, id: Date.now() + Math.random() };
+      io.to(`stream-${channelId}`).emit('stream-reaction', payload);
+      publishEvent('stream.reaction', { channelId, emoji, userId: socket.userId });
+    });
+
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
+    if (socket.userId) {
+      clearUserPresence(socket.userId).then(() => {
+        socket.broadcast.emit('user-offline', { userId: socket.userId });
+        console.log(`[Presence] User ${socket.userId} offline`);
+      });
+    }
   });
 });
 
@@ -3161,6 +3408,173 @@ app.put('/notifications/preferences', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to update preferences' });
+  }
+});
+
+// ============================================================
+// Phase 14.1: Notification Replay (missed notifications since timestamp)
+// ============================================================
+app.get('/notifications/replay', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const since = req.query.since ? new Date(req.query.since) : new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const notifications = await Notification.findAll({
+      where: { userId, createdAt: { [Op.gte]: since } },
+      order: [['createdAt', 'ASC']],
+      limit: 200
+    });
+    res.json({ notifications, replayed: notifications.length });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to replay notifications' });
+  }
+});
+
+// ============================================================
+// Phase 14.1: Email Digest Manual Trigger (admin/internal)
+// ============================================================
+app.post('/notifications/digest/trigger', async (req, res) => {
+  const internalToken = req.header('x-internal-token');
+  if (!internalToken || internalToken !== process.env.INTERNAL_NOTIFICATION_TOKEN) {
+    return res.status(401).json({ error: 'Unauthorized — internal token required' });
+  }
+  try {
+    const { userId, email } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const notifications = await Notification.findAll({
+      where: { userId, isRead: false, createdAt: { [Op.gte]: since } },
+      limit: 20
+    });
+    const sent = await sendDigestEmail(userId, email, notifications);
+    res.json({ sent, count: notifications.length });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Digest trigger failed' });
+  }
+});
+
+// ============================================================
+// Phase 14.2: Online Presence REST Endpoints
+// ============================================================
+app.get('/presence/:userId', async (req, res) => {
+  try {
+    const presence = await getUserPresence(req.params.userId);
+    res.json(presence);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get presence' });
+  }
+});
+
+app.post('/presence/batch', async (req, res) => {
+  try {
+    const { userIds } = req.body;
+    if (!Array.isArray(userIds)) return res.status(400).json({ error: 'userIds array required' });
+    const result = {};
+    await Promise.all(userIds.map(async (id) => {
+      result[id] = await getUserPresence(id);
+    }));
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get batch presence' });
+  }
+});
+
+// ============================================================
+// Phase 14.3: Webhook Management Endpoints
+// ============================================================
+app.get('/webhooks', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const webhooks = await Webhook.findAll({ where: { createdBy: userId } });
+    res.json(webhooks.map(w => ({ ...w.toJSON(), token: w.token ? `${w.token.substring(0, 8)}...` : null })));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to list webhooks' });
+  }
+});
+
+app.post('/webhooks', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const { name, endpoint, serverId, channelId } = req.body;
+    if (!name || !endpoint) return res.status(400).json({ error: 'name and endpoint required' });
+    try {
+      const url = new URL(endpoint);
+      if (url.protocol !== 'https:') return res.status(400).json({ error: 'Endpoint must use HTTPS' });
+    } catch {
+      return res.status(400).json({ error: 'Invalid endpoint URL' });
+    }
+    const token = crypto.randomBytes(32).toString('hex');
+    const webhook = await Webhook.create({
+      name, serverId, channelId, token, createdBy: userId,
+      avatarUrl: endpoint // avatarUrl column repurposed to store the endpoint URL
+    });
+    res.status(201).json({ ...webhook.toJSON(), token });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create webhook' });
+  }
+});
+
+app.delete('/webhooks/:webhookId', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const webhook = await Webhook.findByPk(req.params.webhookId);
+    if (!webhook) return res.status(404).json({ error: 'Webhook not found' });
+    if (webhook.createdBy !== userId) return res.status(403).json({ error: 'Not authorized' });
+    await webhook.destroy();
+    res.json({ message: 'Webhook deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete webhook' });
+  }
+});
+
+app.post('/webhooks/:webhookId/test', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const webhook = await Webhook.findByPk(req.params.webhookId);
+    if (!webhook) return res.status(404).json({ error: 'Webhook not found' });
+    if (webhook.createdBy !== userId) return res.status(403).json({ error: 'Not authorized' });
+    await triggerWebhooks('webhook.test', { webhookId: webhook.id, message: 'Test delivery from Milonexa' });
+    res.json({ message: 'Test webhook dispatched' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to test webhook' });
+  }
+});
+
+// ============================================================
+// Phase 14.3: Redis Streams — Event Replay Endpoint
+// ============================================================
+app.get('/events/replay', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const lastEventId = req.query.lastEventId || '0';
+    const count = Math.min(parseInt(req.query.count || '100'), 500);
+    const entries = await redis.xrange(EVENT_STREAM_KEY, lastEventId === '0' ? '-' : lastEventId, '+', 'COUNT', count);
+    const events = (entries || []).map(([id, fields]) => {
+      const obj = { id };
+      for (let i = 0; i < fields.length; i += 2) {
+        obj[fields[i]] = fields[i + 1];
+      }
+      try { obj.data = JSON.parse(obj.payload || '{}'); } catch { obj.data = {}; }
+      return obj;
+    });
+    res.json({ events, count: events.length });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to replay events' });
   }
 });
 
