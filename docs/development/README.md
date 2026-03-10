@@ -55,6 +55,8 @@ Technical references for contributors and developers building on Let's Connect.
 | [operations/POST_INCIDENT_REVIEW_TEMPLATE.md](operations/POST_INCIDENT_REVIEW_TEMPLATE.md) | Standard PIR template for SEV incidents |
 | [operations/ERROR_BUDGET_POLICY.md](operations/ERROR_BUDGET_POLICY.md) | SLO policy, burn-rate thresholds, delivery guardrails |
 | [operations/RELEASE_HEALTH_AND_CANARY_CHECKLIST.md](operations/RELEASE_HEALTH_AND_CANARY_CHECKLIST.md) | Release gate checklist and canary rollback criteria |
+| [operations/OPERATIONAL_DRILL_CADENCE.md](operations/OPERATIONAL_DRILL_CADENCE.md) | Bi-weekly/monthly game-day and rollback drill schedule |
+| [operations/GAME_DAY_SCENARIO_TEMPLATE.md](operations/GAME_DAY_SCENARIO_TEMPLATE.md) | Reusable template for incident/rollback drill scenarios |
 
 ## Technology Stack
 
