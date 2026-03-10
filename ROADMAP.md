@@ -474,11 +474,14 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
 - Reliability process maturity foundations
   - SLO/error-budget/canary alert rules
   - Release health gate automation script
+  - CI reliability gate extension to additional backend services (user-service, api-gateway, content-service)
+  - Operational drill execution script (`run-game-day-drill.sh`) and reporting workflow
   - Monitoring documentation updates
+- Operational drill cadence
+  - Formal bi-weekly/monthly drill schedule
+  - Game-day scenario template for incident/rollback/security exercises
 
 📋 **Planned:**
-- CI reliability gate extension across additional backend services
-- Operational drill cadence (incident + rollback game days)
 - Optional deeper type-safety migration strategy execution
 
 ### Deliverables
