@@ -7,6 +7,7 @@ const ot = require('ot');
 const Redis = require('ioredis');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { startServiceWithDatabase } = require('../shared/startup');
+const { HealthChecker, checkDatabase, checkRedis } = require('../shared/monitoring');
 const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
 const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
 require('dotenv').config({ quiet: true });
@@ -22,12 +23,14 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 8004;
 const dbPoolProfile = process.env.DB_POOL_PROFILE || 'heavy';
+const healthChecker = new HealthChecker('collaboration-service');
 
 // Redis for caching and real-time state
 const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 
 app.use(express.json());
 app.use(createForwardedIdentityGuard());
+app.use(healthChecker.metricsMiddleware());
 
 const generateAccessCode = () => {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -62,6 +65,9 @@ const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgr
   logging: false,
   ...getPoolConfig(dbPoolProfile)
 });
+
+healthChecker.registerCheck('database', () => checkDatabase(sequelize));
+healthChecker.registerCheck('redis', () => checkRedis(redis));
 
 // Models
 const Document = sequelize.define('Document', {
@@ -2265,7 +2271,22 @@ QuizResponse.belongsTo(QuizQuestion, { foreignKey: 'questionId' });
 // Routes
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', service: 'collaboration-service' });
+  res.json(healthChecker.getBasicHealth());
+});
+
+app.get('/health/ready', async (req, res) => {
+  try {
+    const health = await healthChecker.runChecks();
+    const statusCode = health.status === 'healthy' ? 200 : 503;
+    res.status(statusCode).json(health);
+  } catch (error) {
+    res.status(503).json({ status: 'unhealthy', error: error.message });
+  }
+});
+
+app.get('/metrics', (req, res) => {
+  res.set('Content-Type', 'text/plain');
+  res.send(healthChecker.getPrometheusMetrics());
 });
 
 // Public: Get public documents

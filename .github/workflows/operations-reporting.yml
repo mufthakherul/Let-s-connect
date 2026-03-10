@@ -1,0 +1,191 @@
+name: Operations Reliability Reporting
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment (staging or prod)'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - prod
+      drill_type:
+        description: 'Operational drill scenario'
+        required: true
+        default: 'incident'
+        type: choice
+        options:
+          - incident
+          - rollback
+          - security
+      run_error_budget_report:
+        description: 'Generate error-budget report'
+        required: true
+        default: true
+        type: boolean
+      run_drill:
+        description: 'Run operational drill script'
+        required: true
+        default: true
+        type: boolean
+      error_budget_window:
+        description: 'Prometheus range window for error-budget report'
+        required: true
+        default: '7d'
+        type: string
+      drill_notes:
+        description: 'Optional notes to include in the drill report'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  error-budget-report:
+    name: Error Budget Report
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || inputs.run_error_budget_report == 'true' || inputs.run_error_budget_report == true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl context
+        env:
+          TARGET_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'staging' }}
+          KUBE_CONFIG_STAGING: ${{ secrets.KUBE_CONFIG_STAGING }}
+          KUBE_CONFIG_PROD: ${{ secrets.KUBE_CONFIG_PROD }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.kube"
+
+          if [[ "$TARGET_ENV" == "prod" ]]; then
+            KUBE_CONFIG_VALUE="$KUBE_CONFIG_PROD"
+            CONTEXT_NAME="production"
+          else
+            KUBE_CONFIG_VALUE="$KUBE_CONFIG_STAGING"
+            CONTEXT_NAME="staging"
+          fi
+
+          if [[ -z "$KUBE_CONFIG_VALUE" ]]; then
+            echo "Missing kube config secret for environment: $TARGET_ENV"
+            exit 1
+          fi
+
+          echo "$KUBE_CONFIG_VALUE" | base64 -d > "$HOME/.kube/config"
+          kubectl config use-context "$CONTEXT_NAME"
+
+      - name: Generate error-budget report
+        id: error_budget
+        env:
+          WINDOW: ${{ github.event_name == 'workflow_dispatch' && inputs.error_budget_window || '7d' }}
+        run: |
+          set -euo pipefail
+
+          kubectl -n milonexa port-forward svc/prometheus 19090:9090 >/tmp/pf-prometheus.log 2>&1 &
+          PF_PROM=$!
+
+          cleanup() {
+            kill "$PF_PROM" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          sleep 8
+
+          PROMETHEUS_URL="http://127.0.0.1:19090" bash ./scripts/error-budget-report.sh --window "$WINDOW"
+
+          REPORT_FILE=$(ls -t docs/development/operations/reports/error-budget-report-*.md | head -n 1)
+          echo "report_file=$REPORT_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload error-budget report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-budget-report-${{ github.run_id }}
+          path: ${{ steps.error_budget.outputs.report_file }}
+          retention-days: 30
+
+  operational-drill:
+    name: Operational Drill Report
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || inputs.run_drill == 'true' || inputs.run_drill == true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl context
+        env:
+          TARGET_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'staging' }}
+          KUBE_CONFIG_STAGING: ${{ secrets.KUBE_CONFIG_STAGING }}
+          KUBE_CONFIG_PROD: ${{ secrets.KUBE_CONFIG_PROD }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.kube"
+
+          if [[ "$TARGET_ENV" == "prod" ]]; then
+            KUBE_CONFIG_VALUE="$KUBE_CONFIG_PROD"
+            CONTEXT_NAME="production"
+          else
+            KUBE_CONFIG_VALUE="$KUBE_CONFIG_STAGING"
+            CONTEXT_NAME="staging"
+          fi
+
+          if [[ -z "$KUBE_CONFIG_VALUE" ]]; then
+            echo "Missing kube config secret for environment: $TARGET_ENV"
+            exit 1
+          fi
+
+          echo "$KUBE_CONFIG_VALUE" | base64 -d > "$HOME/.kube/config"
+          kubectl config use-context "$CONTEXT_NAME"
+
+      - name: Run operational drill and generate report
+        id: drill
+        env:
+          DRILL_TYPE: ${{ github.event_name == 'workflow_dispatch' && inputs.drill_type || 'incident' }}
+          DRILL_NOTES: ${{ github.event_name == 'workflow_dispatch' && inputs.drill_notes || format('Scheduled drill run from workflow {0}', github.run_id) }}
+        run: |
+          set -euo pipefail
+
+          kubectl -n milonexa port-forward svc/api-gateway 18000:8000 >/tmp/pf-api-gateway.log 2>&1 &
+          PF_API=$!
+
+          kubectl -n milonexa port-forward svc/prometheus 19090:9090 >/tmp/pf-prometheus.log 2>&1 &
+          PF_PROM=$!
+
+          cleanup() {
+            kill "$PF_API" "$PF_PROM" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          sleep 8
+
+          API_GATEWAY_URL="http://127.0.0.1:18000" \
+          PROMETHEUS_URL="http://127.0.0.1:19090" \
+          DRILL_NOTES="$DRILL_NOTES" \
+          bash ./scripts/run-game-day-drill.sh "$DRILL_TYPE"
+
+          REPORT_FILE=$(ls -t docs/development/operations/reports/drill-*.md | head -n 1)
+          echo "report_file=$REPORT_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload drill report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: operational-drill-report-${{ github.run_id }}
+          path: ${{ steps.drill.outputs.report_file }}
+          retention-days: 30
