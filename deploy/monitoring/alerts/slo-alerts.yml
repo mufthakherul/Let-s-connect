@@ -1,0 +1,86 @@
+groups:
+  - name: slo_error_budget
+    interval: 30s
+    rules:
+      - alert: ErrorBudgetBurnFast
+        expr: |
+          (
+            sum by(job) (rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            clamp_min(sum by(job) (rate(http_requests_total[5m])), 0.001)
+          ) / 0.001 > 14.4
+        for: 5m
+        labels:
+          severity: critical
+          category: reliability
+        annotations:
+          summary: "Fast error budget burn on {{ $labels.job }}"
+          description: "{{ $labels.job }} is consuming error budget >14.4x burn rate over 5m (SLO=99.9%)."
+          runbook: "docs/development/operations/INCIDENT_RESPONSE_RUNBOOK.md"
+
+      - alert: ErrorBudgetBurnSlow
+        expr: |
+          (
+            sum by(job) (rate(http_requests_total{status=~"5.."}[1h]))
+            /
+            clamp_min(sum by(job) (rate(http_requests_total[1h])), 0.001)
+          ) / 0.001 > 2
+        for: 30m
+        labels:
+          severity: warning
+          category: reliability
+        annotations:
+          summary: "Sustained error budget burn on {{ $labels.job }}"
+          description: "{{ $labels.job }} is consuming error budget >2x burn rate over 1h."
+          runbook: "docs/development/operations/ERROR_BUDGET_POLICY.md"
+
+  - name: slo_latency
+    interval: 30s
+    rules:
+      - alert: LatencyP95SLOBreached
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by(le, job) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 0.5
+        for: 15m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "P95 latency SLO breached on {{ $labels.job }}"
+          description: "P95 latency for {{ $labels.job }} exceeded 500ms for 15 minutes."
+          runbook: "docs/development/operations/RELEASE_HEALTH_AND_CANARY_CHECKLIST.md"
+
+      - alert: LatencyP99SLOBreached
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by(le, job) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 1
+        for: 15m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "P99 latency SLO breached on {{ $labels.job }}"
+          description: "P99 latency for {{ $labels.job }} exceeded 1s for 15 minutes."
+          runbook: "docs/development/operations/RELEASE_HEALTH_AND_CANARY_CHECKLIST.md"
+
+  - name: release_canary
+    interval: 30s
+    rules:
+      - alert: CanaryErrorRateHigh
+        expr: |
+          sum by(job) (rate(http_requests_total{deployment="canary",status=~"5.."}[5m]))
+          /
+          clamp_min(sum by(job) (rate(http_requests_total{deployment="canary"}[5m])), 0.001)
+          > 0.02
+        for: 5m
+        labels:
+          severity: critical
+          category: release
+        annotations:
+          summary: "Canary error rate high for {{ $labels.job }}"
+          description: "Canary deployment for {{ $labels.job }} has >2% 5xx rate over 5m."
+          runbook: "docs/development/operations/RELEASE_HEALTH_AND_CANARY_CHECKLIST.md"
