@@ -45,14 +45,16 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { useKeyboardShortcuts, KEYBOARD_SHORTCUTS } from '../../hooks/useKeyboardShortcuts';
 
 /**
  * ModerationQueuePanel - Streamlined content moderation interface
  * Features:
  * - Quick action buttons for approve/reject
- * - Batch operations
+ * - Batch operations with confirmation
  * - Filter by priority, type, status
  * - Preview content before action
+ * - Keyboard shortcuts for productivity
  */
 const ModerationQueuePanel = () => {
     const [loading, setLoading] = useState(true);
@@ -68,6 +70,8 @@ const ModerationQueuePanel = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [batchSelected, setBatchSelected] = useState([]);
     const [currentTab, setCurrentTab] = useState(0);
+    const [batchConfirmDialog, setBatchConfirmDialog] = useState({ open: false, action: null });
+    const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
 
     const fetchFlags = async () => {
         try {
@@ -119,6 +123,14 @@ const ModerationQueuePanel = () => {
             return;
         }
 
+        // Show confirmation dialog
+        setBatchConfirmDialog({ open: true, action });
+    };
+
+    const executeBatchAction = async () => {
+        const { action } = batchConfirmDialog;
+        setBatchConfirmDialog({ open: false, action: null });
+
         try {
             await Promise.all(
                 batchSelected.map(id =>
@@ -161,6 +173,34 @@ const ModerationQueuePanel = () => {
         { label: 'Pending', value: 'pending', count: flags.filter(f => f.status === 'pending').length },
         { label: 'Resolved', value: 'resolved', count: flags.filter(f => f.status === 'resolved').length }
     ];
+
+    // Keyboard shortcuts
+    useKeyboardShortcuts({
+        onSearch: () => {
+            const searchInput = document.querySelector('input[placeholder*="Search"]');
+            searchInput?.focus();
+        },
+        onRefresh: () => {
+            fetchFlags();
+            toast.success('Refreshed');
+        },
+        onApprove: () => {
+            if (batchSelected.length > 0) {
+                handleBatchAction('approve');
+            }
+        },
+        onReject: () => {
+            if (batchSelected.length > 0) {
+                handleBatchAction('reject');
+            }
+        },
+        onClearSelection: () => {
+            setBatchSelected([]);
+        },
+        onShowHelp: () => {
+            setShortcutsHelpOpen(true);
+        }
+    });
 
     return (
         <Card>
@@ -445,6 +485,85 @@ const ModerationQueuePanel = () => {
                                     label="Resolution Notes"
                                     value={resolution}
                                     onChange={(e) => setResolution(e.target.value)}
+
+            {/* Batch Action Confirmation Dialog */}
+            <Dialog
+                open={batchConfirmDialog.open}
+                onClose={() => setBatchConfirmDialog({ open: false, action: null })}
+            >
+                <DialogTitle>
+                    Confirm Batch {batchConfirmDialog.action === 'approve' ? 'Approval' : 'Rejection'}
+                </DialogTitle>
+                <DialogContent>
+                    <Alert
+                        severity={batchConfirmDialog.action === 'approve' ? 'info' : 'warning'}
+                        sx={{ mb: 2 }}
+                    >
+                        You are about to {batchConfirmDialog.action} <strong>{batchSelected.length}</strong> flags.
+                        This action cannot be undone.
+                    </Alert>
+                    <Typography variant="body2" color="text.secondary">
+                        Selected flags: {batchSelected.length} items
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setBatchConfirmDialog({ open: false, action: null })}>
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="contained"
+                        color={batchConfirmDialog.action === 'approve' ? 'success' : 'error'}
+                        onClick={executeBatchAction}
+                    >
+                        Confirm {batchConfirmDialog.action === 'approve' ? 'Approval' : 'Rejection'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Keyboard Shortcuts Help Dialog */}
+            <Dialog
+                open={shortcutsHelpOpen}
+                onClose={() => setShortcutsHelpOpen(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>Keyboard Shortcuts</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Use these keyboard shortcuts to navigate and moderate efficiently:
+                    </Typography>
+                    <Box sx={{ mt: 2 }}>
+                        {KEYBOARD_SHORTCUTS.map((shortcut, index) => (
+                            <Box
+                                key={index}
+                                sx={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    py: 1,
+                                    borderBottom: index < KEYBOARD_SHORTCUTS.length - 1 ? '1px solid' : 'none',
+                                    borderColor: 'divider'
+                                }}
+                            >
+                                <Typography variant="body2">{shortcut.description}</Typography>
+                                <Chip
+                                    label={shortcut.key}
+                                    size="small"
+                                    sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}
+                                />
+                            </Box>
+                        ))}
+                    </Box>
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                        <Typography variant="caption">
+                            Press <strong>?</strong> anytime to view this help dialog
+                        </Typography>
+                    </Alert>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setShortcutsHelpOpen(false)}>Close</Button>
+                </DialogActions>
+            </Dialog>
                                     placeholder="Add notes about your decision..."
                                 />
                             </Stack>
