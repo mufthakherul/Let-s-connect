@@ -19,6 +19,7 @@ const { HealthChecker } = require('../shared/monitoring');
 const { getRequiredEnv } = require('../shared/security-utils');
 const { assertEnvValid } = require('../shared/env-validator');
 const compression = require('compression');
+const { getServiceTimeout, executeWithRetry, getCircuitBreakerStates, resetCircuitBreaker } = require('./resilience-config');
 require('dotenv').config({ quiet: true });
 
 // Validate environment at startup
@@ -45,25 +46,43 @@ const INTERNAL_GATEWAY_TOKEN = getRequiredEnv('INTERNAL_GATEWAY_TOKEN');
 // secret token used by admin frontend/backend for extra protection
 const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || 'change-me';
 
-const proxy = (target, options = {}) => rawProxy(target, {
-  ...options,
-  proxyReqOptDecorator: async (proxyReqOpts, srcReq) => {
-    let decoratedOpts = proxyReqOpts;
+const proxy = (target, options = {}) => {
+  // Extract service name from target URL for resilience config
+  const serviceName = target.match(/http:\/\/([^-:]+)/)?.[1] || 'unknown';
+  const timeout = options.timeout || getServiceTimeout(serviceName);
 
-    if (typeof options.proxyReqOptDecorator === 'function') {
-      decoratedOpts = await options.proxyReqOptDecorator(proxyReqOpts, srcReq) || proxyReqOpts;
+  return rawProxy(target, {
+    ...options,
+    timeout,
+    proxyReqOptDecorator: async (proxyReqOpts, srcReq) => {
+      let decoratedOpts = proxyReqOpts;
+
+      if (typeof options.proxyReqOptDecorator === 'function') {
+        decoratedOpts = await options.proxyReqOptDecorator(proxyReqOpts, srcReq) || proxyReqOpts;
+      }
+
+      decoratedOpts.headers = decoratedOpts.headers || {};
+      decoratedOpts.headers['x-internal-gateway-token'] = INTERNAL_GATEWAY_TOKEN;
+
+      if (srcReq?.id) {
+        decoratedOpts.headers['x-request-id'] = srcReq.id;
+      }
+
+      return decoratedOpts;
+    },
+    proxyErrorHandler: (err, res, next) => {
+      // Log timeout and connection errors
+      if (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT') {
+        logger.error(`Proxy error for ${serviceName}:`, {
+          code: err.code,
+          message: err.message,
+          target
+        });
+      }
+      next(err);
     }
-
-    decoratedOpts.headers = decoratedOpts.headers || {};
-    decoratedOpts.headers['x-internal-gateway-token'] = INTERNAL_GATEWAY_TOKEN;
-
-    if (srcReq?.id) {
-      decoratedOpts.headers['x-request-id'] = srcReq.id;
-    }
-
-    return decoratedOpts;
-  }
-});
+  });
+};
 
 // Trust proxy headers in containerized environments
 app.set('trust proxy', 1);
@@ -464,6 +483,31 @@ app.use(healthChecker.metricsMiddleware());
 // Health check
 app.get('/health', (req, res) => {
   res.json(healthChecker.getBasicHealth());
+});
+
+// Circuit breaker status endpoint (Phase 2 - Resilience monitoring)
+app.get('/health/circuits', (req, res) => {
+  const circuits = getCircuitBreakerStates();
+  const hasOpenCircuits = circuits.some(c => c.state === 'OPEN');
+  
+  res.status(hasOpenCircuits ? 503 : 200).json({
+    status: hasOpenCircuits ? 'degraded' : 'healthy',
+    circuits,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Manual circuit breaker reset endpoint (admin use)
+app.post('/health/circuits/:serviceName/reset', requireAdminSecret, (req, res) => {
+  const { serviceName } = req.params;
+  const success = resetCircuitBreaker(serviceName);
+  
+  if (success) {
+    logger.info(`Circuit breaker reset for ${serviceName}`);
+    res.json({ success: true, message: `Circuit breaker for ${serviceName} reset` });
+  } else {
+    res.status(404).json({ success: false, message: `Circuit breaker for ${serviceName} not found` });
+  }
 });
 
 // Data mode info endpoint (Phase 7)

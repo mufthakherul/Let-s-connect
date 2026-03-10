@@ -384,9 +384,23 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
 
 ---
 
-## Phase 2 — Experience & Reliability (Months 3–4)
+## Phase 2 — Experience & Reliability (Months 3–4) 🚧 **IN PROGRESS**
 
 **Objective:** visible UX upgrades + stronger reliability controls.
+
+### Progress update (Started March 10, 2026)
+**Current focus:** Gateway resilience and observability foundation
+
+🔄 **In Progress:**
+- Gateway resilience controls implementation
+  - Timeout configuration per service
+  - Retry policies for transient failures
+  - Circuit breaker pattern for dependency failures
+
+📋 **Planned:**
+- Observability expansion (structured logs + distributed tracing)
+- Page family UX modernization (landing, auth, core pages)
+- Admin UX workflow improvements
 
 ### Deliverables
 - Page family redesign rollout (public + core authenticated pages)
