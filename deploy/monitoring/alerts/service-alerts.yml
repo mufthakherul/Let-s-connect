@@ -1,0 +1,123 @@
+groups:
+  - name: service_health
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} at {{ $labels.instance }} has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} has error rate > 10% (current: {{ $value }})"
+
+  - name: performance
+    interval: 30s
+    rules:
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time on {{ $labels.job }}"
+          description: "95th percentile response time is {{ $value }}s on {{ $labels.job }}"
+
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state{state="OPEN"} == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker open for {{ $labels.service }}"
+          description: "Circuit breaker for {{ $labels.service }} has been open for 2 minutes, indicating persistent failures."
+
+  - name: resources
+    interval: 30s
+    rules:
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Available memory is below 10% (current: {{ $value }})"
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 80% (current: {{ $value }}%)"
+
+      - alert: DiskSpaceRunningOut
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk space running out on {{ $labels.instance }}"
+          description: "Available disk space is below 10% (current: {{ $value }})"
+
+  - name: database
+    interval: 30s
+    rules:
+      - alert: DatabaseConnectionPoolExhausted
+        expr: pg_stat_activity_count > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "PostgreSQL has {{ $value }} active connections (threshold: 90)"
+
+      - alert: SlowDatabaseQueries
+        expr: rate(pg_stat_statements_mean_time_seconds[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Average query time is {{ $value }}s (threshold: 1s)"
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis memory usage is at {{ $value }}% of maximum"
+
+  - name: business_metrics
+    interval: 60s
+    rules:
+      - alert: LowUserRegistrationRate
+        expr: rate(user_registrations_total[1h]) < 1
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: "Low user registration rate"
+          description: "User registration rate is {{ $value }} per hour (expected > 1)"
+
+      - alert: HighFailedLoginRate
+        expr: rate(login_failures_total[5m]) / rate(login_attempts_total[5m]) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High failed login rate"
+          description: "Failed login rate is {{ $value }}% (threshold: 50%)"
