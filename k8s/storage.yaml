@@ -1,0 +1,242 @@
+##############################################################################
+# storage.yaml — Production-grade PersistentVolumeClaims
+#
+# This file centralises all PVC definitions so they can be applied in one
+# pass and referenced by their well-known names from Deployment / StatefulSet
+# manifests.
+#
+# Storage class guide (override STORAGE_CLASS_ values with your cloud):
+#   fast-ssd    — Premium SSD, low-latency I/O for databases & search.
+#                 GKE: "premium-rwo"  |  AKS: "managed-premium"  |  EKS: "gp3"
+#   standard    — Balanced HDD/SSD for object storage workloads.
+#                 GKE: "standard-rwo" |  AKS: "managed"           |  EKS: "gp2"
+#   slow-hdd    — Cold HDD for backup archives (throughput, low cost).
+#                 GKE: "standard"     |  AKS: "azurefile"         |  EKS: "st1"
+#
+# Retain policy:
+#   All production volumes use reclaimPolicy Retain so that data is NOT
+#   deleted when a PVC/PV pair is released. Manual cleanup is required.
+##############################################################################
+
+# ── PostgreSQL (primary database node) ────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: milonexa
+  labels:
+    app: postgres
+    tier: database
+    component: storage
+  annotations:
+    storage.milonexa.io/purpose: "Primary relational database"
+    storage.milonexa.io/size-justification: "50 Gi supports ~20 M rows/table across 6 databases"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  # fast-ssd for low-latency transactional reads/writes
+  # Cloud mappings → GKE: premium-rwo | AKS: managed-premium | EKS: gp3
+  storageClassName: fast-ssd
+  volumeMode: Filesystem
+
+---
+# ── Redis (in-memory cache + session store) ────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: milonexa
+  labels:
+    app: redis
+    tier: cache
+    component: storage
+  annotations:
+    storage.milonexa.io/purpose: "Redis AOF persistence for session / rate-limit state"
+    storage.milonexa.io/size-justification: "10 Gi covers AOF + RDB snapshots for a 512 MB memory dataset"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd
+  volumeMode: Filesystem
+
+---
+# ── MinIO (object / media storage) ────────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pvc
+  namespace: milonexa
+  labels:
+    app: minio
+    tier: object-storage
+    component: storage
+  annotations:
+    storage.milonexa.io/purpose: "User-uploaded media; avatars, attachments, videos"
+    storage.milonexa.io/size-justification: "100 Gi initial cap; scale out with additional MinIO nodes"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  # Standard SSD: sequential write throughput matters more than latency here
+  storageClassName: standard
+  volumeMode: Filesystem
+
+---
+# ── Elasticsearch (full-text search indices) ──────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: elasticsearch-pvc
+  namespace: milonexa
+  labels:
+    app: elasticsearch
+    tier: search
+    component: storage
+  annotations:
+    storage.milonexa.io/purpose: "Search indices for users, posts, and messages"
+    storage.milonexa.io/size-justification: "30 Gi for inverted indices; Elasticsearch recommends 2× raw data"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 30Gi
+  storageClassName: fast-ssd
+  volumeMode: Filesystem
+
+---
+# ── Backup storage (nightly database dumps — retained 30 days) ─────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-storage
+  namespace: milonexa
+  labels:
+    app: database-backup
+    component: storage
+  annotations:
+    storage.milonexa.io/purpose: "Nightly database dump archives (postgres + redis)"
+    storage.milonexa.io/size-justification: "100 Gi supports 30 daily full dumps of a 3 Gi compressed DB"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  # slow-hdd (cold storage / archive tier) for cost-effective backup retention
+  # Cloud mappings → GKE: standard | AKS: azurefile-nfs | EKS: sc1
+  storageClassName: slow-hdd
+  volumeMode: Filesystem
+
+---
+# ── Prometheus metrics storage ─────────────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-pvc
+  namespace: milonexa
+  labels:
+    app: prometheus
+    tier: monitoring
+    component: storage
+  annotations:
+    storage.milonexa.io/purpose: "Time-series metrics — 15-day retention by default"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: standard
+  volumeMode: Filesystem
+
+---
+# ── Grafana dashboard state ────────────────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc
+  namespace: milonexa
+  labels:
+    app: grafana
+    tier: monitoring
+    component: storage
+  annotations:
+    storage.milonexa.io/purpose: "Grafana SQLite DB for dashboards, data sources, users"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard
+  volumeMode: Filesystem
+
+---
+##############################################################################
+# StorageClass definitions (apply once per cluster)
+#
+# These are EXAMPLES. Most managed K8s clusters already have built-in
+# StorageClasses. Only apply these if your cluster does not already have
+# classes matching the names used above. Adjust the provisioner and
+# parameters for your cloud / on-prem environment.
+##############################################################################
+
+# ── fast-ssd StorageClass ──────────────────────────────────────────────────────
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fast-ssd
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+    storage.milonexa.io/note: |
+      Adjust provisioner for your cloud:
+        GKE:     kubernetes.io/gce-pd  (type: pd-ssd)
+        AKS:     disk.csi.azure.com   (skuName: Premium_LRS)
+        EKS:     ebs.csi.aws.com      (type: gp3)
+        on-prem: rancher.io/local-path or local-storage
+provisioner: kubernetes.io/no-provisioner   # Replace with cloud provisioner
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  type: pd-ssd    # GKE example; change per cloud (see note above)
+
+---
+# ── standard StorageClass ──────────────────────────────────────────────────────
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: standard
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+    storage.milonexa.io/note: "Balanced SSD. Use provider's built-in 'standard' class if available."
+provisioner: kubernetes.io/no-provisioner
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  type: pd-balanced
+
+---
+# ── slow-hdd StorageClass ─────────────────────────────────────────────────────
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: slow-hdd
+  annotations:
+    storage.milonexa.io/note: "Archive / cold storage. Use for backup PVC."
+provisioner: kubernetes.io/no-provisioner
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  type: pd-standard
