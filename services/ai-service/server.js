@@ -1,6 +1,8 @@
 const express = require('express');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Redis = require('ioredis');
+const crypto = require('crypto');
+const { CacheKeyBuilder, CacheTTL, getCacheStats } = require('../shared/cache-strategy');
 require('dotenv').config({ quiet: true });
 
 const app = express();
@@ -14,6 +16,11 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Redis for caching
 const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
+const LONG_TERM_CACHE_TTL = 86400 * 30;
+const TRENDING_CACHE_TTL = 900;
+
+const hashCacheSegment = (value) => crypto.createHash('sha1').update(String(value)).digest('hex');
+const buildHashedAiKey = (prefix, payload) => CacheKeyBuilder.custom('ai', prefix, hashCacheSegment(payload));
 
 const buildGeminiRequest = (messages) => {
   const contents = [];
@@ -88,6 +95,13 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', service: 'ai-service' });
 });
 
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_QUERY_DEBUG_ENDPOINT === 'true') {
+  app.get('/debug/cache-stats', async (req, res) => {
+    const stats = await getCacheStats(redis);
+    res.json({ service: 'ai-service', timestamp: new Date().toISOString(), stats });
+  });
+}
+
 // Chat completion
 app.post('/chat', async (req, res) => {
   try {
@@ -98,7 +112,7 @@ app.post('/chat', async (req, res) => {
     }
 
     // Check cache
-    const cacheKey = `ai:chat:${JSON.stringify(messages)}`;
+    const cacheKey = buildHashedAiKey('chat', JSON.stringify(messages));
     const cached = await redis.get(cacheKey);
 
     if (cached) {
@@ -108,7 +122,7 @@ app.post('/chat', async (req, res) => {
     const response = await generateTextFromMessages(messages, 500);
 
     // Cache response
-    await redis.setex(cacheKey, 3600, response);
+    await redis.setex(cacheKey, CacheTTL.VERY_LONG, response);
 
     res.json({ response, cached: false });
   } catch (error) {
@@ -233,7 +247,7 @@ app.post('/recommend/content', async (req, res) => {
     }
 
     // Check cache
-    const cacheKey = `ai:recommendations:${userId}:${contentType}`;
+    const cacheKey = CacheKeyBuilder.custom('ai', 'recommendations', userId, contentType || 'general');
     const cached = await redis.get(cacheKey);
 
     if (cached) {
@@ -276,7 +290,7 @@ Content Type: ${contentType || 'general'}
     }
 
     // Cache recommendations for 1 hour
-    await redis.setex(cacheKey, 3600, JSON.stringify(recommendations));
+    await redis.setex(cacheKey, CacheTTL.VERY_LONG, JSON.stringify(recommendations));
 
     res.json({ recommendations, cached: false });
   } catch (error) {
@@ -295,7 +309,7 @@ app.post('/recommend/collaborative', async (req, res) => {
     }
 
     // Check cache
-    const cacheKey = `ai:collaborative:${userId}`;
+    const cacheKey = CacheKeyBuilder.custom('ai', 'collaborative', userId);
     const cached = await redis.get(cacheKey);
 
     if (cached) {
@@ -332,7 +346,7 @@ Task: Recommend content based on what similar users have engaged with.
     }
 
     // Cache for 30 minutes
-    await redis.setex(cacheKey, 1800, JSON.stringify(recommendations));
+    await redis.setex(cacheKey, CacheTTL.LONG, JSON.stringify(recommendations));
 
     res.json({ recommendations, cached: false });
   } catch (error) {
@@ -351,8 +365,8 @@ app.post('/recommend/learn-preferences', async (req, res) => {
     }
 
     // Store user interaction patterns in Redis
-    const interactionKey = `user:${userId}:interactions`;
-    const preferenceKey = `user:${userId}:preferences`;
+    const interactionKey = CacheKeyBuilder.custom('ai', 'interactions', userId);
+    const preferenceKey = CacheKeyBuilder.custom('ai', 'preferences', userId);
 
     // Get existing interactions
     const existingInteractions = await redis.get(interactionKey);
@@ -362,7 +376,7 @@ app.post('/recommend/learn-preferences', async (req, res) => {
     allInteractions = [...allInteractions, ...interactions].slice(-100); // Keep last 100
 
     // Store updated interactions
-    await redis.setex(interactionKey, 86400 * 30, JSON.stringify(allInteractions)); // 30 days
+    await redis.setex(interactionKey, LONG_TERM_CACHE_TTL, JSON.stringify(allInteractions)); // 30 days
 
     // Use AI to extract preferences from interactions
     const context = `
@@ -390,7 +404,7 @@ Feedback: ${JSON.stringify(feedbackData || {})}
     }
 
     // Store learned preferences
-    await redis.setex(preferenceKey, 86400 * 30, JSON.stringify(preferences));
+    await redis.setex(preferenceKey, LONG_TERM_CACHE_TTL, JSON.stringify(preferences));
 
     res.json({
       message: 'Preferences updated successfully',
@@ -408,8 +422,8 @@ app.get('/recommend/preferences/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const preferenceKey = `user:${userId}:preferences`;
-    const interactionKey = `user:${userId}:interactions`;
+    const preferenceKey = CacheKeyBuilder.custom('ai', 'preferences', userId);
+    const interactionKey = CacheKeyBuilder.custom('ai', 'interactions', userId);
 
     const preferences = await redis.get(preferenceKey);
     const interactions = await redis.get(interactionKey);
@@ -438,7 +452,7 @@ app.post('/recommend/trending', async (req, res) => {
     const { contentType, timeframe = '24h', metrics, limit = 10 } = req.body;
 
     // Check cache
-    const cacheKey = `ai:trending:${contentType}:${timeframe}`;
+    const cacheKey = CacheKeyBuilder.custom('ai', 'trending', contentType || 'all', timeframe);
     const cached = await redis.get(cacheKey);
 
     if (cached) {
@@ -473,7 +487,7 @@ Identify what's trending and why.
     }
 
     // Cache for 15 minutes
-    await redis.setex(cacheKey, 900, JSON.stringify(trending));
+    await redis.setex(cacheKey, TRENDING_CACHE_TTL, JSON.stringify(trending));
 
     res.json({ trending, cached: false, timeframe });
   } catch (error) {

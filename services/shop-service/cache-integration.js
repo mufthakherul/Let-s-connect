@@ -6,7 +6,8 @@
  * Wire this into server.js to enable Redis caching for products, orders, and reviews
  */
 
-const { CacheManager, CachingStrategies, InvalidationPatterns } = require('../shared/caching');
+const { CacheManager } = require('../shared/caching');
+const { CacheTTL } = require('../shared/cache-strategy');
 
 // Initialize cache manager
 const cache = new CacheManager();
@@ -16,7 +17,7 @@ const cache = new CacheManager();
  * Caches product list for 10 minutes
  */
 const cacheProducts = cache.middleware('product:list', {
-    ttl: CachingStrategies.PRODUCTS.ttl,
+    ttl: CacheTTL.MEDIUM,
     keyGenerator: (req) => {
         const { category, minPrice, maxPrice, search, limit, offset } = req.query;
         return `${category || 'all'}-${minPrice || 0}-${maxPrice || 'max'}-${search || 'all'}-${limit || 20}-${offset || 0}`;
@@ -28,7 +29,7 @@ const cacheProducts = cache.middleware('product:list', {
  * Caches individual product for 15 minutes
  */
 const cacheProduct = cache.middleware('product:detail', {
-    ttl: CachingStrategies.PRODUCT_DETAILS.ttl,
+    ttl: CacheTTL.LONG,
     keyGenerator: (req) => req.params.id
 });
 
@@ -37,7 +38,7 @@ const cacheProduct = cache.middleware('product:detail', {
  * Caches product reviews for 5 minutes
  */
 const cacheProductReviews = cache.middleware('product:reviews', {
-    ttl: CachingStrategies.PRODUCT_REVIEWS.ttl,
+    ttl: CacheTTL.MEDIUM,
     keyGenerator: (req) => req.params.id
 });
 
@@ -46,7 +47,7 @@ const cacheProductReviews = cache.middleware('product:reviews', {
  * Caches individual order for 5 minutes
  */
 const cacheOrder = cache.middleware('order:detail', {
-    ttl: CachingStrategies.ORDER_DETAILS.ttl,
+    ttl: CacheTTL.MEDIUM,
     keyGenerator: (req) => req.params.id
 });
 
@@ -55,7 +56,7 @@ const cacheOrder = cache.middleware('order:detail', {
  * Caches product categories for 1 hour
  */
 const cacheCategories = cache.middleware('product:categories', {
-    ttl: 3600, // 1 hour
+    ttl: CacheTTL.VERY_LONG,
     keyGenerator: () => 'all'
 });
 

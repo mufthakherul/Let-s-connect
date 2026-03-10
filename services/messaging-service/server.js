@@ -8,6 +8,8 @@ const webpush = require('web-push');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { startServiceWithDatabase } = require('../shared/startup');
 const { buildSocketCorsOptions } = require('../shared/cors-config');
+const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
+const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
 require('dotenv').config({ quiet: true });
 
 const app = express();
@@ -19,6 +21,7 @@ const io = socketIo(server, {
 const PORT = process.env.PORT || 8003;
 const BOT_SYSTEM_USER_ID = process.env.BOT_SYSTEM_USER_ID || '00000000-0000-0000-0000-000000000001';
 const TELEGRAM_BOT_WEBHOOK_TOKEN = process.env.TELEGRAM_BOT_WEBHOOK_TOKEN || '';
+const dbPoolProfile = process.env.DB_POOL_PROFILE || 'heavy';
 
 app.use(express.json());
 app.use(createForwardedIdentityGuard());
@@ -53,7 +56,8 @@ if (!looksLikePlaceholder(VAPID_PUBLIC_KEY) && !looksLikePlaceholder(VAPID_PRIVA
 // Database
 const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/messages', {
   dialect: 'postgres',
-  logging: false
+  logging: false,
+  ...getPoolConfig(dbPoolProfile)
 });
 
 // Redis for pub/sub
@@ -852,6 +856,10 @@ redisSub.on('message', (channel, message) => {
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', service: 'messaging-service' });
 });
+
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_QUERY_DEBUG_ENDPOINT === 'true') {
+  app.get('/debug/query-stats', queryStatsMiddleware);
+}
 
 // Subscribe to push notifications
 app.post('/push/subscribe', async (req, res) => {
@@ -3454,6 +3462,12 @@ startServiceWithDatabase({
   beforeStart: async () => {
     await sequelize.authenticate();
     console.log('[Messaging Service] Database connected.');
+    setupQueryMonitoring(sequelize, {
+      slowQueryThreshold: parseInt(process.env.SLOW_QUERY_THRESHOLD || '100', 10),
+      n1Threshold: parseInt(process.env.N1_QUERY_THRESHOLD || '5', 10),
+      enableStackTrace: process.env.NODE_ENV !== 'production'
+    });
+    monitorPoolHealth(sequelize, getPoolConfig(dbPoolProfile));
     await ensureSchemaBootstrapIfMissing();
   },
   start: () => new Promise((resolve) => {

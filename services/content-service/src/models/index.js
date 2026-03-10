@@ -1,9 +1,11 @@
 const { Sequelize, DataTypes, Op } = require('sequelize');
+const { getPoolConfig } = require('../../../shared/pool-config');
 require('dotenv').config({ quiet: true });
 
 const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/content', {
     dialect: 'postgres',
-    logging: false
+    logging: false,
+    ...getPoolConfig(process.env.DB_POOL_PROFILE || 'standard')
 });
 
 const models = {

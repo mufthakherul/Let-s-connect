@@ -7,6 +7,8 @@ const ot = require('ot');
 const Redis = require('ioredis');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { startServiceWithDatabase } = require('../shared/startup');
+const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
+const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
 require('dotenv').config({ quiet: true });
 
 const app = express();
@@ -19,6 +21,7 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 8004;
+const dbPoolProfile = process.env.DB_POOL_PROFILE || 'heavy';
 
 // Redis for caching and real-time state
 const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
@@ -56,7 +59,8 @@ const requireMeetingAccess = async (meetingId, userId) => {
 // Database
 const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/collaboration', {
   dialect: 'postgres',
-  logging: false
+  logging: false,
+  ...getPoolConfig(dbPoolProfile)
 });
 
 // Models
@@ -8667,6 +8671,10 @@ app.get('/', (req, res) => {
   });
 });
 
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_QUERY_DEBUG_ENDPOINT === 'true') {
+  app.get('/debug/query-stats', queryStatsMiddleware);
+}
+
 // Standard route fallback
 app.use((req, res) => {
   res.status(404).json({
@@ -8699,6 +8707,12 @@ startServiceWithDatabase({
   beforeStart: async () => {
     await sequelize.authenticate();
     console.log('[Collaboration Service] Database connected.');
+    setupQueryMonitoring(sequelize, {
+      slowQueryThreshold: parseInt(process.env.SLOW_QUERY_THRESHOLD || '100', 10),
+      n1Threshold: parseInt(process.env.N1_QUERY_THRESHOLD || '5', 10),
+      enableStackTrace: process.env.NODE_ENV !== 'production'
+    });
+    monitorPoolHealth(sequelize, getPoolConfig(dbPoolProfile));
     await ensureSchemaBootstrapIfMissing();
   },
   start: () => new Promise((resolve) => {

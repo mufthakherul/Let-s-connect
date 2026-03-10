@@ -327,6 +327,15 @@ For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `sho
 
 ## Workstream G — Quality Engineering & Automated Testing
 
+### Status: 🟡 Started March 10, 2026
+
+**Documentation:** See [WORKSTREAM_G_BASELINE.md](docs/development/WORKSTREAM_G_BASELINE.md)
+
+**Baseline deliverables started:**
+- ✅ Cross-service critical-path harness (`tests/critical-path/`)
+- ✅ Initial suites for auth/feed/messaging/media/shop/admin controls
+- ✅ CI baseline gate (`critical-path-baseline` job in `.github/workflows/ci.yml`)
+
 ### Goals
 - Build confidence for continuous delivery
 

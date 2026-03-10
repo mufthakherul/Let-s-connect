@@ -13,11 +13,14 @@ const { globalErrorHandler } = require('../shared/errorHandling');
 const { HealthChecker, checkDatabase, checkS3 } = require('../shared/monitoring');
 const { syncWithPolicy } = require('../shared/db-sync-policy');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
+const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
+const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
 const response = require('../shared/response-wrapper');
 require('dotenv').config({ quiet: true });
 
 const app = express();
 const PORT = process.env.PORT || 8005;
+const dbPoolProfile = process.env.DB_POOL_PROFILE || 'standard';
 
 app.use(express.json());
 app.use(createForwardedIdentityGuard());
@@ -42,7 +45,8 @@ const upload = multer({
 // Database
 const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/media', {
   dialect: 'postgres',
-  logging: false
+  logging: false,
+  ...getPoolConfig(dbPoolProfile)
 });
 
 const healthChecker = new HealthChecker('media-service');
@@ -88,6 +92,10 @@ app.get('/metrics', (req, res) => {
   res.set('Content-Type', 'text/plain');
   res.send(healthChecker.getPrometheusMetrics());
 });
+
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_QUERY_DEBUG_ENDPOINT === 'true') {
+  app.get('/debug/query-stats', queryStatsMiddleware);
+}
 
 // Create Secure URL (Signed)
 app.get('/url/:fileId', async (req, res) => {
@@ -212,6 +220,14 @@ app.use(globalErrorHandler);
 
 async function startServer() {
   try {
+    await sequelize.authenticate();
+    setupQueryMonitoring(sequelize, {
+      slowQueryThreshold: parseInt(process.env.SLOW_QUERY_THRESHOLD || '100', 10),
+      n1Threshold: parseInt(process.env.N1_QUERY_THRESHOLD || '5', 10),
+      enableStackTrace: process.env.NODE_ENV !== 'production'
+    });
+    monitorPoolHealth(sequelize, getPoolConfig(dbPoolProfile));
+
     // Professional Migration Initialization
     await migrationManager.runMigrations([
       {
