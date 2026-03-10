@@ -7,8 +7,8 @@ const config = getDefaultConfig(__dirname);
 config.watchFolders = [path.resolve(__dirname, '../frontend')];
 
 config.resolver.nodeModulesPaths = [
-  path.resolve(__dirname, 'node_modules'),
-  path.resolve(__dirname, '../frontend/node_modules')
+    path.resolve(__dirname, 'node_modules'),
+    path.resolve(__dirname, '../frontend/node_modules')
 ];
 
 module.exports = config;
