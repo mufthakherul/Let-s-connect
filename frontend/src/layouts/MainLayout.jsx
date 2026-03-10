@@ -49,6 +49,37 @@ export default function MainLayout({
     <>
       <CssBaseline />
 
+      <Box
+        component="a"
+        href="#main-content"
+        sx={{
+          position: 'absolute',
+          left: -9999,
+          top: 'auto',
+          width: 1,
+          height: 1,
+          overflow: 'hidden',
+          zIndex: 2000,
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText',
+          px: 2,
+          py: 1,
+          borderRadius: 1,
+          textDecoration: 'none',
+          '&:focus': {
+            left: 16,
+            top: 16,
+            width: 'auto',
+            height: 'auto',
+            overflow: 'visible',
+            outline: '2px solid',
+            outlineColor: 'primary.contrastText',
+          },
+        }}
+      >
+        Skip to main content
+      </Box>
+
       {/* Page-aware background animation */}
       <BackgroundAnimation
         variant={getBackgroundVariant()}
@@ -98,7 +129,7 @@ export default function MainLayout({
         />
 
         {/* Main content area */}
-        <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+        <Container id="main-content" component="main" role="main" maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
           <Breadcrumbs />
           {children}
         </Container>

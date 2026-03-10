@@ -1,21 +1,71 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
-    Container, Paper, Typography, Box, TextField, Button,
-    Tabs, Tab, List, ListItem, ListItemText, Chip,
-    FormControl, InputLabel, Select, MenuItem, Grid,
-    CircularProgress, Alert, Card, CardContent, Divider,
-    Avatar, ListItemAvatar
+    Paper,
+    Typography,
+    Box,
+    TextField,
+    Button,
+    Tabs,
+    Tab,
+    List,
+    ListItem,
+    ListItemText,
+    Chip,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Grid,
+    CircularProgress,
+    Alert,
+    Card,
+    CardContent,
+    Divider,
+    Avatar,
+    ListItemAvatar,
+    Stack,
 } from '@mui/material';
 import {
     Search as SearchIcon,
     Schedule,
     Person as PersonIcon,
     Group as GroupIcon,
-    Pages as PagesIcon
+    Pages as PagesIcon,
+    Tune,
+    TravelExplore,
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { buildProfilePath } from '../utils/profileRoutes';
+import PageShell from './common/PageShell';
+import { EmptySearch } from './common/EmptyState';
+import { ContentSkeleton } from './common/EnhancedSkeleton';
+
+const SEARCH_TYPES = [
+    { value: 'all', label: 'All' },
+    { value: 'posts', label: 'Posts' },
+    { value: 'comments', label: 'Comments' },
+    { value: 'blogs', label: 'Blogs' },
+    { value: 'users', label: 'Users' },
+    { value: 'groups', label: 'Groups' },
+    { value: 'pages', label: 'Pages' },
+];
+
+const SORT_OPTIONS = [
+    { value: 'date', label: 'Newest' },
+    { value: 'popularity', label: 'Most Popular' },
+    { value: 'relevance', label: 'Most Relevant' },
+];
+
+const RESULT_CATEGORIES = [
+    { key: 'posts', label: 'Posts' },
+    { key: 'comments', label: 'Comments' },
+    { key: 'blogs', label: 'Blogs' },
+    { key: 'users', label: 'Users' },
+    { key: 'groups', label: 'Groups' },
+    { key: 'pages', label: 'Pages' },
+    { key: 'hashtagPosts', label: 'Hashtags' },
+];
 
 const Search = () => {
     const location = useLocation();
@@ -23,7 +73,7 @@ const Search = () => {
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState(null);
-    const [currentTab, setCurrentTab] = useState(0);
+    const [activeTab, setActiveTab] = useState('posts');
     const [searchType, setSearchType] = useState('all');
     const [sortBy, setSortBy] = useState('date');
     const [searchHistory, setSearchHistory] = useState([]);
@@ -41,6 +91,31 @@ const Search = () => {
             handleSearch(queryParam);
         }
     }, [location.search]);
+
+    const normalizedResults = useMemo(() => {
+        if (!results) return null;
+        return {
+            posts: results.posts || { items: [], count: 0 },
+            comments: results.comments || { items: [], count: 0 },
+            blogs: results.blogs || { items: [], count: 0 },
+            users: results.users || { items: [], count: 0 },
+            groups: results.groups || { items: [], count: 0 },
+            pages: results.pages || { items: [], count: 0 },
+            hashtagPosts: results.hashtagPosts || { items: [], count: 0 },
+        };
+    }, [results]);
+
+    const totalResults = useMemo(() => {
+        if (!normalizedResults) return 0;
+        return RESULT_CATEGORIES.reduce((sum, category) => {
+            return sum + (normalizedResults[category.key]?.count || 0);
+        }, 0);
+    }, [normalizedResults]);
+
+    const visibleCategories = useMemo(() => {
+        if (!normalizedResults) return RESULT_CATEGORIES;
+        return RESULT_CATEGORIES.filter((category) => normalizedResults[category.key]);
+    }, [normalizedResults]);
 
     const fetchSearchHistory = async () => {
         try {
@@ -61,8 +136,14 @@ const Search = () => {
             setLoading(true);
             setError('');
 
-            // Search content-service for posts, comments, blogs
-            let contentResults = { posts: { items: [], count: 0 }, comments: { items: [], count: 0 }, blogs: { items: [], count: 0 }, hashtagPosts: { items: [], count: 0 } };
+            // Search content-service for posts/comments/blogs/hashtags
+            let contentResults = {
+                posts: { items: [], count: 0 },
+                comments: { items: [], count: 0 },
+                blogs: { items: [], count: 0 },
+                hashtagPosts: { items: [], count: 0 }
+            };
+
             if (searchType === 'all' || ['posts', 'comments', 'blogs'].includes(searchType)) {
                 const contentResponse = await api.get('/content-service/search', {
                     params: {
@@ -120,11 +201,27 @@ const Search = () => {
                 pages
             });
 
+            const resultSet = {
+                ...contentResults,
+                users,
+                groups,
+                pages,
+            };
+
+            const firstNonEmptyCategory = RESULT_CATEGORIES.find(
+                (category) => (resultSet[category.key]?.count || 0) > 0
+            )?.key;
+            setActiveTab(firstNonEmptyCategory || 'posts');
+
             // Save to history
-            await api.post('/content-service/search/history', {
-                query: searchQuery,
-                type: searchType
-            });
+            try {
+                await api.post('/content-service/search/history', {
+                    query: searchQuery,
+                    type: searchType
+                });
+            } catch (saveError) {
+                console.warn('Failed to save search history:', saveError);
+            }
 
             fetchSearchHistory();
         } catch (error) {
@@ -143,9 +240,7 @@ const Search = () => {
 
     const renderResults = (items, type) => {
         if (!items || items.length === 0) {
-            return (
-                <Alert severity="info">No {type} found</Alert>
-            );
+            return <EmptySearch searchTerm={query} onReset={() => setQuery('')} />;
         }
 
         return (
@@ -196,7 +291,7 @@ const Search = () => {
                                 secondary={
                                     <Box sx={{ mt: 1 }}>
                                         <Typography variant="caption" color="text.secondary">
-                                            {new Date(item.createdAt).toLocaleString()}
+                                            {item.createdAt ? new Date(item.createdAt).toLocaleString() : 'Unknown date'}
                                         </Typography>
                                         {item.likes !== undefined && (
                                             <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
@@ -226,46 +321,70 @@ const Search = () => {
         );
     };
 
-    return (
-        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Typography variant="h4" gutterBottom>
-                <SearchIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Search
-            </Typography>
+    const handleSubmit = () => {
+        handleSearch();
+    };
 
-            <Paper sx={{ p: 3, mb: 3 }}>
+    const filterControls = (
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', md: 'center' }}>
+            <Chip icon={<Tune />} label={`Type: ${SEARCH_TYPES.find((t) => t.value === searchType)?.label || 'All'}`} size="small" />
+            <Chip label={`Sort: ${SORT_OPTIONS.find((s) => s.value === sortBy)?.label || 'Newest'}`} size="small" variant="outlined" />
+            {query ? <Chip label={`Query: "${query}"`} size="small" color="primary" /> : null}
+        </Stack>
+    );
+
+    return (
+        <PageShell
+            title="Search"
+            subtitle="Discover people, posts, groups, pages, and blogs with a consistent, accessible search experience."
+            icon={<TravelExplore fontSize="large" />}
+            actions={filterControls}
+        >
+            <Paper sx={{ p: 3, mb: 3, borderRadius: 3 }}>
                 <Grid container spacing={2} alignItems="center">
                     <Grid item xs={12} md={6}>
                         <TextField
                             fullWidth
-                            label="Search"
+                            label="Search query"
+                            aria-label="Search query"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleSubmit();
+                                }
+                            }}
                             placeholder="Search posts, users, groups, pages..."
                         />
                     </Grid>
                     <Grid item xs={12} md={3}>
                         <FormControl fullWidth>
                             <InputLabel>Type</InputLabel>
-                            <Select value={searchType} onChange={(e) => setSearchType(e.target.value)} label="Type">
-                                <MenuItem value="all">All</MenuItem>
-                                <MenuItem value="posts">Posts</MenuItem>
-                                <MenuItem value="comments">Comments</MenuItem>
-                                <MenuItem value="blogs">Blogs</MenuItem>
-                                <MenuItem value="users">Users</MenuItem>
-                                <MenuItem value="groups">Groups</MenuItem>
-                                <MenuItem value="pages">Pages</MenuItem>
+                            <Select
+                                value={searchType}
+                                onChange={(e) => setSearchType(e.target.value)}
+                                label="Type"
+                                aria-label="Search type"
+                            >
+                                {SEARCH_TYPES.map((type) => (
+                                    <MenuItem key={type.value} value={type.value}>{type.label}</MenuItem>
+                                ))}
                             </Select>
                         </FormControl>
                     </Grid>
                     <Grid item xs={12} md={3}>
                         <FormControl fullWidth>
                             <InputLabel>Sort By</InputLabel>
-                            <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)} label="Sort By">
-                                <MenuItem value="date">Date</MenuItem>
-                                <MenuItem value="popularity">Popularity</MenuItem>
-                                <MenuItem value="relevance">Relevance</MenuItem>
+                            <Select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                label="Sort By"
+                                aria-label="Sort search results"
+                            >
+                                {SORT_OPTIONS.map((option) => (
+                                    <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                                ))}
                             </Select>
                         </FormControl>
                     </Grid>
@@ -274,7 +393,7 @@ const Search = () => {
                 <Button
                     fullWidth
                     variant="contained"
-                    onClick={() => handleSearch()}
+                    onClick={handleSubmit}
                     startIcon={<SearchIcon />}
                     sx={{ mt: 2 }}
                     disabled={loading}
@@ -304,6 +423,7 @@ const Search = () => {
                                     label={item.query}
                                     onClick={() => handleHistoryClick(item)}
                                     clickable
+                                    variant="outlined"
                                 />
                             ))}
                         </Box>
@@ -311,42 +431,48 @@ const Search = () => {
                 </Card>
             )}
 
+            {loading && (
+                <Paper sx={{ p: 2, borderRadius: 3 }}>
+                    <ContentSkeleton type="list" count={6} />
+                </Paper>
+            )}
+
             {/* Results */}
-            {results && (
-                <Paper>
+            {normalizedResults && !loading && (
+                <Paper sx={{ borderRadius: 3 }}>
+                    <Box sx={{ px: 2, pt: 2 }}>
+                        <Typography variant="body2" color="text.secondary">
+                            {totalResults.toLocaleString()} result{totalResults === 1 ? '' : 's'} found
+                        </Typography>
+                    </Box>
                     <Tabs
-                        value={currentTab}
-                        onChange={(e, v) => setCurrentTab(v)}
+                        value={activeTab}
+                        onChange={(e, v) => setActiveTab(v)}
                         variant="scrollable"
                         scrollButtons="auto"
+                        aria-label="Search results categories"
                     >
-                        {results.posts && <Tab label={`Posts (${results.posts.count})`} />}
-                        {results.comments && <Tab label={`Comments (${results.comments.count})`} />}
-                        {results.blogs && <Tab label={`Blogs (${results.blogs.count})`} />}
-                        {results.users && <Tab label={`Users (${results.users.count})`} />}
-                        {results.groups && <Tab label={`Groups (${results.groups.count})`} />}
-                        {results.pages && <Tab label={`Pages (${results.pages.count})`} />}
-                        {results.hashtagPosts && <Tab label={`Hashtag Posts (${results.hashtagPosts.count})`} />}
+                        {visibleCategories.map((category) => (
+                            <Tab
+                                key={category.key}
+                                value={category.key}
+                                label={`${category.label} (${normalizedResults[category.key]?.count || 0})`}
+                            />
+                        ))}
                     </Tabs>
 
                     <Box sx={{ p: 2 }}>
-                        {currentTab === 0 && results.posts && renderResults(results.posts.items, 'posts')}
-                        {currentTab === 1 && results.comments && renderResults(results.comments.items, 'comments')}
-                        {currentTab === 2 && results.blogs && renderResults(results.blogs.items, 'blogs')}
-                        {currentTab === 3 && results.users && renderResults(results.users.items, 'users')}
-                        {currentTab === 4 && results.groups && renderResults(results.groups.items, 'groups')}
-                        {currentTab === 5 && results.pages && renderResults(results.pages.items, 'pages')}
-                        {currentTab === 6 && results.hashtagPosts && renderResults(results.hashtagPosts.items, 'hashtag posts')}
+                        {renderResults(normalizedResults[activeTab]?.items || [], activeTab)}
                     </Box>
                 </Paper>
             )}
 
-            {loading && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
-                    <CircularProgress />
+            {normalizedResults && !loading && totalResults === 0 && (
+                <Box sx={{ mt: 2 }}>
+                    <EmptySearch searchTerm={query} onReset={() => setQuery('')} />
                 </Box>
             )}
-        </Container>
+        </PageShell>
     );
 };
 
