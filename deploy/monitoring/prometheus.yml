@@ -1,0 +1,117 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'milonexa-production'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "/etc/prometheus/alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # API Gateway metrics
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+)(?::\d+)?'
+        replacement: '${1}'
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'http_.*'
+        action: keep
+
+  # Microservices monitoring
+  - job_name: 'user-service'
+    static_configs:
+      - targets: ['user-service:3001']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'content-service'
+    static_configs:
+      - targets: ['content-service:3002']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'messaging-service'
+    static_configs:
+      - targets: ['messaging-service:3003']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'collaboration-service'
+    static_configs:
+      - targets: ['collaboration-service:3004']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'media-service'
+    static_configs:
+      - targets: ['media-service:3005']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'shop-service'
+    static_configs:
+      - targets: ['shop-service:3006']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'ai-service'
+    static_configs:
+      - targets: ['ai-service:3007']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'streaming-service'
+    static_configs:
+      - targets: ['streaming-service:3008']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Database and infrastructure monitoring
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 30s
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s
+
+  # Node exporter for system metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+)(?::\d+)?'
+        replacement: '${1}'
+
+  # Cadvisor for container metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 15s
