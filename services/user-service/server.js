@@ -12,6 +12,11 @@ const { buildCorsOptions } = require('../shared/cors-config');
 const response = require('../shared/response-wrapper');
 const { errorHandler: globalErrorHandler } = require('../shared/errorHandling');
 const logger = require('../shared/logger');
+// Workstream E: New utilities
+const { initGracefulShutdown, createDatabaseCleanup, createRedisCleanup } = require('../shared/graceful-shutdown');
+const { createHealthCheck, setupHealthRoutes } = require('../shared/health-check');
+const { validateEnv } = require('../shared/env-validator');
+const { securityAuditMiddleware } = require('../shared/sanitization');
 require('dotenv').config({ quiet: true });
 
 const app = express();
@@ -19,9 +24,19 @@ const healthChecker = new HealthChecker('user-service');
 const cacheManager = new CacheManager();
 const migrationManager = new MigrationManager(sequelize, 'user-service');
 
-// Register checks
+// Register checks (legacy monitoring)
 healthChecker.registerCheck('database', () => checkDatabase(sequelize));
 healthChecker.registerCheck('redis', () => checkRedis(cacheManager.redis));
+
+// Workstream E: Validate environment at startup
+const envValidation = validateEnv({
+  strict: process.env.NODE_ENV === 'production',
+  skipDatabase: false
+});
+if (!envValidation.valid) {
+  logger.error('Environment validation failed', { errors: envValidation.errors });
+  process.exit(1);
+}
 
 const PORT = process.env.PORT || 8001;
 
@@ -31,12 +46,16 @@ app.use(cors(buildCorsOptions()));
 app.use(express.json());
 app.use(createForwardedIdentityGuard());
 
+// Workstream E: Security audit middleware
+app.use(securityAuditMiddleware(logger));
+
 // Metrics tracking middleware
 app.use(healthChecker.metricsMiddleware());
 
 // Log requests
 app.use((req, res, next) => {
-  logger.info({ method: req.method, path: req.url, requestId: req.headers['x-request-id'] });
+  req.id = req.headers['x-request-id'] || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  logger.info({ method: req.method, path: req.url, requestId: req.id });
   next();
 });
 
@@ -49,7 +68,7 @@ app.use((req, res, next) => {
 // App Routes
 app.use('/', routes);
 
-// Enhanced health checks
+// Legacy health checks (keep for backward compatibility during transition)
 app.get('/health/ready', async (req, res) => {
   try {
     const health = await healthChecker.runChecks();
@@ -66,10 +85,7 @@ app.get('/metrics', (req, res) => {
   res.send(healthChecker.getPrometheusMetrics());
 });
 
-// Health Check
-app.get('/health', (req, res) => {
-  res.json(healthChecker.getBasicHealth());
-});
+// Note: /health and /ready are now handled by Workstream E health-check.js via setupHealthRoutes()
 
 // Friendly root endpoint (avoid default "Cannot GET /")
 app.get('/', (req, res) => {
@@ -77,7 +93,8 @@ app.get('/', (req, res) => {
     success: true,
     service: 'user-service',
     message: 'User service is running.',
-    health: '/health'
+    health: '/health',
+    ready: '/ready'
   });
 });
 
@@ -109,6 +126,9 @@ async function ensureSchemaBootstrapIfMissing() {
   }
 }
 
+// Workstream E: New health check system
+let newHealthCheck;
+
 async function startServer() {
   try {
     await sequelize.authenticate();
@@ -126,9 +146,44 @@ async function startServer() {
       }
     ]);
 
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       logger.info(`User service running on port ${PORT}`);
     });
+
+    // Workstream E: Initialize graceful shutdown
+    const shutdownManager = initGracefulShutdown(app, server, {
+      shutdownTimeout: 30000,
+      healthcheckGracePeriod: 5000,
+      logger
+    });
+
+    // Register cleanup handlers
+    shutdownManager.registerCleanup(
+      'database',
+      createDatabaseCleanup(sequelize),
+      10
+    );
+
+    if (cacheManager.redis) {
+      shutdownManager.registerCleanup(
+        'redis',
+        createRedisCleanup(cacheManager.redis),
+        20
+      );
+    }
+
+    // Workstream E: Initialize new health check system
+    newHealthCheck = createHealthCheck('user-service', {
+      version: require('./package.json').version || '1.0.0',
+      database: sequelize,
+      redis: cacheManager.redis,
+      redisRequired: false,
+      shutdownManager
+    });
+
+    // Setup new health routes (/health for liveness, /ready for readiness)
+    setupHealthRoutes(app, newHealthCheck);
+
   } catch (err) {
     logger.error({ message: 'Failed to start server', error: err.message });
     process.exit(1);
