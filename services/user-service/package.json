@@ -21,7 +21,7 @@
     "ioredis": "^5.9.3",
     "joi": "^18.0.2",
     "jsonwebtoken": "^9.0.3",
-    "mailgun.js": "^12.7.0",
+    "mailgun.js": "^12.7.1",
     "nodemailer": "^8.0.2",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
