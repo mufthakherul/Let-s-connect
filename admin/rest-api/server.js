@@ -93,6 +93,7 @@ const { SessionManager } = require('../shared/session-manager');
 const { SecretsVault } = require('../shared/secrets-vault');
 const { AnomalyDetector } = require('../shared/anomaly-detector');
 const { GDPRManager } = require('../shared/gdpr');
+const mtls = require('../shared/mtls');
 
 // ---------------------------------------------------------------------------
 // Logger
@@ -1193,6 +1194,147 @@ async function handleRequest(req, res) {
 
         if (pathname === '/api/v1/compliance/soc2' && method === 'GET') {
             return sendJSON(res, 200, getGDPRManager().collectSOC2Evidence());
+        }
+
+        // -----------------------------------------------------------------------
+        // mTLS Management endpoints
+        // -----------------------------------------------------------------------
+
+        if (pathname === '/api/v1/security/mtls/status' && method === 'GET') {
+            const certDir = process.env.ADMIN_CERT_DIR || path.join(ADMIN_HOME, 'certs');
+            const enabled = (process.env.ADMIN_MTLS_ENABLED || '').toLowerCase() === 'true';
+            const caExists = fs.existsSync(path.join(certDir, 'ca.crt'));
+            const clientCertExists = fs.existsSync(path.join(certDir, 'client.crt'));
+            const serverCertExists = fs.existsSync(path.join(certDir, 'server.crt'));
+            return sendJSON(res, 200, {
+                enabled,
+                certDir,
+                caGenerated: caExists,
+                clientCertGenerated: clientCertExists,
+                serverCertGenerated: serverCertExists,
+                env: {
+                    ADMIN_MTLS_ENABLED: process.env.ADMIN_MTLS_ENABLED || 'false',
+                    ADMIN_MTLS_CA_CERT: process.env.ADMIN_MTLS_CA_CERT || '(not set)',
+                    ADMIN_MTLS_CLIENT_CERT: process.env.ADMIN_MTLS_CLIENT_CERT || '(not set)',
+                    ADMIN_MTLS_CLIENT_KEY: process.env.ADMIN_MTLS_CLIENT_KEY || '(not set)',
+                },
+            });
+        }
+
+        if (pathname === '/api/v1/security/mtls/setup' && method === 'POST') {
+            const certDir = process.env.ADMIN_CERT_DIR || path.join(ADMIN_HOME, 'certs');
+            const result = mtls.generateSelfSignedCA(certDir);
+            if (result.instructions) {
+                return sendJSON(res, 200, {
+                    status: 'manual_required',
+                    message: 'openssl not available; run the commands manually',
+                    instructions: result.instructions,
+                    openssl_commands: result.openssl_commands,
+                });
+            }
+            return sendJSON(res, 200, {
+                status: 'generated',
+                caKeyPath: result.caKeyPath,
+                caCertPath: result.caCertPath,
+                message: 'CA generated. Use POST /api/v1/security/mtls/setup with { commonName } to issue client certs.',
+            });
+        }
+
+        if (pathname === '/api/v1/security/mtls/certs' && method === 'GET') {
+            const certDir = process.env.ADMIN_CERT_DIR || path.join(ADMIN_HOME, 'certs');
+            fs.mkdirSync(certDir, { recursive: true });
+            const files = fs.existsSync(certDir) ? fs.readdirSync(certDir) : [];
+            const certs = files
+                .filter((f) => f.endsWith('.crt') && f !== 'ca.crt')
+                .map((f) => {
+                    const certPath = path.join(certDir, f);
+                    try {
+                        const pem = fs.readFileSync(certPath, 'utf8');
+                        const info = mtls.getCertInfo(pem);
+                        return { file: f, ...info };
+                    } catch (_) {
+                        return { file: f, error: 'Could not read cert info' };
+                    }
+                });
+            return sendJSON(res, 200, { certs, certDir });
+        }
+
+        if (pathname === '/api/v1/security/mtls/revoke' && method === 'POST') {
+            const body = await parseBody(req);
+            const { serialNumber } = body;
+            if (!serialNumber) return sendError(res, 400, 'serialNumber is required');
+            const certDir = process.env.ADMIN_CERT_DIR || path.join(ADMIN_HOME, 'certs');
+            mtls.revokeCert(sanitize(serialNumber), certDir);
+            return sendJSON(res, 200, { revoked: true, serialNumber });
+        }
+
+        // -----------------------------------------------------------------------
+        // Incident management endpoints
+        // -----------------------------------------------------------------------
+
+        const incidentsFile = path.join(ADMIN_HOME, 'incidents.json');
+
+        function readIncidents() {
+            if (!fs.existsSync(incidentsFile)) return [];
+            try { return JSON.parse(fs.readFileSync(incidentsFile, 'utf8')); } catch (_) { return []; }
+        }
+
+        function writeIncidents(list) {
+            fs.mkdirSync(ADMIN_HOME, { recursive: true });
+            fs.writeFileSync(incidentsFile, JSON.stringify(list, null, 2));
+        }
+
+        if (pathname === '/api/v1/incidents' && method === 'GET') {
+            return sendJSON(res, 200, { incidents: readIncidents() });
+        }
+
+        if (pathname === '/api/v1/incidents' && method === 'POST') {
+            const body = await parseBody(req);
+            if (!body.title) return sendError(res, 400, 'title is required');
+            const incidents = readIncidents();
+            const incident = {
+                id: `INC-${String(incidents.length + 1).padStart(4, '0')}`,
+                title: sanitize(body.title),
+                description: sanitize(body.description || ''),
+                severity: body.severity || 'medium',
+                status: 'open',
+                affectedServices: Array.isArray(body.affectedServices) ? body.affectedServices.map(sanitize) : [],
+                assignee: sanitize(body.assignee || ''),
+                timeline: [{ timestamp: new Date().toISOString(), text: 'Incident created' }],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            };
+            incidents.push(incident);
+            writeIncidents(incidents);
+            return sendJSON(res, 201, { incident });
+        }
+
+        const incidentUpdateMatch = pathname.match(/^\/api\/v1\/incidents\/([^/]+)\/update$/);
+        if (incidentUpdateMatch && method === 'POST') {
+            const id = incidentUpdateMatch[1];
+            const body = await parseBody(req);
+            const incidents = readIncidents();
+            const idx = incidents.findIndex((i) => i.id === id);
+            if (idx === -1) return sendError(res, 404, `Incident ${id} not found`);
+            incidents[idx].timeline.push({ timestamp: new Date().toISOString(), text: sanitize(body.text || '') });
+            incidents[idx].updatedAt = new Date().toISOString();
+            if (body.status) incidents[idx].status = body.status;
+            writeIncidents(incidents);
+            return sendJSON(res, 200, { incident: incidents[idx] });
+        }
+
+        const incidentResolveMatch = pathname.match(/^\/api\/v1\/incidents\/([^/]+)\/resolve$/);
+        if (incidentResolveMatch && method === 'POST') {
+            const id = incidentResolveMatch[1];
+            const incidents = readIncidents();
+            const idx = incidents.findIndex((i) => i.id === id);
+            if (idx === -1) return sendError(res, 404, `Incident ${id} not found`);
+            incidents[idx].status = 'resolved';
+            incidents[idx].resolvedAt = new Date().toISOString();
+            incidents[idx].updatedAt = new Date().toISOString();
+            incidents[idx].timeline.push({ timestamp: new Date().toISOString(), text: 'Incident resolved' });
+            writeIncidents(incidents);
+            return sendJSON(res, 200, { incident: incidents[idx] });
         }
 
         return sendError(res, 404, `Not found: ${method} ${pathname}`);

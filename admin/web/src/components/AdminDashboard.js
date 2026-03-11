@@ -121,6 +121,7 @@ import AIPermissionInbox from './dashboard/AIPermissionInbox';
 import SecurityDashboard from './dashboard/SecurityDashboard';
 import ComplianceDashboard from './dashboard/ComplianceDashboard';
 import SSHAdminPanel from './dashboard/SSHAdminPanel';
+import IncidentTracker from './dashboard/IncidentTracker';
 import KeyboardShortcutsModal from './common/KeyboardShortcutsModal';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useTranslation, setLanguage, SUPPORTED_LANGUAGES } from '../utils/i18n';
@@ -1445,6 +1446,7 @@ const AdminDashboard = () => {
                             <Tab icon={<Security />} label={t('Security')} />
                             <Tab icon={<Gavel />} label={t('Compliance')} />
                             <Tab icon={<VpnKey />} label={t('SSH Admin')} />
+                            <Tab icon={<BugReport />} label={t('Incidents')} />
                         </Tabs>
 
                         {currentTab === 0 && renderStatsTab()}
@@ -1474,6 +1476,7 @@ const AdminDashboard = () => {
                         {currentTab === 22 && <SecurityDashboard />}
                         {currentTab === 23 && <ComplianceDashboard />}
                         {currentTab === 24 && <SSHAdminPanel />}
+                        {currentTab === 25 && <IncidentTracker />}
                     </Paper>
 
                     {/* Speed Dial for Quick Actions */}
