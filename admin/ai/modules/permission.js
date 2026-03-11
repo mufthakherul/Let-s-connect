@@ -65,7 +65,7 @@ class PermissionGate {
      * @returns {Promise<{id: string, status: 'pending'}>}
      */
     async requestPermission(action, description, data = {}, severity = 'medium') {
-        const id = crypto.randomUUID ? crypto.randomUUID() : this._uuid();
+        const id = crypto.randomUUID();
         const record = {
             id,
             action,
@@ -262,14 +262,11 @@ class PermissionGate {
     }
 
     /**
-     * Fallback UUID generator for Node < 14.17.
-     * @private
+     * Return a copy of the full decision history.
+     * @returns {object[]}
      */
-    _uuid() {
-        return crypto.randomBytes(16).toString('hex').replace(
-            /^(.{8})(.{4})(.{4})(.{4})(.{12})$/,
-            '$1-$2-$3-$4-$5'
-        );
+    getHistory() {
+        return [...this._history];
     }
 }
 

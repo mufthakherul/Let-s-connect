@@ -499,8 +499,7 @@ async function processApprovedPermissions() {
         try { executed = new Set(JSON.parse(fs.readFileSync(executedFile, 'utf8'))); } catch (_) {}
     }
 
-    // Load history directly from the permGate's internal data.
-    const history = permGate._history || [];
+    const history = permGate.getHistory();
     const toExecute = history.filter(r =>
         r.status === 'approved' && !executed.has(r.id)
     );

@@ -169,47 +169,91 @@ class AutoHealer {
 
             if (typeof svc.cpu === 'number') {
                 if (svc.cpu >= THRESHOLDS.cpu.critical) {
-                    issues.push({ type: 'high_cpu', service: name, value: svc.cpu, severity: 'critical',
-                        description: `${name} CPU at ${svc.cpu.toFixed(1)}%` });
+                    issues.push({
+                        type:        'high_cpu',
+                        service:     name,
+                        value:       svc.cpu,
+                        severity:    'critical',
+                        description: `${name} CPU at ${svc.cpu.toFixed(1)}%`,
+                    });
                 } else if (svc.cpu >= THRESHOLDS.cpu.warning) {
-                    issues.push({ type: 'high_cpu', service: name, value: svc.cpu, severity: 'high',
-                        description: `${name} CPU at ${svc.cpu.toFixed(1)}%` });
+                    issues.push({
+                        type:        'high_cpu',
+                        service:     name,
+                        value:       svc.cpu,
+                        severity:    'high',
+                        description: `${name} CPU at ${svc.cpu.toFixed(1)}%`,
+                    });
                 }
             }
 
             if (typeof svc.memory === 'number') {
                 if (svc.memory >= THRESHOLDS.memory.critical) {
-                    issues.push({ type: 'high_memory', service: name, value: svc.memory, severity: 'critical',
-                        description: `${name} memory at ${svc.memory.toFixed(1)}%` });
+                    issues.push({
+                        type:        'high_memory',
+                        service:     name,
+                        value:       svc.memory,
+                        severity:    'critical',
+                        description: `${name} memory at ${svc.memory.toFixed(1)}%`,
+                    });
                 } else if (svc.memory >= THRESHOLDS.memory.warning) {
-                    issues.push({ type: 'high_memory', service: name, value: svc.memory, severity: 'high',
-                        description: `${name} memory at ${svc.memory.toFixed(1)}%` });
+                    issues.push({
+                        type:        'high_memory',
+                        service:     name,
+                        value:       svc.memory,
+                        severity:    'high',
+                        description: `${name} memory at ${svc.memory.toFixed(1)}%`,
+                    });
                 }
             }
 
             if (typeof svc.errorRatePct === 'number') {
                 if (svc.errorRatePct >= THRESHOLDS.errorRate.critical) {
-                    issues.push({ type: 'high_error_rate', service: name, value: svc.errorRatePct, severity: 'critical',
-                        description: `${name} error rate ${svc.errorRatePct.toFixed(1)}%` });
+                    issues.push({
+                        type:        'high_error_rate',
+                        service:     name,
+                        value:       svc.errorRatePct,
+                        severity:    'critical',
+                        description: `${name} error rate ${svc.errorRatePct.toFixed(1)}%`,
+                    });
                 } else if (svc.errorRatePct >= THRESHOLDS.errorRate.warning) {
-                    issues.push({ type: 'high_error_rate', service: name, value: svc.errorRatePct, severity: 'high',
-                        description: `${name} error rate ${svc.errorRatePct.toFixed(1)}%` });
+                    issues.push({
+                        type:        'high_error_rate',
+                        service:     name,
+                        value:       svc.errorRatePct,
+                        severity:    'high',
+                        description: `${name} error rate ${svc.errorRatePct.toFixed(1)}%`,
+                    });
                 }
             }
 
             if (typeof svc.restarts === 'number') {
                 if (svc.restarts >= THRESHOLDS.restarts.critical) {
-                    issues.push({ type: 'crash_loop', service: name, value: svc.restarts, severity: 'critical',
-                        description: `${name} has restarted ${svc.restarts} times — possible crash loop` });
+                    issues.push({
+                        type:        'crash_loop',
+                        service:     name,
+                        value:       svc.restarts,
+                        severity:    'critical',
+                        description: `${name} has restarted ${svc.restarts} times — possible crash loop`,
+                    });
                 } else if (svc.restarts >= THRESHOLDS.restarts.warning) {
-                    issues.push({ type: 'crash_loop', service: name, value: svc.restarts, severity: 'high',
-                        description: `${name} has restarted ${svc.restarts} times` });
+                    issues.push({
+                        type:        'crash_loop',
+                        service:     name,
+                        value:       svc.restarts,
+                        severity:    'high',
+                        description: `${name} has restarted ${svc.restarts} times`,
+                    });
                 }
             }
 
             if (svc.status === 'unhealthy' || svc.status === 'down') {
-                issues.push({ type: 'service_down', service: name, severity: 'critical',
-                    description: `${name} is ${svc.status}` });
+                issues.push({
+                    type:        'service_down',
+                    service:     name,
+                    severity:    'critical',
+                    description: `${name} is ${svc.status}`,
+                });
             }
         }
 
