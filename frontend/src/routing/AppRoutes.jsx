@@ -35,6 +35,7 @@ const SecuritySettings = lazy(() => import('../components/SecuritySettings'));
 const MediaGallery = lazy(() => import('../components/MediaGallery'));
 const Analytics = lazy(() => import('../components/Analytics'));
 const Search = lazy(() => import('../components/Search'));
+const Discovery = lazy(() => import('../components/Discovery'));
 const EmailPreferences = lazy(() => import('../components/EmailPreferences'));
 const OAuthLogin = lazy(() => import('../components/OAuthLogin'));
 const ResetRequest = lazy(() => import('../components/ResetRequest'));
@@ -145,6 +146,7 @@ export default function AppRoutes({ user, setUser }) {
 
             {/* Public routes */}
             <Route path="/search" element={<Search />} />
+            <Route path="/discover" element={<Discovery />} />
             <Route path="/hubs" element={<HubsDirectory />} />
             <Route path="/hubs/forum" element={<CommunityForum />} />
             <Route path="/hubs/transparency" element={<TransparencyHub />} />

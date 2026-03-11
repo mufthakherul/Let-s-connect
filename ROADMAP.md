@@ -925,22 +925,22 @@ This modernization initiative is successful when:
 **Priority: High**
 
 ### 15.1 Full-Text Search
-- [ ] Elasticsearch integration for posts, wikis, documents
-- [ ] Faceted search (filter by type, date, author)
-- [ ] Search result highlighting and snippets
-- [ ] Saved search queries
+- [x] Elasticsearch integration for posts, wikis, documents
+- [x] Faceted search (filter by type, date, author)
+- [x] Search result highlighting and snippets
+- [x] Saved search queries
 
 ### 15.2 Discovery
-- [ ] Trending topics and hashtags
-- [ ] People you may know / follow recommendations
-- [ ] Group discovery by interest
-- [ ] Content recommendations (collaborative filtering)
+- [x] Trending topics and hashtags
+- [x] People you may know / follow recommendations
+- [x] Group discovery by interest
+- [x] Content recommendations (collaborative filtering)
 
 ### 15.3 AI-Powered Search
-- [ ] Semantic search using embeddings
-- [ ] Natural language query support
-- [ ] Summarized search results via AI
-- [ ] Smart content deduplication
+- [x] Semantic search using embeddings
+- [x] Natural language query support
+- [x] Summarized search results via AI
+- [x] Smart content deduplication
 
 ---
 
