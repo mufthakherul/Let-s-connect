@@ -1,0 +1,22 @@
+{
+  "name": "milonexa-admin-cli",
+  "version": "2.0.0",
+  "description": "Milonexa Omni Admin CLI — unified operational control plane (Phase 1+2)",
+  "main": "index.js",
+  "bin": {
+    "admin-cli": "./index.js"
+  },
+  "scripts": {
+    "help": "node index.js --help",
+    "doctor": "node index.js doctor",
+    "start": "node index.js start --runtime docker --env dev",
+    "stop": "node index.js stop --runtime docker",
+    "status": "node index.js status --runtime docker",
+    "audit": "node index.js audit"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
