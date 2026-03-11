@@ -17,9 +17,12 @@
  *
  * Environment variables:
  *   ENABLE_ADMIN_AI             (required) must be 'true'
- *   AI_PROVIDER                 demo | openai | anthropic  (default: demo)
- *   OPENAI_API_KEY              (optional)
- *   ANTHROPIC_API_KEY           (optional)
+ *   AI_PROVIDER                 demo | ollama | openai | anthropic  (default: demo)
+ *   OLLAMA_HOST                 Ollama server hostname (default: localhost)
+ *   OLLAMA_PORT                 Ollama server port (default: 11434)
+ *   OLLAMA_MODEL                Model name (default: llama3.2)
+ *   OPENAI_API_KEY              (optional, only if AI_PROVIDER=openai)
+ *   ANTHROPIC_API_KEY           (optional, only if AI_PROVIDER=anthropic)
  *   AI_CYCLE_INTERVAL_SECONDS   (default: 60)
  *   AI_STATUS_PORT              (default: 8890)
  *   AI_NOTIFY_EVERY_CYCLE       (default: false)
@@ -83,6 +86,9 @@ const CONFIG = {
     provider:       process.env.AI_PROVIDER || 'demo',
     openaiKey:      process.env.OPENAI_API_KEY || '',
     anthropicKey:   process.env.ANTHROPIC_API_KEY || '',
+    ollamaHost:     process.env.OLLAMA_HOST || 'localhost',
+    ollamaPort:     parseInt(process.env.OLLAMA_PORT || '11434', 10),
+    ollamaModel:    process.env.OLLAMA_MODEL || 'llama3.2',
     cycleSeconds:   parseInt(process.env.AI_CYCLE_INTERVAL_SECONDS, 10) || 60,
     statusPort:     parseInt(process.env.AI_STATUS_PORT, 10) || 8890,
     notifyEvery:    process.env.AI_NOTIFY_EVERY_CYCLE === 'true',
@@ -276,6 +282,30 @@ function _llmPost(urlStr, body, headers, extractFn) {
 }
 
 /**
+ * Call local Ollama /api/chat endpoint (privacy-safe, no external API key).
+ * @param {string} prompt
+ * @returns {Promise<string>}
+ */
+async function callOllama(prompt) {
+    const body = JSON.stringify({
+        model: CONFIG.ollamaModel,
+        messages: [
+            { role: 'system', content: 'You are an expert DevOps AI assistant for the Milonexa platform. Provide concise, actionable analysis.' },
+            { role: 'user', content: prompt },
+        ],
+        stream: false,
+        options: { num_predict: 512, temperature: 0.2 },
+    });
+
+    return _llmPost(`http://${CONFIG.ollamaHost}:${CONFIG.ollamaPort}/api/chat`, body, {
+        'Content-Type': 'application/json',
+    }, (r) => {
+        const d = JSON.parse(r);
+        return d.message && d.message.content;
+    });
+}
+
+/**
  * Get an LLM-enhanced summary/analysis for unusual anomalies.
  * Falls back to rule-based output if LLM unavailable or in demo mode.
  *
@@ -284,6 +314,9 @@ function _llmPost(urlStr, body, headers, extractFn) {
  */
 async function llmAnalyze(prompt) {
     try {
+        if (CONFIG.provider === 'ollama') {
+            return await callOllama(prompt);
+        }
         if (CONFIG.provider === 'openai' && CONFIG.openaiKey) {
             return await callOpenAI(prompt);
         }

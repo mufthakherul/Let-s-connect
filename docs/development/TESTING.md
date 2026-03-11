@@ -309,7 +309,9 @@ curl -X POST http://localhost:8000/api/shop/orders \
 
 ### 8. AI Features (Authenticated)
 
-**Note:** Requires GEMINI_API_KEY in .env
+**Note:** AI features use the local Ollama LLM — no external API key required.
+Ensure Ollama is running (`docker compose up ollama -d`) and the model is pulled
+(`docker compose run --rm ollama-init`).
 
 **Chat with AI:**
 
