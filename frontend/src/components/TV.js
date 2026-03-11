@@ -655,6 +655,8 @@ const TV = () => {
                                     left: 0,
                                     width: '100%',
                                     height: '100%'
+                                }}
+                                                        />
                                                         {/* Phase 14: Floating reaction overlay */}
                                                         <Box
                                                             sx={{

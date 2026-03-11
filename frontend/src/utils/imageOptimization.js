@@ -20,7 +20,7 @@ export const getOptimizedImageUrl = (url, { width, format = 'webp' } = {}) => {
     if (width) parsed.searchParams.set('w', width);
     if (SUPPORTED_FORMATS.includes(format)) parsed.searchParams.set('fmt', format);
     return parsed.toString();
-  } catch {
+  } catch (_e) {
     return url;
   }
 };

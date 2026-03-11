@@ -241,14 +241,14 @@ function urlBase64ToUint8Array(base64String) {
 export async function clearCache() {
   if ('serviceWorker' in navigator) {
     const registration = await navigator.serviceWorker.ready;
-    registration.active?.postMessage({ type: 'CLEAR_CACHE' });
+    if (registration.active) registration.active.postMessage({ type: 'CLEAR_CACHE' });
   }
 }
 
 export async function cacheUrls(urls) {
   if ('serviceWorker' in navigator) {
     const registration = await navigator.serviceWorker.ready;
-    registration.active?.postMessage({ 
+    if (registration.active) registration.active.postMessage({ 
       type: 'CACHE_URLS',
       urls 
     });

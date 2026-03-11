@@ -216,7 +216,7 @@ function Feed({ user }) {
         toast.error('Your post was flagged for potentially harmful content. Please review it before posting.');
         return;
       }
-    } catch {
+    } catch (_e) {
       // Non-blocking: if moderation fails, proceed
     }
 
@@ -259,7 +259,7 @@ function Feed({ user }) {
         setNewPost(res.data.result);
         toast.success('AI improved your post!');
       }
-    } catch {
+    } catch (_e) {
       toast.error('AI writing assist unavailable');
     } finally {
       setAiWriting(false);
@@ -276,7 +276,7 @@ function Feed({ user }) {
         setAiTags(res.data.tags);
         toast.success(`${res.data.tags.length} tags suggested`);
       }
-    } catch {
+    } catch (_e) {
       toast.error('Auto-tagging unavailable');
     } finally {
       setAiTagsLoading(false);
@@ -289,7 +289,7 @@ function Feed({ user }) {
     try {
       const res = await api.post('/ai-service/translate', { text, targetLanguage: 'English' });
       setTranslateResult((prev) => ({ ...prev, [postId]: res.data?.translation || text }));
-    } catch {
+    } catch (_e) {
       toast.error('Translation unavailable');
     } finally {
       setTranslateLoading((prev) => ({ ...prev, [postId]: false }));
@@ -316,7 +316,7 @@ function Feed({ user }) {
         limit: 8,
       });
       setDigest(res.data?.digest || []);
-    } catch {
+    } catch (_e) {
       setDigest([]);
     } finally {
       setDigestLoading(false);
