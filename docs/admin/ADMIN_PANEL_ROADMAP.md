@@ -76,6 +76,26 @@ The admin panel is a collection of interfaces and utilities for platform operato
 
 ---
 
+## ✅ Shipped — Q2 2026
+
+### Web Dashboard Enhancements
+- [x] **ServiceHealthGrid** — live per-service health grid (CPU, memory, latency, error rate)
+- [x] **UserManagementTable** — searchable/filterable user table with bulk actions
+- [x] **AuditLogTable** — filterable audit log viewer with CSV/JSON export
+- [x] **SLATimeline** — visual breach timeline with resolution tracking
+- [x] **AlertRuleEditor** — create/edit alert rules directly in the UI
+- [x] **CostBreakdown** — service-level cost breakdown chart
+- [x] **AIPermissionInbox** — inline approval/deny flow for AI agent permission requests
+- [x] Dark mode wired to `useAppearanceStore` (`updateSetting('darkMode', ...)`)
+- [x] `KeyboardShortcutsModal` — grouped shortcut reference accessible via `?` key
+- [x] `useKeyboardShortcuts` wired with search, refresh, and help callbacks
+- [x] Numeric keys 1–9 mapped to tab switching
+- [x] Responsive drawer: `temporary` on mobile, `persistent` on desktop
+- [x] i18n scaffolding (`utils/i18n.js`) — en, fr, de, es, ja, zh; `useTranslation` hook + `setLanguage` + `SUPPORTED_LANGUAGES`
+- [x] Language selector in AppBar expanded to all 6 supported languages
+
+---
+
 ## 🔜 Planned — Q2 2026
 
 ### CLI Enhancements
@@ -96,17 +116,17 @@ The admin panel is a collection of interfaces and utilities for platform operato
 - [ ] Event sourcing: replay admin events from audit log for debugging
 
 ### Web Dashboard Enhancements
-- [ ] **Live service health dashboard** — real-time CPU, memory, latency, error rate per service
-- [ ] **User management table** — search, filter, bulk actions (suspend, role change)
-- [ ] **Audit log viewer** — filterable table with export (CSV/JSON)
-- [ ] **SLA breach timeline** — visual timeline of breaches and resolutions
-- [ ] **Alert rule editor** — create/edit alert rules via UI (no YAML required)
-- [ ] **Cost breakdown chart** — service-level cost visualization
-- [ ] **Permission approval UI** — review and approve/deny AI agent actions inline
-- [ ] **Dark mode** — toggle via appearance store (already stubbed in `appearanceStore.js`)
-- [ ] **Keyboard shortcuts** — modal showing all shortcuts (`useKeyboardShortcuts.js`)
-- [ ] Responsive mobile layout (tablet + phone breakpoints)
-- [ ] Internationalization (i18n) scaffolding
+- [x] **Live service health dashboard** — real-time CPU, memory, latency, error rate per service
+- [x] **User management table** — search, filter, bulk actions (suspend, role change)
+- [x] **Audit log viewer** — filterable table with export (CSV/JSON)
+- [x] **SLA breach timeline** — visual timeline of breaches and resolutions
+- [x] **Alert rule editor** — create/edit alert rules via UI (no YAML required)
+- [x] **Cost breakdown chart** — service-level cost visualization
+- [x] **Permission approval UI** — review and approve/deny AI agent actions inline
+- [x] **Dark mode** — toggle via appearance store (already stubbed in `appearanceStore.js`)
+- [x] **Keyboard shortcuts** — modal showing all shortcuts (`useKeyboardShortcuts.js`)
+- [x] Responsive mobile layout (tablet + phone breakpoints)
+- [x] Internationalization (i18n) scaffolding
 
 ---
 
