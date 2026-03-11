@@ -108,12 +108,12 @@ The admin panel is a collection of interfaces and utilities for platform operato
 - [x] Side-by-side service comparison: CPU, memory, error rate, latency
 
 ### REST API Enhancements
-- [ ] GraphQL layer: expose platform metrics and audit log via GraphQL
-- [ ] Bulk user management: batch suspend/activate/export users
-- [ ] Webhook management endpoints: CRUD for outbound webhook registrations
-- [ ] API key management: issue, rotate, revoke per-service API keys
-- [ ] Rate-limit dashboard endpoint: view per-IP/per-user limit status
-- [ ] Event sourcing: replay admin events from audit log for debugging
+- [x] GraphQL layer: expose platform metrics and audit log via GraphQL
+- [x] Bulk user management: batch suspend/activate/export users
+- [x] Webhook management endpoints: CRUD for outbound webhook registrations
+- [x] API key management: issue, rotate, revoke per-service API keys
+- [x] Rate-limit dashboard endpoint: view per-IP/per-user limit status
+- [x] Event sourcing: replay admin events from audit log for debugging
 
 ### Web Dashboard Enhancements
 - [x] **Live service health dashboard** — real-time CPU, memory, latency, error rate per service
