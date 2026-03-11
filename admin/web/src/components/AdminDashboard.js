@@ -122,6 +122,12 @@ import SecurityDashboard from './dashboard/SecurityDashboard';
 import ComplianceDashboard from './dashboard/ComplianceDashboard';
 import SSHAdminPanel from './dashboard/SSHAdminPanel';
 import IncidentTracker from './dashboard/IncidentTracker';
+// Q4 2026 components
+import ObservabilityDashboard from './dashboard/ObservabilityDashboard';
+import TenantManager from './dashboard/TenantManager';
+import FeatureFlagToggle from './dashboard/FeatureFlagToggle';
+import DeveloperPanel from './dashboard/DeveloperPanel';
+import AIIntegrationPanel from './dashboard/AIIntegrationPanel';
 import KeyboardShortcutsModal from './common/KeyboardShortcutsModal';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useTranslation, setLanguage, SUPPORTED_LANGUAGES } from '../utils/i18n';
@@ -1447,6 +1453,12 @@ const AdminDashboard = () => {
                             <Tab icon={<Gavel />} label={t('Compliance')} />
                             <Tab icon={<VpnKey />} label={t('SSH Admin')} />
                             <Tab icon={<BugReport />} label={t('Incidents')} />
+                            {/* Q4 2026 tabs */}
+                            <Tab icon={<Insights />} label={t('Observability')} />
+                            <Tab icon={<ManageAccounts />} label={t('Tenants')} />
+                            <Tab icon={<Flag />} label={t('Feature Flags')} />
+                            <Tab icon={<Code />} label={t('Developer')} />
+                            <Tab icon={<Hub />} label={t('AI Integration')} />
                         </Tabs>
 
                         {currentTab === 0 && renderStatsTab()}
@@ -1477,6 +1489,12 @@ const AdminDashboard = () => {
                         {currentTab === 23 && <ComplianceDashboard />}
                         {currentTab === 24 && <SSHAdminPanel />}
                         {currentTab === 25 && <IncidentTracker />}
+                        {/* Q4 2026 tab panels */}
+                        {currentTab === 26 && <ObservabilityDashboard />}
+                        {currentTab === 27 && <TenantManager />}
+                        {currentTab === 28 && <FeatureFlagToggle />}
+                        {currentTab === 29 && <DeveloperPanel />}
+                        {currentTab === 30 && <AIIntegrationPanel />}
                     </Paper>
 
                     {/* Speed Dial for Quick Actions */}
