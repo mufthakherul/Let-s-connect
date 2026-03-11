@@ -1,0 +1,60 @@
+{
+  "name": "milonexa-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for Milonexa platform",
+  "private": true,
+  "dependencies": {
+    "@emotion/react": "^11.11.4",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^7.3.8",
+    "@mui/material": "^7.3.8",
+    "@mui/x-date-pickers": "^8.27.2",
+    "@mui/x-tree-view": "^8.27.2",
+    "@tanstack/react-query": "^5.28.4",
+    "axios": "^1.6.7",
+    "date-fns": "^4.1.0",
+    "dompurify": "^3.0.11",
+    "emoji-picker-react": "^4.9.2",
+    "framer-motion": "^12.34.3",
+    "qrcode.react": "^4.2.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-dropzone": "^15.0.0",
+    "react-hot-toast": "^2.4.1",
+    "react-intersection-observer": "^10.0.3",
+    "react-router-dom": "^7.13.1",
+    "recharts": "^2.12.0",
+    "shaka-player": "^5.0.3",
+    "socket.io-client": "^4.7.4",
+    "zustand": "^5.0.11"
+  },
+  "scripts": {
+    "start": "PORT=3001 BROWSER=none react-scripts start",
+    "start:admin": "PORT=3001 BROWSER=none react-scripts start",
+    "prebuild": "node scripts/strip-shaka-sourcemaps.js",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "test:e2e": "playwright test",
+    "eject": "react-scripts eject",
+    "postinstall": "node -e \"const fs=require('fs');['shaka-player.ui.js','controls.css'].forEach(file=>{const p='./node_modules/shaka-player/dist/'+file;try{if(fs.existsSync(p)){let c=fs.readFileSync(p,'utf8');c=c.replace(/(^|\\n)\\/\\/# sourceMappingURL=.*$/gm,'');c=c.replace(/\\/\\*# sourceMappingURL=[^*]*\\*\\//gm,'');fs.writeFileSync(p,c,'utf8');}}catch(_){}});\""
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "ajv": "^8.17.1",
+    "ajv-keywords": "^5.1.0",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "react-scripts": "^5.0.1"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
