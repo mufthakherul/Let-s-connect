@@ -6,7 +6,7 @@
   "dependencies": {
     "express": "^5.2.1",
     "pg": "^8.18.0",
-    "sequelize": "^6.37.7",
+    "sequelize": "^6.37.8",
     "dotenv": "^17.3.1",
     "ioredis": "^5.9.3"
   }
