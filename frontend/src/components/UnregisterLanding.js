@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, useMotionValue, useSpring, useInView } from 'framer-motion';
 import ErrorBoundary from './common/ErrorBoundary';
 import {
     Typography, Box, Button, Grid, Card, CardContent, Container, useTheme,
-    Paper, Chip, Stack, Collapse, useMediaQuery
+    Paper, Chip, Stack, Collapse, useMediaQuery, Avatar
 } from '@mui/material';
 import {
     Speed, Security, CloudDone, Groups, Chat, VideoLibrary,
@@ -11,6 +11,26 @@ import {
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 import { designTokens, getGlassyStyle } from '../theme/designSystem';
+import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import api from '../utils/api';
+
+function AnimatedCounter({ to, prefix = '', suffix = '' }) {
+    const ref = useRef(null);
+    const inView = useInView(ref, { once: true, margin: '-40px' });
+    const motionVal = useMotionValue(0);
+    const spring = useSpring(motionVal, { stiffness: 40, damping: 15 });
+    const [display, setDisplay] = React.useState(0);
+
+    useEffect(() => {
+        if (inView) motionVal.set(to);
+    }, [inView, to, motionVal]);
+
+    useEffect(() => {
+        return spring.on('change', (v) => setDisplay(Math.round(v)));
+    }, [spring]);
+
+    return <span ref={ref}>{prefix}{display.toLocaleString()}{suffix}</span>;
+}
 
 function UnregisterLanding() {
     const theme = useTheme();
@@ -18,6 +38,7 @@ function UnregisterLanding() {
     const MotionCard = motion.create ? motion.create(Card) : motion(Card);
     const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
     const [expandedIndex, setExpandedIndex] = useState(null);
+    const [userCount, setUserCount] = useState(50000);
 
     const mode = theme.palette.mode;
     const brandGradient = `linear-gradient(135deg, ${designTokens.colors[mode].primary}, ${designTokens.colors[mode].secondary})`;
@@ -33,27 +54,67 @@ function UnregisterLanding() {
         }
     }, []);
 
+    // SEO: page title, meta tags, and JSON-LD structured data
+    useEffect(() => {
+        const setMeta = (type, name, content) => {
+            let el = document.querySelector(`meta[${type}="${name}"]`);
+            if (!el) { el = document.createElement('meta'); el.setAttribute(type, name); document.head.appendChild(el); }
+            el.setAttribute('content', content);
+        };
+
+        document.title = 'Milonexa — Next-Generation Social Platform | Connect, Share, Stream';
+        setMeta('name', 'description', 'Milonexa is a next-generation social platform combining social networking, real-time chat, video sharing, and e-commerce for modern communities.');
+        setMeta('property', 'og:title', 'Milonexa — Next-Generation Social Platform');
+        setMeta('property', 'og:description', 'Connect, share, and stream on Milonexa — the platform for modern communities.');
+        setMeta('property', 'og:type', 'website');
+        setMeta('property', 'og:url', window.location.href);
+        setMeta('name', 'twitter:card', 'summary_large_image');
+        setMeta('name', 'twitter:title', 'Milonexa — Next-Generation Social Platform');
+        setMeta('name', 'twitter:description', 'Connect, share, and stream on Milonexa — the platform for modern communities.');
+
+        if (!document.getElementById('milonexa-jsonld')) {
+            const jsonLd = document.createElement('script');
+            jsonLd.type = 'application/ld+json';
+            jsonLd.id = 'milonexa-jsonld';
+            jsonLd.text = JSON.stringify([
+                { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Milonexa', url: window.location.origin },
+                { '@context': 'https://schema.org', '@type': 'Organization', name: 'Milonexa', url: window.location.origin, description: 'Next-Generation Social Platform' }
+            ]);
+            document.head.appendChild(jsonLd);
+        }
+    }, []);
+
+    // Fetch live user count from public stats endpoint
+    useEffect(() => {
+        api.get('/api/public/stats').then(res => {
+            if (res.data?.userCount) setUserCount(res.data.userCount);
+        }).catch(() => {});
+    }, []);
+
     const features = [
         {
             title: 'Social Feed',
             description: 'Share posts, images, and videos with your network',
             link: '/feed',
             icon: <Groups sx={{ fontSize: 40, color: 'primary.main' }} />,
-            requiresLogin: true
+            requiresLogin: true,
+            sparkData: [{ v: 3 }, { v: 5 }, { v: 4 }, { v: 7 }, { v: 6 }, { v: 9 }, { v: 8 }]
         },
         {
             title: 'Video Platform',
             description: 'Watch and upload videos with channel subscriptions',
             link: '/videos',
             icon: <VideoLibrary sx={{ fontSize: 40, color: 'error.main' }} />,
-            requiresLogin: false
+            requiresLogin: false,
+            sparkData: [{ v: 2 }, { v: 5 }, { v: 7 }, { v: 6 }, { v: 8 }, { v: 10 }, { v: 9 }]
         },
         {
             title: 'Real-time Chat',
             description: 'Message friends, groups, and servers instantly',
             link: '/chat',
             icon: <Chat sx={{ fontSize: 40, color: 'success.main' }} />,
-            requiresLogin: true
+            requiresLogin: true,
+            sparkData: [{ v: 5 }, { v: 4 }, { v: 8 }, { v: 6 }, { v: 9 }, { v: 7 }, { v: 11 }]
         },
         {
             title: 'Pages',
@@ -135,7 +196,7 @@ function UnregisterLanding() {
                 <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>A lightweight landing page is displayed because the interactive content failed to load. Refresh or continue to register.</Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-                <Button variant="contained" component={Link} to="/register">Create Account</Button>
+                <Button variant="contained" component={Link} to="/auth?tab=register">Create Account</Button>
                 <Button variant="outlined" onClick={() => { reset(); window.location.reload(); }}>Reload</Button>
             </Box>
             {process.env.NODE_ENV === 'development' && error && (
@@ -166,41 +227,64 @@ function UnregisterLanding() {
                     pb: 2,
                 }}
             >
-                {/* Decorative background shapes (subtle, non-distracting) */}
+                {/* Decorative background shapes (animated gradient blobs) */}
                 {!prefersReducedMotion && (
                     <>
                         <Box
                             component={motion.div}
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 0.12, scale: 1.25, x: -40, y: -20 }}
-                            transition={{ duration: 1.8, ease: 'easeOut' }}
+                            animate={{ opacity: [0.15, 0.28, 0.15], scale: [1.1, 1.35, 1.1], x: [-30, 20, -30], y: [-20, 15, -20] }}
+                            transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+                            sx={{
+                                position: 'absolute',
+                                width: 380,
+                                height: 380,
+                                borderRadius: '50%',
+                                background: mode === 'dark'
+                                    ? 'radial-gradient(circle at 40% 40%, #7c3aed66, #4f46e533, transparent 65%)'
+                                    : `radial-gradient(circle at 40% 40%, ${theme.palette.primary.main}33, transparent 65%)`,
+                                top: -100,
+                                right: -120,
+                                pointerEvents: 'none',
+                                zIndex: 0,
+                                filter: 'blur(28px)',
+                            }}
+                        />
+                        <Box
+                            component={motion.div}
+                            animate={{ opacity: [0.12, 0.22, 0.12], scale: [1.0, 1.25, 1.0], x: [20, -25, 20], y: [0, 25, 0] }}
+                            transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut', delay: 2.5 }}
+                            sx={{
+                                position: 'absolute',
+                                width: 300,
+                                height: 300,
+                                borderRadius: '50%',
+                                background: mode === 'dark'
+                                    ? 'radial-gradient(circle at 60% 60%, #6366f166, transparent 65%)'
+                                    : `radial-gradient(circle at 60% 60%, ${theme.palette.secondary.main}33, transparent 65%)`,
+                                bottom: -70,
+                                left: -90,
+                                pointerEvents: 'none',
+                                zIndex: 0,
+                                filter: 'blur(22px)',
+                            }}
+                        />
+                        <Box
+                            component={motion.div}
+                            animate={{ opacity: [0.08, 0.16, 0.08], scale: [1.0, 1.18, 1.0], x: [-15, 35, -15] }}
+                            transition={{ duration: 13, repeat: Infinity, ease: 'easeInOut', delay: 5 }}
                             sx={{
                                 position: 'absolute',
                                 width: 220,
                                 height: 220,
                                 borderRadius: '50%',
-                                background: `radial-gradient(circle at 30% 30%, ${theme.palette.primary.main}33, transparent 40%)`,
-                                top: -40,
-                                right: -60,
+                                background: mode === 'dark'
+                                    ? 'radial-gradient(circle at 50% 50%, #ec489944, transparent 65%)'
+                                    : 'radial-gradient(circle at 50% 50%, #f472b633, transparent 65%)',
+                                top: '22%',
+                                left: '48%',
                                 pointerEvents: 'none',
-                                zIndex: 0
-                            }}
-                        />
-                        <Box
-                            component={motion.div}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 0.08, scale: 1.1, x: 30, y: 10 }}
-                            transition={{ duration: 2.2, ease: 'easeOut' }}
-                            sx={{
-                                position: 'absolute',
-                                width: 160,
-                                height: 160,
-                                borderRadius: '50%',
-                                background: `radial-gradient(circle at 70% 70%, ${theme.palette.secondary.main}33, transparent 40%)`,
-                                bottom: -40,
-                                left: -40,
-                                pointerEvents: 'none',
-                                zIndex: 0
+                                zIndex: 0,
+                                filter: 'blur(20px)',
                             }}
                         />
                     </>
@@ -300,7 +384,7 @@ function UnregisterLanding() {
                                     variant="contained"
                                     size="large"
                                     component={Link}
-                                    to="/register"
+                                    to="/auth?tab=register"
                                     sx={{ px: 4, py: 1.5, boxShadow: 4, position: 'relative', zIndex: 1 }}
                                 >
                                     Get Started Free
@@ -308,17 +392,112 @@ function UnregisterLanding() {
                             </motion.div>
                         </Box>
 
-                        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                        <motion.div whileHover={!prefersReducedMotion ? { scale: 1.02, y: -3 } : {}} whileTap={{ scale: 0.98 }}>
+                            <Button
+                                variant="outlined"
+                                size="large"
+                                component={Link}
+                                to="/helpcenter"
+                                sx={{ px: 4, py: 1.5 }}
+                            >
+                                See Plans
+                            </Button>
+                        </motion.div>
+
+                        <motion.div whileHover={!prefersReducedMotion ? { scale: 1.02, y: -3 } : {}} whileTap={{ scale: 0.98 }}>
                             <Button
                                 variant="outlined"
                                 size="large"
                                 component={Link}
                                 to="/videos"
-                                sx={{ px: 4, py: 1.5 }}
+                                sx={{ px: 4, py: 1.5, borderStyle: 'dashed' }}
                             >
-                                Explore Content
+                                Watch Demo
                             </Button>
                         </motion.div>
+                    </Box>
+                </Box>
+
+                {/* Social Proof Section */}
+                <Box sx={{ mb: 8, position: 'relative', zIndex: 2 }} component={motion.div} variants={fadeInUp}>
+                    {/* Animated stat cards */}
+                    <Grid container spacing={2} sx={{ mb: 6, justifyContent: 'center' }}>
+                        {[
+                            { label: 'Users', to: userCount >= 1000 ? Math.round(userCount / 1000) : userCount, suffix: userCount >= 1000 ? 'K+' : '+' },
+                            { label: 'Posts', to: 1, suffix: 'M+' },
+                            { label: 'Uptime', to: null, display: '99.9%' },
+                            { label: 'Countries', to: 150, suffix: '+' },
+                        ].map((stat, i) => (
+                            <Grid item xs={6} sm={3} key={i} component={motion.div} variants={cardVariant}>
+                                <Paper elevation={0} sx={{ textAlign: 'center', p: { xs: 2, sm: 3 }, borderRadius: 3, ...getGlassyStyle(mode) }}>
+                                    <Typography variant="h4" fontWeight="800" sx={{
+                                        background: brandGradient,
+                                        WebkitBackgroundClip: 'text',
+                                        WebkitTextFillColor: 'transparent',
+                                        backgroundClip: 'text',
+                                    }}>
+                                        {stat.to !== null
+                                            ? <AnimatedCounter to={stat.to} suffix={stat.suffix} />
+                                            : stat.display}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                                        {stat.label}
+                                    </Typography>
+                                </Paper>
+                            </Grid>
+                        ))}
+                    </Grid>
+
+                    {/* Testimonials */}
+                    <Typography variant="h5" fontWeight="bold" textAlign="center" sx={{ mb: 3 }}>
+                        What our users say
+                    </Typography>
+                    <Grid container spacing={3} sx={{ mb: 5 }}>
+                        {[
+                            { name: 'Alex Rivera', role: 'Content Creator', text: 'Milonexa replaced 4 apps for me. The seamless feed, chat, and video platform in one place is a game changer.', initials: 'AR', color: 'primary.main' },
+                            { name: 'Priya Sharma', role: 'Community Manager', text: 'The real-time collaboration tools and Pages feature helped us grow our community 3× in just two months.', initials: 'PS', color: 'secondary.main' },
+                            { name: 'Marcus Chen', role: 'Tech Entrepreneur', text: 'Enterprise-grade security with a consumer-friendly UX. I finally found a platform I trust for both personal and professional use.', initials: 'MC', color: 'success.main' },
+                        ].map((t, i) => (
+                            <Grid item xs={12} md={4} key={i} component={motion.div} variants={cardVariant}>
+                                <Paper elevation={0} sx={{ p: 3, borderRadius: 3, height: '100%', ...getGlassyStyle(mode) }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                                        <Avatar sx={{ bgcolor: t.color, fontWeight: 700 }}>{t.initials}</Avatar>
+                                        <Box>
+                                            <Typography variant="subtitle2" fontWeight={700}>{t.name}</Typography>
+                                            <Typography variant="caption" color="text.secondary">{t.role}</Typography>
+                                        </Box>
+                                    </Box>
+                                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                        "{t.text}"
+                                    </Typography>
+                                </Paper>
+                            </Grid>
+                        ))}
+                    </Grid>
+
+                    {/* Featured by logos */}
+                    <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: 2, display: 'block', mb: 2 }}>
+                            Featured by
+                        </Typography>
+                        <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap" useFlexGap>
+                            {['TechCrunch', 'Product Hunt', 'GitHub', 'Hacker News', 'Dev.to'].map((logo, i) => (
+                                <Box key={i} component={motion.div} whileHover={!prefersReducedMotion ? { scale: 1.08, y: -2 } : {}}
+                                    sx={{
+                                        px: 2.5, py: 1,
+                                        border: `1px solid ${theme.palette.divider}`,
+                                        borderRadius: 2,
+                                        fontWeight: 700,
+                                        fontSize: '0.82rem',
+                                        color: 'text.secondary',
+                                        letterSpacing: 0.5,
+                                        cursor: 'default',
+                                        ...getGlassyStyle(mode),
+                                    }}>
+                                    {logo}
+                                </Box>
+                            ))}
+                        </Stack>
                     </Box>
                 </Box>
 
@@ -385,12 +564,28 @@ function UnregisterLanding() {
                                             {feature.description}
                                         </Typography>
 
+                                        {feature.sparkData && (
+                                            <Box sx={{ width: '100%', height: 30, mb: 1.5, opacity: 0.75 }}>
+                                                <ResponsiveContainer width="100%" height={30}>
+                                                    <AreaChart data={feature.sparkData}>
+                                                        <defs>
+                                                            <linearGradient id={`sparkGrad-${feature.title}`} x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor={designTokens.colors[mode].primary} stopOpacity={0.6} />
+                                                                <stop offset="95%" stopColor={designTokens.colors[mode].secondary} stopOpacity={0.05} />
+                                                            </linearGradient>
+                                                        </defs>
+                                                        <Area type="monotone" dataKey="v" stroke={designTokens.colors[mode].primary} fill={`url(#sparkGrad-${feature.title})`} strokeWidth={1.5} dot={false} isAnimationActive={!prefersReducedMotion} />
+                                                    </AreaChart>
+                                                </ResponsiveContainer>
+                                            </Box>
+                                        )}
+
                                         {feature.requiresLogin ? (
                                             <Stack direction="row" spacing={1} justifyContent="center">
                                                 <Button
                                                     size="small"
                                                     component={Link}
-                                                    to="/login"
+                                                    to="/auth"
                                                     variant="outlined"
                                                     sx={{ fontSize: '0.75rem' }}
                                                 >
@@ -399,7 +594,7 @@ function UnregisterLanding() {
                                                 <Button
                                                     size="small"
                                                     component={Link}
-                                                    to="/register"
+                                                    to="/auth?tab=register"
                                                     variant="contained"
                                                     sx={{ fontSize: '0.75rem' }}
                                                 >
@@ -523,7 +718,7 @@ function UnregisterLanding() {
                             variant="contained"
                             size="large"
                             component={Link}
-                            to="/register"
+                            to="/auth?tab=register"
                             sx={{ px: 5, py: 1.5, boxShadow: 6 }}
                         >
                             Create Free Account
