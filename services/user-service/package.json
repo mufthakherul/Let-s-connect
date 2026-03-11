@@ -25,7 +25,7 @@
     "nodemailer": "^8.0.2",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
-    "sequelize": "^6.37.7",
+    "sequelize": "^6.37.8",
     "simple-oauth2": "^5.1.0",
     "xml2js": "^0.6.2"
   },
