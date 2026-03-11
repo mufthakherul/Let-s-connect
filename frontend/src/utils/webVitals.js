@@ -38,11 +38,13 @@ const getRating = (name, value) => {
   return 'poor';
 };
 
-// Send metrics to analytics endpoint (stub for integration)
+// Send metrics to analytics endpoint
 const sendToAnalytics = (metric) => {
-  if (process.env.NODE_ENV === 'production') {
-    // TODO: Integrate with actual analytics service (Google Analytics, custom endpoint)
-    // Example: navigator.sendBeacon('/api/analytics/vitals', JSON.stringify(metric));
+  const payload = JSON.stringify({ ...metric, timestamp: Date.now(), url: window.location.href });
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon('/api/analytics/vitals', payload);
+  } else {
+    fetch('/api/analytics/vitals', { method: 'POST', body: payload, headers: { 'Content-Type': 'application/json' }, keepalive: true }).catch(() => {});
   }
 };
 
