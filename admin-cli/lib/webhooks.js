@@ -251,10 +251,15 @@ class WebhookManager {
             event_type: eventType.replace(/\s+/g, '_').toLowerCase(),
             client_payload: { severity, ...payload },
         });
+        const pkgVersion = (() => {
+            try {
+                return require('../package.json').version;
+            } catch (_) { return '5.0'; }
+        })();
         const headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'milonexa-admin-cli/5.0',
+            'User-Agent': `milonexa-admin-cli/${pkgVersion}`,
         };
         if (hook.token) headers['Authorization'] = `token ${hook.token}`;
         return this._post(hook.url, body, headers);

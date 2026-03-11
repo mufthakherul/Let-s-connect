@@ -250,7 +250,7 @@ class TUIDashboard {
             `${c('bold', 'System Status')}`,
             '',
             `  Alerts:     ${this._alertBadge(alertStats.active, alertStats.critical)}`,
-            `  Compliance: ${alertStats.critical > 0 ? c('red', compStatus.passed + '/' + compStatus.total) : c('green', compStatus.passed + '/' + compStatus.total + ' ✓')}`,
+            `  Compliance: ${compStatus.failed > 0 ? c('red', compStatus.passed + '/' + compStatus.total) : c('green', compStatus.passed + '/' + compStatus.total + ' ✓')}`,
             `  Budget:     ${budgetStatus.percentUsed > 90 ? c('red', budgetStatus.percentUsed + '%') : c('green', budgetStatus.percentUsed + '%')}`,
             `  SLA OK:     ${slaSum.breached > 0 ? c('red', slaSum.ok + '/' + slaSum.total) : c('green', slaSum.ok + '/' + slaSum.total + ' ✓')}`,
             `  Metrics:    ${c('cyan', metrics.length + ' data points')}`,

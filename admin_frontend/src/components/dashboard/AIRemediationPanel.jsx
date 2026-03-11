@@ -68,7 +68,8 @@ const AIRemediationPanel = () => {
     useEffect(() => {
         fetchRules();
         runAnalysis();
-    }, [fetchRules, runAnalysis]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleStepClick = (suggestionId, step) => {
         setActiveSteps(prev => ({ ...prev, [suggestionId]: step }));
