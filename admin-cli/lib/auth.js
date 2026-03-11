@@ -27,24 +27,31 @@ const ROLES = ['viewer', 'operator', 'admin', 'break-glass'];
  * Commands not listed default to 'viewer' (read-only).
  */
 const COMMAND_POLICY = {
-  doctor:     'viewer',
-  check:      'viewer',
-  incident:   'viewer',
-  status:     'viewer',
-  logs:       'viewer',
-  health:     'viewer',
-  run:        'viewer',
-  audit:      'viewer',
-  monitor:    'viewer',
-  'set-role': 'admin',
-  role:       'viewer',   // read-only: show current role
-  build:      'operator',
-  scale:      'operator',
-  rollout:    'operator',
-  start:      'operator',
-  restart:    'operator',
-  stop:       'admin',
-  backup:     'admin',
+    doctor: 'viewer',
+    check: 'viewer',
+    incident: 'viewer',
+    metrics: 'viewer',
+    alerts: 'viewer',
+    policies: 'operator',
+    costs: 'viewer',
+    compliance: 'viewer',
+    recommendations: 'viewer',
+    dashboard: 'viewer',
+    status: 'viewer',
+    logs: 'viewer',
+    health: 'viewer',
+    run: 'viewer',
+    audit: 'viewer',
+    monitor: 'viewer',
+    'set-role': 'admin',
+    role: 'viewer',   // read-only: show current role
+    build: 'operator',
+    scale: 'operator',
+    rollout: 'operator',
+    start: 'operator',
+    restart: 'operator',
+    stop: 'admin',
+    backup: 'admin',
 };
 
 /**
@@ -53,45 +60,48 @@ const COMMAND_POLICY = {
  * normal policy.
  */
 const PROD_COMMAND_POLICY = {
-  build:   'operator',
-  scale:   'admin',
-  rollout: 'admin',
-  start:   'admin',
-  restart: 'admin',
-  stop:    'admin',
-  backup:  'admin',
-  monitor: 'operator',
+    build: 'operator',
+    scale: 'admin',
+    rollout: 'admin',
+    start: 'admin',
+    restart: 'admin',
+    stop: 'admin',
+    backup: 'admin',
+    monitor: 'operator',
+    policies: 'admin',
+    costs: 'admin',
+    compliance: 'viewer',
 };
 
 function getRoleLevel(role) {
-  const idx = ROLES.indexOf(role);
-  return idx === -1 ? 1 : idx; // default to operator (index 1) if unknown
+    const idx = ROLES.indexOf(role);
+    return idx === -1 ? 1 : idx; // default to operator (index 1) if unknown
 }
 
 /** Resolve the active role from env, persisted file, or default. */
 function resolveRole() {
-  const envRole = (process.env.ADMIN_CLI_ROLE || '').trim().toLowerCase();
-  if (envRole && ROLES.includes(envRole)) return envRole;
+    const envRole = (process.env.ADMIN_CLI_ROLE || '').trim().toLowerCase();
+    if (envRole && ROLES.includes(envRole)) return envRole;
 
-  try {
-    if (fs.existsSync(ROLE_FILE)) {
-      const data = JSON.parse(fs.readFileSync(ROLE_FILE, 'utf8'));
-      if (data && data.role && ROLES.includes(data.role)) return data.role;
+    try {
+        if (fs.existsSync(ROLE_FILE)) {
+            const data = JSON.parse(fs.readFileSync(ROLE_FILE, 'utf8'));
+            if (data && data.role && ROLES.includes(data.role)) return data.role;
+        }
+    } catch (_) {
+        // ignore parse errors
     }
-  } catch (_) {
-    // ignore parse errors
-  }
 
-  return 'operator';
+    return 'operator';
 }
 
 /** Persist a role to the .admin-cli/role.json file. */
 function persistRole(role) {
-  if (!ROLES.includes(role)) {
-    throw new Error(`Invalid role '${role}'. Valid roles: ${ROLES.join(', ')}`);
-  }
-  fs.mkdirSync(ADMIN_HOME, { recursive: true });
-  fs.writeFileSync(ROLE_FILE, JSON.stringify({ role, setAt: new Date().toISOString() }, null, 2));
+    if (!ROLES.includes(role)) {
+        throw new Error(`Invalid role '${role}'. Valid roles: ${ROLES.join(', ')}`);
+    }
+    fs.mkdirSync(ADMIN_HOME, { recursive: true });
+    fs.writeFileSync(ROLE_FILE, JSON.stringify({ role, setAt: new Date().toISOString() }, null, 2));
 }
 
 /**
@@ -99,15 +109,15 @@ function persistRole(role) {
  * Production scope = --env prod/production OR --runtime k8s/kubernetes.
  */
 function isProductionScope(options) {
-  if (!options || typeof options !== 'object') return false;
-  const env = String(options.env || options.target || '').toLowerCase();
-  const runtime = String(options.runtime || '').toLowerCase();
-  return (
-    env === 'prod' ||
-    env === 'production' ||
-    runtime === 'k8s' ||
-    runtime === 'kubernetes'
-  );
+    if (!options || typeof options !== 'object') return false;
+    const env = String(options.env || options.target || '').toLowerCase();
+    const runtime = String(options.runtime || '').toLowerCase();
+    return (
+        env === 'prod' ||
+        env === 'production' ||
+        runtime === 'k8s' ||
+        runtime === 'kubernetes'
+    );
 }
 
 /**
@@ -115,36 +125,36 @@ function isProductionScope(options) {
  * @returns {{ allowed: boolean, role: string, required: string|null, isProd: boolean, breakGlass: boolean }}
  */
 function checkAuthorization(command, options, role) {
-  const currentRole = role || resolveRole();
-  const isProd = isProductionScope(options);
+    const currentRole = role || resolveRole();
+    const isProd = isProductionScope(options);
 
-  const requiredRole =
-    isProd && PROD_COMMAND_POLICY[command]
-      ? PROD_COMMAND_POLICY[command]
-      : (COMMAND_POLICY[command] || 'viewer');
+    const requiredRole =
+        isProd && PROD_COMMAND_POLICY[command]
+            ? PROD_COMMAND_POLICY[command]
+            : (COMMAND_POLICY[command] || 'viewer');
 
-  // break-glass bypasses all policy (but is audited with the breakGlass flag)
-  if (currentRole === 'break-glass') {
-    return { allowed: true, role: currentRole, required: requiredRole, isProd, breakGlass: true };
-  }
+    // break-glass bypasses all policy (but is audited with the breakGlass flag)
+    if (currentRole === 'break-glass') {
+        return { allowed: true, role: currentRole, required: requiredRole, isProd, breakGlass: true };
+    }
 
-  const currentLevel = getRoleLevel(currentRole);
-  const requiredLevel = getRoleLevel(requiredRole);
+    const currentLevel = getRoleLevel(currentRole);
+    const requiredLevel = getRoleLevel(requiredRole);
 
-  return {
-    allowed: currentLevel >= requiredLevel,
-    role: currentRole,
-    required: requiredRole,
-    isProd,
-    breakGlass: false,
-  };
+    return {
+        allowed: currentLevel >= requiredLevel,
+        role: currentRole,
+        required: requiredRole,
+        isProd,
+        breakGlass: false,
+    };
 }
 
 module.exports = {
-  ROLES,
-  resolveRole,
-  persistRole,
-  checkAuthorization,
-  isProductionScope,
-  ROLE_FILE,
+    ROLES,
+    resolveRole,
+    persistRole,
+    checkAuthorization,
+    isProductionScope,
+    ROLE_FILE,
 };

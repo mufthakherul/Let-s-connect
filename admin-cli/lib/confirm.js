@@ -14,16 +14,22 @@ const readline = require('readline');
 
 /** Commands that only read/inspect — never require confirmation regardless of scope. */
 const READ_ONLY_COMMANDS = new Set([
-  'doctor',
-  'status',
-  'logs',
-  'health',
-  'run',
-  'audit',
-  'role',
-  'set-role',
-  'check',
-  'incident',
+    'doctor',
+    'status',
+    'logs',
+    'health',
+    'run',
+    'audit',
+    'role',
+    'set-role',
+    'check',
+    'incident',
+    'metrics',
+    'alerts',
+    'costs',
+    'compliance',
+    'recommendations',
+    'dashboard',
 ]);
 
 /**
@@ -35,32 +41,32 @@ const READ_ONLY_COMMANDS = new Set([
  * @returns {boolean}
  */
 function requiresConfirmation(command, options, authResult) {
-  // Read-only commands never need confirmation
-  if (READ_ONLY_COMMANDS.has(command)) return false;
+    // Read-only commands never need confirmation
+    if (READ_ONLY_COMMANDS.has(command)) return false;
 
-  // break-glass role bypasses confirmation (still audited)
-  if (authResult && authResult.breakGlass) return false;
+    // break-glass role bypasses confirmation (still audited)
+    if (authResult && authResult.breakGlass) return false;
 
-  // Not in production scope: no prompt needed
-  if (!authResult || !authResult.isProd) return false;
+    // Not in production scope: no prompt needed
+    if (!authResult || !authResult.isProd) return false;
 
-  // --dry-run: nothing is actually executed, no prompt needed
-  const hasDryRun = options && (options['dry-run'] === true || options['dry-run'] === 'true' || options['dry-run'] === '1');
-  if (hasDryRun) return false;
+    // --dry-run: nothing is actually executed, no prompt needed
+    const hasDryRun = options && (options['dry-run'] === true || options['dry-run'] === 'true' || options['dry-run'] === '1');
+    if (hasDryRun) return false;
 
-  // --confirm: explicit acknowledgment provided (CI / pipeline mode)
-  const hasExplicitConfirm = options && toBoolOpt(options.confirm);
-  if (hasExplicitConfirm) return false;
+    // --confirm: explicit acknowledgment provided (CI / pipeline mode)
+    const hasExplicitConfirm = options && toBoolOpt(options.confirm);
+    if (hasExplicitConfirm) return false;
 
-  return true;
+    return true;
 }
 
 /** Minimal boolean coercion — avoids circular dependency on index.js toBool. */
 function toBoolOpt(value) {
-  if (value === undefined || value === null) return false;
-  if (typeof value === 'boolean') return value;
-  const s = String(value).trim().toLowerCase();
-  return ['1', 'true', 'yes', 'y', 'on'].includes(s);
+    if (value === undefined || value === null) return false;
+    if (typeof value === 'boolean') return value;
+    const s = String(value).trim().toLowerCase();
+    return ['1', 'true', 'yes', 'y', 'on'].includes(s);
 }
 
 /**
@@ -73,30 +79,30 @@ function toBoolOpt(value) {
  * @returns {Promise<boolean>} Resolves true if confirmed, false if aborted.
  */
 async function promptConfirm(command, isProd, role) {
-  const scope = isProd ? 'PRODUCTION' : 'elevated scope';
+    const scope = isProd ? 'PRODUCTION' : 'elevated scope';
 
-  if (!process.stdin.isTTY) {
-    process.stderr.write(
-      `\x1b[31m[error]\x1b[0m Command '\x1b[1m${command}\x1b[0m' targets ${scope} and requires confirmation.\n` +
-      `       Non-interactive mode detected. Pass \x1b[1m--confirm\x1b[0m to acknowledge the risk,\n` +
-      `       or \x1b[1m--dry-run\x1b[0m to preview without making changes.\n`
-    );
-    process.exit(1);
-  }
+    if (!process.stdin.isTTY) {
+        process.stderr.write(
+            `\x1b[31m[error]\x1b[0m Command '\x1b[1m${command}\x1b[0m' targets ${scope} and requires confirmation.\n` +
+            `       Non-interactive mode detected. Pass \x1b[1m--confirm\x1b[0m to acknowledge the risk,\n` +
+            `       or \x1b[1m--dry-run\x1b[0m to preview without making changes.\n`
+        );
+        process.exit(1);
+    }
 
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
-  return new Promise((resolve) => {
-    const prompt =
-      `\n\x1b[33m[confirm]\x1b[0m Command \x1b[1m${command}\x1b[0m targets \x1b[1m${scope}\x1b[0m (role: ${role}).\n` +
-      `         This operation may affect live services. Type \x1b[1mCONFIRM\x1b[0m to proceed,\n` +
-      `         or press Enter / type anything else to abort: `;
+    return new Promise((resolve) => {
+        const prompt =
+            `\n\x1b[33m[confirm]\x1b[0m Command \x1b[1m${command}\x1b[0m targets \x1b[1m${scope}\x1b[0m (role: ${role}).\n` +
+            `         This operation may affect live services. Type \x1b[1mCONFIRM\x1b[0m to proceed,\n` +
+            `         or press Enter / type anything else to abort: `;
 
-    rl.question(prompt, (answer) => {
-      rl.close();
-      resolve(answer.trim() === 'CONFIRM');
+        rl.question(prompt, (answer) => {
+            rl.close();
+            resolve(answer.trim() === 'CONFIRM');
+        });
     });
-  });
 }
 
 module.exports = { requiresConfirmation, promptConfirm };
