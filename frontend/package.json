@@ -35,6 +35,11 @@
     "check:bundle": "node scripts/check-build-budget.js",
     "test": "react-scripts test",
     "test:e2e": "playwright test",
+    "lint": "eslint src --ext .js,.jsx,.ts,.tsx --max-warnings 50",
+    "lint:fix": "eslint src --ext .js,.jsx,.ts,.tsx --fix",
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,json}\"",
+    "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,css,json}\"",
+    "typecheck": "tsc --noEmit",
     "eject": "react-scripts eject",
     "postinstall": "node -e \"const fs=require('fs');['shaka-player.ui.js','controls.css'].forEach(file=>{const p='./node_modules/shaka-player/dist/'+file;try{if(fs.existsSync(p)){let c=fs.readFileSync(p,'utf8');c=c.replace(/(^|\\n)\\/\\/# sourceMappingURL=.*$/gm,'');c=c.replace(/\\/\\*# sourceMappingURL=[^*]*\\*\\//gm,'');fs.writeFileSync(p,c,'utf8');}}catch(_){}});\""
   },
