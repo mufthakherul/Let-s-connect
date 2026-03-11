@@ -89,6 +89,10 @@ const { MultiClusterManager } = require('../shared/multi-cluster');
 const { TrendAnalyzer } = require('../shared/trend-analysis');
 const { RemediationEngine } = require('../shared/ai-remediation');
 const { printAuditLog } = require('../shared/audit');
+const { SessionManager } = require('../shared/session-manager');
+const { SecretsVault } = require('../shared/secrets-vault');
+const { AnomalyDetector } = require('../shared/anomaly-detector');
+const { GDPRManager } = require('../shared/gdpr');
 
 // ---------------------------------------------------------------------------
 // Logger
@@ -97,6 +101,140 @@ const { printAuditLog } = require('../shared/audit');
 function log(level, msg) {
     const ts = new Date().toISOString();
     process.stdout.write(`[${ts}] [${level}] ${msg}\n`);
+}
+
+// ---------------------------------------------------------------------------
+// Q3 2026 Security Hardening — helpers
+// ---------------------------------------------------------------------------
+
+/** Strip dangerous chars and limit to 500 characters. */
+function sanitize(str) {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[<>'"]/g, '').slice(0, 500);
+}
+
+/** OWASP security headers added to every response. */
+const SECURITY_HEADERS = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'X-XSS-Protection': '1; mode=block',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Content-Security-Policy': "default-src 'none'",
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+};
+
+// ---------------------------------------------------------------------------
+// In-memory rate limiter (per-IP: 100 req/min, per-user: 200 req/min)
+// ---------------------------------------------------------------------------
+
+const RATE_WINDOW_MS = 60 * 1000;
+const IP_MAX_REQUESTS = 100;
+const USER_MAX_REQUESTS = 200;
+
+const _ipWindows = {};
+const _userWindows = {};
+
+function checkRateLimit(ip, userId) {
+    const now = Date.now();
+
+    if (!_ipWindows[ip] || now - _ipWindows[ip].windowStart > RATE_WINDOW_MS) {
+        _ipWindows[ip] = { count: 1, windowStart: now };
+    } else {
+        _ipWindows[ip].count++;
+    }
+    if (_ipWindows[ip].count > IP_MAX_REQUESTS) {
+        return {
+            limited: true, type: 'ip',
+            retryAfter: Math.ceil((RATE_WINDOW_MS - (now - _ipWindows[ip].windowStart)) / 1000),
+        };
+    }
+
+    if (userId) {
+        if (!_userWindows[userId] || now - _userWindows[userId].windowStart > RATE_WINDOW_MS) {
+            _userWindows[userId] = { count: 1, windowStart: now };
+        } else {
+            _userWindows[userId].count++;
+        }
+        if (_userWindows[userId].count > USER_MAX_REQUESTS) {
+            return {
+                limited: true, type: 'user',
+                retryAfter: Math.ceil((RATE_WINDOW_MS - (now - _userWindows[userId].windowStart)) / 1000),
+            };
+        }
+    }
+
+    return { limited: false };
+}
+
+function getRateLimitState() {
+    const result = [];
+    for (const [ip, w] of Object.entries(_ipWindows)) {
+        result.push({ ip, count: w.count, windowStart: new Date(w.windowStart).toISOString(), blocked: w.count > IP_MAX_REQUESTS });
+    }
+    for (const [userId, w] of Object.entries(_userWindows)) {
+        result.push({ userId, count: w.count, windowStart: new Date(w.windowStart).toISOString(), blocked: w.count > USER_MAX_REQUESTS });
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// IP Allowlist
+// ---------------------------------------------------------------------------
+
+let _ipAllowlist = (process.env.ADMIN_IP_ALLOWLIST || '').split(',').map(s => s.trim()).filter(Boolean);
+
+function ipInAllowlist(ip) {
+    if (_ipAllowlist.length === 0) return true;
+    for (const entry of _ipAllowlist) {
+        if (entry === ip) return true;
+        if (entry.includes('/') && ipMatchesCidr(ip, entry)) return true;
+    }
+    return false;
+}
+
+function ipMatchesCidr(ip, cidr) {
+    try {
+        const [range, bits] = cidr.split('/');
+        const mask = ~(Math.pow(2, 32 - parseInt(bits)) - 1) >>> 0;
+        const ipNum = ipToInt(ip);
+        const rangeNum = ipToInt(range);
+        return (ipNum & mask) === (rangeNum & mask);
+    } catch (_) {
+        return false;
+    }
+}
+
+function ipToInt(ip) {
+    return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
+}
+
+// ---------------------------------------------------------------------------
+// Lazy module instances (Q3 2026)
+// ---------------------------------------------------------------------------
+
+let _sessionManager = null;
+let _anomalyDetector = null;
+let _secretsVault = null;
+let _gdprManager = null;
+
+function getSessionManager() {
+    if (!_sessionManager) _sessionManager = new SessionManager(ADMIN_HOME, { evictOldest: true });
+    return _sessionManager;
+}
+
+function getAnomalyDetector() {
+    if (!_anomalyDetector) _anomalyDetector = new AnomalyDetector(ADMIN_HOME);
+    return _anomalyDetector;
+}
+
+function getSecretsVault() {
+    if (!_secretsVault) _secretsVault = new SecretsVault(ADMIN_HOME);
+    return _secretsVault;
+}
+
+function getGDPRManager() {
+    if (!_gdprManager) _gdprManager = new GDPRManager(ADMIN_HOME);
+    return _gdprManager;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,6 +261,7 @@ function sendJSON(res, statusCode, data) {
         'Access-Control-Allow-Origin': process.env.ADMIN_CORS_ORIGIN || '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        ...SECURITY_HEADERS,
     });
     res.end(body);
 }
@@ -162,6 +301,7 @@ async function handleRequest(req, res) {
             'Access-Control-Allow-Origin': process.env.ADMIN_CORS_ORIGIN || '*',
             'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            ...SECURITY_HEADERS,
         });
         res.end();
         return;
@@ -169,15 +309,45 @@ async function handleRequest(req, res) {
 
     log('info', `${method} ${pathname}`);
 
-    // Health — no auth required
+    // Health — no auth, no rate limit, no allowlist
     if (pathname === '/health' && method === 'GET') {
         return sendJSON(res, 200, { status: 'ok', timestamp: new Date().toISOString(), version: '5.0' });
+    }
+
+    // IP Allowlist enforcement (skip /health handled above)
+    const clientIp = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+    if (!ipInAllowlist(clientIp)) {
+        return sendError(res, 403, `IP ${clientIp} is not in the allowlist`);
+    }
+
+    // Rate limit — per-IP (userId resolved after auth below, but still enforce IP limit now)
+    const rlCheck = checkRateLimit(clientIp, null);
+    if (rlCheck.limited) {
+        res.setHeader('Retry-After', String(rlCheck.retryAfter));
+        return sendError(res, 429, `Rate limit exceeded (${rlCheck.type}). Retry after ${rlCheck.retryAfter}s`);
     }
 
     // Auth check for all other routes
     if (!authenticate(req)) {
         return sendError(res, 401, 'Unauthorized. Provide a valid Bearer token via Authorization header.');
     }
+
+    // Per-user rate limit (now that we have the API key)
+    const authHeader = req.headers['authorization'] || '';
+    const reqToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    const tokenUserId = reqToken
+        ? `key:${crypto.createHash('sha256').update(reqToken).digest('hex').slice(0, 16)}`
+        : null;
+    const userRlCheck = checkRateLimit(clientIp, tokenUserId);
+    if (userRlCheck.limited) {
+        res.setHeader('Retry-After', String(userRlCheck.retryAfter));
+        return sendError(res, 429, `Rate limit exceeded (${userRlCheck.type}). Retry after ${userRlCheck.retryAfter}s`);
+    }
+
+    // Record activity for anomaly detection
+    try {
+        getAnomalyDetector().recordActivity({ userId: tokenUserId || 'anon', ip: clientIp, action: `${method}:${pathname}` });
+    } catch (_) { /* never interrupt request handling */ }
 
     const body = (method === 'POST' || method === 'PUT' || method === 'PATCH') ? await parseBody(req) : {};
 
@@ -669,6 +839,246 @@ async function handleRequest(req, res) {
             return sendJSON(res, 200, { id, status: perms[idx].status, decidedAt: perms[idx].decidedAt });
         }
 
+        // ====================================================================
+        // Q3 2026 Security Hardening endpoints
+        // ====================================================================
+
+        // ---- Rate Limits (security alias) ----
+        if (pathname === '/api/v1/security/rate-limits' && method === 'GET') {
+            return sendJSON(res, 200, { rateLimits: getRateLimitState() });
+        }
+
+        // ---- IP Allowlist ----
+        if (pathname === '/api/v1/security/ip-allowlist' && method === 'GET') {
+            return sendJSON(res, 200, { allowlist: _ipAllowlist });
+        }
+
+        if (pathname === '/api/v1/security/ip-allowlist' && method === 'POST') {
+            const ip = sanitize(body.ip);
+            if (!ip) return sendError(res, 400, 'ip is required');
+            // Basic IPv4 / CIDR / IPv6 format validation
+            const ipv4Re = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+            const ipv6Re = /^[0-9a-fA-F:]+$/;
+            if (!ipv4Re.test(ip) && !ipv6Re.test(ip)) {
+                return sendError(res, 400, 'ip must be a valid IPv4, IPv4 CIDR, or IPv6 address');
+            }
+            if (!_ipAllowlist.includes(ip)) _ipAllowlist.push(ip);
+            return sendJSON(res, 200, { allowlist: _ipAllowlist });
+        }
+
+        const ipAllowlistDeleteMatch = pathname.match(/^\/api\/v1\/security\/ip-allowlist\/(.+)$/);
+        if (ipAllowlistDeleteMatch && method === 'DELETE') {
+            const target = decodeURIComponent(ipAllowlistDeleteMatch[1]);
+            _ipAllowlist = _ipAllowlist.filter(e => e !== target);
+            return sendJSON(res, 200, { allowlist: _ipAllowlist });
+        }
+
+        // ---- Session Management ----
+        if (pathname === '/api/v1/security/sessions' && method === 'GET') {
+            return sendJSON(res, 200, { sessions: getSessionManager().listSessions() });
+        }
+
+        if (pathname === '/api/v1/security/sessions/stats' && method === 'GET') {
+            return sendJSON(res, 200, getSessionManager().getStats());
+        }
+
+        if (pathname === '/api/v1/security/sessions/logout-user' && method === 'POST') {
+            const userId = sanitize(body.userId);
+            if (!userId) return sendError(res, 400, 'userId is required');
+            const count = getSessionManager().forceLogoutUser(userId);
+            return sendJSON(res, 200, { loggedOut: count, userId });
+        }
+
+        const sessionLogoutMatch = pathname.match(/^\/api\/v1\/security\/sessions\/([^/]+)\/logout$/);
+        if (sessionLogoutMatch && method === 'POST') {
+            const sessionId = sessionLogoutMatch[1];
+            const ok = getSessionManager().forceLogout(sessionId);
+            return sendJSON(res, ok ? 200 : 404, { loggedOut: ok, sessionId });
+        }
+
+        // ---- Anomaly Detection ----
+        if (pathname === '/api/v1/security/anomalies' && method === 'GET') {
+            const limit = parseInt(parsedUrl.searchParams.get('limit')) || 50;
+            return sendJSON(res, 200, { anomalies: getAnomalyDetector().getAnomalyHistory(limit) });
+        }
+
+        if (pathname === '/api/v1/security/anomalies/stats' && method === 'GET') {
+            return sendJSON(res, 200, getAnomalyDetector().getStats());
+        }
+
+        // ---- 2FA ----
+        if (pathname === '/api/v1/security/2fa/status' && method === 'GET') {
+            const cfgFile = path.join(ADMIN_HOME, 'config.json');
+            let cfg = {};
+            if (fs.existsSync(cfgFile)) { try { cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8')); } catch (_) {} }
+            return sendJSON(res, 200, {
+                enabled: cfg.ENABLE_ADMIN_2FA === true || cfg.ENABLE_ADMIN_2FA === 'true',
+                enrolledUsers: Array.isArray(cfg.twoFactorEnrolled) ? cfg.twoFactorEnrolled : [],
+            });
+        }
+
+        if (pathname === '/api/v1/security/2fa/enforce' && method === 'POST') {
+            const enabled = body.enabled === true || body.enabled === 'true';
+            const cfgFile = path.join(ADMIN_HOME, 'config.json');
+            let cfg = {};
+            if (fs.existsSync(cfgFile)) { try { cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8')); } catch (_) {} }
+            cfg.ENABLE_ADMIN_2FA = enabled;
+            if (!fs.existsSync(ADMIN_HOME)) fs.mkdirSync(ADMIN_HOME, { recursive: true });
+            fs.writeFileSync(cfgFile, JSON.stringify(cfg, null, 2), 'utf8');
+            return sendJSON(res, 200, { ENABLE_ADMIN_2FA: enabled });
+        }
+
+        if (pathname === '/api/v1/security/2fa/generate' && method === 'POST') {
+            const userId = sanitize(body.userId);
+            if (!userId) return sendError(res, 400, 'userId is required');
+            // Generate a 20-byte TOTP secret and encode as base32 (RFC 4648) — bit-level to avoid modulo bias
+            const secretBytes = crypto.randomBytes(20);
+            const base32Alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+            // Encode 5 bits at a time from the 20-byte buffer (yields 32 base32 chars)
+            let bits = 0;
+            let bitCount = 0;
+            let secret = '';
+            for (const byte of secretBytes) {
+                bits = (bits << 8) | byte;
+                bitCount += 8;
+                while (bitCount >= 5) {
+                    bitCount -= 5;
+                    secret += base32Alphabet[(bits >>> bitCount) & 0x1f];
+                }
+            }
+            // Generate 8 backup codes
+            const backupCodes = Array.from({ length: 8 }, () =>
+                crypto.randomBytes(4).toString('hex').toUpperCase()
+            );
+            const issuer = encodeURIComponent('Milonexa Admin');
+            const accountName = encodeURIComponent(userId);
+            const qrCodeUrl = `otpauth://totp/${issuer}:${accountName}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`;
+
+            // Persist enrollment
+            const cfgFile = path.join(ADMIN_HOME, 'config.json');
+            let cfg = {};
+            if (fs.existsSync(cfgFile)) { try { cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8')); } catch (_) {} }
+            if (!Array.isArray(cfg.twoFactorEnrolled)) cfg.twoFactorEnrolled = [];
+            if (!cfg.twoFactorEnrolled.includes(userId)) cfg.twoFactorEnrolled.push(userId);
+            if (!fs.existsSync(ADMIN_HOME)) fs.mkdirSync(ADMIN_HOME, { recursive: true });
+            fs.writeFileSync(cfgFile, JSON.stringify(cfg, null, 2), 'utf8');
+
+            return sendJSON(res, 200, { secret, qrCodeUrl, backupCodes });
+        }
+
+        // ---- Secrets Vault ----
+        if (pathname === '/api/v1/security/secrets' && method === 'GET') {
+            const keys = await getSecretsVault().listSecrets();
+            return sendJSON(res, 200, { keys, backend: getSecretsVault().getBackendType() });
+        }
+
+        if (pathname === '/api/v1/security/secrets' && method === 'POST') {
+            const key = sanitize(body.key);
+            const value = sanitize(body.value);
+            if (!key || value === undefined) return sendError(res, 400, 'key and value are required');
+            await getSecretsVault().setSecret(key, value);
+            return sendJSON(res, 201, { set: true, key });
+        }
+
+        const secretDeleteMatch = pathname.match(/^\/api\/v1\/security\/secrets\/([^/]+)$/);
+        if (secretDeleteMatch && method === 'DELETE') {
+            const key = secretDeleteMatch[1];
+            await getSecretsVault().deleteSecret(key);
+            return sendJSON(res, 200, { deleted: true, key });
+        }
+
+        const secretRotateMatch = pathname.match(/^\/api\/v1\/security\/secrets\/([^/]+)\/rotate$/);
+        if (secretRotateMatch && method === 'POST') {
+            const key = secretRotateMatch[1];
+            const newValue = sanitize(body.newValue);
+            if (!newValue) return sendError(res, 400, 'newValue is required');
+            const oldValue = await getSecretsVault().rotateSecret(key, newValue);
+            return sendJSON(res, 200, { rotated: true, key, hadPreviousValue: oldValue !== null });
+        }
+
+        // ====================================================================
+        // GDPR & Compliance endpoints
+        // ====================================================================
+
+        const gdprExportMatch = pathname.match(/^\/api\/v1\/gdpr\/export\/([^/]+)$/);
+        if (gdprExportMatch && method === 'GET') {
+            const userId = gdprExportMatch[1];
+            const data = getGDPRManager().exportUserData(userId);
+            return sendJSON(res, 200, data);
+        }
+
+        if (pathname === '/api/v1/gdpr/erasure' && method === 'POST') {
+            const userId = sanitize(body.userId);
+            const reason = sanitize(body.reason);
+            const requestedBy = sanitize(body.requestedBy) || 'admin-api';
+            if (!userId) return sendError(res, 400, 'userId is required');
+            const request = getGDPRManager().requestErasure({ userId, requestedBy, reason });
+            return sendJSON(res, 201, request);
+        }
+
+        if (pathname === '/api/v1/gdpr/erasure' && method === 'GET') {
+            const status = parsedUrl.searchParams.get('status');
+            return sendJSON(res, 200, { requests: getGDPRManager().listErasureRequests(status) });
+        }
+
+        const erasureApproveMatch = pathname.match(/^\/api\/v1\/gdpr\/erasure\/([^/]+)\/approve$/);
+        if (erasureApproveMatch && method === 'POST') {
+            const requestId = erasureApproveMatch[1];
+            const approvedBy = sanitize(body.approvedBy) || 'admin-api';
+            const req_ = getGDPRManager().approveErasure(requestId, approvedBy);
+            return sendJSON(res, 200, req_);
+        }
+
+        const erasureExecuteMatch = pathname.match(/^\/api\/v1\/gdpr\/erasure\/([^/]+)\/execute$/);
+        if (erasureExecuteMatch && method === 'POST') {
+            const requestId = erasureExecuteMatch[1];
+            const req_ = getGDPRManager().executeErasure(requestId);
+            return sendJSON(res, 200, req_);
+        }
+
+        const gdprConsentMatch = pathname.match(/^\/api\/v1\/gdpr\/consent\/([^/]+)$/);
+        if (gdprConsentMatch && method === 'GET') {
+            const userId = gdprConsentMatch[1];
+            return sendJSON(res, 200, { history: getGDPRManager().getConsentHistory(userId) });
+        }
+
+        if (pathname === '/api/v1/gdpr/consent' && method === 'POST') {
+            const { userId, type, version, granted, ip: consentIp } = body;
+            if (!userId || !type) return sendError(res, 400, 'userId and type are required');
+            const event = getGDPRManager().recordConsent({
+                userId: sanitize(userId),
+                type: sanitize(type),
+                version: sanitize(version),
+                granted: granted === true || granted === 'true',
+                ip: sanitize(consentIp) || clientIp,
+            });
+            return sendJSON(res, 201, event);
+        }
+
+        if (pathname === '/api/v1/gdpr/retention/run' && method === 'POST') {
+            const policies = Array.isArray(body.policies) ? body.policies : [];
+            const result = getGDPRManager().runRetentionCleanup(policies);
+            return sendJSON(res, 200, result);
+        }
+
+        if (pathname === '/api/v1/compliance/report' && method === 'GET') {
+            const html = getGDPRManager().generateComplianceReport();
+            const buf = Buffer.from(html, 'utf8');
+            res.writeHead(200, {
+                'Content-Type': 'text/html; charset=utf-8',
+                'Content-Length': buf.length,
+                ...SECURITY_HEADERS,
+                // Relax CSP to allow inline styles for the report's HTML rendering
+                'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'",
+            });
+            res.end(buf);
+            return;
+        }
+
+        if (pathname === '/api/v1/compliance/soc2' && method === 'GET') {
+            return sendJSON(res, 200, getGDPRManager().collectSOC2Evidence());
+        }
+
         return sendError(res, 404, `Not found: ${method} ${pathname}`);
 
     } catch (err) {
@@ -884,6 +1294,7 @@ server.listen(PORT, HOST, () => {
     log('info', `Auth: ${API_KEY ? 'Bearer token enabled (ADMIN_API_KEY)' : HOST === '127.0.0.1' || HOST === 'localhost' ? 'Loopback-only (no ADMIN_API_KEY — set for non-loopback deployment)' : 'BLOCKED — set ADMIN_API_KEY to allow access from non-loopback host'}`);
     log('info', `Core: GET /health, /api/v1/dashboard, /api/v1/metrics, /api/v1/alerts, /api/v1/sla, /api/v1/webhooks, /api/v1/clusters, /api/v1/trends, /api/v1/compliance, /api/v1/costs, /api/v1/recommendations, /api/v1/audit`);
     log('info', `Q2-2026: POST /api/v1/graphql, /api/v1/users[/bulk|/export|/:id], /api/v1/api-keys, /api/v1/rate-limits, /api/v1/events[/replay|/stream], /api/v1/alerts/rules, /api/v1/ai/permissions, PUT|test|logs on /api/v1/webhooks/:id`);
+    log('info', `Q3-2026: /api/v1/security/{rate-limits,ip-allowlist,sessions,anomalies,2fa,secrets}, /api/v1/gdpr/{export,erasure,consent,retention}, /api/v1/compliance/{report,soc2}`);
     if (!API_KEY) {
         if (HOST === '127.0.0.1' || HOST === 'localhost') {
             log('warn', 'WARNING: ADMIN_API_KEY is not set. API allows unauthenticated loopback access only.');
