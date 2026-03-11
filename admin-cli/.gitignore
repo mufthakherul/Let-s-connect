@@ -1,0 +1,3 @@
+# Ignore runtime state — these are in the root .admin-cli/ directory,
+# but this .gitignore covers anything generated inside admin-cli/ itself.
+node_modules/
