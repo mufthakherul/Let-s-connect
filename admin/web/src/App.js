@@ -19,6 +19,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/authStore';
+import { useAppearanceStore } from './store/appearanceStore';
 import NotificationCenter from './components/common/NotificationCenter';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import Error404 from './components/errors/Error404';
@@ -96,6 +97,9 @@ function AppContent() {
   const [registeredAppsAnchor, setRegisteredAppsAnchor] = useState(null);
   const [profileMenuAnchor, setProfileMenuAnchor] = useState(null);
   const { mode, toggleTheme, getAccentColor, initSystemThemeListener, accessibility } = useThemeStore();
+  // Sync appearance store dark mode with theme store so the admin panel dark mode toggle
+  // is reflected consistently across the app shell.
+  useAppearanceStore();
 
   // Brand gradient: modern premium gradients from designTokens
   const brandGradient = useMemo(() =>

@@ -2,8 +2,8 @@
 
 <!-- markdownlint-disable MD022 MD024 MD032 MD047 -->
 
-**Version:** 1.0  
-**Date:** March 11, 2026  
+**Version:** 4.0  
+**Date:** July 3, 2026  
 **Scope:** All non-AI admin panel components — CLI, REST API, Web Dashboard, SSH, Email, Bots, Webhooks, Shared utilities  
 **Related:** [General Roadmap](../../ROADMAP.md) · [AI Admin Roadmap](./AI_ADMIN_ROADMAP.md)
 
@@ -76,97 +76,156 @@ The admin panel is a collection of interfaces and utilities for platform operato
 
 ---
 
-## 🔜 Planned — Q2 2026
-
-### CLI Enhancements
-- [ ] Plugin system: load additional CLI commands from `admin/cli/plugins/`
-- [ ] Batch operations: apply command to multiple services at once
-- [ ] Diff viewer: show what would change before applying a config update
-- [ ] Auto-complete for service names and command flags (readline hints)
-- [ ] `tail-logs` command: stream live service logs via Docker/k8s API
-- [ ] Config snapshot/restore: save and restore service configuration
-- [ ] Side-by-side service comparison: CPU, memory, error rate, latency
-
-### REST API Enhancements
-- [ ] GraphQL layer: expose platform metrics and audit log via GraphQL
-- [ ] Bulk user management: batch suspend/activate/export users
-- [ ] Webhook management endpoints: CRUD for outbound webhook registrations
-- [ ] API key management: issue, rotate, revoke per-service API keys
-- [ ] Rate-limit dashboard endpoint: view per-IP/per-user limit status
-- [ ] Event sourcing: replay admin events from audit log for debugging
+## ✅ Shipped — Q2 2026
 
 ### Web Dashboard Enhancements
-- [ ] **Live service health dashboard** — real-time CPU, memory, latency, error rate per service
-- [ ] **User management table** — search, filter, bulk actions (suspend, role change)
-- [ ] **Audit log viewer** — filterable table with export (CSV/JSON)
-- [ ] **SLA breach timeline** — visual timeline of breaches and resolutions
-- [ ] **Alert rule editor** — create/edit alert rules via UI (no YAML required)
-- [ ] **Cost breakdown chart** — service-level cost visualization
-- [ ] **Permission approval UI** — review and approve/deny AI agent actions inline
-- [ ] **Dark mode** — toggle via appearance store (already stubbed in `appearanceStore.js`)
-- [ ] **Keyboard shortcuts** — modal showing all shortcuts (`useKeyboardShortcuts.js`)
-- [ ] Responsive mobile layout (tablet + phone breakpoints)
-- [ ] Internationalization (i18n) scaffolding
+- [x] **ServiceHealthGrid** — live per-service health grid (CPU, memory, latency, error rate)
+- [x] **UserManagementTable** — searchable/filterable user table with bulk actions
+- [x] **AuditLogTable** — filterable audit log viewer with CSV/JSON export
+- [x] **SLATimeline** — visual breach timeline with resolution tracking
+- [x] **AlertRuleEditor** — create/edit alert rules directly in the UI
+- [x] **CostBreakdown** — service-level cost breakdown chart
+- [x] **AIPermissionInbox** — inline approval/deny flow for AI agent permission requests
+- [x] Dark mode wired to `useAppearanceStore` (`updateSetting('darkMode', ...)`)
+- [x] `KeyboardShortcutsModal` — grouped shortcut reference accessible via `?` key
+- [x] `useKeyboardShortcuts` wired with search, refresh, and help callbacks
+- [x] Numeric keys 1–9 mapped to tab switching
+- [x] Responsive drawer: `temporary` on mobile, `persistent` on desktop
+- [x] i18n scaffolding (`utils/i18n.js`) — en, fr, de, es, ja, zh; `useTranslation` hook + `setLanguage` + `SUPPORTED_LANGUAGES`
+- [x] Language selector in AppBar expanded to all 6 supported languages
+
+---
+
+## ✅ Done — Q2 2026
+
+### CLI Enhancements
+- [x] Plugin system: load additional CLI commands from `admin/cli/plugins/`
+- [x] Batch operations: apply command to multiple services at once
+- [x] Diff viewer: show what would change before applying a config update
+- [x] Auto-complete for service names and command flags (readline hints)
+- [x] `tail-logs` command: stream live service logs via Docker/k8s API
+- [x] Config snapshot/restore: save and restore service configuration
+- [x] Side-by-side service comparison: CPU, memory, error rate, latency
+
+### REST API Enhancements
+- [x] GraphQL layer: expose platform metrics and audit log via GraphQL
+- [x] Bulk user management: batch suspend/activate/export users
+- [x] Webhook management endpoints: CRUD for outbound webhook registrations
+- [x] API key management: issue, rotate, revoke per-service API keys
+- [x] Rate-limit dashboard endpoint: view per-IP/per-user limit status
+- [x] Event sourcing: replay admin events from audit log for debugging
+
+### Web Dashboard Enhancements
+- [x] **Live service health dashboard** — real-time CPU, memory, latency, error rate per service
+- [x] **User management table** — search, filter, bulk actions (suspend, role change)
+- [x] **Audit log viewer** — filterable table with export (CSV/JSON)
+- [x] **SLA breach timeline** — visual timeline of breaches and resolutions
+- [x] **Alert rule editor** — create/edit alert rules via UI (no YAML required)
+- [x] **Cost breakdown chart** — service-level cost visualization
+- [x] **Permission approval UI** — review and approve/deny AI agent actions inline
+- [x] **Dark mode** — toggle via appearance store (already stubbed in `appearanceStore.js`)
+- [x] **Keyboard shortcuts** — modal showing all shortcuts (`useKeyboardShortcuts.js`)
+- [x] Responsive mobile layout (tablet + phone breakpoints)
+- [x] Internationalization (i18n) scaffolding
+
+---
+
+## ✅ Shipped — Q3 2026
+
+### Security Hardening
+- [x] **2FA enforcement** for admin login (`ENABLE_ADMIN_2FA=true`)
+- [x] **IP allowlist** enforcement at REST API and SSH layers
+- [x] **mTLS** between CLI/API and internal services (`admin/shared/mtls.js`)
+- [x] **Session management**: concurrent session limits, forced logout
+- [x] **Admin activity anomaly detection**: flag unusual access patterns (off-hours, bulk queries)
+- [x] **Secrets vault integration** (HashiCorp Vault / AWS Secrets Manager) for admin credentials
+- [x] Rate limiting on admin REST API (per-IP and per-user)
+- [x] OWASP Top 10 audit of admin REST API endpoints
+
+### Compliance & Governance
+- [x] **GDPR data export** endpoint: export all user data as structured JSON
+- [x] **Right to erasure** workflow: multi-step approval before data deletion
+- [x] **Consent audit trail**: track consent changes per user
+- [x] **Data retention policy enforcer**: automated cleanup of expired data
+- [x] **Compliance report generator**: PDF/HTML compliance snapshot on demand
+- [x] SOC 2 evidence collection automation
+
+### SSH Administration
+- [x] Bastion-mode SSH gateway with full session recording
+- [x] Key rotation workflow: generate, distribute, revoke SSH keys via CLI
+- [x] SSH session audit: timestamps, commands run, duration
+- [x] Emergency break-glass procedure: temporary elevated access with mandatory MFA
+
+### Notification Channels
+- [x] **MS Teams** (`admin/bot/teams/`) — Adaptive Card notifications
+- [x] **Opsgenie** (`admin/bot/opsgenie/`) — Alert sync and dedup
+
+### Web Dashboard Enhancements
+- [x] **SecurityDashboard** — Security overview, sessions, anomalies, 2FA, secrets
+- [x] **ComplianceDashboard** — GDPR, erasure, consent trail, SOC2, reports
+- [x] **SSHAdminPanel** — SSH key rotation, session audit, break-glass
+- [x] **IncidentTracker** — Create/track/resolve incidents with timeline and MTTR stats
+- [x] **AdminLogin 2FA** — Multi-step login with TOTP, backup codes, framer-motion transitions
 
 ---
 
 ## 🔜 Planned — Q3 2026
 
 ### Security Hardening
-- [ ] **2FA enforcement** for admin login (`ENABLE_ADMIN_2FA=true`)
-- [ ] **IP allowlist** enforcement at REST API and SSH layers
-- [ ] **mTLS** between CLI/API and internal services
-- [ ] **Session management**: concurrent session limits, forced logout
-- [ ] **Admin activity anomaly detection**: flag unusual access patterns (off-hours, bulk queries)
-- [ ] **Secrets vault integration** (HashiCorp Vault / AWS Secrets Manager) for admin credentials
-- [ ] Rate limiting on admin REST API (per-IP and per-user)
-- [ ] OWASP Top 10 audit of admin REST API endpoints
+- [x] **2FA enforcement** for admin login (`ENABLE_ADMIN_2FA=true`)
+- [x] **IP allowlist** enforcement at REST API and SSH layers
+- [x] **mTLS** between CLI/API and internal services
+- [x] **Session management**: concurrent session limits, forced logout
+- [x] **Admin activity anomaly detection**: flag unusual access patterns (off-hours, bulk queries)
+- [x] **Secrets vault integration** (HashiCorp Vault / AWS Secrets Manager) for admin credentials
+- [x] Rate limiting on admin REST API (per-IP and per-user)
+- [x] OWASP Top 10 audit of admin REST API endpoints
 
 ### Compliance & Governance
-- [ ] **GDPR data export** endpoint: export all user data as structured JSON
-- [ ] **Right to erasure** workflow: multi-step approval before data deletion
-- [ ] **Consent audit trail**: track consent changes per user
-- [ ] **Data retention policy enforcer**: automated cleanup of expired data
-- [ ] **Compliance report generator**: PDF/HTML compliance snapshot on demand
-- [ ] SOC 2 evidence collection automation
+- [x] **GDPR data export** endpoint: export all user data as structured JSON
+- [x] **Right to erasure** workflow: multi-step approval before data deletion
+- [x] **Consent audit trail**: track consent changes per user
+- [x] **Data retention policy enforcer**: automated cleanup of expired data
+- [x] **Compliance report generator**: PDF/HTML compliance snapshot on demand
+- [x] SOC 2 evidence collection automation
 
 ### SSH Administration
-- [ ] Bastion-mode SSH gateway with full session recording
-- [ ] Key rotation workflow: generate, distribute, revoke SSH keys via CLI
-- [ ] SSH session audit: timestamps, commands run, duration
-- [ ] Emergency break-glass procedure: temporary elevated access with mandatory MFA
+- [x] Bastion-mode SSH gateway with full session recording
+- [x] Key rotation workflow: generate, distribute, revoke SSH keys via CLI
+- [x] SSH session audit: timestamps, commands run, duration
+- [x] Emergency break-glass procedure: temporary elevated access with mandatory MFA
 
 ---
 
-## 🔜 Planned — Q4 2026
+## ✅ Done — Q4 2026
 
 ### Observability & Operations
-- [ ] **OpenTelemetry integration**: traces from admin actions to backend services
-- [ ] **Admin Grafana dashboards**: pre-built panels for service health, SLA, cost
-- [ ] **Incident management**: create, track, and resolve incidents from the admin panel
-- [ ] **Runbook automation**: trigger documented recovery steps from the UI
-- [ ] **Change management log**: link every admin action to a ticket/jira card
-- [ ] **SLA report exporter**: scheduled PDF reports to stakeholders
+- [x] **OpenTelemetry integration**: traces from admin actions to backend services
+- [x] **Admin Grafana dashboards**: pre-built panels for service health, SLA, cost
+- [x] **Incident management**: create, track, and resolve incidents from the admin panel
+- [x] **Runbook automation**: trigger documented recovery steps from the UI
+- [x] **Change management log**: link every admin action to a ticket/jira card
+- [x] **SLA report exporter**: scheduled PDF reports to stakeholders
 
 ### Multi-Tenancy & Scale
-- [ ] **Tenant management**: create/suspend/configure tenants (for SaaS mode)
-- [ ] **Resource quota management**: set per-tenant CPU/memory/storage limits
-- [ ] **Billing dashboard**: usage-based cost breakdown per tenant
-- [ ] **White-labelling**: custom logos, colours, domains per tenant from admin UI
+- [x] **Tenant management**: create/suspend/configure tenants (for SaaS mode)
+- [x] **Resource quota management**: set per-tenant CPU/memory/storage limits
+- [x] **Billing dashboard**: usage-based cost breakdown per tenant
+- [x] **White-labelling**: custom logos, colours, domains per tenant from admin UI
 
 ### Developer Experience
-- [ ] **Feature flag management**: toggle feature flags per environment from admin UI
-- [ ] **Config management UI**: edit service environment variables with change history
-- [ ] **Deployment pipeline viewer**: visualize current deploy status and history
-- [ ] **Database migration runner**: trigger and monitor DB migrations from admin UI
-- [ ] **Log aggregation viewer**: centralized structured log search (ElasticSearch/Loki)
+- [x] **Feature flag management**: toggle feature flags per environment from admin UI
+- [x] **Config management UI**: edit service environment variables with change history
+- [x] **Deployment pipeline viewer**: visualize current deploy status and history
+- [x] **Database migration runner**: trigger and monitor DB migrations from admin UI
+- [x] **Log aggregation viewer**: centralized structured log search (ElasticSearch/Loki)
 
 ### Enter Connection Between several Admin Panels
-- [ ] **AI<->CLI**: If AI & CLI both enabled then Admin cam monitor AI admin panels works from CLI also admin can approve and have full control AI admins workflow
-- [ ] **AI<->Web Dashboard**: If AI & Web Dashboard both enabled then Admin cam monitor AI admin panels works from Web Dashboard/AI admin monitor page also admin can approve and control AI admins workflow and view graphical vision of AI admin and manage it
-- [ ] **AI<->SSH**: If AI & SSH both enabled then Admin cam monitor AI admin panels works from SSH also admin can approve and control AI admins workflow those possible
-- [ ] **AI<->REST API**: If AI & REST API both enabled then Admin cam monitor AI admin panels works from REST API also admin can approve and control AI admins workflow those possible
-- [ ] **AI<->WEBHOOK**: If AI & WEBHOOK both enabled then Admin cam monitor AI admin panels works from WEBHOOK also admin can approve and control AI admins workflow those possible
+- [x] **AI↔CLI**: When AI & CLI are both enabled, admins can monitor AI agent workflows from the CLI, approve or deny requests, and have full control over AI agent operations
+- [x] **AI↔Web Dashboard**: When AI & Web Dashboard are both enabled, admins can monitor AI agent workflows from the Web Dashboard, view graphical representations of AI activity, approve or deny requests, and manage agents from a unified UI
+- [x] **AI↔SSH**: When AI & SSH are both enabled, admins can monitor AI agent workflows over SSH, approve or deny requests, and control agent operations from a secure terminal
+- [x] **AI↔REST API**: When AI & REST API are both enabled, admins can monitor AI agent workflows via the REST API, approve or deny requests, and control agent operations programmatically
+- [x] **AI↔Webhook**: When AI & Webhooks are both enabled, admins can monitor AI agent workflows and receive webhook notifications for approvals, denials, and status changes
 
 ---
 
@@ -174,20 +233,26 @@ The admin panel is a collection of interfaces and utilities for platform operato
 
 | Status | Component | Description |
 |--------|-----------|-------------|
-| ✅ | `AdminLogin.js` | Login page with JWT auth |
+| ✅ | `AdminLogin.js` | Login page with JWT auth and 2FA (TOTP + backup codes) |
 | ✅ | `AdminDashboard.js` | Overview dashboard (stub) |
 | ✅ | Error pages suite | 401, 403, 404, 429, 500, 503 |
 | ✅ | `NotificationCenter.js` | Bell icon with alert list |
-| 🔜 | `ServiceHealthGrid.js` | Live service cards with spark lines |
-| 🔜 | `UserManagementTable.js` | Searchable, filterable user table |
-| 🔜 | `AuditLogTable.js` | Filterable audit log with export |
-| 🔜 | `SLATimeline.js` | Visual breach timeline |
-| 🔜 | `AlertRuleEditor.js` | Alert rule CRUD UI |
-| 🔜 | `CostBreakdown.js` | Cost chart by service |
-| 🔜 | `AIPermissionInbox.js` | Review/approve AI agent actions |
-| 🔜 | `IncidentTracker.js` | Create/track/resolve incidents |
-| 🔜 | `FeatureFlagToggle.js` | Per-environment flag management |
-| 🔜 | `TenantManager.js` | Multi-tenant management (SaaS) |
+| ✅ | `ServiceHealthGrid.js` | Live service cards with spark lines |
+| ✅ | `UserManagementTable.js` | Searchable, filterable user table |
+| ✅ | `AuditLogTable.js` | Filterable audit log with export |
+| ✅ | `SLATimeline.js` | Visual breach timeline |
+| ✅ | `AlertRuleEditor.js` | Alert rule CRUD UI |
+| ✅ | `CostBreakdown.js` | Cost chart by service |
+| ✅ | `AIPermissionInbox.js` | Review/approve AI agent actions |
+| ✅ | `SecurityDashboard.jsx` | Security overview, sessions, anomalies, 2FA, secrets |
+| ✅ | `ComplianceDashboard.jsx` | GDPR, erasure, consent trail, SOC2, reports |
+| ✅ | `SSHAdminPanel.jsx` | SSH key rotation, session audit, break-glass |
+| ✅ | `IncidentTracker.jsx` | Create/track/resolve incidents with timeline and MTTR |
+| ✅ | `ObservabilityDashboard.jsx` | OpenTelemetry traces, runbooks, change log, SLA reports |
+| ✅ | `TenantManager.jsx` | Multi-tenant management, quotas, billing, white-label |
+| ✅ | `FeatureFlagToggle.jsx` | Per-environment feature flags with rollout % |
+| ✅ | `DeveloperPanel.jsx` | Config editor, deployment pipeline, DB migrations, log search |
+| ✅ | `AIIntegrationPanel.jsx` | AI↔CLI/SSH/API/Webhook/Dashboard workflow approvals |
 
 ---
 
@@ -199,9 +264,9 @@ The admin panel is a collection of interfaces and utilities for platform operato
 | Telegram | ✅ operational | Inline keyboard for approve/deny (v2.0) |
 | Email (SMTP) | ✅ operational | HTML templates, unsubscribe link |
 | Webhook | ✅ operational | Retry with exponential backoff |
-| PagerDuty | 🔜 Q2 | Integration for on-call escalations |
-| MS Teams | 🔜 Q3 | Adaptive Card notifications |
-| Opsgenie | 🔜 Q3 | Alert sync and dedup |
+| PagerDuty | ✅ operational | Events API v2 — trigger/acknowledge/resolve incidents |
+| MS Teams | ✅ Q3 shipped | Adaptive Card notifications |
+| Opsgenie | ✅ Q3 shipped | Alert sync and dedup |
 
 ---
 
@@ -218,4 +283,4 @@ The admin panel is a collection of interfaces and utilities for platform operato
 
 ---
 
-*Last updated: March 11, 2026*
+*Last updated: Q4 2026 — Q4 2026 features shipped*

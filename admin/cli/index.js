@@ -59,6 +59,13 @@ const { RemediationEngine } = require('../shared/ai-remediation');
 const { MultiClusterManager } = require('../shared/multi-cluster');
 const { TrendAnalyzer, sparkline, barChart, lineChart } = require('../shared/trend-analysis');
 
+// Q4 2026 modules
+const { FeatureFlagManager } = require('../shared/feature-flags');
+const { TenantManager } = require('../shared/tenant-manager');
+const { RunbookManager } = require('../shared/runbook');
+const { AIIntegrationBridge } = require('../shared/ai-integration');
+const { ChangeLog } = require('../shared/change-log');
+
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -68,6 +75,13 @@ const ROOT_DIR = path.resolve(__dirname, '../..');
 const ADMIN_HOME = path.join(ROOT_DIR, '.admin-cli');
 const DIRECT_LOG_DIR = path.join(ADMIN_HOME, 'logs');
 const DIRECT_STATE_FILE = path.join(ADMIN_HOME, 'direct-processes.json');
+
+// Phase F (Q2 2026) — Plugin system paths
+const PLUGINS_DIR = path.join(__dirname, 'plugins');
+const SNAPSHOTS_DIR = path.join(ADMIN_HOME, 'snapshots');
+
+/** Plugin registry populated at startup by loadPlugins(). */
+const _plugins = new Map();
 
 // ---------------------------------------------------------------------------
 // Colors
@@ -2755,6 +2769,894 @@ function cmdSetRole(rawArgs) {
 }
 
 // ---------------------------------------------------------------------------
+// Phase F (Q2 2026): Plugin System, Batch, Diff, Completion, TailLogs,
+//                    Snapshot/Restore, and Side-by-side Comparison
+// ---------------------------------------------------------------------------
+
+// ── Plugin loader ─────────────────────────────────────────────────────────
+
+function loadPlugins() {
+    if (!fs.existsSync(PLUGINS_DIR)) return;
+    for (const file of fs.readdirSync(PLUGINS_DIR)) {
+        if (!file.endsWith('.js')) continue;
+        try {
+            const plugin = require(path.join(PLUGINS_DIR, file));
+            if (plugin && plugin.name && typeof plugin.handler === 'function') {
+                _plugins.set(plugin.name, plugin);
+            } else {
+                warn(`Plugin skipped (missing name/handler): ${file}`);
+            }
+        } catch (err) {
+            warn(`Failed to load plugin ${file}: ${err.message}`);
+        }
+    }
+}
+
+// ── plugins — list installed plugins ─────────────────────────────────────
+
+function cmdPlugins() {
+    if (_plugins.size === 0) {
+        console.log(c('yellow', 'No plugins installed.'));
+        console.log(`  Drop .js files in: ${path.relative(ROOT_DIR, PLUGINS_DIR)}/`);
+        return;
+    }
+    console.log(`${c('bold', 'Installed Plugins')}  (${_plugins.size} total)\n`);
+    printTable([
+        ['NAME', 'COMMAND', 'DESCRIPTION'],
+        ...[..._plugins.values()].map(p => [p.name, p.command || p.name, p.description || '']),
+    ]);
+}
+
+// ── plugin-run — invoke a named plugin ────────────────────────────────────
+
+async function cmdPluginRun(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const name = positionals[0];
+    if (!name) fatal('Usage: plugin-run <name> [args...]');
+    const plugin = _plugins.get(name);
+    if (!plugin) fatal(`Plugin not found: ${name}\nRun: node admin-cli/index.js plugins`);
+    const args = positionals.slice(1);
+    const ctx = { ROOT_DIR, ADMIN_HOME, c, info, success, warn, fatal };
+    await plugin.handler(args, ctx);
+}
+
+// ── batch — apply an operation to multiple services ───────────────────────
+
+async function cmdBatch(rawArgs) {
+    const { options, positionals } = parseArgs(rawArgs);
+    const operation = positionals[0];
+    const validOps = ['start', 'stop', 'restart'];
+
+    if (!operation || !validOps.includes(operation)) {
+        fatal(`Usage: batch <start|stop|restart> <service1> [service2...] [--all]`);
+    }
+
+    let services;
+    if (toBool(options.all, false)) {
+        services = [...DOCKER_SERVICE_SET];
+    } else {
+        services = positionals.slice(1).map(s => normalizeServiceName(s));
+        if (services.length === 0) fatal('Specify at least one service or use --all');
+    }
+
+    const runtime = options.runtime || 'docker';
+    console.log(`${c('bold', `Batch ${operation}`)} on ${services.length} service(s) [runtime: ${runtime}]\n`);
+
+    const results = [];
+    for (const svc of services) {
+        process.stdout.write(`  ${c('cyan', '→')} ${svc.padEnd(28)} ...`);
+        try {
+            let execResult;
+            if (runtime === 'k8s' || runtime === 'kubernetes') {
+                const namespace = options.namespace || 'milonexa';
+                const k8sOp = operation === 'restart' ? ['rollout', 'restart', `deployment/${svc}`, '-n', namespace]
+                    : operation === 'stop' ? ['scale', `deployment/${svc}`, '--replicas=0', '-n', namespace]
+                    : ['scale', `deployment/${svc}`, '--replicas=1', '-n', namespace];
+                execResult = spawnSync('kubectl', k8sOp, { cwd: ROOT_DIR, stdio: 'pipe', encoding: 'utf8' });
+            } else {
+                execResult = spawnSync('docker', ['compose', operation, svc],
+                    { cwd: ROOT_DIR, stdio: 'pipe', encoding: 'utf8' });
+            }
+            if (execResult.status === 0) {
+                process.stdout.write(`\r  ${c('green', '✓')} ${svc.padEnd(28)} ok\n`);
+                results.push({ service: svc, status: 'ok' });
+            } else {
+                process.stdout.write(`\r  ${c('red', '✗')} ${svc.padEnd(28)} failed\n`);
+                results.push({ service: svc, status: 'failed', error: (execResult.stderr || '').trim() });
+            }
+        } catch (err) {
+            process.stdout.write(`\r  ${c('red', '✗')} ${svc.padEnd(28)} error\n`);
+            results.push({ service: svc, status: 'error', error: err.message });
+        }
+    }
+
+    console.log('');
+    const ok = results.filter(r => r.status === 'ok').length;
+    const failed = results.filter(r => r.status !== 'ok').length;
+    console.log(c('bold', 'Batch Summary'));
+    console.log('─'.repeat(40));
+    printTable([
+        ['SERVICE', 'RESULT'],
+        ...results.map(r => [
+            r.service,
+            r.status === 'ok' ? c('green', '✓ ok') : c('red', `✗ ${r.status}`),
+        ]),
+    ]);
+    console.log(`\n  ${c('green', `${ok} succeeded`)}  ${failed > 0 ? c('red', `${failed} failed`) : c('green', '0 failed')}`);
+}
+
+// ── diff — preview configuration or scale changes ─────────────────────────
+
+function cmdDiff(rawArgs) {
+    const { options, positionals } = parseArgs(rawArgs);
+    const subCommand = positionals[0];
+
+    if (subCommand === 'config') {
+        const service = positionals[1] || options.service;
+        if (!service) fatal('Usage: diff config <service> [--new-env KEY=VAL ...]');
+
+        // Collect --new-env values (may appear multiple times via repeated flag parsing)
+        const newEnvPairs = [];
+        for (let i = 0; i < rawArgs.length; i++) {
+            if (rawArgs[i] === '--new-env' && rawArgs[i + 1]) {
+                newEnvPairs.push(rawArgs[i + 1]);
+                i++;
+            } else if (rawArgs[i].startsWith('--new-env=')) {
+                newEnvPairs.push(rawArgs[i].slice('--new-env='.length));
+            }
+        }
+
+        // Parse current env from docker-compose.yml (simple regex extraction)
+        const composePath = path.join(ROOT_DIR, 'docker-compose.yml');
+        const currentEnv = {};
+        if (fs.existsSync(composePath)) {
+            const content = fs.readFileSync(composePath, 'utf8');
+            // Escape service name for use in RegExp to avoid ReDoS or unexpected matches
+            const escapedService = service.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const svcRe = new RegExp(`(?:^|\\n)  ${escapedService}:\\s*\\n((?:[ \\t]+.*\\n)*)`, 'i');
+            const svcMatch = content.match(svcRe);
+            if (svcMatch) {
+                const envBlockMatch = svcMatch[1].match(/environment:\s*\n((?:\s+-\s+\S[^\n]*\n)*)/);
+                if (envBlockMatch) {
+                    const lines = (envBlockMatch[1].match(/-\s+(\S[^\n]*)/g) || []).map(l => l.replace(/^-\s+/, ''));
+                    for (const l of lines) {
+                        const eqIdx = l.indexOf('=');
+                        if (eqIdx > 0) currentEnv[l.slice(0, eqIdx)] = l.slice(eqIdx + 1);
+                    }
+                }
+            }
+        }
+
+        // Overlay proposed changes
+        const proposedEnv = { ...currentEnv };
+        for (const pair of newEnvPairs) {
+            const eqIdx = pair.indexOf('=');
+            if (eqIdx > 0) proposedEnv[pair.slice(0, eqIdx)] = pair.slice(eqIdx + 1);
+        }
+
+        console.log(`${c('bold', `Config diff for: ${service}`)}\n`);
+        const allKeys = [...new Set([...Object.keys(currentEnv), ...Object.keys(proposedEnv)])].sort();
+        let hasDiff = false;
+        for (const k of allKeys) {
+            const cur = currentEnv[k];
+            const proposed = proposedEnv[k];
+            if (cur === proposed) {
+                console.log(`   ${k}=${cur ?? ''}`);
+            } else if (cur === undefined) {
+                console.log(c('green', `+  ${k}=${proposed}`));
+                hasDiff = true;
+            } else if (proposed === undefined) {
+                console.log(c('red', `-  ${k}=${cur}`));
+                hasDiff = true;
+            } else {
+                console.log(c('red', `-  ${k}=${cur}`));
+                console.log(c('green', `+  ${k}=${proposed}`));
+                hasDiff = true;
+            }
+        }
+        if (allKeys.length === 0) {
+            console.log(c('yellow', `  No environment config found for service '${service}' in docker-compose.yml`));
+        } else if (!hasDiff) {
+            console.log(c('green', '\n  No differences — configuration is unchanged.'));
+        } else {
+            console.log(c('yellow', '\n  Preview only. Use start/restart to apply changes.'));
+        }
+        return;
+    }
+
+    if (subCommand === 'scale') {
+        const service = positionals[1] || options.service;
+        const replicas = parseInt(positionals[2] || options.replicas || '0', 10);
+        if (!service || !replicas) fatal('Usage: diff scale <service> <replicas>');
+
+        // Detect current replica count from docker compose ps
+        let currentReplicas = 1;
+        const psResult = spawnSync('docker', ['compose', 'ps', '--quiet', service],
+            { cwd: ROOT_DIR, stdio: 'pipe', encoding: 'utf8' });
+        if (psResult.status === 0 && psResult.stdout) {
+            const lines = psResult.stdout.trim().split('\n').filter(Boolean);
+            if (lines.length > 0) currentReplicas = lines.length;
+        }
+
+        console.log(`${c('bold', `Scale diff for: ${service}`)}\n`);
+        console.log(c('red', `-  replicas: ${currentReplicas}`));
+        console.log(c('green', `+  replicas: ${replicas}`));
+        console.log(c('yellow', `\n  Preview only. Apply with: node admin-cli/index.js scale --service ${service} --replicas ${replicas}`));
+        return;
+    }
+
+    fatal(`Unknown diff subcommand: ${subCommand || '(none)'}\nUsage:\n  diff config <service> [--new-env KEY=VAL ...]\n  diff scale <service> <replicas>`);
+}
+
+// ── completion — emit shell completion script ─────────────────────────────
+
+function cmdCompletion(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const shell = (positionals[0] || 'bash').toLowerCase();
+
+    const builtinCmds = [
+        'doctor', 'build', 'start', 'stop', 'restart', 'status', 'logs', 'health',
+        'backup', 'monitor', 'run', 'audit', 'set-role', 'role', 'check',
+        'scale', 'rollout', 'incident', 'metrics', 'alerts', 'policies', 'costs',
+        'compliance', 'recommendations', 'dashboard', 'tui', 'webhooks', 'sla',
+        'remediate', 'cluster', 'trends',
+        // Phase F
+        'batch', 'diff', 'completion', 'tail-logs', 'snapshot', 'compare',
+        'plugins', 'plugin-run',
+    ];
+    const pluginCmds = [..._plugins.values()].map(p => p.command || p.name);
+    const allCmds = [...new Set([...builtinCmds, ...pluginCmds])];
+    const services = [...DOCKER_SERVICE_SET].join(' ');
+    const cmdStr = allCmds.join(' ');
+    const scriptFile = path.relative(process.cwd(), path.join(__dirname, 'index.js'));
+
+    if (shell === 'bash') {
+        process.stdout.write(`# Milonexa Admin CLI bash completion
+# Source in ~/.bashrc:
+#   source <(node ${scriptFile} completion bash)
+_milonexa_admin_cli_complete() {
+    local cur prev
+    COMPREPLY=()
+    cur="\${COMP_WORDS[COMP_CWORD]}"
+    prev="\${COMP_WORDS[COMP_CWORD-1]}"
+    if [ "$COMP_CWORD" -eq 1 ]; then
+        COMPREPLY=( $(compgen -W "${cmdStr}" -- "$cur") )
+        return 0
+    fi
+    case "$prev" in
+        start|stop|restart|logs|scale|tail-logs|compare|diff|incident|metrics)
+            COMPREPLY=( $(compgen -W "${services}" -- "$cur") );;
+        batch)
+            COMPREPLY=( $(compgen -W "start stop restart" -- "$cur") );;
+        plugin-run)
+            COMPREPLY=( $(compgen -W "${pluginCmds.join(' ')}" -- "$cur") );;
+        snapshot)
+            COMPREPLY=( $(compgen -W "save list show restore delete" -- "$cur") );;
+        --runtime)
+            COMPREPLY=( $(compgen -W "docker k8s direct" -- "$cur") );;
+        --env)
+            COMPREPLY=( $(compgen -W "dev staging prod" -- "$cur") );;
+        completion)
+            COMPREPLY=( $(compgen -W "bash zsh" -- "$cur") );;
+    esac
+}
+complete -F _milonexa_admin_cli_complete node\n`);
+        return;
+    }
+
+    if (shell === 'zsh') {
+        process.stdout.write(`# Milonexa Admin CLI zsh completion
+# Source in ~/.zshrc:
+#   source <(node ${scriptFile} completion zsh)
+_milonexa_admin_cli() {
+    local -a cmds svcs
+    cmds=(${allCmds.map(cmd => `'${cmd}'`).join(' ')})
+    svcs=(${[...DOCKER_SERVICE_SET].map(s => `'${s}'`).join(' ')})
+    if (( CURRENT == 2 )); then
+        _describe 'commands' cmds; return
+    fi
+    case \$words[2] in
+        start|stop|restart|logs|scale|tail-logs|compare|diff|incident)
+            _describe 'services' svcs;;
+        batch)
+            _values 'operation' start stop restart;;
+        plugin-run)
+            local -a plugins; plugins=(${pluginCmds.map(p => `'${p}'`).join(' ')})
+            _describe 'plugins' plugins;;
+        snapshot)
+            _values 'action' save list show restore delete;;
+        --runtime)
+            _values 'runtime' docker k8s direct;;
+        --env)
+            _values 'environment' dev staging prod;;
+        completion)
+            _values 'shell' bash zsh;;
+    esac
+}
+compdef _milonexa_admin_cli node\n`);
+        return;
+    }
+
+    fatal(`Unknown shell: ${shell}. Supported: bash, zsh`);
+}
+
+// ── tail-logs — stream live service logs ─────────────────────────────────
+
+function cmdTailLogs(rawArgs) {
+    const { options, positionals } = parseArgs(rawArgs);
+    const service = positionals[0] || options.service;
+    if (!service) fatal('Usage: tail-logs <service> [--follow] [--tail 100] [--runtime docker|k8s]');
+
+    const follow = toBool(options.follow, true);
+    const tailLines = String(parseInt(options.tail || '100', 10));
+    const runtime = options.runtime || 'docker';
+    const namespace = options.namespace || 'milonexa';
+
+    function colorizeLine(line) {
+        if (/error|fatal|crit/i.test(line)) return c('red', line);
+        if (/warn/i.test(line)) return c('yellow', line);
+        if (/info/i.test(line)) return c('cyan', line);
+        return line;
+    }
+
+    let proc;
+    if (runtime === 'k8s' || runtime === 'kubernetes') {
+        const kargs = ['logs', '--tail', tailLines, '-n', namespace];
+        if (follow) kargs.push('-f');
+        kargs.push(service);
+        info(`Streaming k8s logs: kubectl ${kargs.join(' ')}`);
+        proc = spawn('kubectl', kargs, { cwd: ROOT_DIR, stdio: ['ignore', 'pipe', 'pipe'] });
+    } else {
+        const normalizedSvc = normalizeServiceName(service);
+        const dargs = ['compose', 'logs', '--tail', tailLines, normalizedSvc];
+        if (follow) dargs.push('--follow');
+        info(`Streaming docker logs: docker ${dargs.join(' ')}`);
+        proc = spawn('docker', dargs, { cwd: ROOT_DIR, stdio: ['ignore', 'pipe', 'pipe'] });
+    }
+
+    const readline = require('readline');
+    const rl = readline.createInterface({ input: proc.stdout });
+    rl.on('line', line => console.log(colorizeLine(line)));
+    proc.stderr.on('data', chunk => process.stderr.write(chunk.toString()));
+    proc.on('close', code => {
+        if (code !== null && code !== 0) warn(`Log stream exited with code ${code}`);
+    });
+
+    process.on('SIGINT', () => {
+        proc.kill('SIGTERM');
+        process.exit(0);
+    });
+
+    return new Promise(resolve => proc.on('close', resolve));
+}
+
+// ── snapshot — save/restore service configuration ─────────────────────────
+
+async function cmdSnapshot(rawArgs) {
+    const { options, positionals } = parseArgs(rawArgs);
+    const action = positionals[0] || 'list';
+
+    fs.mkdirSync(SNAPSHOTS_DIR, { recursive: true });
+
+    if (action === 'save') {
+        const defaultName = `snapshot-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+        const name = positionals[1] || options.name || defaultName;
+        if (!/^[\w-]+$/.test(name)) fatal(`Invalid snapshot name '${name}'. Use alphanumeric characters and hyphens only.`);
+
+        // Capture running services via docker compose ps
+        let servicesState = [];
+        const psResult = spawnSync('docker', ['compose', 'ps', '--format', 'json'],
+            { cwd: ROOT_DIR, stdio: 'pipe', encoding: 'utf8' });
+        if (psResult.status === 0 && psResult.stdout) {
+            for (const line of psResult.stdout.trim().split('\n').filter(Boolean)) {
+                try { servicesState.push(JSON.parse(line)); } catch (_) {}
+            }
+        }
+
+        // Capture env files
+        const envData = {};
+        for (const f of ['.env', '.env.dev', '.env.staging']) {
+            const fp = path.join(ROOT_DIR, f);
+            if (fs.existsSync(fp)) envData[f] = fs.readFileSync(fp, 'utf8');
+        }
+
+        const snapshot = { name, createdAt: new Date().toISOString(), services: servicesState, envFiles: envData };
+        const snapFile = path.join(SNAPSHOTS_DIR, `${name}.json`);
+        fs.writeFileSync(snapFile, JSON.stringify(snapshot, null, 2));
+        success(`Snapshot saved: ${c('bold', name)}`);
+        console.log(`  File: ${path.relative(ROOT_DIR, snapFile)}`);
+        return;
+    }
+
+    if (action === 'list') {
+        const files = fs.existsSync(SNAPSHOTS_DIR)
+            ? fs.readdirSync(SNAPSHOTS_DIR).filter(f => f.endsWith('.json'))
+            : [];
+        if (files.length === 0) {
+            console.log(c('yellow', 'No snapshots found.'));
+            console.log('  Create one: node admin-cli/index.js snapshot save [name]');
+            return;
+        }
+        console.log(`${c('bold', 'Snapshots')}  (${files.length} total)\n`);
+        printTable([
+            ['NAME', 'CREATED AT', 'SERVICES', 'FILE'],
+            ...files.map(f => {
+                try {
+                    const snap = JSON.parse(fs.readFileSync(path.join(SNAPSHOTS_DIR, f), 'utf8'));
+                    return [snap.name || f.replace('.json', ''), snap.createdAt || '-', String(snap.services?.length ?? 0), f];
+                } catch (_) {
+                    return [f.replace('.json', ''), '-', '-', f];
+                }
+            }),
+        ]);
+        return;
+    }
+
+    if (action === 'show') {
+        const name = positionals[1] || options.name;
+        if (!name) fatal('Usage: snapshot show <name>');
+        const snapFile = path.join(SNAPSHOTS_DIR, `${name}.json`);
+        if (!fs.existsSync(snapFile)) fatal(`Snapshot not found: ${name}`);
+        const snap = JSON.parse(fs.readFileSync(snapFile, 'utf8'));
+        console.log(`${c('bold', `Snapshot: ${snap.name}`)}`);
+        console.log(`  Created:  ${snap.createdAt}`);
+        console.log(`  Services: ${snap.services?.length ?? 0}`);
+        if (snap.services?.length > 0) {
+            console.log('');
+            printTable([
+                ['SERVICE', 'STATE', 'STATUS'],
+                ...snap.services.map(s => [s.Service || s.Name || '-', s.State || '-', s.Status || '-']),
+            ]);
+        }
+        if (snap.envFiles && Object.keys(snap.envFiles).length > 0) {
+            console.log(`\n  Env files captured: ${Object.keys(snap.envFiles).join(', ')}`);
+        }
+        return;
+    }
+
+    if (action === 'restore') {
+        const name = positionals[1] || options.name;
+        if (!name) fatal('Usage: snapshot restore <name> [--confirm]');
+        const snapFile = path.join(SNAPSHOTS_DIR, `${name}.json`);
+        if (!fs.existsSync(snapFile)) fatal(`Snapshot not found: ${name}`);
+
+        if (!toBool(options.confirm, false)) {
+            console.log(c('yellow', `⚠  About to restore snapshot: ${c('bold', name)}`));
+            console.log('  This will overwrite current .env files. No service restart is performed automatically.');
+            console.log(`  To proceed: node admin-cli/index.js snapshot restore ${name} --confirm`);
+            return;
+        }
+
+        const snap = JSON.parse(fs.readFileSync(snapFile, 'utf8'));
+        if (snap.envFiles) {
+            for (const [file, content] of Object.entries(snap.envFiles)) {
+                fs.writeFileSync(path.join(ROOT_DIR, file), content);
+                info(`Restored: ${file}`);
+            }
+        }
+        success(`Snapshot '${name}' restored. Run 'restart' to apply changes.`);
+        return;
+    }
+
+    if (action === 'delete') {
+        const name = positionals[1] || options.name;
+        if (!name) fatal('Usage: snapshot delete <name>');
+        const snapFile = path.join(SNAPSHOTS_DIR, `${name}.json`);
+        if (!fs.existsSync(snapFile)) fatal(`Snapshot not found: ${name}`);
+        fs.unlinkSync(snapFile);
+        success(`Snapshot deleted: ${name}`);
+        return;
+    }
+
+    fatal(`Unknown snapshot action: ${action}\nUsage: snapshot save|list|show|restore|delete [name]`);
+}
+
+// ── compare — side-by-side service metrics comparison ────────────────────
+
+function cmdCompare(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const services = uniq(positionals.map(s => normalizeServiceName(s)));
+
+    if (services.length < 2) fatal('Usage: compare <service1> <service2> [service3...]');
+
+    const metricsDir = path.join(ADMIN_HOME, 'metrics');
+    const collector = new MetricsCollector(metricsDir);
+
+    const METRIC_LABELS = ['CPU %', 'Memory %', 'Error Rate %', 'Latency ms', 'Version'];
+    const METRIC_KEYS   = ['cpu',   'memory',   'error_rate',   'latency',    'version'];
+
+    // Collect latest value per (service, category) pair
+    const serviceData = {};
+    for (const svc of services) {
+        serviceData[svc] = {};
+        for (const key of METRIC_KEYS) {
+            const records = collector.query({ category: key })
+                .filter(m => m.service === svc || m.tags?.service === svc);
+            if (records.length > 0) {
+                const v = records[records.length - 1].value;
+                serviceData[svc][key] = typeof v === 'number' ? v.toFixed(1) : String(v ?? '-');
+            } else {
+                serviceData[svc][key] = '-';
+            }
+        }
+    }
+
+    const colWidth = Math.max(16, ...services.map(s => s.length + 2));
+    const metricWidth = 16;
+
+    console.log(`${c('bold', 'Side-by-side Service Comparison')}\n`);
+    const header = c('bold', 'METRIC'.padEnd(metricWidth)) +
+        services.map(s => c('bold', s.padEnd(colWidth))).join('');
+    console.log('  ' + header);
+    console.log('  ' + '─'.repeat(metricWidth + services.length * colWidth));
+
+    for (let i = 0; i < METRIC_LABELS.length; i++) {
+        const label = METRIC_LABELS[i].padEnd(metricWidth);
+        const values = services.map(svc => {
+            const val = serviceData[svc][METRIC_KEYS[i]] || '-';
+            return val.padEnd(colWidth);
+        });
+        console.log('  ' + label + values.join(''));
+    }
+
+    console.log('');
+    console.log(c('dim', '  Data from .admin-cli/metrics/. Record with: metrics record --service <name> --category <key> --value <n>'));
+}
+
+// ---------------------------------------------------------------------------
+// Q4 2026 Commands
+// ---------------------------------------------------------------------------
+
+function cmdFeatureFlags(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const subCmd = (positionals[0] || 'list').toLowerCase();
+    const mgr = new FeatureFlagManager(ADMIN_HOME);
+
+    switch (subCmd) {
+        case 'list': {
+            const flags = mgr.listFlags();
+            if (flags.length === 0) {
+                console.log(c('dim', '  No feature flags defined.'));
+                return;
+            }
+            console.log('');
+            console.log(c('bold', `  Feature Flags (${flags.length})`));
+            console.log('  ' + '─'.repeat(80));
+            console.log(`  ${c('dim', 'ID'.padEnd(24))}${c('dim', 'NAME'.padEnd(30))}${c('dim', 'PROD'.padEnd(8))}${c('dim', 'STAGING'.padEnd(10))}${c('dim', 'DEV')}`);
+            console.log('  ' + '─'.repeat(80));
+            for (const f of flags) {
+                const prod = f.environments && f.environments.production ? c('green', '✓') : c('red', '✗');
+                const staging = f.environments && f.environments.staging ? c('green', '✓') : c('red', '✗');
+                const dev = f.environments && f.environments.development ? c('green', '✓') : c('red', '✗');
+                console.log(`  ${f.flagId.padEnd(24)}${f.name.padEnd(30)}${prod.padEnd(8)}${staging.padEnd(10)}${dev}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'create': {
+            const name = positionals[1];
+            const description = positionals[2] || '';
+            if (!name) { console.error(c('red', '  Usage: feature-flags create <name> [description]')); return; }
+            const flag = mgr.createFlag({ name, description, environments: { production: false, staging: true, development: true }, rolloutPercent: 100, tags: [], owner: 'admin' });
+            console.log(c('green', `  ✓ Created flag '${name}' (${flag.flagId})`));
+            break;
+        }
+        case 'toggle': {
+            const id = positionals[1];
+            const env = positionals[2];
+            const state = positionals[3];
+            if (!id || !env || !state) { console.error(c('red', '  Usage: feature-flags toggle <id> <env> <on|off>')); return; }
+            const enabled = state === 'on' || state === 'true';
+            const updated = mgr.toggleFlag(id, env, enabled, 'admin-cli');
+            if (!updated) { console.error(c('red', `  Flag '${id}' not found`)); return; }
+            console.log(c('green', `  ✓ Flag '${updated.name}' in '${env}': ${enabled ? 'ENABLED' : 'DISABLED'}`));
+            break;
+        }
+        case 'delete': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: feature-flags delete <id>')); return; }
+            const ok = mgr.deleteFlag(id);
+            console.log(ok ? c('green', `  ✓ Deleted flag ${id}`) : c('red', `  Flag '${id}' not found`));
+            break;
+        }
+        default:
+            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: list|create|toggle|delete`));
+    }
+}
+
+function cmdTenant(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const subCmd = (positionals[0] || 'list').toLowerCase();
+    const mgr = new TenantManager(ADMIN_HOME);
+
+    switch (subCmd) {
+        case 'list': {
+            const tenants = mgr.listTenants();
+            if (tenants.length === 0) { console.log(c('dim', '  No tenants defined.')); return; }
+            console.log('');
+            console.log(c('bold', `  Tenants (${tenants.length})`));
+            console.log('  ' + '─'.repeat(80));
+            console.log(`  ${c('dim', 'ID'.padEnd(20))}${c('dim', 'NAME'.padEnd(24))}${c('dim', 'PLAN'.padEnd(14))}${c('dim', 'STATUS')}`);
+            console.log('  ' + '─'.repeat(80));
+            for (const t of tenants) {
+                const statusColor = t.status === 'active' ? 'green' : t.status === 'suspended' ? 'yellow' : 'red';
+                console.log(`  ${t.tenantId.padEnd(20)}${t.name.padEnd(24)}${(t.plan || '').padEnd(14)}${c(statusColor, t.status)}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'create': {
+            const name = positionals[1];
+            const plan = positionals[2] || 'starter';
+            if (!name) { console.error(c('red', '  Usage: tenant create <name> [plan]')); return; }
+            const tenant = mgr.createTenant({ name, domain: name.toLowerCase().replace(/\s+/g, '-') + '.example.com', plan, ownerId: 'admin-cli' });
+            console.log(c('green', `  ✓ Created tenant '${name}' (${tenant.tenantId}) plan=${plan}`));
+            break;
+        }
+        case 'suspend': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: tenant suspend <id>')); return; }
+            mgr.suspendTenant(id, 'Suspended via CLI');
+            console.log(c('yellow', `  ✓ Tenant ${id} suspended`));
+            break;
+        }
+        case 'activate': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: tenant activate <id>')); return; }
+            mgr.activateTenant(id);
+            console.log(c('green', `  ✓ Tenant ${id} activated`));
+            break;
+        }
+        case 'quota': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: tenant quota <id>')); return; }
+            const usage = mgr.getQuotaUsage(id);
+            console.log('');
+            console.log(c('bold', `  Quota Usage — ${id}`));
+            console.log('  ' + '─'.repeat(60));
+            for (const [key, val] of Object.entries(usage)) {
+                const bar = '█'.repeat(Math.round((val.percent || 0) / 5)).padEnd(20, '░');
+                const color = val.percent >= 90 ? 'red' : val.percent >= 70 ? 'yellow' : 'green';
+                console.log(`  ${key.padEnd(18)}  ${c(color, bar)}  ${val.used}/${val.limit} (${val.percent}%)`);
+            }
+            console.log('');
+            break;
+        }
+        default:
+            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: list|create|suspend|activate|quota`));
+    }
+}
+
+async function cmdRunbook(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const subCmd = (positionals[0] || 'list').toLowerCase();
+    const mgr = new RunbookManager(ADMIN_HOME);
+
+    switch (subCmd) {
+        case 'list': {
+            const runbooks = mgr.listRunbooks();
+            if (runbooks.length === 0) { console.log(c('dim', '  No runbooks defined.')); return; }
+            console.log('');
+            console.log(c('bold', `  Runbooks (${runbooks.length})`));
+            console.log('  ' + '─'.repeat(80));
+            for (const rb of runbooks) {
+                const lastExec = rb.lastExecuted ? new Date(rb.lastExecuted).toLocaleString() : 'never';
+                console.log(`  ${c('cyan', rb.id.padEnd(20))}  ${rb.name.padEnd(30)}  steps=${rb.steps ? rb.steps.length : 0}  last=${lastExec}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'run': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: runbook run <id>')); return; }
+            console.log(`  Running runbook ${c('cyan', id)}...`);
+            const result = await mgr.executeRunbook(id, {}, 'admin-cli');
+            console.log('');
+            console.log(c('bold', `  Execution: ${result.executionId}`));
+            console.log('  ' + '─'.repeat(60));
+            for (const step of (result.steps || [])) {
+                const color = step.status === 'success' ? 'green' : step.status === 'failed' ? 'red' : 'yellow';
+                console.log(`  ${c(color, step.status.padEnd(10))}  ${step.name}  (${step.duration}ms)`);
+                if (step.output) console.log(`    ${c('dim', step.output.slice(0, 120))}`);
+            }
+            const overallColor = result.status === 'completed' ? 'green' : 'red';
+            console.log(`\n  Overall: ${c(overallColor, result.status)}`);
+            console.log('');
+            break;
+        }
+        case 'history': {
+            const history = mgr.getExecutionHistory(null, 20);
+            if (history.length === 0) { console.log(c('dim', '  No execution history.')); return; }
+            console.log('');
+            console.log(c('bold', '  Recent Runbook Executions'));
+            console.log('  ' + '─'.repeat(80));
+            for (const exec of history) {
+                const color = exec.status === 'completed' ? 'green' : 'red';
+                const ts = exec.startTime ? new Date(exec.startTime).toLocaleString() : '';
+                console.log(`  ${c(color, exec.status.padEnd(12))}  ${exec.executionId.padEnd(20)}  ${exec.runbookId.padEnd(20)}  ${ts}`);
+            }
+            console.log('');
+            break;
+        }
+        default:
+            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: list|run|history`));
+    }
+}
+
+async function cmdAI(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const subCmd = (positionals[0] || 'status').toLowerCase();
+    const bridge = new AIIntegrationBridge(ADMIN_HOME);
+
+    switch (subCmd) {
+        case 'status': {
+            const channels = bridge.getChannelStatus();
+            console.log('');
+            console.log(c('bold', '  AI Integration Channel Status'));
+            console.log('  ' + '─'.repeat(50));
+            for (const [name, status] of Object.entries(channels)) {
+                const icon = status.connected ? c('green', '✓') : c('red', '✗');
+                const enabled = status.enabled ? c('green', 'enabled') : c('dim', 'disabled');
+                console.log(`  ${icon}  ${name.padEnd(12)}  ${enabled}`);
+            }
+            const stats = bridge.getStats();
+            console.log(`\n  Workflows: ${stats.totalWorkflows} total, ${stats.pendingApprovals} pending approval`);
+            console.log('');
+            break;
+        }
+        case 'workflows': {
+            const workflows = bridge.listWorkflows({ status: 'pending_approval' });
+            if (workflows.length === 0) { console.log(c('dim', '  No pending AI workflows.')); return; }
+            console.log('');
+            console.log(c('bold', `  Pending AI Workflows (${workflows.length})`));
+            console.log('  ' + '─'.repeat(80));
+            for (const wf of workflows) {
+                console.log(`  ${c('yellow', wf.workflowId.padEnd(24))}  ${wf.name.padEnd(30)}  channel=${wf.channel || 'api'}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'approve': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: ai approve <workflowId>')); return; }
+            await bridge.approveWorkflow(id, 'admin-cli', 'Approved via CLI');
+            console.log(c('green', `  ✓ Workflow ${id} approved and executing`));
+            break;
+        }
+        case 'deny': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: ai deny <workflowId>')); return; }
+            bridge.denyWorkflow(id, 'admin-cli', 'Denied via CLI');
+            console.log(c('yellow', `  ✓ Workflow ${id} denied`));
+            break;
+        }
+        default:
+            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: status|workflows|approve|deny`));
+    }
+}
+
+function cmdChangeLog(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const subCmd = (positionals[0] || 'list').toLowerCase();
+    const log = new ChangeLog(ADMIN_HOME);
+
+    switch (subCmd) {
+        case 'list': {
+            const changes = log.search({});
+            const recent = changes.slice(-20).reverse();
+            if (recent.length === 0) { console.log(c('dim', '  No changes recorded.')); return; }
+            console.log('');
+            console.log(c('bold', '  Recent Changes'));
+            console.log('  ' + '─'.repeat(90));
+            console.log(`  ${c('dim', 'ID'.padEnd(20))}${c('dim', 'ACTOR'.padEnd(16))}${c('dim', 'ACTION'.padEnd(20))}${c('dim', 'RESOURCE'.padEnd(20))}${c('dim', 'TIME')}`);
+            console.log('  ' + '─'.repeat(90));
+            for (const ch of recent) {
+                const ts = ch.timestamp ? new Date(ch.timestamp).toLocaleString() : '';
+                console.log(`  ${ch.changeId.padEnd(20)}${(ch.actor || '').padEnd(16)}${(ch.action || '').padEnd(20)}${(ch.resource || '').padEnd(20)}${ts}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'search': {
+            const query = positionals[1] || '';
+            const results = log.search({}).filter(c =>
+                JSON.stringify(c).toLowerCase().includes(query.toLowerCase())
+            );
+            console.log('');
+            console.log(c('bold', `  Search: "${query}" — ${results.length} result(s)`));
+            for (const ch of results.slice(-20)) {
+                console.log(`  ${ch.changeId}  ${ch.actor}  ${ch.action}  ${ch.resource}  ${ch.timestamp}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'link': {
+            const changeId = positionals[1];
+            const ticket = positionals[2];
+            if (!changeId || !ticket) { console.error(c('red', '  Usage: change-log link <changeId> <ticket>')); return; }
+            log.link(changeId, ticket);
+            console.log(c('green', `  ✓ Linked ${changeId} → ${ticket}`));
+            break;
+        }
+        default:
+            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: list|search|link`));
+    }
+}
+
+function cmdConfig(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const subCmd = (positionals[0] || 'list').toLowerCase();
+    const configFile = path.join(ADMIN_HOME, 'service-configs.json');
+
+    function readConfigs() {
+        if (!fs.existsSync(configFile)) return {};
+        try { return JSON.parse(fs.readFileSync(configFile, 'utf8')); } catch (_) { return {}; }
+    }
+    function writeConfigs(data) {
+        if (!fs.existsSync(ADMIN_HOME)) fs.mkdirSync(ADMIN_HOME, { recursive: true });
+        fs.writeFileSync(configFile, JSON.stringify(data, null, 2), 'utf8');
+    }
+
+    switch (subCmd) {
+        case 'list': {
+            const configs = readConfigs();
+            const services = Object.keys(configs);
+            if (services.length === 0) { console.log(c('dim', '  No service configs stored.')); return; }
+            console.log('');
+            console.log(c('bold', '  Service Configurations'));
+            console.log('  ' + '─'.repeat(60));
+            for (const svc of services) {
+                const keys = Object.keys(configs[svc]);
+                console.log(`  ${c('cyan', svc.padEnd(30))}  ${keys.length} key(s): ${keys.slice(0, 5).join(', ')}${keys.length > 5 ? '...' : ''}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'get': {
+            const service = positionals[1];
+            if (!service) { console.error(c('red', '  Usage: config get <service>')); return; }
+            const configs = readConfigs();
+            const svcConfig = configs[service] || {};
+            console.log('');
+            console.log(c('bold', `  Config: ${service}`));
+            console.log('  ' + '─'.repeat(60));
+            if (Object.keys(svcConfig).length === 0) {
+                console.log(c('dim', '  No config entries for this service.'));
+            } else {
+                for (const [k, v] of Object.entries(svcConfig)) {
+                    console.log(`  ${c('cyan', k.padEnd(30))}  ${v}`);
+                }
+            }
+            console.log('');
+            break;
+        }
+        case 'set': {
+            const service = positionals[1];
+            const key = positionals[2];
+            const value = positionals[3];
+            if (!service || !key || value === undefined) {
+                console.error(c('red', '  Usage: config set <service> <key> <value>'));
+                return;
+            }
+            const configs = readConfigs();
+            if (!configs[service]) configs[service] = {};
+            const before = configs[service][key];
+            configs[service][key] = value;
+            writeConfigs(configs);
+            // Record in change log
+            try {
+                const cl = new ChangeLog(ADMIN_HOME);
+                cl.record({ actor: 'admin-cli', action: 'config.set', resource: `config:${service}`, before: { [key]: before }, after: { [key]: value }, environment: 'production' });
+            } catch (_) {}
+            console.log(c('green', `  ✓ Set ${service}.${key} = ${value}`));
+            break;
+        }
+        default:
+            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: list|get|set`));
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Help
 // ---------------------------------------------------------------------------
 
@@ -2809,6 +3711,17 @@ Phase E — TUI · Webhooks · AI Remediation · Multi-Cluster · SLA · Trends:
   remediate    analyze|rules|history|config [--json] [--llm-enable true]
   cluster      list|register|deregister|contexts|status|exec|switch|diff [--name] [--context]
   trends       report|chart|anomalies|forecast [--category] [--steps N] [--json]
+
+Phase F (Q2 2026) — Plugins · Batch · Diff · Completion · Logs · Snapshots · Compare:
+  plugins                                            List installed plugins
+  plugin-run   <name> [args...]                      Run a named plugin
+  batch        <start|stop|restart> <svc...> [--all] Batch operation across multiple services
+  diff         config <svc> [--new-env KEY=VAL ...]  Preview config change (no apply)
+  diff         scale <svc> <replicas>                Preview replica count change
+  completion   [bash|zsh]                            Print shell completion script
+  tail-logs    <svc> [--follow] [--tail 100]         Stream live service logs (Docker/k8s)
+  snapshot     save|list|show|restore|delete [name]  Save/restore service configuration
+  compare      <svc1> <svc2> [svc3...]               Side-by-side metrics comparison
 
 Roles (ascending privilege):
   viewer       Read-only (doctor, role, status, logs, health, check, audit, monitor, run, incident, metrics, etc.)
@@ -2884,6 +3797,7 @@ Data Directories (.admin-cli/):
   webhooks/      Webhook configurations and delivery history (Phase E)
   clusters/      Multi-cluster Kubernetes registry (Phase E)
   remediation/   AI remediation config and session history (Phase E)
+  snapshots/     Configuration snapshots (Phase F)
 
 Learn more: Review docs/admin/CLI_ADMIN_PANEL.md for detailed documentation
 `;
@@ -2976,6 +3890,22 @@ async function main() {
             case 'run': cmdRun(rawArgs); break;
             case 'audit': cmdAudit(rawArgs); break;
             case 'set-role': cmdSetRole(rawArgs); break;
+            // Phase F (Q2 2026)
+            case 'plugins': cmdPlugins(rawArgs); break;
+            case 'plugin-run': await cmdPluginRun(rawArgs); break;
+            case 'batch': await cmdBatch(rawArgs); break;
+            case 'diff': cmdDiff(rawArgs); break;
+            case 'completion': cmdCompletion(rawArgs); break;
+            case 'tail-logs': await cmdTailLogs(rawArgs); break;
+            case 'snapshot': await cmdSnapshot(rawArgs); break;
+            case 'compare': cmdCompare(rawArgs); break;
+            // Q4 2026
+            case 'feature-flags': cmdFeatureFlags(rawArgs); break;
+            case 'tenant': cmdTenant(rawArgs); break;
+            case 'runbook': await cmdRunbook(rawArgs); break;
+            case 'ai': await cmdAI(rawArgs); break;
+            case 'change-log': cmdChangeLog(rawArgs); break;
+            case 'config': cmdConfig(rawArgs); break;
             default:
                 fatal(`Unknown command: ${command}\nUse: node admin-cli/index.js --help`);
         }
@@ -2992,6 +3922,9 @@ async function main() {
         process.exit(1);
     }
 }
+
+// Load plugins before running the CLI
+loadPlugins();
 
 main().catch((err) => {
     if (_pendingAudit) {
