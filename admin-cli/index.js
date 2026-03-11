@@ -1732,10 +1732,10 @@ function cmdMetrics(rawArgs) {
             category: options.category,
             since: options.since ? new Date(Date.now() - parseInt(options.since) * 1000).toISOString() : null,
         };
-        
+
         const metrics = collector.query(filters);
         const stats = metrics.length > 0 ? collector.aggregate(filters) : {};
-        
+
         if (toBool(options.json, false)) {
             emitJSON({ command: 'metrics status', stats, count: metrics.length });
         } else {
