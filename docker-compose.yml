@@ -355,26 +355,242 @@ services:
     networks:
       - milonexa-network
 
-  # Admin Frontend (separate from user frontend)
-  # Set ENABLE_ADMIN_FRONTEND=true to start this service
-  admin_frontend:
+  # ─────────────────────────────────────────────────────────────────
+  # ADMIN PANEL INTERFACES  (admin/ directory — unified structure)
+  # Default enabled: web dashboard only.  All others opt-in via env.
+  # ─────────────────────────────────────────────────────────────────
+
+  # 1) Admin Web Dashboard — React UI (ENABLED BY DEFAULT)
+  # Enable: ENABLE_ADMIN_WEB=true (default) + profile 'admin'
+  # docker compose --profile admin up admin-web
+  admin-web:
     profiles:
       - admin
     build:
-      context: ./admin_frontend
+      context: ./admin/web
       args:
         - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
     restart: unless-stopped
     environment:
+      - ENABLE_ADMIN_WEB=${ENABLE_ADMIN_WEB:-true}
       - NODE_ENV=${NODE_ENV:-production}
       - GENERATE_SOURCEMAP=${GENERATE_SOURCEMAP:-false}
       - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
       - REACT_APP_ADMIN_SECRET=${REACT_APP_ADMIN_SECRET}
     ports:
-      - "3001:3001"
+      - "${ADMIN_WEB_PORT:-3001}:3001"
     depends_on:
       security-service:
         condition: service_healthy
+    networks:
+      - milonexa-network
+
+  # 2) Admin REST API Server — HTTP REST interface
+  # Enable: ENABLE_ADMIN_REST_API=true + profile 'admin-api'
+  # docker compose --profile admin-api up admin-rest-api
+  admin-rest-api:
+    profiles:
+      - admin-api
+    build:
+      context: ./admin
+      dockerfile: Dockerfile.backend
+      args:
+        - SERVICE=rest-api
+    restart: unless-stopped
+    environment:
+      - ENABLE_ADMIN_REST_API=${ENABLE_ADMIN_REST_API:-false}
+      - ADMIN_API_PORT=${ADMIN_API_PORT:-8888}
+      - ADMIN_API_HOST=0.0.0.0
+      - ADMIN_API_KEY=${ADMIN_API_KEY}
+      - ADMIN_CORS_ORIGIN=${ADMIN_CORS_ORIGIN:-*}
+      - ADMIN_ALLOWED_IPS=${ADMIN_ALLOWED_IPS:-127.0.0.1,::1}
+      - NODE_ENV=${NODE_ENV:-production}
+    ports:
+      - "127.0.0.1:${ADMIN_API_PORT:-8888}:8888"
+    volumes:
+      - admin-state:/app/.admin-cli
+    networks:
+      - milonexa-network
+
+  # 3) Admin SSH Dashboard — encrypted SSH-based interactive dashboard
+  # Enable: ENABLE_ADMIN_SSH=true + profile 'admin-ssh'
+  # docker compose --profile admin-ssh up admin-ssh
+  admin-ssh:
+    profiles:
+      - admin-ssh
+    build:
+      context: ./admin
+      dockerfile: Dockerfile.backend
+      args:
+        - SERVICE=ssh
+    restart: unless-stopped
+    environment:
+      - ENABLE_ADMIN_SSH=${ENABLE_ADMIN_SSH:-false}
+      - ADMIN_SSH_PORT=${ADMIN_SSH_PORT:-2222}
+      - ADMIN_SSH_HOST=0.0.0.0
+      - ADMIN_SSH_PASSWORD=${ADMIN_SSH_PASSWORD}
+      - ADMIN_SSH_AUTHORIZED_KEYS=${ADMIN_SSH_AUTHORIZED_KEYS:-/ssh-keys/authorized_keys}
+      - ADMIN_SSH_HOST_KEY_PATH=/app/.admin-cli/ssh/host_rsa
+      - ADMIN_SSH_MAX_SESSIONS=${ADMIN_SSH_MAX_SESSIONS:-5}
+      - ADMIN_SSH_IDLE_TIMEOUT=${ADMIN_SSH_IDLE_TIMEOUT:-300}
+      - ADMIN_ALLOWED_IPS=${ADMIN_ALLOWED_IPS:-127.0.0.1,::1}
+      - ADMIN_SSH_BANNER=${ADMIN_SSH_BANNER:-Milonexa Admin SSH — Authorized Access Only}
+      - NODE_ENV=${NODE_ENV:-production}
+    ports:
+      - "127.0.0.1:${ADMIN_SSH_PORT:-2222}:2222"
+    volumes:
+      - admin-state:/app/.admin-cli
+      - ${ADMIN_SSH_KEYS_DIR:-./admin/ssh/ssh-keys}:/ssh-keys:ro
+    networks:
+      - milonexa-network
+
+  # 4) Admin Webhook Server — notification delivery hub
+  # Enable: ENABLE_ADMIN_WEBHOOK=true + profile 'admin-webhook'
+  # docker compose --profile admin-webhook up admin-webhook
+  admin-webhook:
+    profiles:
+      - admin-webhook
+    build:
+      context: ./admin
+      dockerfile: Dockerfile.backend
+      args:
+        - SERVICE=webhook
+    restart: unless-stopped
+    environment:
+      - ENABLE_ADMIN_WEBHOOK=${ENABLE_ADMIN_WEBHOOK:-false}
+      - ADMIN_WEBHOOK_PORT=${ADMIN_WEBHOOK_PORT:-8889}
+      - ADMIN_WEBHOOK_HOST=0.0.0.0
+      - ADMIN_WEBHOOK_SECRET=${ADMIN_WEBHOOK_SECRET}
+      - NODE_ENV=${NODE_ENV:-production}
+    ports:
+      - "127.0.0.1:${ADMIN_WEBHOOK_PORT:-8889}:8889"
+    volumes:
+      - admin-state:/app/.admin-cli
+    networks:
+      - milonexa-network
+
+  # 5) Admin Telegram Bot
+  # Enable: ENABLE_ADMIN_BOT_TELEGRAM=true + profile 'admin-bot-telegram'
+  # docker compose --profile admin-bot-telegram up admin-bot-telegram
+  admin-bot-telegram:
+    profiles:
+      - admin-bot-telegram
+    build:
+      context: ./admin
+      dockerfile: Dockerfile.backend
+      args:
+        - SERVICE=bot
+    command: ["node", "telegram/bot.js"]
+    restart: unless-stopped
+    environment:
+      - ENABLE_ADMIN_BOT_TELEGRAM=${ENABLE_ADMIN_BOT_TELEGRAM:-false}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_ADMIN_USER_IDS=${TELEGRAM_ADMIN_USER_IDS}
+      - TELEGRAM_ADMIN_CHAT_IDS=${TELEGRAM_ADMIN_CHAT_IDS}
+      - NODE_ENV=${NODE_ENV:-production}
+    volumes:
+      - admin-state:/app/.admin-cli
+    networks:
+      - milonexa-network
+
+  # 6) Admin Slack Bot
+  # Enable: ENABLE_ADMIN_BOT_SLACK=true + profile 'admin-bot-slack'
+  # docker compose --profile admin-bot-slack up admin-bot-slack
+  admin-bot-slack:
+    profiles:
+      - admin-bot-slack
+    build:
+      context: ./admin
+      dockerfile: Dockerfile.backend
+      args:
+        - SERVICE=bot
+    command: ["node", "slack/bot.js"]
+    restart: unless-stopped
+    environment:
+      - ENABLE_ADMIN_BOT_SLACK=${ENABLE_ADMIN_BOT_SLACK:-false}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - SLACK_APP_TOKEN=${SLACK_APP_TOKEN}
+      - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
+      - SLACK_ADMIN_CHANNELS=${SLACK_ADMIN_CHANNELS}
+      - SLACK_ADMIN_USER_IDS=${SLACK_ADMIN_USER_IDS}
+      - SLACK_BOT_PORT=${SLACK_BOT_PORT:-3003}
+      - NODE_ENV=${NODE_ENV:-production}
+    ports:
+      - "127.0.0.1:${SLACK_BOT_PORT:-3003}:3003"
+    volumes:
+      - admin-state:/app/.admin-cli
+    networks:
+      - milonexa-network
+
+  # 7) Admin Email Command Interface
+  # Enable: ENABLE_ADMIN_EMAIL=true + profile 'admin-email'
+  # docker compose --profile admin-email up admin-email
+  admin-email:
+    profiles:
+      - admin-email
+    build:
+      context: ./admin
+      dockerfile: Dockerfile.backend
+      args:
+        - SERVICE=email
+    restart: unless-stopped
+    environment:
+      - ENABLE_ADMIN_EMAIL=${ENABLE_ADMIN_EMAIL:-false}
+      - ADMIN_EMAIL_USER=${ADMIN_EMAIL_USER}
+      - ADMIN_EMAIL_PASSWORD=${ADMIN_EMAIL_PASSWORD}
+      - ADMIN_EMAIL_IMAP_HOST=${ADMIN_EMAIL_IMAP_HOST}
+      - ADMIN_EMAIL_IMAP_PORT=${ADMIN_EMAIL_IMAP_PORT:-993}
+      - ADMIN_EMAIL_IMAP_TLS=${ADMIN_EMAIL_IMAP_TLS:-true}
+      - ADMIN_EMAIL_SMTP_HOST=${ADMIN_EMAIL_SMTP_HOST}
+      - ADMIN_EMAIL_SMTP_PORT=${ADMIN_EMAIL_SMTP_PORT:-587}
+      - ADMIN_EMAIL_SMTP_SECURE=${ADMIN_EMAIL_SMTP_SECURE:-false}
+      - ADMIN_EMAIL_FROM=${ADMIN_EMAIL_FROM}
+      - ADMIN_EMAIL_ALLOWED_SENDERS=${ADMIN_EMAIL_ALLOWED_SENDERS}
+      - ADMIN_EMAIL_SUBJECT_PREFIX=${ADMIN_EMAIL_SUBJECT_PREFIX:-[ADMIN-CMD]}
+      - ADMIN_EMAIL_SIGNATURE=${ADMIN_EMAIL_SIGNATURE}
+      - ADMIN_EMAIL_POLL_INTERVAL=${ADMIN_EMAIL_POLL_INTERVAL:-30}
+      - NODE_ENV=${NODE_ENV:-production}
+    volumes:
+      - admin-state:/app/.admin-cli
+    networks:
+      - milonexa-network
+
+  # 8) AI Autonomous Admin Agent — next-gen AI-managed admin
+  # Enable: ENABLE_ADMIN_AI=true + profile 'admin-ai'
+  # docker compose --profile admin-ai up admin-ai
+  # The AI agent continuously monitors, heals, secures, and optimizes the platform.
+  admin-ai:
+    profiles:
+      - admin-ai
+    build:
+      context: ./admin
+      dockerfile: Dockerfile.backend
+      args:
+        - SERVICE=ai
+    restart: unless-stopped
+    environment:
+      - ENABLE_ADMIN_AI=${ENABLE_ADMIN_AI:-false}
+      - AI_PROVIDER=${AI_PROVIDER:-demo}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AI_CYCLE_INTERVAL_SECONDS=${AI_CYCLE_INTERVAL_SECONDS:-60}
+      - AI_STATUS_PORT=${AI_STATUS_PORT:-8890}
+      - AI_NOTIFY_EVERY_CYCLE=${AI_NOTIFY_EVERY_CYCLE:-false}
+      - AI_EMERGENCY_NOTIFY=${AI_EMERGENCY_NOTIFY:-true}
+      - AI_AUTO_HEAL=${AI_AUTO_HEAL:-true}
+      - AI_AUTO_SECURITY=${AI_AUTO_SECURITY:-true}
+      - AI_GATEWAY_URL=${AI_GATEWAY_URL:-http://api-gateway:8000}
+      - AI_PERMISSION_TIMEOUT_MINUTES=${AI_PERMISSION_TIMEOUT_MINUTES:-30}
+      # Notification integrations (reuse bot credentials if set)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_ADMIN_CHAT_IDS=${TELEGRAM_ADMIN_CHAT_IDS}
+      - ADMIN_WEBHOOK_SLACK_URLS=${ADMIN_WEBHOOK_SLACK_URLS}
+      - ADMIN_WEBHOOK_DISCORD_URLS=${ADMIN_WEBHOOK_DISCORD_URLS}
+      - NODE_ENV=${NODE_ENV:-production}
+    ports:
+      - "127.0.0.1:${AI_STATUS_PORT:-8890}:8890"
+    volumes:
+      - admin-state:/app/.admin-cli
     networks:
       - milonexa-network
 
@@ -467,6 +683,7 @@ volumes:
   redis-data:
   minio-data:
   elasticsearch-data:
+  admin-state:
 
 
 networks:

@@ -1,0 +1,44 @@
+# Multi-purpose Dockerfile for admin backend services
+# Build context MUST be the admin/ directory root
+# Usage examples:
+#   docker build --build-arg SERVICE=rest-api -f admin/Dockerfile.backend admin/
+#   docker build --build-arg SERVICE=ssh -f admin/Dockerfile.backend admin/
+#   docker build --build-arg SERVICE=webhook -f admin/Dockerfile.backend admin/
+#   docker build --build-arg SERVICE=bot -f admin/Dockerfile.backend admin/
+#   docker build --build-arg SERVICE=email -f admin/Dockerfile.backend admin/
+#   docker build --build-arg SERVICE=ai -f admin/Dockerfile.backend admin/
+
+FROM node:20-alpine
+
+ARG SERVICE=rest-api
+ENV SERVICE=${SERVICE}
+
+WORKDIR /app
+
+# Copy shared libs first (used by all services)
+COPY shared/ ./shared/
+COPY config.js ./
+
+# Copy the specific service directory
+COPY ${SERVICE}/ ./${SERVICE}/
+
+# Install service dependencies
+WORKDIR /app/${SERVICE}
+RUN npm install --omit=dev && npm cache clean --force
+
+# Create state directory (persisted via volume mount at runtime)
+RUN mkdir -p /app/.admin-cli/ssh && chmod 700 /app/.admin-cli/ssh
+
+# Security: non-root user
+RUN addgroup -g 1001 -S adminuser && \
+    adduser -u 1001 -S adminuser -G adminuser && \
+    chown -R adminuser:adminuser /app
+USER adminuser
+
+WORKDIR /app/${SERVICE}
+
+CMD ["node", "server.js"]
+
+LABEL org.opencontainers.image.title="Milonexa Admin Backend Services"
+LABEL org.opencontainers.image.description="Admin panel backend services (REST API, SSH, Webhook, Bot, Email, AI Agent)"
+LABEL org.opencontainers.image.version="1.1.0"

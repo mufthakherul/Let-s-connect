@@ -1,0 +1,20 @@
+{
+  "name": "milonexa-admin-bot",
+  "version": "1.0.0",
+  "description": "Telegram and Slack admin bots for Milonexa",
+  "main": "index.js",
+  "scripts": {
+    "telegram": "node telegram/bot.js",
+    "slack": "node slack/bot.js",
+    "start:telegram": "ENABLE_ADMIN_BOT_TELEGRAM=true node telegram/bot.js",
+    "start:slack": "ENABLE_ADMIN_BOT_SLACK=true node slack/bot.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.66.0",
+    "@slack/bolt": "^3.21.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

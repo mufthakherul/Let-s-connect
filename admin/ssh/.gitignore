@@ -1,0 +1,8 @@
+# SSH host keys (auto-generated at runtime)
+*.rsa
+*.pem
+*.key
+host_key
+# Keep only the example
+!ssh-keys/authorized_keys.example
+ssh-keys/authorized_keys

@@ -1,0 +1,15 @@
+{
+  "name": "milonexa-admin-webhook",
+  "version": "1.0.0",
+  "description": "Webhook notification server for Milonexa admin",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "ENABLE_ADMIN_WEBHOOK=true ADMIN_WEBHOOK_SECRET=devonly node server.js"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

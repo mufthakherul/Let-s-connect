@@ -4,7 +4,7 @@ Unified CLI-first administrative control plane for Milonexa.
 All admin CLI code lives in `admin-cli/` at the repository root.
 
 > Entry command:
-> `node admin-cli/index.js`
+> `node admin/cli/index.js`
 
 The CLI is designed to remain fully operational even when the web admin frontend is down.
 
@@ -142,99 +142,99 @@ Runtime state (ignored from git):
 ### 1) Doctor checks
 
 ```bash
-node admin-cli/index.js doctor
-node admin-cli/index.js doctor --json
+node admin/cli/index.js doctor
+node admin/cli/index.js doctor --json
 ```
 
 ### 2) Role inspection and role change
 
 ```bash
-node admin-cli/index.js role
-node admin-cli/index.js role --json
+node admin/cli/index.js role
+node admin/cli/index.js role --json
 
 # Admin-only role change:
-ADMIN_CLI_ROLE=admin node admin-cli/index.js set-role operator
+ADMIN_CLI_ROLE=admin node admin/cli/index.js set-role operator
 
 # Alias for viewing role details:
-node admin-cli/index.js set-role --show
+node admin/cli/index.js set-role --show
 ```
 
 ### 3) Build/start in Docker dev
 
 ```bash
-node admin-cli/index.js build --runtime docker --env dev --admin
-node admin-cli/index.js start --runtime docker --env dev --admin
-node admin-cli/index.js status --runtime docker
+node admin/cli/index.js build --runtime docker --env dev --admin
+node admin/cli/index.js start --runtime docker --env dev --admin
+node admin/cli/index.js status --runtime docker
 ```
 
 ### 4) Scale workloads
 
 ```bash
-node admin-cli/index.js scale --runtime docker --service api-gateway --replicas 2
-ADMIN_CLI_ROLE=admin node admin-cli/index.js scale --runtime k8s --service api-gateway --replicas 3 --wait
+node admin/cli/index.js scale --runtime docker --service api-gateway --replicas 2
+ADMIN_CLI_ROLE=admin node admin/cli/index.js scale --runtime k8s --service api-gateway --replicas 3 --wait
 ```
 
 ### 5) Rollout workflows
 
 ```bash
 # Rolling restart
-ADMIN_CLI_ROLE=admin node admin-cli/index.js rollout --runtime k8s --strategy rolling --service api-gateway --wait
+ADMIN_CLI_ROLE=admin node admin/cli/index.js rollout --runtime k8s --strategy rolling --service api-gateway --wait
 
 # Canary with gate checks
-ADMIN_CLI_ROLE=admin node admin-cli/index.js rollout --runtime k8s --strategy canary --service api-gateway --wait
+ADMIN_CLI_ROLE=admin node admin/cli/index.js rollout --runtime k8s --strategy canary --service api-gateway --wait
 
 # Blue/green pre-switch validation
-ADMIN_CLI_ROLE=admin node admin-cli/index.js rollout --runtime k8s --strategy bluegreen --target green
+ADMIN_CLI_ROLE=admin node admin/cli/index.js rollout --runtime k8s --strategy bluegreen --target green
 
 # Rollback
-ADMIN_CLI_ROLE=admin node admin-cli/index.js rollout --runtime k8s --strategy undo --service api-gateway
+ADMIN_CLI_ROLE=admin node admin/cli/index.js rollout --runtime k8s --strategy undo --service api-gateway
 ```
 
 ### 6) Validation checks
 
 ```bash
-node admin-cli/index.js check all --env staging --namespace milonexa
-node admin-cli/index.js check release-gate --gateway http://localhost:8000 --prometheus http://localhost:9090
-node admin-cli/index.js check image-tags --service user-service --tag v1.2.3
-node admin-cli/index.js check all --json
+node admin/cli/index.js check all --env staging --namespace milonexa
+node admin/cli/index.js check release-gate --gateway http://localhost:8000 --prometheus http://localhost:9090
+node admin/cli/index.js check image-tags --service user-service --tag v1.2.3
+node admin/cli/index.js check all --json
 ```
 
 ### 7) Phase D — Metrics, alerts, costs, compliance
 
 ```bash
 # View metrics (all roles can access)
-node admin-cli/index.js metrics status --service api-gateway
-node admin-cli/index.js metrics status --category memory --json
+node admin/cli/index.js metrics status --service api-gateway
+node admin/cli/index.js metrics status --category memory --json
 
 # Alert management
-node admin-cli/index.js alerts list --json
-node admin-cli/index.js alerts history --status active
-ADMIN_CLI_ROLE=operator node admin-cli/index.js alerts acknowledge <alert-id>
+node admin/cli/index.js alerts list --json
+node admin/cli/index.js alerts history --status active
+ADMIN_CLI_ROLE=operator node admin/cli/index.js alerts acknowledge <alert-id>
 
 # Cost tracking
-node admin-cli/index.js costs summary --json
-ADMIN_CLI_ROLE=admin node admin-cli/index.js costs budget
-node admin-cli/index.js costs optimize
+node admin/cli/index.js costs summary --json
+ADMIN_CLI_ROLE=admin node admin/cli/index.js costs budget
+node admin/cli/index.js costs optimize
 
 # Compliance auditing
-node admin-cli/index.js compliance status --json
-ADMIN_CLI_ROLE=admin node admin-cli/index.js compliance report --format detailed
+node admin/cli/index.js compliance status --json
+ADMIN_CLI_ROLE=admin node admin/cli/index.js compliance report --format detailed
 
 # Optimization recommendations
-node admin-cli/index.js recommendations top --limit 10
-node admin-cli/index.js recommendations top --json
+node admin/cli/index.js recommendations top --limit 10
+node admin/cli/index.js recommendations top --json
 
 # Live dashboard
-node admin-cli/index.js dashboard --interval 5
-node admin-cli/index.js dashboard --json
+node admin/cli/index.js dashboard --interval 5
+node admin/cli/index.js dashboard --json
 ```
 
 ### 8) Incident summarization
 
 ```bash
-node admin-cli/index.js incident summarize --runtime docker --service api-gateway --since 2h --tail 1200
-node admin-cli/index.js incident summarize --runtime k8s --namespace milonexa --service user-service --json
-node admin-cli/index.js incident summarize --runtime docker --service api-gateway --export .admin-cli/incidents/api-gw-latest.json
+node admin/cli/index.js incident summarize --runtime docker --service api-gateway --since 2h --tail 1200
+node admin/cli/index.js incident summarize --runtime k8s --namespace milonexa --service user-service --json
+node admin/cli/index.js incident summarize --runtime docker --service api-gateway --export .admin-cli/incidents/api-gw-latest.json
 ```
 
 ---
@@ -265,7 +265,7 @@ metrics      alerts       policies     costs        compliance   recommendations
 Full flag reference:
 
 ```bash
-node admin-cli/index.js --help
+node admin/cli/index.js --help
 ```
 
 ---
@@ -326,63 +326,174 @@ node admin-cli/index.js --help
 
 ---
 
-## Next roadmap items (Phase E+)
+## Next roadmap items (Phase E — ✅ Implemented)
 
-- **Interactive TUI** for full-screen operator console
-- **Advanced visualization** (charts, graphs, trends)
-- **Webhook integrations** (Slack, Teams, PagerDuty, GitHub)
-- **LLM-assisted remediation** with AI-powered suggestions
-- **Multi-cluster management** across regional Kubernetes deployments
-- **Resource capacity planning** with forecasting
-- **SLA breach prediction** and proactive remediation
+All Phase E features have been implemented:
+
+- ✅ **Interactive TUI** — `node admin/cli/index.js tui` for full-screen operator console with real-time charts
+- ✅ **Advanced visualization** — `trends report|chart|anomalies|forecast` with sparklines and ASCII charts
+- ✅ **Webhook integrations** — `webhooks add|fire|list` for Slack, Teams, PagerDuty, and GitHub
+- ✅ **LLM-assisted remediation** — `remediate analyze|config` with AI-powered suggestions (optional OpenAI integration)
+- ✅ **Multi-cluster management** — `cluster register|status|diff|exec` across regional Kubernetes deployments
+- ✅ **SLA breach prediction** — `sla predict` with linear regression forecasting and proactive remediation
+- ✅ **REST API server** — `node admin-cli/admin-server.js` for HTTP access to all admin operations
+
+---
+
+## Phase E — New Commands
+
+### Interactive TUI Dashboard
+
+```bash
+node admin/cli/index.js tui                   # Start full-screen TUI (3s refresh)
+node admin/cli/index.js tui --interval 5      # Custom refresh interval
+# Keys: 1-6 or ←/→ for tabs | p: pause | r: refresh | q: quit
+```
+
+### Webhook Integrations
+
+```bash
+# Add webhooks
+ADMIN_CLI_ROLE=operator node admin/cli/index.js webhooks add --type slack --name "Ops Slack" --url https://hooks.slack.com/...
+ADMIN_CLI_ROLE=operator node admin/cli/index.js webhooks add --type teams --name "Teams Alerts" --url https://outlook.office.com/...
+ADMIN_CLI_ROLE=operator node admin/cli/index.js webhooks add --type pagerduty --name "PD Critical" --token <routing-key> --severity critical
+ADMIN_CLI_ROLE=operator node admin/cli/index.js webhooks add --type github --name "GitHub Dispatch" --url https://api.github.com/repos/org/repo/dispatches --token <pat>
+
+# Manage and fire webhooks
+ADMIN_CLI_ROLE=operator node admin/cli/index.js webhooks list
+ADMIN_CLI_ROLE=operator node admin/cli/index.js webhooks fire --event alert --severity critical --message "High CPU detected"
+ADMIN_CLI_ROLE=operator node admin/cli/index.js webhooks history --limit 20
+ADMIN_CLI_ROLE=operator node admin/cli/index.js webhooks stats
+```
+
+### SLA Monitoring & Breach Prediction
+
+```bash
+node admin/cli/index.js sla status            # Current SLO compliance
+node admin/cli/index.js sla predict           # AI-powered breach predictions
+node admin/cli/index.js sla list              # All SLO definitions
+node admin/cli/index.js sla simulate --count 20  # Generate synthetic measurements (demo)
+
+# Add custom SLO
+ADMIN_CLI_ROLE=operator node admin/cli/index.js sla add \
+  --service api-gateway --name "P99 Latency" --type latency --target 300 --unit ms --window 7d
+
+# Record measurement
+ADMIN_CLI_ROLE=operator node admin/cli/index.js sla record --id slo-api-uptime --value 99.95
+```
+
+### AI-Assisted Guided Remediation
+
+```bash
+node admin/cli/index.js remediate analyze     # Run analysis (rule-based + optional LLM)
+node admin/cli/index.js remediate rules       # Show knowledge base rules
+node admin/cli/index.js remediate history     # Session history
+
+# Configure LLM integration (optional)
+node admin/cli/index.js remediate config --llm-enable true --llm-model gpt-4o-mini
+# Set OPENAI_API_KEY=<your-key> env var for authentication
+```
+
+### Multi-Cluster Kubernetes Management
+
+```bash
+ADMIN_CLI_ROLE=operator node admin/cli/index.js cluster list
+ADMIN_CLI_ROLE=operator node admin/cli/index.js cluster register \
+  --name prod-us-east1 --context gke_project_us --env prod --region us-east1
+
+ADMIN_CLI_ROLE=operator node admin/cli/index.js cluster contexts  # Available kubectl contexts
+ADMIN_CLI_ROLE=operator node admin/cli/index.js cluster status    # Status across all clusters
+ADMIN_CLI_ROLE=operator node admin/cli/index.js cluster diff      # Compare deployments across clusters
+ADMIN_CLI_ROLE=operator node admin/cli/index.js cluster switch --context gke_project_us
+ADMIN_CLI_ROLE=operator node admin/cli/index.js cluster exec prod-us-east1 get pods
+```
+
+### Trend Analysis & Visualization
+
+```bash
+node admin/cli/index.js trends report             # Full trend report with sparklines
+node admin/cli/index.js trends report --category cpu   # Filter by category
+node admin/cli/index.js trends chart --category memory # ASCII line chart
+node admin/cli/index.js trends anomalies              # Z-score anomaly detection
+node admin/cli/index.js trends forecast --category cpu --steps 10  # Linear regression forecast
+node admin/cli/index.js trends report --json          # Machine-readable output
+```
+
+### Admin REST API Server (New Interface)
+
+```bash
+# Start the REST API server
+node admin-cli/admin-server.js                     # Default: http://127.0.0.1:8888
+ADMIN_API_PORT=9000 node admin-cli/admin-server.js # Custom port
+ADMIN_API_KEY=secret node admin-cli/admin-server.js  # Enable authentication
+
+# API endpoints:
+# GET  /health
+# GET  /api/v1/dashboard
+# GET  /api/v1/metrics?category=cpu&service=api-gateway
+# POST /api/v1/metrics          { category, value, service }
+# GET  /api/v1/sla
+# GET  /api/v1/sla/predict
+# POST /api/v1/sla/record       { sloId, value }
+# GET  /api/v1/webhooks
+# POST /api/v1/webhooks         { type, name, url, severity }
+# POST /api/v1/webhooks/fire    { eventType, severity, message }
+# GET  /api/v1/clusters
+# GET  /api/v1/trends
+# GET  /api/v1/trends/anomalies
+# POST /api/v1/remediate        (context is auto-collected)
+# GET  /api/v1/compliance
+# GET  /api/v1/costs
+# GET  /api/v1/audit
+```
 
 
 ### 3) Build/start in Docker dev
 
 ```bash
-node admin-cli/index.js build --runtime docker --env dev --admin
-node admin-cli/index.js start --runtime docker --env dev --admin
-node admin-cli/index.js status --runtime docker
+node admin/cli/index.js build --runtime docker --env dev --admin
+node admin/cli/index.js start --runtime docker --env dev --admin
+node admin/cli/index.js status --runtime docker
 ```
 
 ### 4) Scale workloads
 
 ```bash
-node admin-cli/index.js scale --runtime docker --service api-gateway --replicas 2
-ADMIN_CLI_ROLE=admin node admin-cli/index.js scale --runtime k8s --service api-gateway --replicas 3 --wait
+node admin/cli/index.js scale --runtime docker --service api-gateway --replicas 2
+ADMIN_CLI_ROLE=admin node admin/cli/index.js scale --runtime k8s --service api-gateway --replicas 3 --wait
 ```
 
 ### 5) Rollout workflows
 
 ```bash
 # Rolling restart
-ADMIN_CLI_ROLE=admin node admin-cli/index.js rollout --runtime k8s --strategy rolling --service api-gateway --wait
+ADMIN_CLI_ROLE=admin node admin/cli/index.js rollout --runtime k8s --strategy rolling --service api-gateway --wait
 
 # Canary with gate checks
-ADMIN_CLI_ROLE=admin node admin-cli/index.js rollout --runtime k8s --strategy canary --service api-gateway --wait
+ADMIN_CLI_ROLE=admin node admin/cli/index.js rollout --runtime k8s --strategy canary --service api-gateway --wait
 
 # Blue/green pre-switch validation
-ADMIN_CLI_ROLE=admin node admin-cli/index.js rollout --runtime k8s --strategy bluegreen --target green
+ADMIN_CLI_ROLE=admin node admin/cli/index.js rollout --runtime k8s --strategy bluegreen --target green
 
 # Rollback
-ADMIN_CLI_ROLE=admin node admin-cli/index.js rollout --runtime k8s --strategy undo --service api-gateway
+ADMIN_CLI_ROLE=admin node admin/cli/index.js rollout --runtime k8s --strategy undo --service api-gateway
 ```
 
 ### 6) Validation checks
 
 ```bash
-node admin-cli/index.js check all --env staging --namespace milonexa
-node admin-cli/index.js check release-gate --gateway http://localhost:8000 --prometheus http://localhost:9090
-node admin-cli/index.js check image-tags --service user-service --tag v1.2.3
-node admin-cli/index.js check all --json
+node admin/cli/index.js check all --env staging --namespace milonexa
+node admin/cli/index.js check release-gate --gateway http://localhost:8000 --prometheus http://localhost:9090
+node admin/cli/index.js check image-tags --service user-service --tag v1.2.3
+node admin/cli/index.js check all --json
 ```
 
 ### 7) Incident summarization
 
 ```bash
-node admin-cli/index.js incident summarize --runtime docker --service api-gateway --since 2h --tail 1200
-node admin-cli/index.js incident summarize --runtime k8s --namespace milonexa --service user-service --json
-node admin-cli/index.js incident summarize --runtime docker --service api-gateway --export .admin-cli/incidents/api-gw-latest.json
+node admin/cli/index.js incident summarize --runtime docker --service api-gateway --since 2h --tail 1200
+node admin/cli/index.js incident summarize --runtime k8s --namespace milonexa --service user-service --json
+node admin/cli/index.js incident summarize --runtime docker --service api-gateway --export .admin-cli/incidents/api-gw-latest.json
 ```
 
 ---
@@ -407,12 +518,14 @@ doctor   role    set-role   audit
 build    start   stop       restart   status   logs
 scale    rollout check      incident
 health   backup  monitor    run
+metrics  alerts  policies   costs     compliance  recommendations  dashboard
+tui      webhooks sla       remediate cluster    trends
 ```
 
 Full flag reference:
 
 ```bash
-node admin-cli/index.js --help
+node admin/cli/index.js --help
 ```
 
 ---
@@ -427,8 +540,12 @@ node admin-cli/index.js --help
 
 ---
 
-## Next roadmap items
+## Next roadmap items (Phase F+)
 
-- TUI operations dashboard (`admin-cli tui`)
+Phase E is fully implemented. Future improvements:
+
 - Pluggable policy-as-code hooks for custom org controls
-- Optional LLM-assisted guided remediation flow from failed checks
+- Resource capacity planning with advanced ML forecasting
+- Cross-cluster service mesh observability integration
+- GraphQL API for flexible admin queries
+- Real-time WebSocket streaming for live metrics updates
