@@ -117,6 +117,10 @@ import SLATimeline from './dashboard/SLATimeline';
 import AlertRuleEditor from './dashboard/AlertRuleEditor';
 import CostBreakdown from './dashboard/CostBreakdown';
 import AIPermissionInbox from './dashboard/AIPermissionInbox';
+// Q3 2026 components
+import SecurityDashboard from './dashboard/SecurityDashboard';
+import ComplianceDashboard from './dashboard/ComplianceDashboard';
+import SSHAdminPanel from './dashboard/SSHAdminPanel';
 import KeyboardShortcutsModal from './common/KeyboardShortcutsModal';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useTranslation, setLanguage, SUPPORTED_LANGUAGES } from '../utils/i18n';
@@ -1437,6 +1441,10 @@ const AdminDashboard = () => {
                             <Tab icon={<Rule />} label={t('Alert Rules')} />
                             <Tab icon={<PieChartIcon />} label={t('Cost Breakdown')} />
                             <Tab icon={<Approval />} label={t('AI Permissions')} />
+                            {/* Q3 2026 tabs */}
+                            <Tab icon={<Security />} label={t('Security')} />
+                            <Tab icon={<Gavel />} label={t('Compliance')} />
+                            <Tab icon={<VpnKey />} label={t('SSH Admin')} />
                         </Tabs>
 
                         {currentTab === 0 && renderStatsTab()}
@@ -1462,6 +1470,10 @@ const AdminDashboard = () => {
                         {currentTab === 19 && <AlertRuleEditor />}
                         {currentTab === 20 && <CostBreakdown />}
                         {currentTab === 21 && <AIPermissionInbox />}
+                        {/* Q3 2026 tab panels */}
+                        {currentTab === 22 && <SecurityDashboard />}
+                        {currentTab === 23 && <ComplianceDashboard />}
+                        {currentTab === 24 && <SSHAdminPanel />}
                     </Paper>
 
                     {/* Speed Dial for Quick Actions */}

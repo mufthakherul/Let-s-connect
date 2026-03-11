@@ -85,6 +85,12 @@ const IDLE_TIMEOUT_SEC = parseInt(process.env.ADMIN_SSH_IDLE_TIMEOUT || '300');
 const ALLOWED_IPS = (process.env.ADMIN_ALLOWED_IPS || '127.0.0.1,::1,::ffff:127.0.0.1')
     .split(',').map(ip => ip.trim()).filter(Boolean);
 const BANNER = process.env.ADMIN_SSH_BANNER || '';
+const RECORD_SESSIONS = (process.env.ADMIN_SSH_RECORD_SESSIONS || 'true').toLowerCase() === 'true';
+const SSH_KEYS_DIR = path.join(__dirname, 'ssh-keys');
+const RECORDINGS_DIR = path.join(SSH_STATE_DIR, 'recordings');
+const SESSION_LOG_FILE = path.join(SSH_STATE_DIR, 'session-log.json');
+const REVOKED_KEYS_FILE = path.join(SSH_STATE_DIR, 'revoked-keys.json');
+const BREAK_GLASS_FILE = path.join(ADMIN_HOME, 'break-glass.json');
 
 // ---------------------------------------------------------------------------
 // Load admin modules
@@ -122,6 +128,258 @@ function auditLog(actor, action, detail = '') {
         }) + '\n';
         fs.appendFileSync(auditFile, entry);
     } catch (_) { /* non-fatal */ }
+}
+
+// ---------------------------------------------------------------------------
+// Q3 2026 — Session Recording (asciinema v2)
+// ---------------------------------------------------------------------------
+function ensureRecordingsDir() {
+    if (!fs.existsSync(RECORDINGS_DIR)) fs.mkdirSync(RECORDINGS_DIR, { recursive: true, mode: 0o700 });
+}
+
+function startRecording(sessionId, startTs) {
+    if (!RECORD_SESSIONS) return;
+    try {
+        ensureRecordingsDir();
+        const header = JSON.stringify({
+            version: 2,
+            width: 220,
+            height: 50,
+            timestamp: Math.floor(startTs / 1000),
+            title: 'Admin SSH Session',
+        });
+        fs.writeFileSync(path.join(RECORDINGS_DIR, `${sessionId}.cast`), header + '\n', { mode: 0o600 });
+    } catch (_) { /* non-fatal */ }
+}
+
+function recordSession(sessionId, data, type = 'o', startTs = 0) {
+    if (!RECORD_SESSIONS) return;
+    try {
+        const elapsed = (Date.now() - startTs) / 1000;
+        const line = JSON.stringify([elapsed, type, data]);
+        fs.appendFileSync(path.join(RECORDINGS_DIR, `${sessionId}.cast`), line + '\n');
+    } catch (_) { /* non-fatal */ }
+}
+
+// ---------------------------------------------------------------------------
+// Q3 2026 — SSH Session Audit log
+// ---------------------------------------------------------------------------
+function readSessionLog() {
+    try {
+        if (!fs.existsSync(SESSION_LOG_FILE)) return [];
+        return JSON.parse(fs.readFileSync(SESSION_LOG_FILE, 'utf8'));
+    } catch (_) { return []; }
+}
+
+function writeSessionLog(entries) {
+    try {
+        if (!fs.existsSync(SSH_STATE_DIR)) fs.mkdirSync(SSH_STATE_DIR, { recursive: true, mode: 0o700 });
+        fs.writeFileSync(SESSION_LOG_FILE, JSON.stringify(entries, null, 2), { mode: 0o600 });
+    } catch (_) { /* non-fatal */ }
+}
+
+function sessionAuditStart({ sessionId, actor, ip }) {
+    try {
+        const entry = JSON.stringify({
+            ts: new Date().toISOString(),
+            actor,
+            action: 'ssh_session_start',
+            ip,
+            sessionId,
+            interface: 'ssh',
+        }) + '\n';
+        fs.appendFileSync(path.join(ADMIN_HOME, 'audit.log'), entry);
+        const sessions = readSessionLog();
+        sessions.push({ sessionId, actor, ip, startTs: new Date().toISOString(), endTs: null, duration_sec: null, commandCount: 0, active: true });
+        writeSessionLog(sessions);
+    } catch (_) { /* non-fatal */ }
+}
+
+function sessionAuditEnd({ sessionId, actor, ip, startTs, commandCount }) {
+    try {
+        const duration_sec = Math.round((Date.now() - startTs) / 1000);
+        const entry = JSON.stringify({
+            ts: new Date().toISOString(),
+            actor,
+            action: 'ssh_session_end',
+            ip,
+            sessionId,
+            duration_sec,
+            commandCount,
+            interface: 'ssh',
+        }) + '\n';
+        fs.appendFileSync(path.join(ADMIN_HOME, 'audit.log'), entry);
+        const sessions = readSessionLog();
+        const idx = sessions.findIndex(s => s.sessionId === sessionId);
+        if (idx !== -1) {
+            sessions[idx].endTs = new Date().toISOString();
+            sessions[idx].duration_sec = duration_sec;
+            sessions[idx].commandCount = commandCount;
+            sessions[idx].active = false;
+        }
+        writeSessionLog(sessions);
+    } catch (_) { /* non-fatal */ }
+}
+
+// ---------------------------------------------------------------------------
+// Q3 2026 — Break-Glass
+// ---------------------------------------------------------------------------
+function readBreakGlass() {
+    try {
+        if (!fs.existsSync(BREAK_GLASS_FILE)) return null;
+        const data = JSON.parse(fs.readFileSync(BREAK_GLASS_FILE, 'utf8'));
+        if (!data || !data.expiry) return null;
+        if (Date.now() > new Date(data.expiry).getTime()) {
+            try { fs.unlinkSync(BREAK_GLASS_FILE); } catch (_) {}
+            return null;
+        }
+        return data;
+    } catch (_) { return null; }
+}
+
+function writeBreakGlass(data) {
+    if (!fs.existsSync(ADMIN_HOME)) fs.mkdirSync(ADMIN_HOME, { recursive: true });
+    fs.writeFileSync(BREAK_GLASS_FILE, JSON.stringify(data, null, 2), { mode: 0o600 });
+}
+
+function isBreakGlassActive() {
+    return readBreakGlass() !== null;
+}
+
+function activateBreakGlass({ actor, reason = '', ip = '' }) {
+    const now = new Date();
+    const expiry = new Date(now.getTime() + 15 * 60 * 1000);
+    const data = {
+        active: true,
+        activatedBy: actor,
+        activatedAt: now.toISOString(),
+        expiry: expiry.toISOString(),
+        reason,
+        ip,
+    };
+    writeBreakGlass(data);
+    const auditEntry = JSON.stringify({
+        ts: now.toISOString(),
+        actor,
+        action: 'break_glass_activated',
+        ip,
+        reason,
+        expiry: expiry.toISOString(),
+        interface: 'ssh',
+        breakGlass: true,
+    }) + '\n';
+    try { fs.appendFileSync(path.join(ADMIN_HOME, 'audit.log'), auditEntry); } catch (_) {}
+    // Fire webhook notification
+    try {
+        const { WebhookManager } = require('../shared/webhooks');
+        const wm = new WebhookManager(path.join(ADMIN_HOME, 'webhooks'));
+        wm.fire('break_glass_activated', { actor, reason, expiry: expiry.toISOString(), ip }, 'critical').catch(() => {});
+    } catch (_) {}
+    return data;
+}
+
+function revokeBreakGlass(actor) {
+    try {
+        if (fs.existsSync(BREAK_GLASS_FILE)) fs.unlinkSync(BREAK_GLASS_FILE);
+    } catch (_) {}
+    const auditEntry = JSON.stringify({
+        ts: new Date().toISOString(),
+        actor,
+        action: 'break_glass_revoked',
+        interface: 'ssh',
+        breakGlass: true,
+    }) + '\n';
+    try { fs.appendFileSync(path.join(ADMIN_HOME, 'audit.log'), auditEntry); } catch (_) {}
+}
+
+// ---------------------------------------------------------------------------
+// Q3 2026 — SSH Key Management
+// ---------------------------------------------------------------------------
+function getKeyFingerprint(keyPath) {
+    try {
+        const result = execSync(`ssh-keygen -lf ${JSON.stringify(keyPath)} 2>&1`, { encoding: 'utf8', timeout: 5000 });
+        return result.trim();
+    } catch (_) { return '(unknown)'; }
+}
+
+function rotateHostKey() {
+    if (!fs.existsSync(SSH_STATE_DIR)) fs.mkdirSync(SSH_STATE_DIR, { recursive: true, mode: 0o700 });
+    const ts = Date.now();
+    const backupPath = HOST_KEY_PATH + `.backup.${ts}`;
+    if (fs.existsSync(HOST_KEY_PATH)) {
+        fs.copyFileSync(HOST_KEY_PATH, backupPath);
+        fs.chmodSync(backupPath, 0o600);
+    }
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 4096,
+        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        publicKeyEncoding: { type: 'pkcs1', format: 'pem' },
+    });
+    fs.writeFileSync(HOST_KEY_PATH, privateKey, { mode: 0o600 });
+    const auditEntry = JSON.stringify({
+        ts: new Date().toISOString(),
+        actor: 'system',
+        action: 'ssh_host_key_rotated',
+        backupPath,
+        interface: 'ssh',
+    }) + '\n';
+    try { fs.appendFileSync(path.join(ADMIN_HOME, 'audit.log'), auditEntry); } catch (_) {}
+    return { backupPath, newKeyPath: HOST_KEY_PATH };
+}
+
+function listSSHKeys() {
+    const results = [];
+    const revokedKeys = readRevokedKeys();
+    function scanDir(dir) {
+        if (!fs.existsSync(dir)) return;
+        for (const f of fs.readdirSync(dir)) {
+            const full = path.join(dir, f);
+            try {
+                const stat = fs.statSync(full);
+                if (!stat.isFile()) continue;
+                const ext = path.extname(f);
+                if (!['.pub', '.pem', ''].includes(ext) && !f.endsWith('_rsa') && !f.endsWith('_ecdsa') && !f.endsWith('_ed25519')) continue;
+                const isRevoked = revokedKeys.some(r => r.keyfile === full || r.keyfile === f);
+                results.push({
+                    file: f,
+                    path: full,
+                    createdAt: stat.birthtime.toISOString(),
+                    modifiedAt: stat.mtime.toISOString(),
+                    size: stat.size,
+                    status: isRevoked ? 'revoked' : 'active',
+                });
+            } catch (_) {}
+        }
+    }
+    scanDir(SSH_STATE_DIR);
+    scanDir(SSH_KEYS_DIR);
+    return results;
+}
+
+function readRevokedKeys() {
+    try {
+        if (!fs.existsSync(REVOKED_KEYS_FILE)) return [];
+        return JSON.parse(fs.readFileSync(REVOKED_KEYS_FILE, 'utf8'));
+    } catch (_) { return []; }
+}
+
+function revokeSSHKey(keyfile) {
+    if (!fs.existsSync(SSH_STATE_DIR)) fs.mkdirSync(SSH_STATE_DIR, { recursive: true, mode: 0o700 });
+    const revoked = readRevokedKeys();
+    const existing = revoked.find(r => r.keyfile === keyfile);
+    if (!existing) {
+        revoked.push({ keyfile, revokedAt: new Date().toISOString() });
+        fs.writeFileSync(REVOKED_KEYS_FILE, JSON.stringify(revoked, null, 2), { mode: 0o600 });
+    }
+    const auditEntry = JSON.stringify({
+        ts: new Date().toISOString(),
+        actor: 'system',
+        action: 'ssh_key_revoked',
+        keyfile,
+        interface: 'ssh',
+    }) + '\n';
+    try { fs.appendFileSync(path.join(ADMIN_HOME, 'audit.log'), auditEntry); } catch (_) {}
+    return { revoked: true, keyfile, alreadyRevoked: !!existing };
 }
 
 // ---------------------------------------------------------------------------
@@ -272,6 +530,18 @@ function renderDashboard() {
     ];
     out += box('📊 System Overview', statusLines, Math.floor(W / 2));
 
+    // Break-glass status
+    const bg = readBreakGlass();
+    if (bg) {
+        const bgLines = [
+            `  ${c('red', '⚠ BREAK-GLASS IS ACTIVE')}`,
+            `  Activated by: ${c('yellow', bg.activatedBy)}`,
+            `  Expires:      ${c('yellow', bg.expiry)}`,
+            `  Reason:       ${bg.reason || '(none)'}`,
+        ];
+        out += box('🔴 Emergency Break-Glass', bgLines, Math.floor(W / 2));
+    }
+
     // Row 2: Services
     const clusterLines = clusters.length > 0
         ? clusters.map(cl => `  ${cl.enabled ? c('green', '●') : c('dim', '○')}  ${cl.name.padEnd(20)} ${cl.environment.padEnd(10)} ${cl.region || ''}`)
@@ -280,20 +550,24 @@ function renderDashboard() {
 
     // Row 3: Quick Commands
     const cmdLines = [
-        `  ${c('cyan', 'help')}       Show all available commands`,
-        `  ${c('cyan', 'status')}     Service status overview`,
-        `  ${c('cyan', 'sla')}        SLA compliance & predictions`,
-        `  ${c('cyan', 'alerts')}     Active alerts`,
-        `  ${c('cyan', 'metrics')}    Performance metrics`,
-        `  ${c('cyan', 'trends')}     Trend analysis & charts`,
-        `  ${c('cyan', 'remediate')}  AI remediation suggestions`,
-        `  ${c('cyan', 'webhooks')}   Webhook integrations`,
-        `  ${c('cyan', 'cluster')}    Multi-cluster management`,
-        `  ${c('cyan', 'audit')}      Audit log`,
-        `  ${c('cyan', 'dashboard')}  Refresh this dashboard`,
-        `  ${c('cyan', 'exit')}       End SSH session`,
+        `  ${c('cyan', 'help')}              Show all available commands`,
+        `  ${c('cyan', 'status')}            Service status overview`,
+        `  ${c('cyan', 'sla')}               SLA compliance & predictions`,
+        `  ${c('cyan', 'alerts')}            Active alerts`,
+        `  ${c('cyan', 'metrics')}           Performance metrics`,
+        `  ${c('cyan', 'trends')}            Trend analysis & charts`,
+        `  ${c('cyan', 'remediate')}         AI remediation suggestions`,
+        `  ${c('cyan', 'webhooks')}          Webhook integrations`,
+        `  ${c('cyan', 'cluster')}           Multi-cluster management`,
+        `  ${c('cyan', 'audit')}             Audit log`,
+        `  ${c('cyan', 'sessions')}          Active SSH sessions`,
+        `  ${c('cyan', 'key-list')}          List SSH keys`,
+        `  ${c('cyan', 'key-rotate')}        Rotate host key (RSA 4096)`,
+        `  ${c('cyan', 'break-glass')}       Emergency break-glass`,
+        `  ${c('cyan', 'dashboard')}         Refresh this dashboard`,
+        `  ${c('cyan', 'exit')}              End SSH session`,
     ];
-    out += box('⌨  Quick Commands', cmdLines, 40);
+    out += box('⌨  Quick Commands', cmdLines, 42);
 
     // Recommendations
     if (recs.length > 0) {
@@ -327,7 +601,7 @@ async function handleCommand(line, user, stream) {
         case 'help': {
             writeln('');
             writeln(c('bold', '  Milonexa SSH Admin — Available Commands'));
-            writeln('  ' + hline(50));
+            writeln('  ' + hline(60));
             const cmds = [
                 ['dashboard', 'Refresh the admin dashboard'],
                 ['status', 'Show service status (docker ps)'],
@@ -348,11 +622,18 @@ async function handleCommand(line, user, stream) {
                 ['audit [N]', 'Show last N audit entries (default 20)'],
                 ['health', 'Check API gateway health'],
                 ['env', 'Show active admin panel env config'],
+                ['sessions', 'Show active/past SSH sessions'],
+                ['key-list', 'List SSH keys with fingerprints'],
+                ['key-rotate', 'Generate new RSA 4096 host key'],
+                ['key-revoke <keyfile>', 'Revoke an SSH key'],
+                ['break-glass', 'Activate emergency break-glass (requires EMERGENCY)'],
+                ['break-glass-status', 'Show break-glass status'],
+                ['break-glass-revoke', 'Immediately end the break-glass window'],
                 ['clear', 'Clear screen'],
                 ['exit / quit', 'End SSH session'],
             ];
             for (const [c1, c2] of cmds) {
-                writeln(`  ${c('cyan', c1.padEnd(30))}  ${c('dim', c2)}`);
+                writeln(`  ${c('cyan', c1.padEnd(32))}  ${c('dim', c2)}`);
             }
             writeln('');
             break;
@@ -722,6 +1003,146 @@ async function handleCommand(line, user, stream) {
             stream.end();
             break;
 
+        // ----------------------------------------------------------------
+        // Q3 2026 — Session listing
+        // ----------------------------------------------------------------
+        case 'sessions': {
+            try {
+                const sessions = readSessionLog();
+                writeln('');
+                writeln(c('bold', `  SSH Sessions (${sessions.length} total)`));
+                writeln('  ' + hline(100));
+                writeln(`  ${c('dim', 'SESSION ID'.padEnd(38))}${c('dim', 'USER'.padEnd(14))}${c('dim', 'IP'.padEnd(18))}${c('dim', 'START'.padEnd(26))}${c('dim', 'DUR(s)'.padEnd(10))}${c('dim', 'CMDS'.padEnd(8))}${c('dim', 'STATUS')}`);
+                writeln('  ' + hline(100));
+                if (sessions.length === 0) {
+                    writeln('  ' + c('dim', 'No sessions recorded'));
+                } else {
+                    for (const s of sessions.slice(-20)) {
+                        const statusStr = s.active ? c('green', 'active') : c('dim', 'ended');
+                        writeln(`  ${(s.sessionId || '').padEnd(38)}${(s.actor || '').padEnd(14)}${(s.ip || '').padEnd(18)}${(s.startTs || '').padEnd(26)}${String(s.duration_sec ?? '—').padEnd(10)}${String(s.commandCount ?? 0).padEnd(8)}${statusStr}`);
+                    }
+                }
+            } catch (err) {
+                writeln('  ' + c('red', `Error: ${err.message}`));
+            }
+            writeln('');
+            break;
+        }
+
+        // ----------------------------------------------------------------
+        // Q3 2026 — SSH Key Management
+        // ----------------------------------------------------------------
+        case 'key-list': {
+            try {
+                const keys = listSSHKeys();
+                writeln('');
+                writeln(c('bold', `  SSH Keys (${keys.length} found)`));
+                writeln('  ' + hline(80));
+                if (keys.length === 0) {
+                    writeln('  ' + c('dim', 'No key files found'));
+                } else {
+                    for (const k of keys) {
+                        const statusColor = k.status === 'revoked' ? 'red' : 'green';
+                        writeln(`  ${c(statusColor, k.status.padEnd(10))}  ${k.file.padEnd(30)}  ${k.createdAt.slice(0, 19)}`);
+                    }
+                }
+            } catch (err) {
+                writeln('  ' + c('red', `Error: ${err.message}`));
+            }
+            writeln('');
+            break;
+        }
+
+        case 'key-rotate': {
+            try {
+                writeln('  ' + c('yellow', '⚠  Rotating SSH host key (RSA 4096)…'));
+                const { backupPath, newKeyPath } = rotateHostKey();
+                writeln('  ' + c('green', `✓ New key generated: ${newKeyPath}`));
+                writeln('  ' + c('dim', `  Old key backed up to: ${backupPath}`));
+                writeln('  ' + c('yellow', '  NOTE: Clients will see a host key change warning on next connect.'));
+                writeln('  ' + c('yellow', '        Restart the SSH server to apply the new key.'));
+            } catch (err) {
+                writeln('  ' + c('red', `Error: ${err.message}`));
+            }
+            writeln('');
+            break;
+        }
+
+        case 'key-revoke': {
+            try {
+                const keyfile = subArgs.join(' ').trim();
+                if (!keyfile) {
+                    writeln('  ' + c('red', 'Usage: key-revoke <keyfile>'));
+                } else {
+                    const result = revokeSSHKey(keyfile);
+                    if (result.alreadyRevoked) {
+                        writeln('  ' + c('yellow', `Key '${keyfile}' was already revoked.`));
+                    } else {
+                        writeln('  ' + c('green', `✓ Key '${keyfile}' revoked and recorded in revoked-keys.json`));
+                    }
+                }
+            } catch (err) {
+                writeln('  ' + c('red', `Error: ${err.message}`));
+            }
+            writeln('');
+            break;
+        }
+
+        // ----------------------------------------------------------------
+        // Q3 2026 — Break-Glass Procedure
+        // ----------------------------------------------------------------
+        case 'break-glass': {
+            const bg = readBreakGlass();
+            if (bg) {
+                writeln('  ' + c('yellow', '⚠  Break-glass is already active.'));
+                writeln(`  Activated by: ${bg.activatedBy}  Expires: ${bg.expiry}`);
+                writeln('  Use break-glass-revoke to end it early.');
+                writeln('');
+                break;
+            }
+            writeln('');
+            writeln(c('bold', c('red', '  ⚠⚠  EMERGENCY BREAK-GLASS PROCEDURE  ⚠⚠')));
+            writeln('  ' + hline(60));
+            writeln(`  This will grant temporary 'admin' role override for 15 minutes.`);
+            writeln(`  All commands during this window are flagged as ${c('red', 'breakGlass: true')}.`);
+            writeln(`  An audit alert will be sent immediately.`);
+            writeln('');
+            writeln(`  ${c('yellow', 'Type the word EMERGENCY to confirm, or anything else to cancel:')}`);
+            // We need to read the confirmation interactively — prompt for next input
+            // Store pending state in the stream-local context via closure
+            stream._breakGlassPending = true;
+            break;
+        }
+
+        case 'break-glass-status': {
+            const bg = readBreakGlass();
+            writeln('');
+            if (!bg) {
+                writeln('  ' + c('green', '✓ Break-glass is NOT active'));
+            } else {
+                const remaining = Math.max(0, Math.round((new Date(bg.expiry).getTime() - Date.now()) / 1000));
+                writeln('  ' + c('red', '⚠ BREAK-GLASS IS ACTIVE'));
+                writeln(`  Activated by: ${c('yellow', bg.activatedBy)}`);
+                writeln(`  Activated at: ${bg.activatedAt}`);
+                writeln(`  Expires at:   ${c('yellow', bg.expiry)}  (${remaining}s remaining)`);
+                writeln(`  Reason:       ${bg.reason || '(none)'}`);
+            }
+            writeln('');
+            break;
+        }
+
+        case 'break-glass-revoke': {
+            const bg = readBreakGlass();
+            if (!bg) {
+                writeln('  ' + c('green', 'Break-glass is not active — nothing to revoke.'));
+            } else {
+                revokeBreakGlass(user);
+                writeln('  ' + c('green', '✓ Break-glass window revoked immediately.'));
+            }
+            writeln('');
+            break;
+        }
+
         default:
             writeln(`  ${c('red', 'Unknown command:')} ${c('yellow', cmd)}  — type ${c('cyan', 'help')} for available commands`);
             writeln('');
@@ -788,9 +1209,16 @@ function createSession(client, remoteIP) {
     });
 
     client.on('ready', () => {
+        const sessionId = crypto.randomBytes(12).toString('hex');
+        const sessionStartTs = Date.now();
+        let commandCount = 0;
+
         auditLog(user, 'ssh:login', `from ${remoteIP}`);
-        log('info', `${user}@${remoteIP} authenticated`);
+        log('info', `${user}@${remoteIP} authenticated — session ${sessionId}`);
         activeSessions++;
+
+        sessionAuditStart({ sessionId, actor: user, ip: remoteIP });
+        startRecording(sessionId, sessionStartTs);
 
         client.on('session', (accept) => {
             const session = accept();
@@ -829,7 +1257,42 @@ function createSession(client, remoteIP) {
                             stream.write('\r\n');
                             const line = lineBuffer.trim();
                             lineBuffer = '';
+
+                            // Handle break-glass confirmation
+                            if (stream._breakGlassPending) {
+                                stream._breakGlassPending = false;
+                                if (line === 'EMERGENCY') {
+                                    const bgData = activateBreakGlass({ actor: user, reason: 'SSH TUI activation', ip: remoteIP });
+                                    stream.write(c('red', '\r\n  ⚠  BREAK-GLASS ACTIVATED\r\n'));
+                                    stream.write(`  Expires: ${bgData.expiry}\r\n`);
+                                    stream.write(c('yellow', '  All commands are now flagged in the audit log.\r\n'));
+                                    stream.write(c('dim', '  Use break-glass-revoke to end early.\r\n\r\n'));
+                                } else {
+                                    stream.write(c('green', '\r\n  ✓ Break-glass cancelled.\r\n\r\n'));
+                                }
+                                stream.write(PROMPT);
+                                continue;
+                            }
+
                             if (line) {
+                                commandCount++;
+                                // Flag in audit if break-glass is active
+                                if (isBreakGlassActive()) {
+                                    try {
+                                        const bgAuditEntry = JSON.stringify({
+                                            ts: new Date().toISOString(),
+                                            actor: user,
+                                            action: 'ssh:command',
+                                            detail: line,
+                                            sessionId,
+                                            ip: remoteIP,
+                                            breakGlass: true,
+                                            interface: 'ssh',
+                                        }) + '\n';
+                                        fs.appendFileSync(path.join(ADMIN_HOME, 'audit.log'), bgAuditEntry);
+                                    } catch (_) {}
+                                }
+                                recordSession(sessionId, line + '\n', 'i', sessionStartTs);
                                 await handleCommand(line, user, stream);
                                 if (line === 'exit' || line === 'quit' || line === 'logout') {
                                     return; // stream.end() already called
@@ -864,7 +1327,8 @@ function createSession(client, remoteIP) {
                     if (idleTimer) clearTimeout(idleTimer);
                     activeSessions = Math.max(0, activeSessions - 1);
                     auditLog(user, 'ssh:logout', `from ${remoteIP}`);
-                    log('info', `${user}@${remoteIP} disconnected`);
+                    sessionAuditEnd({ sessionId, actor: user, ip: remoteIP, startTs: sessionStartTs, commandCount });
+                    log('info', `${user}@${remoteIP} disconnected — session ${sessionId} (${commandCount} commands)`);
                 });
 
                 stream.stderr.on('data', () => { /* ignore stderr */ });
@@ -875,6 +1339,8 @@ function createSession(client, remoteIP) {
                 const stream = accept();
                 const line = info.command;
                 (async () => {
+                    commandCount++;
+                    recordSession(sessionId, line + '\n', 'i', sessionStartTs);
                     await handleCommand(line, user, stream);
                     stream.exit(0);
                     stream.end();
@@ -950,3 +1416,18 @@ server.listen(PORT, HOST, () => {
 
 process.on('SIGTERM', () => { server.close(() => process.exit(0)); });
 process.on('SIGINT', () => { server.close(() => process.exit(0)); });
+
+// ---------------------------------------------------------------------------
+// Q3 2026 — Exported module interface for programmatic use
+// ---------------------------------------------------------------------------
+module.exports = {
+    rotateHostKey,
+    listSSHKeys,
+    revokeSSHKey,
+    readBreakGlass,
+    activateBreakGlass,
+    revokeBreakGlass,
+    isBreakGlassActive,
+    readSessionLog,
+    recordSession,
+};
