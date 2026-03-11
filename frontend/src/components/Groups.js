@@ -69,6 +69,7 @@ const Groups = ({ user }) => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const debounceTimer = useRef(null);
+  const searchQueryRef = useRef('');
 
   const [newGroup, setNewGroup] = useState({
     name: '',
@@ -78,17 +79,13 @@ const Groups = ({ user }) => {
     coverUrl: '',
   });
 
-  useEffect(() => {
-    fetchGroups();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory]);
-
-  const fetchGroups = useCallback(async (search = searchQuery) => {
+  const fetchGroups = useCallback(async (search) => {
     setLoading(true);
     try {
       const params = {};
       if (selectedCategory !== 'All') params.category = selectedCategory.toLowerCase();
-      if (search) params.search = search;
+      const q = search !== undefined ? search : searchQueryRef.current;
+      if (q) params.search = q;
       const response = await api.get('/content/groups', { params });
       setGroups(Array.isArray(response.data) ? response.data : response.data?.groups || []);
     } catch (error) {
@@ -97,12 +94,16 @@ const Groups = ({ user }) => {
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory]);
+
+  useEffect(() => {
+    fetchGroups();
+  }, [fetchGroups]);
 
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchQuery(value);
+    searchQueryRef.current = value;
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => fetchGroups(value), 400);
   };
