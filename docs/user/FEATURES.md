@@ -179,7 +179,7 @@ This platform brings together features from:
 - ✅ **Verified Purchase**: Mark reviews from actual buyers
 
 ### 🤖 AI Assistant
-- ✅ Chat with AI (Gemini 2.5 Flash)
+- ✅ Chat with AI (local LLM via Ollama — fully private)
 - ✅ Text summarization
 - ✅ Content moderation
 - ✅ Search suggestions
@@ -702,7 +702,7 @@ This platform brings together features from:
 
 ## Integration Ready
 
-- ✅ Gemini API integration
+- ✅ Local LLM (Ollama) — privacy-safe AI, no external API key required
 - ⏳ Email service (SMTP ready)
 - ⏳ SMS service (Twilio ready)
 - ⏳ Payment gateway (Stripe ready)

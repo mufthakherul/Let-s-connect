@@ -32,8 +32,8 @@ cp .env.example .env
 JWT_SECRET=your-super-secret-jwt-key-change-this
 ENCRYPTION_KEY=your-encryption-key-for-sensitive-data
 
-# AI Service (optional)
-GEMINI_API_KEY=your-gemini-api-key-here
+# AI Service — uses local Ollama LLM (no API key required)
+OLLAMA_MODEL=llama3.2
 
 # Object Storage
 S3_BUCKET=lets-connect-media
