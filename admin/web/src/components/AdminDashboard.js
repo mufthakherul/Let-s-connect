@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Container, Paper, Tabs, Tab, Box, Typography,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
@@ -58,6 +58,7 @@ import {
     Unlock,
     VpnKey,
     Shield,
+    Keyboard,
     BugReport,
     Code,
     Build,
@@ -88,6 +89,13 @@ import {
     Hub,
     Insights,
     AutoGraph,
+    MonitorHeart,
+    ManageAccounts,
+    Gavel,
+    Schedule,
+    Rule,
+    PieChart as PieChartIcon,
+    Approval,
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -101,6 +109,29 @@ import AIRemediationPanel from './dashboard/AIRemediationPanel';
 import AIAgentPanel from './dashboard/AIAgentPanel';
 import MultiClusterPanel from './dashboard/MultiClusterPanel';
 import TrendAnalysisPanel from './dashboard/TrendAnalysisPanel';
+// Q2 2026 components
+import ServiceHealthGrid from './dashboard/ServiceHealthGrid';
+import UserManagementTable from './dashboard/UserManagementTable';
+import AuditLogTable from './dashboard/AuditLogTable';
+import SLATimeline from './dashboard/SLATimeline';
+import AlertRuleEditor from './dashboard/AlertRuleEditor';
+import CostBreakdown from './dashboard/CostBreakdown';
+import AIPermissionInbox from './dashboard/AIPermissionInbox';
+// Q3 2026 components
+import SecurityDashboard from './dashboard/SecurityDashboard';
+import ComplianceDashboard from './dashboard/ComplianceDashboard';
+import SSHAdminPanel from './dashboard/SSHAdminPanel';
+import IncidentTracker from './dashboard/IncidentTracker';
+// Q4 2026 components
+import ObservabilityDashboard from './dashboard/ObservabilityDashboard';
+import TenantManager from './dashboard/TenantManager';
+import FeatureFlagToggle from './dashboard/FeatureFlagToggle';
+import DeveloperPanel from './dashboard/DeveloperPanel';
+import AIIntegrationPanel from './dashboard/AIIntegrationPanel';
+import KeyboardShortcutsModal from './common/KeyboardShortcutsModal';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { useTranslation, setLanguage, SUPPORTED_LANGUAGES } from '../utils/i18n';
+import { useAppearanceStore } from '../store/appearanceStore';
 
 const AdminDashboard = () => {
     useEffect(() => {
@@ -137,8 +168,15 @@ const AdminDashboard = () => {
     const [securityEvents, setSecurityEvents] = useState([]);
     const [notifications, setNotifications] = useState([]);
     const [drawerOpen, setDrawerOpen] = useState(false);
-    const [darkMode, setDarkMode] = useState(false);
-    const [selectedLanguage, setSelectedLanguage] = useState('en');
+    const { darkMode: darkModeSetting, updateSetting } = useAppearanceStore();
+    const systemPrefersDark = useMediaQuery('(prefers-color-scheme: dark)');
+    const isDarkMode = darkModeSetting === 'dark' || (darkModeSetting === 'system' && systemPrefersDark);
+    const isMobile = useMediaQuery('(max-width:600px)');
+    const [selectedLanguage, setSelectedLanguage] = useState(() => {
+        try { return localStorage.getItem('admin-lang') || 'en'; } catch { return 'en'; }
+    });
+    const [helpOpen, setHelpOpen] = useState(false);
+    const { t } = useTranslation();
 
     const handleLogout = () => {
         localStorage.removeItem('adminToken');
@@ -196,11 +234,62 @@ const AdminDashboard = () => {
     // Theme
     const theme = createTheme({
         palette: {
-            mode: darkMode ? 'dark' : 'light',
+            mode: isDarkMode ? 'dark' : 'light',
             primary: { main: '#1976d2' },
             secondary: { main: '#dc004e' },
         },
     });
+
+    // Keyboard shortcuts wiring
+    useKeyboardShortcuts({
+        onSearch: useCallback(() => {
+            const el = document.querySelector('input[type="search"], input[placeholder*="earch"]');
+            if (el) el.focus();
+        }, []),
+        onRefresh: useCallback(() => {
+            switch (currentTab) {
+                // Dashboard
+                case 0: fetchStats(); fetchSystemHealth(); break;
+                // Users (legacy)
+                case 1: fetchUsers(); break;
+                // Feature Flags (legacy)
+                case 2: fetchFlags(); break;
+                // Audit Log (legacy)
+                case 3: fetchAuditLogs(); break;
+                // Service Health Grid (Q2 tab 15)
+                case 15: fetchStats(); fetchSystemHealth(); break;
+                // User Management Table (Q2 tab 16)
+                case 16: fetchUsers(); break;
+                // Audit Log Table (Q2 tab 17)
+                case 17: fetchAuditLogs(); break;
+                // System / DB / Backups
+                case 4: case 5: case 6: fetchSystemHealth(); break;
+                default: break;
+            }
+        }, [currentTab]),
+        onShowHelp: useCallback(() => setHelpOpen(true), []),
+        onClearSelection: useCallback(() => setHelpOpen(false), []),
+    });
+
+    // Tab switching via numeric keys (1-9)
+    useEffect(() => {
+        const handleNumericKey = (e) => {
+            const isInputField = ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
+            if (isInputField || e.ctrlKey || e.metaKey || e.altKey) return;
+            const num = parseInt(e.key, 10);
+            if (num >= 1 && num <= 9) {
+                // Map keys 1–9 to specific tab indices:
+                // 1=Dashboard(0), 2=Service Health(15), 3=Users(16), 4=Audit Log(17),
+                // 5=SLA Timeline(18), 6=Alert Rules(19), 7=Cost Breakdown(20),
+                // 8=AI Permissions(21), 9=Settings(8)
+                const tabMap = { 1: 0, 2: 15, 3: 16, 4: 17, 5: 18, 6: 19, 7: 20, 8: 21, 9: 8 };
+                if (tabMap[num] !== undefined) setCurrentTab(tabMap[num]);
+            }
+        };
+        window.addEventListener('keydown', handleNumericKey);
+        return () => window.removeEventListener('keydown', handleNumericKey);
+    }, []);
+
     // Fetch system stats
     const fetchStats = async () => {
         try {
@@ -1309,20 +1398,30 @@ const AdminDashboard = () => {
                                 <Menu />
                             </IconButton>
                             <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-                                Advanced Admin Control Center
+                                {t('Admin Control Center')}
                             </Typography>
-                            <IconButton color="inherit" onClick={() => setDarkMode(!darkMode)}>
-                                {darkMode ? <Brightness7 /> : <Brightness4 />}
-                            </IconButton>
+                            <Tooltip title={t('Keyboard Shortcuts')}>
+                                <IconButton color="inherit" onClick={() => setHelpOpen(true)}>
+                                    <Keyboard />
+                                </IconButton>
+                            </Tooltip>
+                            <Tooltip title={t('Dark Mode')}>
+                                <IconButton color="inherit" onClick={() => updateSetting('darkMode', isDarkMode ? 'light' : 'dark')}>
+                                    {isDarkMode ? <Brightness7 /> : <Brightness4 />}
+                                </IconButton>
+                            </Tooltip>
                             <FormControl size="small" sx={{ ml: 2, minWidth: 100 }}>
                                 <Select
                                     value={selectedLanguage}
-                                    onChange={(e) => setSelectedLanguage(e.target.value)}
+                                    onChange={(e) => {
+                                        setSelectedLanguage(e.target.value);
+                                        setLanguage(e.target.value);
+                                    }}
                                     sx={{ color: 'white' }}
                                 >
-                                    <MenuItem value="en">English</MenuItem>
-                                    <MenuItem value="es">Español</MenuItem>
-                                    <MenuItem value="fr">Français</MenuItem>
+                                    {SUPPORTED_LANGUAGES.map((lang) => (
+                                        <MenuItem key={lang.code} value={lang.code}>{lang.label}</MenuItem>
+                                    ))}
                                 </Select>
                             </FormControl>
                             <IconButton color="inherit" onClick={handleLogout} sx={{ ml: 1 }}>
@@ -1353,6 +1452,25 @@ const AdminDashboard = () => {
                             <Tab icon={<Cloud />} label="Multi-Cluster" />
                             <Tab icon={<AutoGraph />} label="Trend Analysis" />
                             <Tab icon={<SmartToy color="secondary" />} label="AI Agent" />
+                            {/* Q2 2026 tabs */}
+                            <Tab icon={<MonitorHeart />} label={t('Service Health')} />
+                            <Tab icon={<ManageAccounts />} label={t('Users')} />
+                            <Tab icon={<Gavel />} label={t('Audit Log')} />
+                            <Tab icon={<Schedule />} label={t('SLA Timeline')} />
+                            <Tab icon={<Rule />} label={t('Alert Rules')} />
+                            <Tab icon={<PieChartIcon />} label={t('Cost Breakdown')} />
+                            <Tab icon={<Approval />} label={t('AI Permissions')} />
+                            {/* Q3 2026 tabs */}
+                            <Tab icon={<Security />} label={t('Security')} />
+                            <Tab icon={<Gavel />} label={t('Compliance')} />
+                            <Tab icon={<VpnKey />} label={t('SSH Admin')} />
+                            <Tab icon={<BugReport />} label={t('Incidents')} />
+                            {/* Q4 2026 tabs */}
+                            <Tab icon={<Insights />} label={t('Observability')} />
+                            <Tab icon={<ManageAccounts />} label={t('Tenants')} />
+                            <Tab icon={<Flag />} label={t('Feature Flags')} />
+                            <Tab icon={<Code />} label={t('Developer')} />
+                            <Tab icon={<Hub />} label={t('AI Integration')} />
                         </Tabs>
 
                         {currentTab === 0 && renderStatsTab()}
@@ -1370,6 +1488,25 @@ const AdminDashboard = () => {
                         {currentTab === 12 && <MultiClusterPanel />}
                         {currentTab === 13 && <TrendAnalysisPanel />}
                         {currentTab === 14 && <AIAgentPanel />}
+                        {/* Q2 2026 tab panels */}
+                        {currentTab === 15 && <ServiceHealthGrid />}
+                        {currentTab === 16 && <UserManagementTable />}
+                        {currentTab === 17 && <AuditLogTable />}
+                        {currentTab === 18 && <SLATimeline />}
+                        {currentTab === 19 && <AlertRuleEditor />}
+                        {currentTab === 20 && <CostBreakdown />}
+                        {currentTab === 21 && <AIPermissionInbox />}
+                        {/* Q3 2026 tab panels */}
+                        {currentTab === 22 && <SecurityDashboard />}
+                        {currentTab === 23 && <ComplianceDashboard />}
+                        {currentTab === 24 && <SSHAdminPanel />}
+                        {currentTab === 25 && <IncidentTracker />}
+                        {/* Q4 2026 tab panels */}
+                        {currentTab === 26 && <ObservabilityDashboard />}
+                        {currentTab === 27 && <TenantManager />}
+                        {currentTab === 28 && <FeatureFlagToggle />}
+                        {currentTab === 29 && <DeveloperPanel />}
+                        {currentTab === 30 && <AIIntegrationPanel />}
                     </Paper>
 
                     {/* Speed Dial for Quick Actions */}
@@ -1401,11 +1538,13 @@ const AdminDashboard = () => {
                     </SpeedDial>
                 </Box>
 
-                {/* Navigation Drawer */}
+                {/* Navigation Drawer - temporary on mobile, persistent on desktop */}
                 <Drawer
                     anchor="left"
                     open={drawerOpen}
+                    variant={isMobile ? 'temporary' : 'persistent'}
                     onClose={() => setDrawerOpen(false)}
+                    sx={{ '& .MuiDrawer-paper': { width: 250, boxSizing: 'border-box' } }}
                 >
                     <Box sx={{ width: 250, p: 2 }}>
                         <Typography variant="h6" gutterBottom>Navigation</Typography>
@@ -1654,6 +1793,9 @@ const AdminDashboard = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Keyboard Shortcuts Modal */}
+            <KeyboardShortcutsModal open={helpOpen} onClose={() => setHelpOpen(false)} />
         </Container>
         </ThemeProvider>
     );

@@ -59,6 +59,15 @@ const COMMAND_POLICY = {
     remediate: 'viewer',
     cluster: 'operator',
     trends: 'viewer',
+    // Phase F (Q2 2026)
+    plugins: 'viewer',
+    'plugin-run': 'operator',
+    batch: 'operator',
+    diff: 'viewer',
+    completion: 'viewer',
+    'tail-logs': 'viewer',
+    snapshot: 'operator',
+    compare: 'viewer',
 };
 
 /**

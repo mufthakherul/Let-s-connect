@@ -43,6 +43,7 @@ Legacy standalone admin CLI directory (`admin-cli/`). Migrated to unified `admin
 - `admin-cli/lib/*.js` → `admin/shared/*.js`
 - `admin-cli/ssh-keys/` → `admin/ssh/ssh-keys/`
 
-The old `admin_frontend/` directory has also been migrated to `admin/web/`.
-All admin interfaces now live under the unified `admin/` directory with env-based feature toggles.
-New interfaces added: webhook server, Telegram bot, Slack bot, email command interface.
+### `ROADMAP-v1.0-archived-2026-03-11.md`
+Original platform modernization roadmap (v1.0, March 2026). Superseded by the new website features roadmap `ROADMAP.md` at the repository root (v2.0, March 2026).
+
+
