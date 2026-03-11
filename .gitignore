@@ -258,3 +258,6 @@ build/
 dist/
 *.tsbuildinfo
 
+# AI Agent generated docs and runtime state (v2.2)
+docs/generated/
+

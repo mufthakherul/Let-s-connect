@@ -84,12 +84,27 @@ const { CodeAnalyzer }      = require('./modules/code-analyzer.js');
 const { DocGenerator }      = require('./modules/doc-generator.js');
 const { FeedbackProcessor } = require('./modules/feedback-processor.js');
 const { TestGenerator }     = require('./modules/test-generator.js');
+// v2.1 modules.
+const { FileWatcher }       = require('./modules/file-watcher.js');
+const { DepScanner }        = require('./modules/dep-scanner.js');
+const { PromptCache }       = require('./modules/prompt-cache.js');
+const { promptTemplates }   = require('./modules/prompt-templates.js');
+// v2.2 modules.
+const { FeedbackChannels }    = require('./modules/feedback-channels.js');
+const { FeedbackIntelligence } = require('./modules/feedback-intelligence.js');
+const { TestIntelligence }    = require('./modules/test-intelligence.js');
+const { DocIntelligence }     = require('./modules/doc-intelligence.js');
+// v3.0 modules.
+const { PRGenerator }         = require('./modules/pr-generator.js');
+const { CanaryManager }       = require('./modules/canary-manager.js');
+const { AgentOrchestrator }   = require('./modules/multi-agent.js');
+const { observability }       = require('./modules/observability.js');
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const AGENT_VERSION = '2.0.0';
+const AGENT_VERSION = '3.0.0';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -105,12 +120,16 @@ const CONFIG = {
     ollamaHost:     process.env.OLLAMA_HOST || 'localhost',
     ollamaPort:     parseInt(process.env.OLLAMA_PORT || '11434', 10),
     ollamaModel:    process.env.OLLAMA_MODEL || 'llama3.2',
+    // v2.1: model routing — separate models for classification vs generation.
+    ollamaModelSmall: process.env.OLLAMA_MODEL_SMALL || process.env.OLLAMA_MODEL || 'llama3.2',
+    ollamaModelLarge: process.env.OLLAMA_MODEL_LARGE || process.env.OLLAMA_MODEL || 'llama3.2',
     cycleSeconds:   parseInt(process.env.AI_CYCLE_INTERVAL_SECONDS, 10) || 60,
     // Sub-cycle cadences (every N main cycles).
     codeAnalysisEvery:  parseInt(process.env.AI_CODE_ANALYSIS_EVERY_N_CYCLES  || '10', 10),
     docGenEvery:        parseInt(process.env.AI_DOC_GEN_EVERY_N_CYCLES        || '20', 10),
     testGenEvery:       parseInt(process.env.AI_TEST_GEN_EVERY_N_CYCLES       || '30', 10),
     feedbackEvery:      parseInt(process.env.AI_FEEDBACK_EVERY_N_CYCLES       || '5',  10),
+    depScanEvery:       parseInt(process.env.AI_DEP_SCAN_EVERY_N_CYCLES       || '15', 10),
     statusPort:     parseInt(process.env.AI_STATUS_PORT, 10) || 8890,
     // Shared secret required in `Authorization: Bearer <token>` header for all non-/health routes.
     // If empty, auth is disabled (suitable only for localhost-only deployments).
@@ -120,6 +139,21 @@ const CONFIG = {
     autoHeal:       process.env.AI_AUTO_HEAL !== 'false',
     autoSecurity:   process.env.AI_AUTO_SECURITY !== 'false',
     gatewayUrl:     process.env.AI_GATEWAY_URL || 'http://localhost:8000',
+    // v2.1: incremental analysis on file-save.
+    watchEnabled:   process.env.AI_WATCH_FILES === 'true',
+    // v2.1: prompt cache TTL in minutes.
+    promptCacheTtl: parseInt(process.env.AI_PROMPT_CACHE_TTL_MINUTES || '30', 10),
+    // v2.2: cadences for new modules.
+    feedbackChannelsEvery: parseInt(process.env.AI_FEEDBACK_CHANNELS_EVERY_N_CYCLES  || '3',  10),
+    feedbackIntelEvery:    parseInt(process.env.AI_FEEDBACK_INTEL_EVERY_N_CYCLES     || '8',  10),
+    testIntelEvery:        parseInt(process.env.AI_TEST_INTEL_EVERY_N_CYCLES         || '25', 10),
+    docIntelEvery:         parseInt(process.env.AI_DOC_INTEL_EVERY_N_CYCLES          || '20', 10),
+    // v3.0: multi-agent / canary / PR generator cadences.
+    multiAgentEvery:       parseInt(process.env.AI_MULTI_AGENT_EVERY_N_CYCLES        || '5',  10),
+    canaryCheckEvery:      parseInt(process.env.AI_CANARY_CHECK_EVERY_N_CYCLES       || '2',  10),
+    prDocDriftEvery:       parseInt(process.env.AI_PR_DOC_DRIFT_EVERY_N_CYCLES       || '30', 10),
+    // v3.0: observability.
+    observabilityJsonLog:  process.env.OBSERVABILITY_JSON_LOG === 'true',
 };
 
 // ---------------------------------------------------------------------------
@@ -152,6 +186,19 @@ const agentState = {
     docs:           { lastRunAt: null, docsGenerated: 0, services: [] },
     tests:          { lastRunAt: null, stubsGenerated: 0, services: [] },
     feedback:       { lastRunAt: null, total: 0, byCategory: {}, suggestions: 0, unprocessed: 0 },
+    // v2.1 additions.
+    depScan:        { lastRunAt: null, total: 0, bySeverity: {} },
+    fileWatcher:    { running: false, watchedDirs: 0 },
+    promptCache:    { hits: 0, misses: 0, size: 0 },
+    // v2.2 additions.
+    feedbackChannels: { lastRunAt: null, stats: {} },
+    feedbackIntel:  { lastRunAt: null, trendWeeks: 0, backlogItems: 0 },
+    testIntel:      { lastRunAt: null, uncoveredBranches: null, flakyTests: 0 },
+    docIntel:       { lastRunAt: null, openApiSpecs: 0, runbooks: 0 },
+    // v3.0 additions.
+    multiAgent:     { lastRunAt: null, totalFindings: 0, escalations: 0 },
+    canary:         { lastRunAt: null, activeDeployments: 0, rolledBack: 0 },
+    prGenerator:    { lastRunAt: null, prsCreated: 0, docDriftReports: 0 },
 };
 
 // ---------------------------------------------------------------------------
@@ -186,10 +233,138 @@ const codeAnalyzer      = new CodeAnalyzer();
 const docGenerator      = new DocGenerator();
 const feedbackProcessor = new FeedbackProcessor();
 const testGenerator     = new TestGenerator();
+// v2.1 modules.
+const fileWatcher       = new FileWatcher();
+const depScanner        = new DepScanner();
+const promptCache       = new PromptCache({ ttlMs: CONFIG.promptCacheTtl * 60 * 1000 });
+// v2.2 modules.
+const feedbackChannels    = new FeedbackChannels();
+const feedbackIntelligence = new FeedbackIntelligence();
+const testIntelligence    = new TestIntelligence();
+const docIntelligence     = new DocIntelligence();
+// v3.0 modules.
+const prGenerator         = new PRGenerator();
+const canaryManager       = new CanaryManager();
+const agentOrchestrator   = new AgentOrchestrator({
+    tokenBudget:  parseInt(process.env.AI_MULTI_AGENT_TOKEN_BUDGET || '10000', 10),
+    timeBudgetMs: parseInt(process.env.AI_MULTI_AGENT_TIME_BUDGET_MS || '45000', 10),
+});
+// v3.0 — Cache dashboard HTML on startup to avoid blocking reads per request.
+const DASHBOARD_FILE = path.join(__dirname, 'dashboard.html');
+let _dashboardHtml = null;
+try { _dashboardHtml = fs.readFileSync(DASHBOARD_FILE, 'utf8'); } catch (_) {}
 
-// ---------------------------------------------------------------------------
-// Banner
-// ---------------------------------------------------------------------------
+// v2.1 — SSE client registry (live streaming).
+/** @type {Set<http.ServerResponse>} */
+const sseClients = new Set();
+
+/**
+ * Broadcast an SSE event to all connected SSE clients.
+ * @param {string} event   SSE event name.
+ * @param {object} data    JSON-serializable payload.
+ */
+function broadcastSSE(event, data) {
+    const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const res of sseClients) {
+        try { res.write(msg); } catch (_) { sseClients.delete(res); }
+    }
+}
+
+// v2.1 — WebSocket frame helpers (pure Node.js, no ws library).
+/** @type {Set<import('net').Socket>} */
+const wsClients = new Set();
+
+/**
+ * Encode and broadcast a WebSocket text frame to all connected clients.
+ * Implements RFC 6455 frame encoding (text frames only).
+ * @param {object} payload
+ */
+function broadcastWS(payload) {
+    const text = JSON.stringify(payload);
+    const buf  = Buffer.from(text, 'utf8');
+    const len  = buf.length;
+
+    let frame;
+    if (len <= 125) {
+        frame = Buffer.allocUnsafe(2 + len);
+        frame[0] = 0x81; // FIN + text opcode.
+        frame[1] = len;
+        buf.copy(frame, 2);
+    } else if (len <= 65535) {
+        frame = Buffer.allocUnsafe(4 + len);
+        frame[0] = 0x81;
+        frame[1] = 0x7e;
+        frame.writeUInt16BE(len, 2);
+        buf.copy(frame, 4);
+    } else {
+        // Large frame (> 65535 bytes) — RFC 6455 requires 64-bit extended payload length.
+        // This branch is rarely hit in practice since agent messages are small JSON payloads.
+        // BigInt is used here only for the required Buffer.writeBigUInt64BE API.
+        frame = Buffer.allocUnsafe(10 + len);
+        frame[0] = 0x81;
+        frame[1] = 0x7f;
+        frame.writeBigUInt64BE(BigInt(len), 2);
+        buf.copy(frame, 10);
+    }
+
+    for (const sock of wsClients) {
+        try { sock.write(frame); } catch (_) { wsClients.delete(sock); }
+    }
+}
+
+/**
+ * Perform the WebSocket handshake and register the socket.
+ * @param {http.IncomingMessage} req
+ * @param {import('net').Socket} socket
+ * @param {Buffer} head
+ */
+function handleWebSocketUpgrade(req, socket, head) {
+    const key = req.headers['sec-websocket-key'];
+    if (!key) { socket.destroy(); return; }
+
+    const accept = require('crypto')
+        .createHash('sha1')
+        .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
+        .digest('base64');
+
+    socket.write([
+        'HTTP/1.1 101 Switching Protocols',
+        'Upgrade: websocket',
+        'Connection: Upgrade',
+        `Sec-WebSocket-Accept: ${accept}`,
+        '',
+        '',
+    ].join('\r\n'));
+
+    wsClients.add(socket);
+
+    socket.on('close', () => wsClients.delete(socket));
+    socket.on('error', () => wsClients.delete(socket));
+
+    // Send initial state.
+    broadcastWS({ type: 'connected', agentVersion: AGENT_VERSION, cycles: agentState.cycles });
+}
+
+// Hook code-analyzer to broadcast findings in real-time.
+function _hookAnalyzerBroadcast() {
+    const originalAnalyze = codeAnalyzer.analyzeProject.bind(codeAnalyzer);
+    codeAnalyzer.analyzeProject = async function (...args) {
+        broadcastSSE('analysis_start', { at: new Date().toISOString() });
+        broadcastWS({ type: 'analysis_start', at: new Date().toISOString() });
+        const result = await originalAnalyze(...args);
+        broadcastSSE('analysis_complete', {
+            summary: result.summary,
+            at:      new Date().toISOString(),
+        });
+        broadcastWS({ type: 'analysis_complete', summary: result.summary });
+        // Stream individual critical/high findings.
+        for (const f of result.findings.filter(fi => fi.severity === 'critical' || fi.severity === 'high').slice(0, 20)) {
+            broadcastSSE('finding', { id: f.id, severity: f.severity, file: f.relPath, line: f.line, message: f.message });
+            broadcastWS({ type: 'finding', id: f.id, severity: f.severity, file: f.relPath, line: f.line, message: f.message });
+        }
+        return result;
+    };
+}
 
 function printBanner() {
     const lines = [
@@ -209,10 +384,28 @@ function printBanner() {
         '║  ✓ Runtime monitoring & auto-healing                     ║',
         '║  ✓ Security threat detection & response                  ║',
         '║  ✓ AI-powered code analysis & vulnerability scanning     ║',
-        '║  ✓ Automated code fix proposals (admin-gated)            ║',
+        '║  ✓ AST-based analysis & cyclomatic complexity (v2.1)     ║',
+        '║  ✓ Dead code & duplicate code detection (v2.1)           ║',
+        '║  ✓ Incremental analysis on file-save (v2.1)              ║',
+        '║  ✓ Dependency vulnerability scanner (v2.1)               ║',
+        '║  ✓ Multi-turn LLM fix proposals (v2.1)                   ║',
+        '║  ✓ Prompt caching & model routing (v2.1)                 ║',
+        '║  ✓ SSE streaming & WebSocket live findings (v2.1)        ║',
         '║  ✓ User feedback processing & feature suggestions        ║',
         '║  ✓ AI documentation generation                           ║',
         '║  ✓ Test stub generation for untested routes              ║',
+        '║  ✓ Multi-channel feedback ingestion (v2.2)               ║',
+        '║  ✓ Sentiment trends & keyword clustering (v2.2)          ║',
+        '║  ✓ Feature impact scoring & GitHub issue creation (v2.2) ║',
+        '║  ✓ Coverage gaps & property-based test generation (v2.2) ║',
+        '║  ✓ Mutation testing + flaky test quarantine (v2.2)       ║',
+        '║  ✓ OpenAPI specs + runbooks + changelog (v2.2)           ║',
+        '║  ✓ Diff-based doc updates + localization (v2.2)          ║',
+        '║  ✓ Autonomous PR generation + regression tests (v3.0)    ║',
+        '║  ✓ A/B feature flags + canary rollback triggers (v3.0)   ║',
+        '║  ✓ Multi-agent: security/perf/quality + bus (v3.0)       ║',
+        '║  ✓ Observability: LLM metrics, cost tracking (v3.0)      ║',
+        '║  ✓ Self-healing docs + admin web dashboard (v3.0)        ║',
         '╚══════════════════════════════════════════════════════════╝',
         '',
     ];
@@ -328,11 +521,17 @@ function _llmPost(urlStr, body, headers, extractFn) {
 /**
  * Call local Ollama /api/chat endpoint (privacy-safe, no external API key).
  * @param {string} prompt
+ * @param {'small'|'large'} [modelSize]  v2.1 model routing hint.
  * @returns {Promise<string>}
  */
-async function callOllama(prompt) {
+async function callOllama(prompt, modelSize) {
+    // v2.1 model routing: classification uses the small model, generation uses the large one.
+    const model = modelSize === 'small' ? CONFIG.ollamaModelSmall
+        : modelSize === 'large'         ? CONFIG.ollamaModelLarge
+        : CONFIG.ollamaModel;
+
     const body = JSON.stringify({
-        model: CONFIG.ollamaModel,
+        model,
         messages: [
             { role: 'system', content: 'You are an expert DevOps AI assistant for the Milonexa platform. Provide concise, actionable analysis.' },
             { role: 'user', content: prompt },
@@ -352,25 +551,61 @@ async function callOllama(prompt) {
 /**
  * Get an LLM-enhanced summary/analysis for unusual anomalies.
  * Falls back to rule-based output if LLM unavailable or in demo mode.
+ * v2.1: Wrapped with prompt cache; supports model routing hint.
  *
  * @param {string} prompt
+ * @param {'small'|'large'} [modelSize]  routing hint.
  * @returns {Promise<string>}
  */
-async function llmAnalyze(prompt) {
+async function llmAnalyze(prompt, modelSize) {
+    // v2.1: prompt cache lookup.
+    // Include modelSize in the cache key so different routing choices are cached separately.
+    // Use NUL as a delimiter that cannot appear in prompts, preventing key collisions.
+    const cacheInput = (modelSize || 'default') + '\x00' + prompt;
+    const cached = promptCache.lookup(cacheInput);
+    if (cached !== undefined) {
+        agentState.promptCache = promptCache.getStats();
+        return cached;
+    }
+
+    let result = null;
+    const llmStart = Date.now();
+    let llmSuccess = false;
     try {
         if (CONFIG.provider === 'ollama') {
-            return await callOllama(prompt);
+            result = await callOllama(prompt, modelSize);
+        } else if (CONFIG.provider === 'openai' && CONFIG.openaiKey) {
+            result = await callOpenAI(prompt);
+        } else if (CONFIG.provider === 'anthropic' && CONFIG.anthropicKey) {
+            result = await callAnthropic(prompt);
         }
-        if (CONFIG.provider === 'openai' && CONFIG.openaiKey) {
-            return await callOpenAI(prompt);
-        }
-        if (CONFIG.provider === 'anthropic' && CONFIG.anthropicKey) {
-            return await callAnthropic(prompt);
-        }
+        if (result) llmSuccess = true;
     } catch (err) {
         console.error(`[ai-agent] LLM call failed (${CONFIG.provider}): ${err.message}`);
     }
-    return null; // Demo / fallback — caller handles null.
+
+    // v3.0: track LLM call metrics.
+    if (CONFIG.provider !== 'demo') {
+        const estimatedInputTokens  = Math.ceil(prompt.length / 4);
+        const estimatedOutputTokens = Math.ceil((result || '').length / 4);
+        observability.trackLLMCall({
+            provider:      CONFIG.provider,
+            model:         modelSize === 'small' ? CONFIG.ollamaModelSmall : modelSize === 'large' ? CONFIG.ollamaModelLarge : CONFIG.ollamaModel,
+            latencyMs:     Date.now() - llmStart,
+            inputTokens:   estimatedInputTokens,
+            outputTokens:  estimatedOutputTokens,
+            taskType:      modelSize === 'small' ? 'classify' : 'generate',
+            success:       llmSuccess,
+        });
+    }
+
+    // Cache successful responses with the same compound key.
+    if (result) promptCache.put(cacheInput, result);
+
+    // Update state.
+    agentState.promptCache = promptCache.getStats();
+
+    return result; // Demo / fallback — caller handles null.
 }
 
 // ---------------------------------------------------------------------------
@@ -554,6 +789,141 @@ async function runCycle() {
         }
     }
 
+    // 10e. v2.1 — Dependency vulnerability scan (every depScanEvery cycles, starting at cycle 5)
+    if (cycleId > 4 && (cycleId - 5) % CONFIG.depScanEvery === 0) {
+        try {
+            const { summary: depSummary } = await depScanner.scan();
+            agentState.depScan = depScanner.getLastRunSummary();
+            if (depSummary.bySeverity.critical > 0 || depSummary.bySeverity.high > 0) {
+                console.warn(`[ai-agent] Dep scan: ${depSummary.bySeverity.critical} critical, ${depSummary.bySeverity.high} high severity vulnerabilities`);
+                await notifier.notify(
+                    depSummary.bySeverity.critical > 0 ? 'critical' : 'warning',
+                    'Dependency Vulnerabilities Found',
+                    `Critical: ${depSummary.bySeverity.critical}, High: ${depSummary.bySeverity.high}. Check /dep-scan for details.`,
+                    { total: depSummary.total }
+                ).catch(() => {});
+            }
+        } catch (e) {
+            console.error('[ai-agent] Dep scan error:', e.message);
+        }
+    }
+
+    // v2.1: refresh file-watcher status in state.
+    agentState.fileWatcher = fileWatcher.getStatus();
+    agentState.promptCache  = promptCache.getStats();
+
+    // 10f. v2.2 — Multi-channel feedback ingestion (every feedbackChannelsEvery cycles, starting at cycle 2)
+    if (cycleId > 1 && (cycleId - 2) % CONFIG.feedbackChannelsEvery === 0) {
+        try {
+            const stats = await feedbackChannels.ingestAll();
+            agentState.feedbackChannels = feedbackChannels.getStatus();
+            if (stats.total > 0) {
+                console.log(`[ai-agent] Feedback channels: ${stats.total} new item(s) ingested (email=${stats.email}, github=${stats.github})`);
+            }
+        } catch (e) {
+            console.error('[ai-agent] Feedback channel ingest error:', e.message);
+        }
+    }
+
+    // 10g. v2.2 — Feedback intelligence (every feedbackIntelEvery cycles, starting at cycle 6)
+    if (cycleId > 5 && (cycleId - 6) % CONFIG.feedbackIntelEvery === 0) {
+        try {
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            const intel = await feedbackIntelligence.analyze(feedbackProcessor.getProcessed(200), llmFn, permGate);
+            agentState.feedbackIntel = feedbackIntelligence.getLastRunSummary();
+            if (intel.backlogItems > 0) {
+                console.log(`[ai-agent] Feedback intelligence: ${intel.backlogItems} backlog item(s), ${intel.clusters} keyword cluster(s)`);
+            }
+        } catch (e) {
+            console.error('[ai-agent] Feedback intelligence error:', e.message);
+        }
+    }
+
+    // 10h. v2.2 — Test intelligence (every testIntelEvery cycles, starting at cycle 7)
+    if (cycleId > 6 && (cycleId - 7) % CONFIG.testIntelEvery === 0) {
+        try {
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            const intel = await testIntelligence.analyze(llmFn, permGate);
+            agentState.testIntel = testIntelligence.getLastRunSummary();
+            console.log(`[ai-agent] Test intelligence: ${intel.uncoveredBranches} uncovered branches, ${intel.flakyTests} flaky test(s)`);
+        } catch (e) {
+            console.error('[ai-agent] Test intelligence error:', e.message);
+        }
+    }
+
+    // 10i. v2.2 — Documentation intelligence (every docIntelEvery cycles, starting at cycle 8)
+    if (cycleId > 7 && (cycleId - 8) % CONFIG.docIntelEvery === 0) {
+        try {
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            const intel = await docIntelligence.analyze(llmFn, permGate);
+            agentState.docIntel = docIntelligence.getLastRunSummary();
+            console.log(`[ai-agent] Doc intelligence: ${intel.openApiSpecs} OpenAPI specs, ${intel.runbooksGenerated} runbooks`);
+        } catch (e) {
+            console.error('[ai-agent] Doc intelligence error:', e.message);
+        }
+    }
+
+    // 10j. v3.0 — Multi-agent analysis (every multiAgentEvery cycles, starting at cycle 9)
+    if (cycleId > 8 && (cycleId - 9) % CONFIG.multiAgentEvery === 0) {
+        try {
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            const maResult = await agentOrchestrator.runCycle({
+                metrics:      metrics.services ? metrics.services.reduce((o, s) => { o[s.name || s.service || 'unknown'] = s; return o; }, {}) : {},
+                threats,
+                codeFindings: codeAnalyzer.getLastRunSummary ? (codeAnalyzer.getLastRunSummary().findings || []) : [],
+                healthIssues: healthAssessment.issues,
+                testIntel:    testIntelligence.getLastRunSummary ? testIntelligence.getLastRunSummary() : null,
+                llmFn,
+            }, permGate);
+            agentState.multiAgent = {
+                lastRunAt:     new Date().toISOString(),
+                totalFindings: maResult.totalFindings,
+                escalations:   maResult.escalations,
+                durationMs:    maResult.durationMs,
+            };
+            if (maResult.escalations > 0) {
+                console.warn(`[ai-agent] Multi-agent: ${maResult.escalations} cross-agent conflict(s) escalated`);
+            }
+        } catch (e) {
+            console.error('[ai-agent] Multi-agent error:', e.message);
+        }
+    }
+
+    // 10k. v3.0 — Canary rollback check (every canaryCheckEvery cycles, starting at cycle 10)
+    if (cycleId > 9 && (cycleId - 10) % CONFIG.canaryCheckEvery === 0) {
+        try {
+            const triggered = await canaryManager.checkRollbackTriggers(permGate);
+            agentState.canary = canaryManager.getSummary();
+            if (triggered.length > 0) {
+                console.warn(`[ai-agent] Canary: ${triggered.length} rollback trigger(s) detected`);
+                await notifier.notify(
+                    'critical',
+                    'Canary Rollback Triggered',
+                    `${triggered.length} canary deployment(s) triggered rollback due to error rate spike.`,
+                    { triggered }
+                ).catch(() => {});
+            }
+        } catch (e) {
+            console.error('[ai-agent] Canary check error:', e.message);
+        }
+    }
+
+    // 10l. v3.0 — Doc drift / self-healing docs (every prDocDriftEvery cycles, starting at cycle 11)
+    if (cycleId > 10 && (cycleId - 11) % CONFIG.prDocDriftEvery === 0) {
+        try {
+            const liveSpecs = docIntelligence.getGeneratedSpecs ? docIntelligence.getGeneratedSpecs() : [];
+            if (liveSpecs.length > 0) {
+                const driftReports = await prGenerator.checkDocCodeDrift(liveSpecs, permGate);
+                agentState.prGenerator = prGenerator.getLastRunSummary();
+                if (driftReports.length > 0) {
+                    console.log(`[ai-agent] Doc drift: ${driftReports.length} service(s) have significant route drift`);
+                }
+            }
+        } catch (e) {
+            console.error('[ai-agent] Doc drift error:', e.message);
+        }
+    }
+
     // ── 10. Process approved permissions ────────────────────────────────────
     setState(STATES.ACTING);
     await processApprovedPermissions();
@@ -618,6 +988,14 @@ async function runCycle() {
     setState(STATES.IDLE);
     saveAgentState();
 
+    // v3.0: track cycle in observability.
+    observability.trackCycle({
+        cycleId,
+        durationMs: agentState.lastCycleMs,
+        state:      agentState.state,
+        findings:   agentState.codeAnalysis.totalFindings,
+    });
+
     console.log(
         `[ai-agent] ── Cycle ${cycleId} done in ${agentState.lastCycleMs}ms ` +
         `(score=${healthAssessment.score}, threats=${threats.length}) ──`
@@ -662,6 +1040,34 @@ async function processApprovedPermissions() {
                 result = await docGenerator.executeApprovedDocWrite(record);
             } else if (record.action === 'write_generated_tests') {
                 result = await testGenerator.executeApprovedTestWrite(record);
+            } else if (record.action === 'create_github_issue') {
+                result = await feedbackIntelligence.executeApprovedIssueCreation(record);
+            } else if (record.action === 'apply_test_fix') {
+                result = await testIntelligence.executeApprovedTestFix(record);
+            } else if (record.action === 'write_generated_docs_v22') {
+                // For v2.2 doc intel: docs are already written to docs/generated/; just confirm.
+                result = { status: 'confirmed', action: record.action };
+            } else if (record.action === 'create_pr') {
+                // v3.0: execute approved GitHub PR creation.
+                result = await prGenerator.executeApprovedPR(record);
+                agentState.prGenerator = prGenerator.getLastRunSummary();
+                observability.audit('create_pr', { result }, 'agent');
+            } else if (record.action === 'rollback_canary') {
+                // v3.0: execute admin-approved canary rollback.
+                result = await canaryManager.executeApprovedRollback(record);
+                agentState.canary = canaryManager.getSummary();
+                observability.audit('rollback_canary', { result }, 'admin');
+                await notifier.notify('warning', 'Canary Rollback Executed', `Rollback: ${JSON.stringify(result)}`, {}).catch(() => {});
+            } else if (record.action === 'resolve_agent_conflict') {
+                // v3.0: acknowledge cross-agent conflict resolution.
+                result = { status: 'acknowledged', conflictId: record.data && record.data.conflictId };
+                observability.audit('resolve_agent_conflict', { result }, 'admin');
+            } else if (record.action === 'sync_docs') {
+                // v3.0: doc drift sync — trigger full doc-intel re-generation.
+                const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+                docIntelligence.analyze(llmFn, permGate).catch(() => {});
+                result = { status: 'triggered', action: 'sync_docs', service: record.data && record.data.service };
+                observability.audit('sync_docs', { result }, 'admin');
             } else {
                 result = { action: record.action, status: 'unhandled' };
             }
@@ -977,6 +1383,492 @@ function startStatusServer() {
             return;
         }
 
+        // ── GET /dep-scan ────────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/dep-scan') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary:  depScanner.getLastRunSummary(),
+                findings: depScanner.getFindings(50),
+            }, null, 2));
+            return;
+        }
+
+        // ── POST /dep-scan/trigger ───────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/dep-scan/trigger') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Dependency scan triggered.' }));
+            depScanner.scan()
+                .then(({ summary }) => { agentState.depScan = depScanner.getLastRunSummary(); })
+                .catch(e => console.error('[ai-agent] Manual dep scan error:', e.message));
+            return;
+        }
+
+        // ── GET /complexity ──────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/complexity') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                report: codeAnalyzer.getComplexityReport(50),
+            }, null, 2));
+            return;
+        }
+
+        // ── GET /duplicates ──────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/duplicates') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                groups: codeAnalyzer.getDuplicates(20),
+            }, null, 2));
+            return;
+        }
+
+        // ── GET /dead-code ───────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/dead-code') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                symbols: codeAnalyzer.getDeadCode(50),
+            }, null, 2));
+            return;
+        }
+
+        // ── POST /code-analysis/dry-run ──────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/code-analysis/dry-run') {
+            let body = '';
+            req.on('data', c => { body += c; });
+            req.on('end', () => {
+                try {
+                    const fix = JSON.parse(body);
+                    const result = codeAnalyzer.dryRunFix(fix);
+                    res.writeHead(200);
+                    res.end(JSON.stringify(result, null, 2));
+                } catch (e) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+                }
+            });
+            return;
+        }
+
+        // ── GET /prompt-templates ────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/prompt-templates') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                custom:   promptTemplates.listCustom(),
+                defaults: promptTemplates.listDefaults(),
+            }, null, 2));
+            return;
+        }
+
+        // ── POST /prompt-templates/reload ────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/prompt-templates/reload') {
+            const result = promptTemplates.reload();
+            res.writeHead(200);
+            res.end(JSON.stringify(result));
+            return;
+        }
+
+        // ── PUT /prompt-templates/:ruleId ────────────────────────────────────
+        const tplSaveMatch = pathname.match(/^\/prompt-templates\/([^/]+)$/);
+        if (req.method === 'PUT' && tplSaveMatch) {
+            const ruleId = tplSaveMatch[1];
+            let body = '';
+            req.on('data', c => { body += c; });
+            req.on('end', () => {
+                try {
+                    const { template } = JSON.parse(body);
+                    if (!template || typeof template !== 'string') throw new Error('template string required');
+                    promptTemplates.save(ruleId, template);
+                    res.writeHead(200);
+                    res.end(JSON.stringify({ ruleId, saved: true }));
+                } catch (e) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: e.message }));
+                }
+            });
+            return;
+        }
+
+        // ── DELETE /prompt-templates/:ruleId ─────────────────────────────────
+        const tplDeleteMatch = pathname.match(/^\/prompt-templates\/([^/]+)$/);
+        if (req.method === 'DELETE' && tplDeleteMatch) {
+            const ruleId = tplDeleteMatch[1];
+            promptTemplates.remove(ruleId);
+            res.writeHead(200);
+            res.end(JSON.stringify({ ruleId, removed: true }));
+            return;
+        }
+
+        // ── GET /prompt-cache/stats ──────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/prompt-cache/stats') {
+            res.writeHead(200);
+            res.end(JSON.stringify(promptCache.getStats(), null, 2));
+            return;
+        }
+
+        // ── POST /prompt-cache/clear ─────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/prompt-cache/clear') {
+            promptCache.clear();
+            agentState.promptCache = promptCache.getStats();
+            res.writeHead(200);
+            res.end(JSON.stringify({ cleared: true }));
+            return;
+        }
+
+        // ── GET /file-watcher/status ─────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/file-watcher/status') {
+            res.writeHead(200);
+            res.end(JSON.stringify(fileWatcher.getStatus(), null, 2));
+            return;
+        }
+
+        // ── POST /file-watcher/start ─────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/file-watcher/start') {
+            fileWatcher.start();
+            agentState.fileWatcher = fileWatcher.getStatus();
+            res.writeHead(200);
+            res.end(JSON.stringify({ started: true, status: agentState.fileWatcher }));
+            return;
+        }
+
+        // ── POST /file-watcher/stop ──────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/file-watcher/stop') {
+            fileWatcher.stop();
+            agentState.fileWatcher = fileWatcher.getStatus();
+            res.writeHead(200);
+            res.end(JSON.stringify({ stopped: true, status: agentState.fileWatcher }));
+            return;
+        }
+
+        // ── GET /stream (SSE) ────────────────────────────────────────────────
+        // Server-Sent Events endpoint — streams analysis events to clients.
+        if (req.method === 'GET' && pathname === '/stream') {
+            res.writeHead(200, {
+                'Content-Type':  'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection':    'keep-alive',
+                'X-Accel-Buffering': 'no',
+            });
+            // Send initial connection event.
+            res.write(`event: connected\ndata: ${JSON.stringify({ agentVersion: AGENT_VERSION, cycles: agentState.cycles })}\n\n`);
+
+            sseClients.add(res);
+
+            // Heartbeat every 30 s to keep connection alive.
+            const heartbeat = setInterval(() => {
+                try { res.write(': heartbeat\n\n'); } catch (_) { clearInterval(heartbeat); sseClients.delete(res); }
+            }, 30000);
+
+            req.on('close', () => {
+                clearInterval(heartbeat);
+                sseClients.delete(res);
+            });
+            return; // Keep connection open — do NOT call res.end().
+        }
+
+        // ── v2.2 endpoints ───────────────────────────────────────────────────
+
+        // ── GET /feedback-channels/status ────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/feedback-channels/status') {
+            res.writeHead(200);
+            res.end(JSON.stringify(feedbackChannels.getStatus(), null, 2));
+            return;
+        }
+
+        // ── POST /feedback-channels/ingest ───────────────────────────────────
+        if (req.method === 'POST' && pathname === '/feedback-channels/ingest') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Multi-channel feedback ingestion triggered.' }));
+            feedbackChannels.ingestAll()
+                .then(() => { agentState.feedbackChannels = feedbackChannels.getStatus(); })
+                .catch(e => console.error('[ai-agent] Manual feedback-channel ingest error:', e.message));
+            return;
+        }
+
+        // ── GET /feedback-intelligence/trends ────────────────────────────────
+        if (req.method === 'GET' && pathname === '/feedback-intelligence/trends') {
+            const weeks = parseInt(new URL(req.url, `http://localhost`).searchParams.get('weeks') || '52', 10);
+            res.writeHead(200);
+            res.end(JSON.stringify({ trends: feedbackIntelligence.getTrendHistory(weeks) }, null, 2));
+            return;
+        }
+
+        // ── GET /feedback-intelligence/backlog ────────────────────────────────
+        if (req.method === 'GET' && pathname === '/feedback-intelligence/backlog') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ backlog: feedbackIntelligence.getBacklog(50) }, null, 2));
+            return;
+        }
+
+        // ── GET /feedback-intelligence/issues ────────────────────────────────
+        if (req.method === 'GET' && pathname === '/feedback-intelligence/issues') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ issues: feedbackIntelligence.getCreatedIssues(20) }, null, 2));
+            return;
+        }
+
+        // ── POST /feedback-intelligence/analyze ──────────────────────────────
+        if (req.method === 'POST' && pathname === '/feedback-intelligence/analyze') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Feedback intelligence analysis triggered.' }));
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            feedbackIntelligence.analyze(feedbackProcessor.getProcessed(200), llmFn, permGate)
+                .then(() => { agentState.feedbackIntel = feedbackIntelligence.getLastRunSummary(); })
+                .catch(e => console.error('[ai-agent] Manual feedback-intel error:', e.message));
+            return;
+        }
+
+        // ── GET /test-intelligence ────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/test-intelligence') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary:    testIntelligence.getLastRunSummary(),
+                coverage:   testIntelligence.getCoverageReport(),
+                flaky:      testIntelligence.getQuarantined(),
+                stubs:      testIntelligence.getPropertyStubs(10),
+                fixes:      testIntelligence.getTestFixProposals(10),
+            }, null, 2));
+            return;
+        }
+
+        // ── POST /test-intelligence/analyze ──────────────────────────────────
+        if (req.method === 'POST' && pathname === '/test-intelligence/analyze') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Test intelligence analysis triggered.' }));
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            testIntelligence.analyze(llmFn, permGate)
+                .then(() => { agentState.testIntel = testIntelligence.getLastRunSummary(); })
+                .catch(e => console.error('[ai-agent] Manual test-intel error:', e.message));
+            return;
+        }
+
+        // ── GET /doc-intelligence ─────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/doc-intelligence') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary:      docIntelligence.getLastRunSummary(),
+                specs:        docIntelligence.getOpenAPISpecs().map(s => ({ service: s.service, routeCount: s.routeCount, generatedAt: s.generatedAt })),
+                runbooks:     docIntelligence.getRunbooks().map(r => ({ service: r.service, port: r.port, generatedAt: r.generatedAt })),
+                translations: docIntelligence.getTranslations(10).map(t => ({ service: t.service, lang: t.lang, generatedAt: t.generatedAt })),
+                hasChangelog: Boolean(docIntelligence.getChangelog()),
+            }, null, 2));
+            return;
+        }
+
+        // ── GET /doc-intelligence/openapi/:service ────────────────────────────
+        const openApiMatch = pathname.match(/^\/doc-intelligence\/openapi\/([^/]+)$/);
+        if (req.method === 'GET' && openApiMatch) {
+            const svc  = openApiMatch[1];
+            const spec = docIntelligence.getOpenAPISpecs().find(s => s.service === svc);
+            if (spec) {
+                res.writeHead(200);
+                res.end(JSON.stringify(spec.spec, null, 2));
+            } else {
+                res.writeHead(404);
+                res.end(JSON.stringify({ error: `No OpenAPI spec found for service '${svc}'` }));
+            }
+            return;
+        }
+
+        // ── GET /doc-intelligence/runbook/:service ────────────────────────────
+        const runbookMatch = pathname.match(/^\/doc-intelligence\/runbook\/([^/]+)$/);
+        if (req.method === 'GET' && runbookMatch) {
+            const svc     = runbookMatch[1];
+            const runbook = docIntelligence.getRunbooks().find(r => r.service === svc);
+            if (runbook) {
+                res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8' });
+                res.end(runbook.content);
+            } else {
+                res.writeHead(404);
+                res.end(JSON.stringify({ error: `No runbook found for service '${svc}'` }));
+            }
+            return;
+        }
+
+        // ── GET /doc-intelligence/changelog ──────────────────────────────────
+        if (req.method === 'GET' && pathname === '/doc-intelligence/changelog') {
+            const changelog = docIntelligence.getChangelog();
+            if (changelog) {
+                res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8' });
+                res.end(changelog);
+            } else {
+                res.writeHead(404);
+                res.end(JSON.stringify({ error: 'No changelog generated yet' }));
+            }
+            return;
+        }
+
+        // ── POST /doc-intelligence/analyze ───────────────────────────────────
+        if (req.method === 'POST' && pathname === '/doc-intelligence/analyze') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Documentation intelligence analysis triggered.' }));
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            docIntelligence.analyze(llmFn, permGate)
+                .then(() => { agentState.docIntel = docIntelligence.getLastRunSummary(); })
+                .catch(e => console.error('[ai-agent] Manual doc-intel error:', e.message));
+            return;
+        }
+
+        // ── v3.0 ────────────────────────────────────────────────────────────
+
+        // ── GET /dashboard ────────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/dashboard') {
+            if (_dashboardHtml) {
+                res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+                res.end(_dashboardHtml);
+            } else {
+                res.writeHead(404);
+                res.end(JSON.stringify({ error: 'Dashboard file not found.' }));
+            }
+            return;
+        }
+
+        // ── GET /observability ────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/observability') {
+            res.writeHead(200);
+            res.end(JSON.stringify(observability.getSummary(), null, 2));
+            return;
+        }
+
+        // ── GET /audit-log ────────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/audit-log') {
+            const limit  = parseInt(new URL(req.url, `http://localhost:${CONFIG.statusPort}`).searchParams.get('limit') || '100', 10);
+            const entries = observability.getAuditLog(limit);
+            res.writeHead(200);
+            res.end(JSON.stringify(entries, null, 2));
+            return;
+        }
+
+        // ── GET /multi-agent ─────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/multi-agent') {
+            res.writeHead(200);
+            res.end(JSON.stringify(agentOrchestrator.getSummary(), null, 2));
+            return;
+        }
+
+        // ── GET /multi-agent/conflicts ───────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/multi-agent/conflicts') {
+            res.writeHead(200);
+            res.end(JSON.stringify(agentOrchestrator.getEscalationManager().getConflicts(50), null, 2));
+            return;
+        }
+
+        // ── GET /multi-agent/bus ─────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/multi-agent/bus') {
+            res.writeHead(200);
+            res.end(JSON.stringify(agentOrchestrator.getMessageBus().getHistory(100), null, 2));
+            return;
+        }
+
+        // ── POST /multi-agent/trigger ─────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/multi-agent/trigger') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Multi-agent cycle triggered.' }));
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            agentOrchestrator.runCycle({ metrics: {}, threats: [], codeFindings: [], healthIssues: [], llmFn }, permGate)
+                .then(r => { agentState.multiAgent = { lastRunAt: new Date().toISOString(), totalFindings: r.totalFindings, escalations: r.escalations }; })
+                .catch(e => console.error('[ai-agent] Multi-agent trigger error:', e.message));
+            return;
+        }
+
+        // ── GET /pr-generator ─────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/pr-generator') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary:     prGenerator.getLastRunSummary(),
+                prs:         prGenerator.getPRs(20),
+                regressions: prGenerator.getRegressionResults(10),
+                docDrift:    prGenerator.getDocDriftReports(10),
+            }, null, 2));
+            return;
+        }
+
+        // ── GET /canary ───────────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/canary') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary:     canaryManager.getSummary(),
+                flags:       canaryManager.listFlags(),
+                deployments: canaryManager.listDeployments(),
+                rollbacks:   canaryManager.getRollbacks(10),
+            }, null, 2));
+            return;
+        }
+
+        // ── GET /canary/flags ─────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/canary/flags') {
+            res.writeHead(200);
+            res.end(JSON.stringify(canaryManager.listFlags(), null, 2));
+            return;
+        }
+
+        // ── POST /canary/flags ────────────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/canary/flags') {
+            readBody(req, (err, body) => {
+                if (err) { res.writeHead(400); res.end(JSON.stringify({ error: 'Bad request' })); return; }
+                try {
+                    const flag = canaryManager.createFlag(body);
+                    observability.audit('create_feature_flag', { name: flag.name, rolloutPct: flag.rolloutPct }, 'admin');
+                    res.writeHead(201);
+                    res.end(JSON.stringify(flag, null, 2));
+                } catch (e) { res.writeHead(400); res.end(JSON.stringify({ error: e.message })); }
+            });
+            return;
+        }
+
+        // ── GET /canary/flags/:name ───────────────────────────────────────────
+        const flagMatch = pathname.match(/^\/canary\/flags\/([^/]+)$/);
+        if (req.method === 'GET' && flagMatch) {
+            const flag = canaryManager.getFlag(flagMatch[1]);
+            if (flag) { res.writeHead(200); res.end(JSON.stringify(flag, null, 2)); }
+            else      { res.writeHead(404); res.end(JSON.stringify({ error: 'Flag not found' })); }
+            return;
+        }
+        // ── DELETE /canary/flags/:name ────────────────────────────────────────
+        if (req.method === 'DELETE' && flagMatch) {
+            const deleted = canaryManager.deleteFlag(flagMatch[1]);
+            observability.audit('delete_feature_flag', { name: flagMatch[1] }, 'admin');
+            res.writeHead(deleted ? 200 : 404);
+            res.end(JSON.stringify({ deleted }));
+            return;
+        }
+
+        // ── POST /canary/deployments ──────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/canary/deployments') {
+            readBody(req, (err, body) => {
+                if (err) { res.writeHead(400); res.end(JSON.stringify({ error: 'Bad request' })); return; }
+                try {
+                    const dep = canaryManager.registerDeployment(body);
+                    observability.audit('register_canary', { service: dep.service, version: dep.version }, 'admin');
+                    res.writeHead(201);
+                    res.end(JSON.stringify(dep, null, 2));
+                } catch (e) { res.writeHead(400); res.end(JSON.stringify({ error: e.message })); }
+            });
+            return;
+        }
+
+        // ── POST /canary/deployments/:id/sample ──────────────────────────────
+        const sampleMatch = pathname.match(/^\/canary\/deployments\/([^/]+)\/sample$/);
+        if (req.method === 'POST' && sampleMatch) {
+            readBody(req, (err, body) => {
+                if (err) { res.writeHead(400); res.end(JSON.stringify({ error: 'Bad request' })); return; }
+                try {
+                    const dep = canaryManager.recordSample(sampleMatch[1], body);
+                    res.writeHead(200);
+                    res.end(JSON.stringify({ consecutiveHighErrors: dep.consecutiveHighErrors, status: dep.status }));
+                } catch (e) { res.writeHead(400); res.end(JSON.stringify({ error: e.message })); }
+            });
+            return;
+        }
+
+        // ── POST /canary/deployments/:id/complete ─────────────────────────────
+        const completeMatch = pathname.match(/^\/canary\/deployments\/([^/]+)\/complete$/);
+        if (req.method === 'POST' && completeMatch) {
+            const dep = canaryManager.completeDeployment(completeMatch[1]);
+            observability.audit('complete_canary', { id: completeMatch[1] }, 'admin');
+            if (dep) { res.writeHead(200); res.end(JSON.stringify(dep, null, 2)); }
+            else     { res.writeHead(404); res.end(JSON.stringify({ error: 'Deployment not found' })); }
+            return;
+        }
+
         // ── 404 ──────────────────────────────────────────────────────────────
         res.writeHead(404);
         res.end(JSON.stringify({ error: 'Not found', availableRoutes: [
@@ -987,17 +1879,83 @@ function startStatusServer() {
             'POST /permissions/:id/deny',
             'GET  /code-analysis',
             'POST /code-analysis/trigger',
+            'POST /code-analysis/dry-run',
             'GET  /feedback',
             'POST /feedback',
             'GET  /docs',
             'POST /docs/trigger',
             'GET  /tests',
             'POST /tests/trigger',
+            'GET  /dep-scan',
+            'POST /dep-scan/trigger',
+            'GET  /complexity',
+            'GET  /duplicates',
+            'GET  /dead-code',
+            'GET  /prompt-templates',
+            'POST /prompt-templates/reload',
+            'PUT  /prompt-templates/:ruleId',
+            'DELETE /prompt-templates/:ruleId',
+            'GET  /prompt-cache/stats',
+            'POST /prompt-cache/clear',
+            'GET  /file-watcher/status',
+            'POST /file-watcher/start',
+            'POST /file-watcher/stop',
+            'GET  /stream  (SSE)',
+            'GET  /ws      (WebSocket)',
+            // v2.2
+            'GET  /feedback-channels/status',
+            'POST /feedback-channels/ingest',
+            'GET  /feedback-intelligence/trends',
+            'GET  /feedback-intelligence/backlog',
+            'GET  /feedback-intelligence/issues',
+            'POST /feedback-intelligence/analyze',
+            'GET  /test-intelligence',
+            'POST /test-intelligence/analyze',
+            'GET  /doc-intelligence',
+            'GET  /doc-intelligence/openapi/:service',
+            'GET  /doc-intelligence/runbook/:service',
+            'GET  /doc-intelligence/changelog',
+            'POST /doc-intelligence/analyze',
+            // v3.0
+            'GET  /dashboard',
+            'GET  /observability',
+            'GET  /audit-log',
+            'GET  /multi-agent',
+            'GET  /multi-agent/conflicts',
+            'GET  /multi-agent/bus',
+            'POST /multi-agent/trigger',
+            'GET  /pr-generator',
+            'GET  /canary',
+            'GET  /canary/flags',
+            'POST /canary/flags',
+            'GET  /canary/flags/:name',
+            'DELETE /canary/flags/:name',
+            'POST /canary/deployments',
+            'POST /canary/deployments/:id/sample',
+            'POST /canary/deployments/:id/complete',
         ]}));
     });
 
     server.on('error', err => {
         console.error(`[ai-agent] Status server error: ${err.message}`);
+    });
+
+    // v2.1 — WebSocket upgrade for live finding dashboard.
+    server.on('upgrade', (req, socket, head) => {
+        const u = new URL(req.url, `http://localhost:${CONFIG.statusPort}`);
+        if (u.pathname !== '/ws') { socket.destroy(); return; }
+        // Auth: check token via query param or Authorization header.
+        if (CONFIG.statusToken) {
+            const token = u.searchParams.get('token') || '';
+            const authHeader = req.headers['authorization'] || '';
+            const headerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+            if (token !== CONFIG.statusToken && headerToken !== CONFIG.statusToken) {
+                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                socket.destroy();
+                return;
+            }
+        }
+        handleWebSocketUpgrade(req, socket, head);
     });
 
     server.listen(CONFIG.statusPort, '0.0.0.0', () => {
@@ -1072,6 +2030,39 @@ async function main() {
         );
     }
 
+    // v2.1 — Hook live broadcast into the code analyzer.
+    _hookAnalyzerBroadcast();
+
+    // v2.1 — Start file watcher if enabled.
+    if (CONFIG.watchEnabled) {
+        fileWatcher.start();
+        agentState.fileWatcher = fileWatcher.getStatus();
+
+        // Prevent overlapping incremental analysis runs.
+        let _incrementalRunning = false;
+
+        // On file change: run incremental analysis and broadcast.
+        fileWatcher.on('change', async ({ files }) => {
+            if (_incrementalRunning) {
+                console.log(`[ai-agent] File-watcher: incremental analysis already running — skipping batch of ${files.length} file(s)`);
+                return;
+            }
+            _incrementalRunning = true;
+            console.log(`[ai-agent] File-watcher: ${files.length} file(s) changed — running incremental analysis…`);
+            broadcastSSE('files_changed', { files: files.map(f => path.relative(PROJECT_ROOT, f)), at: new Date().toISOString() });
+            broadcastWS({ type: 'files_changed', count: files.length });
+            try {
+                const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+                await codeAnalyzer.analyzeIncremental(llmFn, permGate);
+                agentState.codeAnalysis = codeAnalyzer.getLastRunSummary();
+            } catch (e) {
+                console.error('[ai-agent] Incremental analysis error:', e.message);
+            } finally {
+                _incrementalRunning = false;
+            }
+        });
+    }
+
     // Start HTTP status server.
     startStatusServer();
 
@@ -1086,13 +2077,12 @@ async function main() {
     // Notify admin of startup.
     await notifier.notify(
         'info',
-        'AI Admin Agent v2.0 Started',
+        'AI Admin Agent v3.0 Started',
         `Milonexa AI Admin Agent is now monitoring the platform (provider=${CONFIG.provider}, cycle=${CONFIG.cycleSeconds}s). ` +
-        `New capabilities: code analysis (every ${CONFIG.codeAnalysisEvery} cycles), ` +
-        `documentation generation (every ${CONFIG.docGenEvery} cycles), ` +
-        `test generation (every ${CONFIG.testGenEvery} cycles), ` +
-        `feedback processing (every ${CONFIG.feedbackEvery} cycles).`,
-        { port: CONFIG.statusPort, autoHeal: CONFIG.autoHeal, autoSecurity: CONFIG.autoSecurity }
+        `v3.0 features: autonomous PR generation, A/B feature flags, canary rollbacks, ` +
+        `multi-agent (security/performance/quality), LLM observability & cost tracking, ` +
+        `self-healing docs, admin web dashboard at /dashboard.`,
+        { port: CONFIG.statusPort, autoHeal: CONFIG.autoHeal, autoSecurity: CONFIG.autoSecurity, watchEnabled: CONFIG.watchEnabled }
     ).catch(() => {});
 
     // Begin scheduled loop.
