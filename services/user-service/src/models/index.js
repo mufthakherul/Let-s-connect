@@ -30,6 +30,7 @@ const NotificationPreference = require('./NotificationPreference');
 const AuditLog = require('./AuditLog');
 const ContentFlag = require('./ContentFlag');
 const PasswordResetToken = require('./PasswordResetToken');
+const RefreshToken = require('./RefreshToken');
 
 // Define Relationships
 User.hasOne(Profile, { foreignKey: 'userId' });
@@ -86,6 +87,9 @@ ContentFlag.belongsTo(User, { as: 'Reporter', foreignKey: 'reporterId' });
 User.hasMany(PasswordResetToken, { foreignKey: 'userId' });
 PasswordResetToken.belongsTo(User, { foreignKey: 'userId' });
 
+User.hasMany(RefreshToken, { foreignKey: 'userId' });
+RefreshToken.belongsTo(User, { foreignKey: 'userId' });
+
 module.exports = {
     sequelize,
     User,
@@ -104,5 +108,6 @@ module.exports = {
     NotificationPreference,
     AuditLog,
     ContentFlag,
-    PasswordResetToken
+    PasswordResetToken,
+    RefreshToken
 };
