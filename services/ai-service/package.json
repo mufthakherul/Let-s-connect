@@ -6,7 +6,7 @@
   "dependencies": {
     "express": "^5.2.1",
     "@google/generative-ai": "^0.24.1",
-    "ioredis": "^5.9.3",
+    "ioredis": "^5.10.0",
     "dotenv": "^17.3.1"
   }
 }
