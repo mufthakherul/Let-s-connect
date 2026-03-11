@@ -88,7 +88,9 @@ function UnregisterLanding() {
     useEffect(() => {
         api.get('/api/public/stats').then(res => {
             if (res.data?.userCount) setUserCount(res.data.userCount);
-        }).catch(() => {});
+        }).catch((err) => {
+            console.debug('[UnregisterLanding] Could not fetch public stats:', err?.message);
+        });
     }, []);
 
     const features = [
