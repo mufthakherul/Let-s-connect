@@ -8,7 +8,7 @@
     "test": "node tests/feed-filters.test.js"
   },
   "dependencies": {
-    "@elastic/elasticsearch": "^8.10.0",
+    "@elastic/elasticsearch": "^9.3.4",
     "cors": "^2.8.6",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
