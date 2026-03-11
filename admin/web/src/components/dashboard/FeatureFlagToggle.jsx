@@ -77,14 +77,23 @@ function FlagsTab({ flags, setFlags }) {
     );
 
     const toggleEnv = async (flag, env) => {
-        const updated = { ...flag, [env]: !flag[env] };
-        try { await api.put(`/api/v1/feature-flags/${flag.id}`, { [env]: updated[env] }); } catch { /* mock */ }
+        const newEnabled = !flag.environments?.[env] ?? !flag[env];
+        const updated = {
+            ...flag,
+            environments: { ...(flag.environments || {}), [env]: newEnabled },
+            [env]: newEnabled,
+        };
+        try {
+            await api.post(`/api/v1/feature-flags/${flag.id}/toggle`, { environment: env, enabled: newEnabled });
+        } catch { /* mock */ }
         setFlags(prev => prev.map(f => f.id === flag.id ? updated : f));
     };
 
     const updateRollout = async (flag, value) => {
-        try { await api.put(`/api/v1/feature-flags/${flag.id}`, { rollout: value }); } catch { /* mock */ }
-        setFlags(prev => prev.map(f => f.id === flag.id ? { ...f, rollout: value } : f));
+        try {
+            await api.post(`/api/v1/feature-flags/${flag.id}/rollout`, { environment: 'production', percent: value });
+        } catch { /* mock */ }
+        setFlags(prev => prev.map(f => f.id === flag.id ? { ...f, rollout: value, rolloutPercent: value } : f));
     };
 
     const handleBulkToggle = async (env) => {
@@ -222,7 +231,7 @@ function HistoryTab({ flags }) {
         setLoading(true);
         try {
             const res = await api.get(`/api/v1/feature-flags/${id}/history`);
-            setHistory(res.data);
+            setHistory(res.data?.history || res.data || MOCK_HISTORY);
         } catch {
             setHistory(MOCK_HISTORY);
         }
@@ -282,7 +291,7 @@ function EvaluateTab() {
         setResult(null);
         try {
             const res = await api.post('/api/v1/feature-flags/evaluate', form);
-            setResult(res.data);
+            setResult(res.data?.result || res.data);
         } catch {
             setResult(MOCK_EVAL);
         }
@@ -429,7 +438,7 @@ export default function FeatureFlagToggle() {
         setError(null);
         try {
             const res = await api.get('/api/v1/feature-flags');
-            setFlags(res.data);
+            setFlags(res.data?.flags || res.data || []);
         } catch {
             setError('Could not load flags. Showing mock data.');
             setFlags(MOCK_FLAGS);

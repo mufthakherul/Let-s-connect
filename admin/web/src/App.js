@@ -20,7 +20,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/authStore';
 import { useAppearanceStore } from './store/appearanceStore';
-import { SUPPORTED_LANGUAGES, setLanguage } from './utils/i18n';
 import NotificationCenter from './components/common/NotificationCenter';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import Error404 from './components/errors/Error404';
@@ -100,9 +99,7 @@ function AppContent() {
   const { mode, toggleTheme, getAccentColor, initSystemThemeListener, accessibility } = useThemeStore();
   // Sync appearance store dark mode with theme store so the admin panel dark mode toggle
   // is reflected consistently across the app shell.
-  const { darkMode: appearanceDarkMode } = useAppearanceStore();
-  const systemPrefersDark = useMediaQuery('(prefers-color-scheme: dark)');
-  const adminIsDark = appearanceDarkMode === 'dark' || (appearanceDarkMode === 'system' && systemPrefersDark);
+  useAppearanceStore();
 
   // Brand gradient: modern premium gradients from designTokens
   const brandGradient = useMemo(() =>

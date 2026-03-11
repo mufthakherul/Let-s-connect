@@ -248,10 +248,22 @@ const AdminDashboard = () => {
         }, []),
         onRefresh: useCallback(() => {
             switch (currentTab) {
+                // Dashboard
                 case 0: fetchStats(); fetchSystemHealth(); break;
+                // Users (legacy)
                 case 1: fetchUsers(); break;
+                // Feature Flags (legacy)
                 case 2: fetchFlags(); break;
+                // Audit Log (legacy)
                 case 3: fetchAuditLogs(); break;
+                // Service Health Grid (Q2 tab 15)
+                case 15: fetchStats(); fetchSystemHealth(); break;
+                // User Management Table (Q2 tab 16)
+                case 16: fetchUsers(); break;
+                // Audit Log Table (Q2 tab 17)
+                case 17: fetchAuditLogs(); break;
+                // System / DB / Backups
+                case 4: case 5: case 6: fetchSystemHealth(); break;
                 default: break;
             }
         }, [currentTab]),

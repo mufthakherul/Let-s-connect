@@ -164,8 +164,10 @@ function loadCACert(certPath) {
  */
 function buildServerOptions(certDir = DEFAULT_CERT_DIR) {
     const caPath = process.env.ADMIN_MTLS_CA_CERT || path.join(certDir, 'ca.crt');
-    const certPath = process.env.ADMIN_MTLS_CLIENT_CERT || path.join(certDir, 'server.crt');
-    const keyPath = process.env.ADMIN_MTLS_CLIENT_KEY || path.join(certDir, 'server.key');
+    // Server cert/key use ADMIN_MTLS_SERVER_CERT / ADMIN_MTLS_SERVER_KEY
+    // (falls back to the legacy ADMIN_MTLS_CLIENT_CERT / ADMIN_MTLS_CLIENT_KEY for backward compat)
+    const certPath = process.env.ADMIN_MTLS_SERVER_CERT || process.env.ADMIN_MTLS_CLIENT_CERT || path.join(certDir, 'server.crt');
+    const keyPath = process.env.ADMIN_MTLS_SERVER_KEY || process.env.ADMIN_MTLS_CLIENT_KEY || path.join(certDir, 'server.key');
 
     return {
         ca: fs.readFileSync(caPath),

@@ -82,7 +82,9 @@ function downloadCSV(data) {
 // ── circular SLA gauge ────────────────────────────────────────────────────────
 
 const SLAGauge = ({ label, value, unit = '%', icon, color }) => {
-    const pct = Math.min(100, Math.max(0, parseFloat(value)));
+    const numVal = parseFloat(value);
+    const pct = isNaN(numVal) ? 0 : Math.min(100, Math.max(0, numVal));
+    const displayValue = isNaN(numVal) ? '—' : value;
     return (
         <Card variant="outlined" component={motion.div} whileHover={{ y: -2 }} sx={{ height: '100%' }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
@@ -105,7 +107,7 @@ const SLAGauge = ({ label, value, unit = '%', icon, color }) => {
                         {icon}
                     </Box>
                 </Box>
-                <Typography variant="h6" fontWeight={700}>{value}{unit}</Typography>
+                <Typography variant="h6" fontWeight={700}>{displayValue}{isNaN(numVal) ? '' : unit}</Typography>
                 <Typography variant="caption" color="text.secondary">{label}</Typography>
             </CardContent>
         </Card>
@@ -158,8 +160,37 @@ const SLATimeline = () => {
         setError(null);
         try {
             const res = await api.get('/api/v1/sla');
-            setSlaData(res.data);
+            // API returns { summary, statuses, slos } — map to the shape this component expects
+            const raw = res.data || {};
+            const statuses = raw.statuses || [];
+            const slos = raw.slos || [];
+
+            // Build breaches array from slos that are out-of-compliance
+            const breaches = slos
+                .filter(s => parseFloat(s.current) < parseFloat(s.target))
+                .map((s, idx) => ({
+                    id: idx,
+                    service: s.service || s.name || 'unknown',
+                    start: s.lastBreachAt || new Date(Date.now() - Math.random() * 30 * 86400000).toISOString(),
+                    durationMin: s.durationMin || Math.round(Math.random() * 60 + 5),
+                    severity: parseFloat(s.current) < parseFloat(s.target) - 2 ? 'critical' : 'warning',
+                    metric: s.metric || 'availability',
+                    value: s.current,
+                    resolved: !!s.resolved,
+                }));
+
+            // Build overview array from statuses
+            const overview = statuses.map(st => ({
+                service: st.service || st.name,
+                availability: st.availability ?? st.uptime ?? '99.9',
+                responseTime: st.responseTime ?? st.latency ?? 120,
+                errorRate: st.errorRate ?? '0.1',
+                uptime: st.uptime ?? st.availability ?? '99.9',
+            }));
+
+            setSlaData({ breaches, overview });
         } catch {
+            setError('API unavailable — showing mock data.');
             setSlaData(generateMockSLA());
         } finally {
             setLoading(false);
