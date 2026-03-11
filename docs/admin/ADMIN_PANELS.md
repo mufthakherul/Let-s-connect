@@ -899,3 +899,156 @@ All read-only CLI commands are supported. **Destructive commands (restart, stop,
 - Rate limited: 5 commands/hour/sender
 - All commands logged to `.admin-cli/audit.log`
 - Responses sent back via SMTP to the original sender
+
+---
+
+## 9) AI Autonomous Admin Agent
+
+The AI Admin Agent is a next-generation autonomous admin that continuously monitors, heals, secures, and optimizes the Milonexa platform — without requiring constant human intervention.
+
+Unlike the other admin interfaces (which are tools for humans to use), the **AI Agent acts on its own**, reports its work, and only asks for human permission when taking significant or destructive actions.
+
+### Architecture
+
+```
+admin/ai/
+├── agent.js              # Main orchestrator (state machine, main loop, HTTP API)
+└── modules/
+    ├── security.js       # Threat detection & response
+    ├── healer.js         # Auto-healing (restarts, rollbacks, scaling)
+    ├── optimizer.js      # Performance & cost optimization
+    ├── notifier.js       # Multi-channel notifications
+    └── permission.js     # Human-approval permission gate
+```
+
+### What the AI Agent Does
+
+#### Autonomous Monitoring
+- Runs analysis cycles every `AI_CYCLE_INTERVAL_SECONDS` (default: 60s)
+- Collects metrics, alerts, SLA status, trends, costs, compliance
+- Maintains a live understanding of platform health
+
+#### Security Response
+Detects and responds to:
+- **Brute force attacks** — blocks offending IPs automatically
+- **DDoS/DoS attacks** — rate limits or blocks attack sources
+- **Compromised services** — emergency shutdown if service is actively being exploited
+- **Data exfiltration** — alerts and freezes affected endpoints
+- **Vulnerability patterns** — detects known attack signatures in logs
+- **Config drift** — alerts when configuration changes unexpectedly
+
+#### Auto-Healing
+Automatically (without permission for non-critical):
+- Restarts crashed or unhealthy services
+- Clears overloaded caches
+- Scales up services under high load
+
+Requires human permission for:
+- Rolling back deployments
+- Stopping services in production
+- Any action in critical/emergency tier
+
+#### Performance Optimization
+- Identifies resource right-sizing opportunities
+- Suggests and applies cache tuning
+- Generates weekly optimization reports in `.admin-cli/ai/optimization-reports/`
+- Cost reduction recommendations
+
+#### Permission Gate
+When the AI wants to take a significant action, it creates a **permission request** that appears in:
+- The web dashboard "AI Agent" tab — approve/deny with one click
+- Telegram/Slack notifications — admin is notified immediately
+- HTTP API: `GET /permissions` and `POST /permissions/:id/approve`
+
+Emergency actions auto-approve after `AI_PERMISSION_TIMEOUT_MINUTES` (default 30 min) if no human responds.
+
+### Enable
+
+```env
+ENABLE_ADMIN_AI=true
+AI_PROVIDER=demo           # demo (no API key) | openai | anthropic
+AI_AUTO_HEAL=true
+AI_AUTO_SECURITY=true
+AI_CYCLE_INTERVAL_SECONDS=60
+AI_STATUS_PORT=8890
+```
+
+```bash
+docker compose --profile admin-ai up admin-ai
+```
+
+### AI Providers
+
+| Provider | Requires | Capability |
+|----------|---------|------------|
+| `demo` | Nothing | Rule-based engine, full functionality, no LLM |
+| `openai` | `OPENAI_API_KEY` | GPT-4 enhanced analysis and novel remediation |
+| `anthropic` | `ANTHROPIC_API_KEY` | Claude-based enhanced reasoning |
+
+The `demo` provider uses a sophisticated rule-based engine that handles all common scenarios without any external API calls. It's the recommended default.
+
+### HTTP Status API
+
+The AI agent exposes a status HTTP API (port 8890 by default):
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /health` | Agent health check |
+| `GET /status` | Full agent state (cycles, state machine, last report) |
+| `GET /permissions` | List pending permission requests |
+| `POST /permissions/:id/approve` | Approve a pending action |
+| `POST /permissions/:id/deny` | Deny a pending action |
+
+```bash
+# Check AI agent status
+curl http://localhost:8890/status
+
+# View pending permissions
+curl http://localhost:8890/permissions
+
+# Approve an action
+curl -X POST http://localhost:8890/permissions/abc123/approve \
+  -H "Content-Type: application/json" \
+  -d '{"by": "admin"}'
+```
+
+### Emergency Mode
+
+If the AI detects multiple critical threats simultaneously, it enters **Emergency Mode**:
+- Analysis cycles run every **10 seconds** instead of 60
+- All configured notification channels are alerted immediately
+- Emergency permissions auto-approve after 5 minutes (not 30)
+- Emergency mode exits automatically when threats are resolved
+
+### Web Dashboard Integration
+
+The AI Agent tab in the web dashboard (`admin/web`) shows:
+- Current agent state (IDLE / MONITORING / ANALYZING / ACTING / NOTIFYING)
+- Last cycle report (threats, healing actions, optimizations)
+- Pending permission requests with one-click approve/deny
+- Agent statistics (uptime, cycle count, provider)
+- Emergency mode indicator
+
+### Notifications
+
+The AI agent reuses the same notification credentials as the Telegram and Slack bots:
+
+```env
+# For AI notifications via Telegram:
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_ADMIN_CHAT_IDS=...
+
+# For AI notifications via Slack:
+ADMIN_WEBHOOK_SLACK_URLS=...
+
+# For AI notifications via Discord:
+ADMIN_WEBHOOK_DISCORD_URLS=...
+```
+
+### Security Notes
+
+- All auto-actions are logged to `.admin-cli/audit.log` with `actor: 'ai-agent'`
+- Emergency shutdown requires permission OR enters a 5-minute countdown
+- The AI never deletes data — only service restarts, config changes, and IP blocks
+- All permission decisions (approve/deny) are logged with the deciding party
+- The permission system is file-based — survives container restarts

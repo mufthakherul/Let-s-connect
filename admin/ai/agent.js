@@ -488,8 +488,7 @@ async function runCycle() {
 
 async function processApprovedPermissions() {
     const pending = permGate.listPending();
-    // Force expiry check (mutates internal state).
-    pending; // listPending() already calls _expirePending internally.
+    // listPending() already calls _expirePending() internally — no extra action needed.
 
     // Check history for newly approved items we haven't executed yet.
     // We use a local executed-set stored in state file.
