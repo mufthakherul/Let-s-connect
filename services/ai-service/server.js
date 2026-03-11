@@ -72,7 +72,19 @@ const ollamaChat = (messages, numPredict = 500) =>
       },
       (res) => {
         let data = '';
-        res.on('data', (chunk) => { data += chunk; });
+        // Cap response size to prevent memory exhaustion (8 MB).
+        const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+        let totalBytes = 0;
+        res.on('data', (chunk) => {
+          totalBytes += chunk.length;
+          if (totalBytes > MAX_RESPONSE_BYTES) {
+            req.destroy();
+            reject(new Error('Ollama response exceeded maximum size'));
+            return;
+          }
+          data += chunk;
+        });
+        res.on('error', (err) => reject(new Error(`Ollama response stream error: ${err.message}`)));
         res.on('end', () => {
           if (res.statusCode >= 200 && res.statusCode < 300) {
             try {
@@ -810,7 +822,6 @@ app.get('/', (req, res) => {
     service: 'ai-service',
     message: 'AI service is running (powered by local Ollama LLM — fully private).',
     model: OLLAMA_MODEL,
-    ollamaHost: `${OLLAMA_HOST}:${OLLAMA_PORT}`,
     health: '/health',
     endpoints: [
       'POST /chat', 'POST /summarize', 'POST /moderate', 'POST /suggest',
