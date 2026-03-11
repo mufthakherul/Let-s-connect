@@ -1,0 +1,32 @@
+{
+    "name": "milonexa-admin-cli",
+    "version": "4.0.0",
+    "description": "Milonexa Omni Admin CLI — advanced multi-runtime control plane with intelligence & governance (Phase D)",
+    "main": "index.js",
+    "bin": {
+        "admin-cli": "./index.js"
+    },
+    "scripts": {
+        "help": "node index.js --help",
+        "doctor": "node index.js doctor",
+        "start": "node index.js start --runtime docker --env dev",
+        "stop": "node index.js stop --runtime docker",
+        "status": "node index.js status --runtime docker",
+        "audit": "node index.js audit",
+        "check": "node index.js check all --dry-run",
+        "scale": "node index.js scale --runtime k8s --service api-gateway --replicas 2 --dry-run",
+        "rollout": "node index.js rollout --runtime k8s --strategy rolling --service api-gateway --dry-run",
+        "incident": "node index.js incident summarize --runtime docker --service api-gateway --dry-run",
+        "metrics": "node index.js metrics status --json",
+        "alerts": "node index.js alerts list --json",
+        "costs": "node index.js costs summary --json",
+        "compliance": "node index.js compliance status --json",
+        "recommendations": "node index.js recommendations top --limit 10",
+        "dashboard": "node index.js dashboard --interval 5"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "license": "UNLICENSED",
+    "private": true
+}
