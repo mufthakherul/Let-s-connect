@@ -214,7 +214,7 @@ function Chat({ user }) {
         }));
         const res = await api.post('/ai-service/suggest/chat', { history, partialInput: value });
         setAiSuggestions(res.data?.suggestions || []);
-      } catch {
+      } catch (_e) {
         setAiSuggestions([]);
       } finally {
         setAiSuggestLoading(false);

@@ -35,7 +35,7 @@ export const STORAGE_KEYS = {
 const canUseStorage = () => {
   try {
     return typeof window !== 'undefined' && !!window.localStorage;
-  } catch {
+  } catch (_e) {
     return false;
   }
 };
@@ -45,7 +45,7 @@ export const getString = (key, fallback = null) => {
   try {
     const value = window.localStorage.getItem(key);
     return value ?? fallback;
-  } catch {
+  } catch (_e) {
     return fallback;
   }
 };
@@ -55,7 +55,7 @@ export const setString = (key, value) => {
   try {
     window.localStorage.setItem(key, value);
     return true;
-  } catch {
+  } catch (_e) {
     return false;
   }
 };
@@ -84,7 +84,7 @@ export const getJSON = (key, fallback = null) => {
     }
     
     return parsed;
-  } catch {
+  } catch (_e) {
     return fallback;
   }
 };
@@ -102,7 +102,7 @@ export const setJSON = (key, value, expiresInMs = null) => {
     }
     
     return setString(key, JSON.stringify(item));
-  } catch {
+  } catch (_e) {
     return false;
   }
 };
@@ -112,7 +112,7 @@ export const removeItem = (key) => {
   try {
     window.localStorage.removeItem(key);
     return true;
-  } catch {
+  } catch (_e) {
     return false;
   }
 };
@@ -125,7 +125,7 @@ export const clearAll = () => {
   try {
     window.localStorage.clear();
     return true;
-  } catch {
+  } catch (_e) {
     return false;
   }
 };
@@ -157,7 +157,7 @@ export const getStorageSize = () => {
       bytes: total,
       readable: `${size.toFixed(2)} ${units[unitIndex]}`,
     };
-  } catch {
+  } catch (_e) {
     return { bytes: 0, readable: '0 B' };
   }
 };
@@ -172,7 +172,7 @@ export const createStorageListener = (key, callback) => {
       try {
         const newValue = event.newValue ? JSON.parse(event.newValue) : null;
         callback(newValue);
-      } catch {
+      } catch (_e) {
         callback(event.newValue);
       }
     }
