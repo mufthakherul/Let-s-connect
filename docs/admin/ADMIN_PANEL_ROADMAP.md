@@ -2,7 +2,7 @@
 
 <!-- markdownlint-disable MD022 MD024 MD032 MD047 -->
 
-**Version:** 1.0  
+**Version:** 2.0  
 **Date:** March 11, 2026  
 **Scope:** All non-AI admin panel components — CLI, REST API, Web Dashboard, SSH, Email, Bots, Webhooks, Shared utilities  
 **Related:** [General Roadmap](../../ROADMAP.md) · [AI Admin Roadmap](./AI_ADMIN_ROADMAP.md)
@@ -198,13 +198,13 @@ The admin panel is a collection of interfaces and utilities for platform operato
 | ✅ | `AdminDashboard.js` | Overview dashboard (stub) |
 | ✅ | Error pages suite | 401, 403, 404, 429, 500, 503 |
 | ✅ | `NotificationCenter.js` | Bell icon with alert list |
-| 🔜 | `ServiceHealthGrid.js` | Live service cards with spark lines |
-| 🔜 | `UserManagementTable.js` | Searchable, filterable user table |
-| 🔜 | `AuditLogTable.js` | Filterable audit log with export |
-| 🔜 | `SLATimeline.js` | Visual breach timeline |
-| 🔜 | `AlertRuleEditor.js` | Alert rule CRUD UI |
-| 🔜 | `CostBreakdown.js` | Cost chart by service |
-| 🔜 | `AIPermissionInbox.js` | Review/approve AI agent actions |
+| ✅ | `ServiceHealthGrid.js` | Live service cards with spark lines |
+| ✅ | `UserManagementTable.js` | Searchable, filterable user table |
+| ✅ | `AuditLogTable.js` | Filterable audit log with export |
+| ✅ | `SLATimeline.js` | Visual breach timeline |
+| ✅ | `AlertRuleEditor.js` | Alert rule CRUD UI |
+| ✅ | `CostBreakdown.js` | Cost chart by service |
+| ✅ | `AIPermissionInbox.js` | Review/approve AI agent actions |
 | 🔜 | `IncidentTracker.js` | Create/track/resolve incidents |
 | 🔜 | `FeatureFlagToggle.js` | Per-environment flag management |
 | 🔜 | `TenantManager.js` | Multi-tenant management (SaaS) |
@@ -219,7 +219,7 @@ The admin panel is a collection of interfaces and utilities for platform operato
 | Telegram | ✅ operational | Inline keyboard for approve/deny (v2.0) |
 | Email (SMTP) | ✅ operational | HTML templates, unsubscribe link |
 | Webhook | ✅ operational | Retry with exponential backoff |
-| PagerDuty | 🔜 Q2 | Integration for on-call escalations |
+| PagerDuty | ✅ operational | Events API v2 — trigger/acknowledge/resolve incidents |
 | MS Teams | 🔜 Q3 | Adaptive Card notifications |
 | Opsgenie | 🔜 Q3 | Alert sync and dedup |
 
@@ -238,4 +238,4 @@ The admin panel is a collection of interfaces and utilities for platform operato
 
 ---
 
-*Last updated: March 11, 2026*
+*Last updated: March 11, 2026 — Q2 2026 features shipped*
