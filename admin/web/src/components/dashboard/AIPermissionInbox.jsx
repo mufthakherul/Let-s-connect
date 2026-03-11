@@ -45,6 +45,9 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../utils/api';
 
+const AI_PERMISSIONS_FALLBACK_URL =
+    process.env.REACT_APP_AI_PERMISSIONS_URL || 'http://localhost:8890/permissions';
+
 // ---------------------------------------------------------------------------
 // Constants & mock data
 // ---------------------------------------------------------------------------
@@ -90,7 +93,7 @@ const MOCK_PENDING = [
         action: 'block IP range 203.0.113.0/28 at api-gateway',
         riskLevel: 'critical',
         timestamp: new Date(Date.now() - 2 * 60_000).toISOString(),
-        reason: 'Detected brute-force pattern: 4 200 failed auth attempts in 5 min from this range.',
+        reason: 'Detected brute-force pattern: 4,200 failed auth attempts in 5 min from this range.',
         affectedServices: ['api-gateway', 'user-service']
     },
     {
@@ -214,7 +217,7 @@ const AIPermissionInbox = () => {
             }
             if (!items || !Array.isArray(items) || items.length === 0) {
                 try {
-                    const res2 = await api.get('http://localhost:8890/permissions');
+                    const res2 = await api.get(AI_PERMISSIONS_FALLBACK_URL);
                     items = res2.data?.permissions ?? res2.data ?? null;
                 } catch {
                     // fall through to mock
