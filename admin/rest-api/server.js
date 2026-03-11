@@ -997,6 +997,122 @@ async function handleRequest(req, res) {
         }
 
         // ====================================================================
+        // Q3 2026 — SSH Administration endpoints
+        // ====================================================================
+        const SSH_STATE_DIR = path.join(ADMIN_HOME, 'ssh');
+        const SSH_KEYS_DIR_REST = path.join(__dirname, '..', 'ssh', 'ssh-keys');
+        const SESSION_LOG_FILE_REST = path.join(SSH_STATE_DIR, 'session-log.json');
+        const REVOKED_KEYS_FILE_REST = path.join(SSH_STATE_DIR, 'revoked-keys.json');
+        const BREAK_GLASS_FILE_REST = path.join(ADMIN_HOME, 'break-glass.json');
+
+        function readBreakGlassREST() {
+            try {
+                if (!fs.existsSync(BREAK_GLASS_FILE_REST)) return null;
+                const data = JSON.parse(fs.readFileSync(BREAK_GLASS_FILE_REST, 'utf8'));
+                if (!data || !data.expiry) return null;
+                if (Date.now() > new Date(data.expiry).getTime()) {
+                    try { fs.unlinkSync(BREAK_GLASS_FILE_REST); } catch (_) {}
+                    return null;
+                }
+                return data;
+            } catch (_) { return null; }
+        }
+
+        function listSSHKeysREST() {
+            const results = [];
+            let revokedKeys = [];
+            try { if (fs.existsSync(REVOKED_KEYS_FILE_REST)) revokedKeys = JSON.parse(fs.readFileSync(REVOKED_KEYS_FILE_REST, 'utf8')); } catch (_) {}
+            const scanDir = (dir) => {
+                if (!fs.existsSync(dir)) return;
+                for (const f of fs.readdirSync(dir)) {
+                    try {
+                        const full = path.join(dir, f);
+                        const stat = fs.statSync(full);
+                        if (!stat.isFile()) continue;
+                        const isRevoked = revokedKeys.some(r => r.keyfile === full || r.keyfile === f);
+                        results.push({ id: f, file: f, path: full, createdAt: stat.birthtime.toISOString(), modifiedAt: stat.mtime.toISOString(), size: stat.size, status: isRevoked ? 'revoked' : 'active' });
+                    } catch (_) {}
+                }
+            };
+            scanDir(SSH_STATE_DIR);
+            scanDir(SSH_KEYS_DIR_REST);
+            return results;
+        }
+
+        if (pathname === '/api/v1/ssh/keys' && method === 'GET') {
+            return sendJSON(res, 200, { keys: listSSHKeysREST() });
+        }
+
+        if (pathname === '/api/v1/ssh/keys/rotate' && method === 'POST') {
+            if (!fs.existsSync(SSH_STATE_DIR)) fs.mkdirSync(SSH_STATE_DIR, { recursive: true, mode: 0o700 });
+            const hostKeyPath = path.join(SSH_STATE_DIR, 'host_rsa');
+            const ts = Date.now();
+            const backupPath = hostKeyPath + `.backup.${ts}`;
+            if (fs.existsSync(hostKeyPath)) { fs.copyFileSync(hostKeyPath, backupPath); fs.chmodSync(backupPath, 0o600); }
+            const { privateKey } = crypto.generateKeyPairSync('rsa', {
+                modulusLength: 4096,
+                privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+                publicKeyEncoding: { type: 'pkcs1', format: 'pem' },
+            });
+            fs.writeFileSync(hostKeyPath, privateKey, { mode: 0o600 });
+            const auditEntry = JSON.stringify({ ts: new Date().toISOString(), actor: clientIp, action: 'ssh_host_key_rotated', backupPath, interface: 'rest' }) + '\n';
+            try { fs.appendFileSync(path.join(ADMIN_HOME, 'audit.log'), auditEntry); } catch (_) {}
+            return sendJSON(res, 200, { rotated: true, backupPath, newKeyPath: hostKeyPath });
+        }
+
+        const sshKeyRevokeMatch = pathname.match(/^\/api\/v1\/ssh\/keys\/([^/]+)$/);
+        if (sshKeyRevokeMatch && method === 'DELETE') {
+            const keyId = decodeURIComponent(sshKeyRevokeMatch[1]);
+            let revokedKeys = [];
+            try { if (fs.existsSync(REVOKED_KEYS_FILE_REST)) revokedKeys = JSON.parse(fs.readFileSync(REVOKED_KEYS_FILE_REST, 'utf8')); } catch (_) {}
+            if (!revokedKeys.some(r => r.keyfile === keyId)) {
+                revokedKeys.push({ keyfile: keyId, revokedAt: new Date().toISOString() });
+                if (!fs.existsSync(SSH_STATE_DIR)) fs.mkdirSync(SSH_STATE_DIR, { recursive: true });
+                fs.writeFileSync(REVOKED_KEYS_FILE_REST, JSON.stringify(revokedKeys, null, 2), { mode: 0o600 });
+            }
+            return sendJSON(res, 200, { revoked: true, keyfile: keyId });
+        }
+
+        if (pathname === '/api/v1/ssh/sessions' && method === 'GET') {
+            let sessions = [];
+            try { if (fs.existsSync(SESSION_LOG_FILE_REST)) sessions = JSON.parse(fs.readFileSync(SESSION_LOG_FILE_REST, 'utf8')); } catch (_) {}
+            return sendJSON(res, 200, { sessions });
+        }
+
+        // ---- Break-Glass ----
+        if (pathname === '/api/v1/security/break-glass/status' && method === 'GET') {
+            const bg = readBreakGlassREST();
+            if (!bg) return sendJSON(res, 200, { active: false });
+            const remaining = Math.max(0, Math.round((new Date(bg.expiry).getTime() - Date.now()) / 1000));
+            return sendJSON(res, 200, { active: true, ...bg, remaining_sec: remaining });
+        }
+
+        if (pathname === '/api/v1/security/break-glass/activate' && method === 'POST') {
+            const existing = readBreakGlassREST();
+            if (existing) return sendJSON(res, 409, { error: 'Break-glass is already active', expiry: existing.expiry });
+            const actor = sanitize(body.activatedBy) || clientIp || 'api';
+            const reason = sanitize(body.reason) || '';
+            const now = new Date();
+            const expiry = new Date(now.getTime() + 15 * 60 * 1000);
+            const bgData = { active: true, activatedBy: actor, activatedAt: now.toISOString(), expiry: expiry.toISOString(), reason, ip: clientIp };
+            if (!fs.existsSync(ADMIN_HOME)) fs.mkdirSync(ADMIN_HOME, { recursive: true });
+            fs.writeFileSync(BREAK_GLASS_FILE_REST, JSON.stringify(bgData, null, 2), { mode: 0o600 });
+            const auditEntry = JSON.stringify({ ts: now.toISOString(), actor, action: 'break_glass_activated', ip: clientIp, reason, expiry: expiry.toISOString(), interface: 'rest', breakGlass: true }) + '\n';
+            try { fs.appendFileSync(path.join(ADMIN_HOME, 'audit.log'), auditEntry); } catch (_) {}
+            return sendJSON(res, 200, bgData);
+        }
+
+        if (pathname === '/api/v1/security/break-glass/revoke' && method === 'POST') {
+            const bg = readBreakGlassREST();
+            if (!bg) return sendJSON(res, 200, { revoked: false, reason: 'not active' });
+            try { fs.unlinkSync(BREAK_GLASS_FILE_REST); } catch (_) {}
+            const actor = sanitize(body.revokedBy) || clientIp || 'api';
+            const auditEntry = JSON.stringify({ ts: new Date().toISOString(), actor, action: 'break_glass_revoked', interface: 'rest', breakGlass: true }) + '\n';
+            try { fs.appendFileSync(path.join(ADMIN_HOME, 'audit.log'), auditEntry); } catch (_) {}
+            return sendJSON(res, 200, { revoked: true });
+        }
+
+        // ====================================================================
         // GDPR & Compliance endpoints
         // ====================================================================
 
@@ -1294,7 +1410,7 @@ server.listen(PORT, HOST, () => {
     log('info', `Auth: ${API_KEY ? 'Bearer token enabled (ADMIN_API_KEY)' : HOST === '127.0.0.1' || HOST === 'localhost' ? 'Loopback-only (no ADMIN_API_KEY — set for non-loopback deployment)' : 'BLOCKED — set ADMIN_API_KEY to allow access from non-loopback host'}`);
     log('info', `Core: GET /health, /api/v1/dashboard, /api/v1/metrics, /api/v1/alerts, /api/v1/sla, /api/v1/webhooks, /api/v1/clusters, /api/v1/trends, /api/v1/compliance, /api/v1/costs, /api/v1/recommendations, /api/v1/audit`);
     log('info', `Q2-2026: POST /api/v1/graphql, /api/v1/users[/bulk|/export|/:id], /api/v1/api-keys, /api/v1/rate-limits, /api/v1/events[/replay|/stream], /api/v1/alerts/rules, /api/v1/ai/permissions, PUT|test|logs on /api/v1/webhooks/:id`);
-    log('info', `Q3-2026: /api/v1/security/{rate-limits,ip-allowlist,sessions,anomalies,2fa,secrets}, /api/v1/gdpr/{export,erasure,consent,retention}, /api/v1/compliance/{report,soc2}`);
+    log('info', `Q3-2026: /api/v1/security/{rate-limits,ip-allowlist,sessions,anomalies,2fa,secrets,break-glass/{status,activate,revoke}}, /api/v1/ssh/{keys,keys/rotate,keys/:id,sessions}, /api/v1/gdpr/{export,erasure,consent,retention}, /api/v1/compliance/{report,soc2}`);
     if (!API_KEY) {
         if (HOST === '127.0.0.1' || HOST === 'localhost') {
             log('warn', 'WARNING: ADMIN_API_KEY is not set. API allows unauthenticated loopback access only.');
