@@ -1,0 +1,3 @@
+# Place your SSH public keys here, one per line
+# Example: ssh-rsa AAAA... user@host
+# This file is mounted into the admin-ssh container as /ssh-keys/authorized_keys

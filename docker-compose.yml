@@ -378,6 +378,63 @@ services:
     networks:
       - milonexa-network
 
+  # Admin REST API Server — HTTP REST interface for admin operations
+  # Enable: ENABLE_ADMIN_REST_API=true + profile 'admin-api'
+  # docker compose --profile admin-api up admin-rest-api
+  admin-rest-api:
+    profiles:
+      - admin-api
+    build:
+      context: ./admin-cli
+      dockerfile: Dockerfile.admin
+    command: ["node", "admin-server.js"]
+    restart: unless-stopped
+    environment:
+      - ENABLE_ADMIN_REST_API=${ENABLE_ADMIN_REST_API:-true}
+      - ADMIN_API_PORT=${ADMIN_API_PORT:-8888}
+      - ADMIN_API_HOST=0.0.0.0
+      - ADMIN_API_KEY=${ADMIN_API_KEY}
+      - ADMIN_CORS_ORIGIN=${ADMIN_CORS_ORIGIN:-*}
+      - ADMIN_ALLOWED_IPS=${ADMIN_ALLOWED_IPS:-127.0.0.1,::1}
+      - NODE_ENV=${NODE_ENV:-production}
+    ports:
+      - "127.0.0.1:${ADMIN_API_PORT:-8888}:8888"
+    volumes:
+      - admin-cli-state:/app/.admin-cli
+    networks:
+      - milonexa-network
+
+  # Admin SSH Dashboard — encrypted SSH-based interactive admin dashboard
+  # Enable: ENABLE_ADMIN_SSH=true + profile 'admin-ssh'
+  # docker compose --profile admin-ssh up admin-ssh
+  admin-ssh:
+    profiles:
+      - admin-ssh
+    build:
+      context: ./admin-cli
+      dockerfile: Dockerfile.admin
+    command: ["node", "ssh-admin-server.js"]
+    restart: unless-stopped
+    environment:
+      - ENABLE_ADMIN_SSH=${ENABLE_ADMIN_SSH:-false}
+      - ADMIN_SSH_PORT=${ADMIN_SSH_PORT:-2222}
+      - ADMIN_SSH_HOST=0.0.0.0
+      - ADMIN_SSH_PASSWORD=${ADMIN_SSH_PASSWORD}
+      - ADMIN_SSH_AUTHORIZED_KEYS=${ADMIN_SSH_AUTHORIZED_KEYS:-/ssh-keys/authorized_keys}
+      - ADMIN_SSH_HOST_KEY_PATH=/app/.admin-cli/ssh/host_rsa
+      - ADMIN_SSH_MAX_SESSIONS=${ADMIN_SSH_MAX_SESSIONS:-5}
+      - ADMIN_SSH_IDLE_TIMEOUT=${ADMIN_SSH_IDLE_TIMEOUT:-300}
+      - ADMIN_ALLOWED_IPS=${ADMIN_ALLOWED_IPS:-127.0.0.1,::1}
+      - ADMIN_SSH_BANNER=${ADMIN_SSH_BANNER:-Milonexa Admin SSH — Authorized Access Only}
+      - NODE_ENV=${NODE_ENV:-production}
+    ports:
+      - "127.0.0.1:${ADMIN_SSH_PORT:-2222}:2222"
+    volumes:
+      - admin-cli-state:/app/.admin-cli
+      - ${ADMIN_SSH_KEYS_DIR:-./admin-cli/ssh-keys}:/ssh-keys:ro
+    networks:
+      - milonexa-network
+
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
@@ -467,6 +524,7 @@ volumes:
   redis-data:
   minio-data:
   elasticsearch-data:
+  admin-cli-state:
 
 
 networks:

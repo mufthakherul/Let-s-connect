@@ -40,6 +40,15 @@
 
 'use strict';
 
+// ---------------------------------------------------------------------------
+// Guard: ENABLE_ADMIN_REST_API must be 'true' (defaults to true for backward compat)
+// ---------------------------------------------------------------------------
+const ENABLE_ADMIN_REST_API = (process.env.ENABLE_ADMIN_REST_API ?? 'true').toLowerCase();
+if (ENABLE_ADMIN_REST_API === 'false') {
+    console.error('[admin-server] Admin REST API is disabled (ENABLE_ADMIN_REST_API=false).');
+    process.exit(0);
+}
+
 const http = require('http');
 const https = require('https');
 const path = require('path');
