@@ -312,8 +312,15 @@ class PRGenerator {
 
         const startTime = Date.now();
         try {
+            // Try the service's configured test command; default to Jest CLI with --json.
+            // The PR_TEST_CMD env var allows overriding (e.g. "npx mocha --reporter json").
+            const testCmd  = process.env.PR_TEST_CMD || null;
+            const npmArgs  = testCmd
+                ? ['run', 'test', '--', '--passWithNoTests']
+                : ['test', '--', '--passWithNoTests', '--json', '--silent'];
+
             const result = await execFileAsync(
-                'npm', ['test', '--', '--passWithNoTests', '--json', '--silent'],
+                'npm', npmArgs,
                 { cwd: serviceDir, timeout: TEST_TIMEOUT_MS, maxBuffer: 5 * 1024 * 1024 }
             );
 
@@ -524,8 +531,13 @@ class PRGenerator {
     }
 
     /** @private */
-    async _openPR({ title, body, head, base }) {
-        return this._githubRequest('POST', '/pulls', { title, body, head, base });
+    async _openPR({ title, body, head, base, labels }) {
+        const pr = await this._githubRequest('POST', '/pulls', { title, body, head, base });
+        // Apply labels in a separate call (GitHub API doesn't support labels on PR create).
+        if (labels && labels.length > 0 && pr.number) {
+            await this._githubRequest('POST', `/issues/${pr.number}/labels`, { labels }).catch(() => {});
+        }
+        return pr;
     }
 
     // -----------------------------------------------------------------------

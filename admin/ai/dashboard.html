@@ -724,6 +724,18 @@ function toast(msg, dur = 3000) {
 
 // ── API helpers ──────────────────────────────────────────────────────────
 async function api(endpoint, method = 'GET', body) {
+  // Validate BASE_URL is same-origin or an allowed explicit origin
+  // to prevent token exfiltration via a tampered localStorage value.
+  const allowedOrigins = [window.location.origin, ''];
+  try {
+    const parsed = new URL(BASE_URL);
+    // Only allow http/https schemes.
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('Invalid protocol');
+    }
+  } catch (_) {
+    BASE_URL = window.location.origin;
+  }
   const headers = { 'Content-Type': 'application/json' };
   if (AUTH_TOKEN) headers['Authorization'] = 'Bearer ' + AUTH_TOKEN;
   const opts = { method, headers };

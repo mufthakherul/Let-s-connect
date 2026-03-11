@@ -50,7 +50,7 @@ class Observability {
     constructor() {
         this._ensureDirs();
 
-        // LLM metrics: rolling window (last 200 calls).
+        // LLM metrics: rolling window (last 500 calls).
         /** @type {object[]} */
         this._llmCalls        = [];
         /** @type {object[]} Fix-acceptance events */
