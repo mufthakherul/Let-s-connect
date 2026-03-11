@@ -167,30 +167,32 @@ The agent runs as a Docker service and exposes an HTTP control API on `AI_STATUS
 
 ---
 
-## 🔜 Planned — v3.0 (Q4 2026)
+## ✅ Shipped — v3.0 (Q4 2026)
 
 ### Autonomous Development Loop
-- [ ] Full PR generation: LLM writes code change, creates branch, submits PR for review
-- [ ] Automated regression test before proposing any fix
-- [ ] A/B feature flagging: deploy LLM-proposed changes to canary users
-- [ ] Rollback trigger: revert PR if canary error rate spikes
-- [ ] Self-healing documentation: agent detects doc/code drift and proposes sync
+- [x] Full PR generation: LLM writes code change, creates branch, submits PR for review — `pr-generator.js`
+- [x] Automated regression test before proposing any fix (`npm test` in the target service)
+- [x] A/B feature flagging: deterministic bucket-based rollout with configurable % — `canary-manager.js`
+- [x] Rollback trigger: revert canary if error rate exceeds configurable threshold for N consecutive samples
+- [x] Self-healing documentation: agent detects code/doc drift via route-diff and proposes sync PR
 
 ### Multi-Agent Architecture
-- [ ] Separate specialized agents: security-agent, performance-agent, quality-agent
-- [ ] Agent orchestrator with priority queue and resource budget
-- [ ] Inter-agent message bus for coordinated analysis
-- [ ] Human-in-the-loop escalation for cross-agent conflicts
+- [x] Separate specialized agents: SecurityAgent, PerformanceAgent, QualityAgent — `multi-agent.js`
+- [x] AgentOrchestrator with priority queue (critical → high → medium → low) and resource budget (tokens, time)
+- [x] Inter-agent message bus (in-process pub/sub `MessageBus`) for coordinated analysis
+- [x] Human-in-the-loop escalation for cross-agent conflicts via PermissionGate (`EscalationManager`)
 
 ### Advanced Observability
-- [ ] Agent performance metrics (LLM latency, tokens used, fix acceptance rate)
-- [ ] Audit trail for every AI action (immutable append-only log)
-- [ ] Cost tracking per model call (token-level)
-- [ ] Admin web dashboard integration: AI findings panel in admin web UI
+- [x] Agent performance metrics: LLM latency (p50/p95), token usage, fix acceptance rate — `observability.js`
+- [x] Immutable append-only audit trail (daily `.jsonl` rotation, append-only per-entry)
+- [x] Cost tracking per model call (token-level, configurable USD price tables, daily budget alert)
+- [x] Admin web dashboard: full-stack HTML5 SPA served at `/dashboard` — `dashboard.html`
 
 ---
 
-## HTTP API Reference (current: v2.2)
+---
+
+## HTTP API Reference (current: v3.0)
 
 All endpoints except `GET /health` require `Authorization: Bearer <AI_STATUS_TOKEN>`.
 
@@ -239,10 +241,26 @@ All endpoints except `GET /health` require `Authorization: Bearer <AI_STATUS_TOK
 | `GET` | `/doc-intelligence/runbook/:service` | Operational runbook for a service *(v2.2)* |
 | `GET` | `/doc-intelligence/changelog` | Latest generated changelog entry *(v2.2)* |
 | `POST` | `/doc-intelligence/analyze` | Trigger documentation intelligence analysis *(v2.2)* |
+| `GET` | `/dashboard` | Admin web dashboard (HTML5 SPA) *(v3.0)* |
+| `GET` | `/observability` | LLM metrics, fix acceptance, cost summary *(v3.0)* |
+| `GET` | `/audit-log` | Immutable audit log entries (`?limit=N`) *(v3.0)* |
+| `GET` | `/multi-agent` | Multi-agent orchestrator summary *(v3.0)* |
+| `GET` | `/multi-agent/conflicts` | Cross-agent escalated conflicts *(v3.0)* |
+| `GET` | `/multi-agent/bus` | Message bus recent events *(v3.0)* |
+| `POST` | `/multi-agent/trigger` | Trigger immediate multi-agent cycle *(v3.0)* |
+| `GET` | `/pr-generator` | PR generator summary, PRs, regression results *(v3.0)* |
+| `GET` | `/canary` | All flags + deployments + rollbacks *(v3.0)* |
+| `GET` | `/canary/flags` | List all feature flags *(v3.0)* |
+| `POST` | `/canary/flags` | Create a feature flag *(v3.0)* |
+| `GET` | `/canary/flags/:name` | Get a specific feature flag *(v3.0)* |
+| `DELETE` | `/canary/flags/:name` | Delete a feature flag *(v3.0)* |
+| `POST` | `/canary/deployments` | Register a canary deployment *(v3.0)* |
+| `POST` | `/canary/deployments/:id/sample` | Record an error-rate sample *(v3.0)* |
+| `POST` | `/canary/deployments/:id/complete` | Mark deployment as complete *(v3.0)* |
 
 ---
 
-## Environment Variables (current: v2.2)
+## Environment Variables (current: v3.0)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -280,6 +298,25 @@ All endpoints except `GET /health` require `Authorization: Bearer <AI_STATUS_TOK
 | `AI_DOC_INTEL_EVERY_N_CYCLES` | `20` | Documentation intelligence cadence *(v2.2)* |
 | `DOC_TARGET_LANGUAGES` | *(empty)* | ISO 639-1 codes for doc translation, e.g. `es,fr,de` *(v2.2)* |
 | `DOC_OUTPUT_DIR` | `docs/generated` | Output directory for generated documentation *(v2.2)* |
+| `AI_MULTI_AGENT_EVERY_N_CYCLES` | `5` | Multi-agent analysis cadence *(v3.0)* |
+| `AI_CANARY_CHECK_EVERY_N_CYCLES` | `2` | Canary rollback check cadence *(v3.0)* |
+| `AI_PR_DOC_DRIFT_EVERY_N_CYCLES` | `30` | Doc drift detection cadence *(v3.0)* |
+| `AI_MULTI_AGENT_TOKEN_BUDGET` | `10000` | Max LLM tokens per multi-agent cycle *(v3.0)* |
+| `AI_MULTI_AGENT_TIME_BUDGET_MS` | `45000` | Max ms per multi-agent cycle *(v3.0)* |
+| `PR_GITHUB_OWNER` | *(empty)* | GitHub owner for autonomous PR creation *(v3.0)* |
+| `PR_GITHUB_REPO` | *(empty)* | GitHub repo for autonomous PR creation *(v3.0)* |
+| `PR_GITHUB_TOKEN` | *(empty)* | GitHub PAT for PR creation (write access required) *(v3.0)* |
+| `PR_BASE_BRANCH` | `main` | Base branch for generated PRs *(v3.0)* |
+| `PR_LABEL` | `ai-generated` | Label applied to generated PRs *(v3.0)* |
+| `PR_AUTO_SUBMIT` | `false` | Auto-submit PRs without PermissionGate *(v3.0)* |
+| `PR_TEST_TIMEOUT_MS` | `120000` | Regression test timeout in ms *(v3.0)* |
+| `CANARY_ERROR_RATE_THRESHOLD` | `2.0` | Error rate multiplier to trigger rollback *(v3.0)* |
+| `CANARY_CONSECUTIVE_SAMPLES` | `3` | Consecutive high-error samples before trigger *(v3.0)* |
+| `CANARY_AUTO_ROLLBACK` | `false` | Auto-rollback without admin approval *(v3.0)* |
+| `OBSERVABILITY_JSON_LOG` | `false` | Emit JSON-structured log lines to stdout *(v3.0)* |
+| `COST_PER_1K_INPUT_TOKENS` | `0` | USD cost per 1 000 input tokens *(v3.0)* |
+| `COST_PER_1K_OUTPUT_TOKENS` | `0` | USD cost per 1 000 output tokens *(v3.0)* |
+| `COST_DAILY_BUDGET_USD` | `1.0` | Daily LLM spend alert threshold *(v3.0)* |
 
 ---
 
@@ -292,12 +329,14 @@ All endpoints except `GET /health` require `Authorization: Bearer <AI_STATUS_TOK
 | Code fixes backed up before apply | ✅ |
 | File writes restricted to project root | ✅ |
 | Ollama runs locally (no external network) | ✅ |
-| Audit log of all AI actions | ✅ |
+| Immutable append-only audit trail (`.jsonl`) | ✅ v3.0 |
 | Permission auto-expiry | ✅ |
 | Destructive actions require prod confirmation | ✅ |
 | Sensitive field masking in logs | ✅ v2.1 (prompt cache avoids re-logging) |
-| mTLS between agent and services | 🔜 v2.2 |
+| LLM cost budgeting + daily alert | ✅ v3.0 |
+| Canary rollback requires admin approval | ✅ v3.0 (unless `CANARY_AUTO_ROLLBACK=true`) |
+| PR submission requires admin approval | ✅ v3.0 (unless `PR_AUTO_SUBMIT=true`) |
 
 ---
 
-*Last updated: March 11, 2026 (v2.1)*
+*Last updated: March 11, 2026 (v3.0)*
