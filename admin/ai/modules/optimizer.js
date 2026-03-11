@@ -372,12 +372,15 @@ class Optimizer {
     // Utilities
     // -----------------------------------------------------------------------
 
-    /** @private */
+    /** @private — ISO 8601 compliant week number */
     _isoWeek() {
-        const now   = new Date();
-        const start = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
-        const week  = Math.ceil(((now - start) / 86_400_000 + start.getUTCDay() + 1) / 7);
-        return `${now.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+        const now = new Date();
+        const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+        // Thursday in current week: ISO weeks start on Monday, week 1 has the year's first Thursday
+        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        const week = Math.ceil(((d - yearStart) / 86_400_000 + 1) / 7);
+        return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
     }
 
     /** @private */

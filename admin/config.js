@@ -13,6 +13,7 @@
  *   ENABLE_ADMIN_BOT_TELEGRAM=false
  *   ENABLE_ADMIN_BOT_SLACK=false
  *   ENABLE_ADMIN_EMAIL=false
+ *   ENABLE_ADMIN_AI=false     (AI autonomous agent — disabled by default)
  *
  * CLI is always available locally and is excluded from the env-flag system.
  */
@@ -132,6 +133,22 @@ const config = {
         masterPassword: process.env.ADMIN_MASTER_PASSWORD || '',
         jwtSecret: process.env.ADMIN_JWT_SECRET || '',
     },
+
+    // AI Autonomous Admin Agent
+    ai: {
+        enabled: isEnabled('ENABLE_ADMIN_AI', false),
+        provider: process.env.AI_PROVIDER || 'demo',           // demo | openai | anthropic
+        openaiApiKey: process.env.OPENAI_API_KEY || '',
+        anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
+        cycleIntervalSeconds: parseInt(process.env.AI_CYCLE_INTERVAL_SECONDS || '60', 10),
+        statusPort: parseInt(process.env.AI_STATUS_PORT || '8890', 10),
+        notifyEveryCycle: isEnabled('AI_NOTIFY_EVERY_CYCLE', false),
+        emergencyNotify: isEnabled('AI_EMERGENCY_NOTIFY', true),
+        autoHeal: isEnabled('AI_AUTO_HEAL', true),
+        autoSecurity: isEnabled('AI_AUTO_SECURITY', true),
+        gatewayUrl: process.env.AI_GATEWAY_URL || 'http://localhost:8000',
+        permissionTimeoutMinutes: parseInt(process.env.AI_PERMISSION_TIMEOUT_MINUTES || '30', 10),
+    },
 };
 
 /**
@@ -146,6 +163,7 @@ function printStatusSummary() {
         { name: 'Telegram Bot   ', enabled: config.bot.telegram.enabled, info: 'Telegram API' },
         { name: 'Slack Bot      ', enabled: config.bot.slack.enabled, info: `port ${config.bot.slack.port}` },
         { name: 'Email Interface', enabled: config.email.enabled, info: config.email.imap.host || 'IMAP' },
+        { name: 'AI Agent       ', enabled: config.ai.enabled, info: `provider ${config.ai.provider}, port ${config.ai.statusPort}` },
         { name: 'CLI            ', enabled: true, info: 'always available (local)' },
     ];
 

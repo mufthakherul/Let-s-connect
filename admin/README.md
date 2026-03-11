@@ -31,6 +31,7 @@ admin/
 | Telegram Bot      | ❌ OFF  | `ENABLE_ADMIN_BOT_TELEGRAM=true` | — |
 | Slack Bot         | ❌ OFF  | `ENABLE_ADMIN_BOT_SLACK=true` | 3003 |
 | Email Interface   | ❌ OFF  | `ENABLE_ADMIN_EMAIL=true`     | —    |
+| AI Agent          | ❌ OFF  | `ENABLE_ADMIN_AI=true`        | 8890 |
 
 > **CLI is excluded from env toggles** — it runs directly from your terminal and requires no server process.
 

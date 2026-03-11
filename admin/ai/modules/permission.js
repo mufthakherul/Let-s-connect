@@ -74,7 +74,7 @@ class PermissionGate {
             severity,
             status:      'pending',
             requestedAt: new Date().toISOString(),
-            requestedBy: os.hostname(),
+            requestedBy: 'ai-agent@' + os.hostname(),
             expiresAt:   this._expiresAt(severity),
         };
 

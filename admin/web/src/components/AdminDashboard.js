@@ -98,6 +98,7 @@ import AdminLogin from './AdminLogin';
 import SLAPanel from './dashboard/SLAPanel';
 import WebhookPanel from './dashboard/WebhookPanel';
 import AIRemediationPanel from './dashboard/AIRemediationPanel';
+import AIAgentPanel from './dashboard/AIAgentPanel';
 import MultiClusterPanel from './dashboard/MultiClusterPanel';
 import TrendAnalysisPanel from './dashboard/TrendAnalysisPanel';
 
@@ -1351,6 +1352,7 @@ const AdminDashboard = () => {
                             <Tab icon={<SmartToy />} label="AI Remediation" />
                             <Tab icon={<Cloud />} label="Multi-Cluster" />
                             <Tab icon={<AutoGraph />} label="Trend Analysis" />
+                            <Tab icon={<SmartToy color="secondary" />} label="AI Agent" />
                         </Tabs>
 
                         {currentTab === 0 && renderStatsTab()}
@@ -1367,6 +1369,7 @@ const AdminDashboard = () => {
                         {currentTab === 11 && <AIRemediationPanel />}
                         {currentTab === 12 && <MultiClusterPanel />}
                         {currentTab === 13 && <TrendAnalysisPanel />}
+                        {currentTab === 14 && <AIAgentPanel />}
                     </Paper>
 
                     {/* Speed Dial for Quick Actions */}

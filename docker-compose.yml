@@ -555,6 +555,45 @@ services:
     networks:
       - milonexa-network
 
+  # 8) AI Autonomous Admin Agent — next-gen AI-managed admin
+  # Enable: ENABLE_ADMIN_AI=true + profile 'admin-ai'
+  # docker compose --profile admin-ai up admin-ai
+  # The AI agent continuously monitors, heals, secures, and optimizes the platform.
+  admin-ai:
+    profiles:
+      - admin-ai
+    build:
+      context: ./admin
+      dockerfile: Dockerfile.backend
+      args:
+        - SERVICE=ai
+    restart: unless-stopped
+    environment:
+      - ENABLE_ADMIN_AI=${ENABLE_ADMIN_AI:-false}
+      - AI_PROVIDER=${AI_PROVIDER:-demo}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AI_CYCLE_INTERVAL_SECONDS=${AI_CYCLE_INTERVAL_SECONDS:-60}
+      - AI_STATUS_PORT=${AI_STATUS_PORT:-8890}
+      - AI_NOTIFY_EVERY_CYCLE=${AI_NOTIFY_EVERY_CYCLE:-false}
+      - AI_EMERGENCY_NOTIFY=${AI_EMERGENCY_NOTIFY:-true}
+      - AI_AUTO_HEAL=${AI_AUTO_HEAL:-true}
+      - AI_AUTO_SECURITY=${AI_AUTO_SECURITY:-true}
+      - AI_GATEWAY_URL=${AI_GATEWAY_URL:-http://api-gateway:8000}
+      - AI_PERMISSION_TIMEOUT_MINUTES=${AI_PERMISSION_TIMEOUT_MINUTES:-30}
+      # Notification integrations (reuse bot credentials if set)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_ADMIN_CHAT_IDS=${TELEGRAM_ADMIN_CHAT_IDS}
+      - ADMIN_WEBHOOK_SLACK_URLS=${ADMIN_WEBHOOK_SLACK_URLS}
+      - ADMIN_WEBHOOK_DISCORD_URLS=${ADMIN_WEBHOOK_DISCORD_URLS}
+      - NODE_ENV=${NODE_ENV:-production}
+    ports:
+      - "127.0.0.1:${AI_STATUS_PORT:-8890}:8890"
+    volumes:
+      - admin-state:/app/.admin-cli
+    networks:
+      - milonexa-network
+
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
