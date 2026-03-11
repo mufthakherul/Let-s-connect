@@ -921,6 +921,30 @@ This modernization initiative is successful when:
 
 ---
 
+
+## Phase 15: Search & Discovery 
+**Priority: High**
+
+### 15.1 Full-Text Search
+- [x] Elasticsearch integration for posts, wikis, documents
+- [x] Faceted search (filter by type, date, author)
+- [x] Search result highlighting and snippets
+- [x] Saved search queries
+
+### 15.2 Discovery
+- [x] Trending topics and hashtags
+- [x] People you may know / follow recommendations
+- [x] Group discovery by interest
+- [x] Content recommendations (collaborative filtering)
+
+### 15.3 AI-Powered Search
+- [x] Semantic search using embeddings
+- [x] Natural language query support
+- [x] Summarized search results via AI
+- [x] Smart content deduplication
+
+---
+
 ## Phase 16: E-Commerce & Marketplace ✅
 **Priority: High**
 
@@ -964,29 +988,6 @@ This modernization initiative is successful when:
 - [x] Collaboration service (`services/collaboration-service/`)
 - [x] Hubs for cross-functional team organization (hubs/)
 - [x] Pages for structured content publishing (Pages.js)
-
----
-
-## Phase 15: Search & Discovery 
-**Priority: High**
-
-### 15.1 Full-Text Search
-- [x] Elasticsearch integration for posts, wikis, documents
-- [x] Faceted search (filter by type, date, author)
-- [x] Search result highlighting and snippets
-- [x] Saved search queries
-
-### 15.2 Discovery
-- [x] Trending topics and hashtags
-- [x] People you may know / follow recommendations
-- [x] Group discovery by interest
-- [x] Content recommendations (collaborative filtering)
-
-### 15.3 AI-Powered Search
-- [x] Semantic search using embeddings
-- [x] Natural language query support
-- [x] Summarized search results via AI
-- [x] Smart content deduplication
 
 ---
 
