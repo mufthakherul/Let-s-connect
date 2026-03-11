@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Milonexa AI Admin Dashboard</title>
+  <style>
+    /* ── Design system ─────────────────────────────────────────────────── */
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #1c2128;
+      --border:    #30363d;
+      --primary:   #58a6ff;
+      --primary2:  #1f6feb;
+      --success:   #3fb950;
+      --warning:   #d29922;
+      --danger:    #f85149;
+      --muted:     #8b949e;
+      --text:      #e6edf3;
+      --text-dim:  #c9d1d9;
+      --radius:    8px;
+      --radius-lg: 14px;
+      --shadow:    0 4px 24px rgba(0,0,0,0.4);
+      --mono:      'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      --sans:      -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --badge-h:   22px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 14px; scroll-behavior: smooth; }
+    body {
+      background: var(--bg); color: var(--text); font-family: var(--sans);
+      min-height: 100vh; line-height: 1.5;
+    }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre { font-family: var(--mono); }
+    hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+    /* ── Layout ────────────────────────────────────────────────────────── */
+    .layout { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 220px; flex-shrink: 0; background: var(--surface);
+      border-right: 1px solid var(--border); padding: 20px 0;
+      display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh;
+      overflow-y: auto;
+    }
+    .main { flex: 1; padding: 24px 28px; overflow-x: hidden; max-width: 100%; }
+
+    /* ── Sidebar ───────────────────────────────────────────────────────── */
+    .sidebar-logo {
+      padding: 0 16px 20px; border-bottom: 1px solid var(--border);
+    }
+    .sidebar-logo .logo-icon { font-size: 26px; }
+    .sidebar-logo .logo-title {
+      font-weight: 700; font-size: 15px; color: var(--text); display: block;
+    }
+    .sidebar-logo .logo-version {
+      font-size: 11px; color: var(--muted); display: block; margin-top: 2px;
+    }
+    .nav-group { margin-top: 12px; }
+    .nav-label {
+      padding: 4px 16px; font-size: 11px; font-weight: 600; letter-spacing: .05em;
+      color: var(--muted); text-transform: uppercase;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 16px; cursor: pointer; color: var(--text-dim); font-size: 13px;
+      border-radius: 0; transition: background .15s, color .15s;
+      border-left: 3px solid transparent;
+    }
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+    .nav-item.active {
+      background: rgba(88,166,255,.1); color: var(--primary);
+      border-left-color: var(--primary);
+    }
+    .nav-item .icon { width: 16px; text-align: center; font-size: 14px; }
+    .sidebar-bottom {
+      margin-top: auto; padding: 12px 16px; border-top: 1px solid var(--border);
+    }
+    .agent-status-badge {
+      display: flex; align-items: center; gap: 6px; font-size: 12px;
+    }
+    .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
+    .pulse.danger { background: var(--danger); }
+    .pulse.warning { background: var(--warning); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── Panels ────────────────────────────────────────────────────────── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .page-title {
+      font-size: 20px; font-weight: 700; margin-bottom: 4px; color: var(--text);
+    }
+    .page-subtitle { color: var(--muted); margin-bottom: 20px; font-size: 13px; }
+
+    /* ── Cards ─────────────────────────────────────────────────────────── */
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      padding: 16px 18px;
+    }
+    .card-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .card-value { font-size: 28px; font-weight: 700; margin: 4px 0; color: var(--text); }
+    .card-value.primary  { color: var(--primary); }
+    .card-value.success  { color: var(--success); }
+    .card-value.warning  { color: var(--warning); }
+    .card-value.danger   { color: var(--danger); }
+    .card-sub { font-size: 12px; color: var(--muted); }
+
+    /* ── Section ───────────────────────────────────────────────────────── */
+    .section {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      margin-bottom: 18px; overflow: hidden;
+    }
+    .section-header {
+      padding: 12px 18px; display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border); background: var(--surface2);
+    }
+    .section-title { font-weight: 600; font-size: 14px; }
+    .section-body { padding: 14px 18px; }
+
+    /* ── Badges ────────────────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex; align-items: center; height: var(--badge-h);
+      padding: 0 8px; border-radius: 100px; font-size: 11px; font-weight: 600;
+    }
+    .badge-critical { background: rgba(248,81,73,.2);  color: #ff6961; }
+    .badge-high     { background: rgba(210,153,34,.2); color: #f9a825; }
+    .badge-medium   { background: rgba(255,188,30,.2); color: #ffd54f; }
+    .badge-low      { background: rgba(63,185,80,.2);  color: #66bb6a; }
+    .badge-info     { background: rgba(88,166,255,.2); color: var(--primary); }
+    .badge-success  { background: rgba(63,185,80,.15); color: var(--success); }
+    .badge-muted    { background: rgba(139,148,158,.15); color: var(--muted); }
+
+    /* ── Tables ────────────────────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { color: var(--muted); font-weight: 600; text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    td { padding: 9px 10px; border-bottom: 1px solid rgba(48,54,61,.6); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+    .empty-row td { color: var(--muted); text-align: center; padding: 20px; }
+
+    /* ── Charts (pure CSS + JS inline SVG) ─────────────────────────────── */
+    .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 60px; }
+    .bar-segment { flex: 1; background: var(--primary2); border-radius: 3px 3px 0 0; transition: height .3s; min-width: 8px; }
+    .bar-segment:hover { background: var(--primary); }
+
+    /* ── Buttons ───────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px;
+      border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+      transition: background .15s, border-color .15s;
+    }
+    .btn:hover { background: var(--surface); border-color: var(--primary); color: var(--primary); }
+    .btn-primary { background: var(--primary2); border-color: var(--primary2); color: #fff; }
+    .btn-primary:hover { background: var(--primary); border-color: var(--primary); }
+    .btn-danger { background: rgba(248,81,73,.15); border-color: var(--danger); color: var(--danger); }
+    .btn-danger:hover { background: rgba(248,81,73,.25); }
+
+    /* ── Code block ────────────────────────────────────────────────────── */
+    .code-block {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 12px 14px; font-family: var(--mono); font-size: 12px;
+      overflow-x: auto; white-space: pre; color: var(--text-dim); max-height: 280px;
+      overflow-y: auto;
+    }
+
+    /* ── Timeline ──────────────────────────────────────────────────────── */
+    .timeline { list-style: none; }
+    .tl-item { display: flex; gap: 12px; padding: 8px 0; }
+    .tl-dot  { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+    .tl-dot.c { background: var(--danger); }
+    .tl-dot.h { background: var(--warning); }
+    .tl-dot.m { background: #ffd54f; }
+    .tl-dot.l { background: var(--success); }
+    .tl-dot.i { background: var(--primary); }
+    .tl-content { font-size: 12px; color: var(--text-dim); }
+    .tl-ts { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* ── State machine visualizer ──────────────────────────────────────── */
+    .fsm { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 0; }
+    .fsm-state {
+      padding: 5px 12px; border-radius: 100px; font-size: 12px; font-weight: 600;
+      border: 2px solid var(--border); color: var(--muted); background: var(--surface2);
+      transition: all .3s;
+    }
+    .fsm-state.active { border-color: var(--primary); color: var(--primary); background: rgba(88,166,255,.1); }
+    .fsm-state.emergency { border-color: var(--danger); color: var(--danger); background: rgba(248,81,73,.1); animation: pulse 1s infinite; }
+    .fsm-arrow { color: var(--muted); padding-top: 4px; font-size: 14px; }
+
+    /* ── Metric gauges ─────────────────────────────────────────────────── */
+    .gauge-row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .gauge { flex: 1; min-width: 120px; }
+    .gauge-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .gauge-bar { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+    .gauge-fill { height: 100%; border-radius: 3px; background: var(--primary); transition: width .5s; }
+    .gauge-fill.warning { background: var(--warning); }
+    .gauge-fill.danger  { background: var(--danger); }
+    .gauge-value { font-size: 13px; font-weight: 600; margin-top: 4px; }
+
+    /* ── Agent cards ───────────────────────────────────────────────────── */
+    .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+    .agent-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 14px 16px;
+    }
+    .agent-card-name { font-weight: 700; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+    .agent-card-stat { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); padding: 2px 0; }
+
+    /* ── Toast ─────────────────────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 20px; right: 20px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px;
+      font-size: 13px; color: var(--text); transform: translateY(60px); opacity: 0;
+      transition: all .3s; z-index: 9999; max-width: 340px;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+
+    /* ── Header bar ────────────────────────────────────────────────────── */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px; gap: 12px;
+    }
+    .topbar-left { flex: 1; }
+    .topbar-right { display: flex; gap: 8px; align-items: center; }
+    .refresh-indicator {
+      font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 4px;
+    }
+    .spinner { width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; display: none; }
+    .spinner.active { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Responsive ────────────────────────────────────────────────────── */
+    @media (max-width: 760px) {
+      .sidebar { width: 56px; }
+      .nav-item span.label { display: none; }
+      .nav-label { display: none; }
+      .sidebar-logo .logo-title, .sidebar-logo .logo-version { display: none; }
+      .cards { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────────── -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-icon">🤖</span>
+      <span class="logo-title">Milonexa AI</span>
+      <span class="logo-version">Admin Agent v3.0</span>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Overview</div>
+      <div class="nav-item active" data-panel="overview">
+        <span class="icon">🏠</span><span class="label">Dashboard</span>
+      </div>
+      <div class="nav-item" data-panel="observability">
+        <span class="icon">📊</span><span class="label">Observability</span>
+      </div>
+      <div class="nav-item" data-panel="multi-agent">
+        <span class="icon">🤖</span><span class="label">Multi-Agent</span>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Intelligence</div>
+      <div class="nav-item" data-panel="code-analysis">
+        <span class="icon">🔍</span><span class="label">Code Analysis</span>
+      </div>
+      <div class="nav-item" data-panel="security">
+        <span class="icon">🛡️</span><span class="label">Security</span>
+      </div>
+      <div class="nav-item" data-panel="feedback">
+        <span class="icon">💬</span><span class="label">Feedback</span>
+      </div>
+      <div class="nav-item" data-panel="test-intel">
+        <span class="icon">🧪</span><span class="label">Tests</span>
+      </div>
+      <div class="nav-item" data-panel="doc-intel">
+        <span class="icon">📄</span><span class="label">Docs</span>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Automation</div>
+      <div class="nav-item" data-panel="pr-generator">
+        <span class="icon">🔀</span><span class="label">PR Generator</span>
+      </div>
+      <div class="nav-item" data-panel="canary">
+        <span class="icon">🐦</span><span class="label">Canary / A/B</span>
+      </div>
+      <div class="nav-item" data-panel="permissions">
+        <span class="icon">🔐</span><span class="label">Permissions</span>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">System</div>
+      <div class="nav-item" data-panel="audit">
+        <span class="icon">📋</span><span class="label">Audit Log</span>
+      </div>
+      <div class="nav-item" data-panel="settings">
+        <span class="icon">⚙️</span><span class="label">Settings</span>
+      </div>
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="agent-status-badge">
+        <div class="pulse" id="sidebarPulse"></div>
+        <span id="sidebarState">IDLE</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main content ─────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Overview panel -->
+    <div id="panel-overview" class="panel active">
+      <div class="topbar">
+        <div class="topbar-left">
+          <div class="page-title">Dashboard Overview</div>
+          <div class="page-subtitle">Real-time AI agent status and key metrics</div>
+        </div>
+        <div class="topbar-right">
+          <div class="refresh-indicator">
+            <div class="spinner" id="refreshSpinner"></div>
+            <span id="lastRefresh">—</span>
+          </div>
+          <button class="btn btn-primary" onclick="refresh()">↻ Refresh</button>
+        </div>
+      </div>
+
+      <!-- KPI cards -->
+      <div class="cards" id="kpiCards">
+        <div class="card"><div class="card-label">Agent State</div><div class="card-value primary" id="kpiState">—</div><div class="card-sub">Finite state machine</div></div>
+        <div class="card"><div class="card-label">Cycles</div><div class="card-value" id="kpiCycles">—</div><div class="card-sub">Total main cycles</div></div>
+        <div class="card"><div class="card-label">Code Findings</div><div class="card-value" id="kpiFindings">—</div><div class="card-sub" id="kpiFindingsSub">—</div></div>
+        <div class="card"><div class="card-label">Dep Vulnerabilities</div><div class="card-value" id="kpiVulns">—</div><div class="card-sub" id="kpiVulnsSub">—</div></div>
+        <div class="card"><div class="card-label">Feedback</div><div class="card-value" id="kpiFeedback">—</div><div class="card-sub" id="kpiFeedbackSub">—</div></div>
+        <div class="card"><div class="card-label">Flaky Tests</div><div class="card-value" id="kpiFlaky">—</div><div class="card-sub">Quarantined</div></div>
+        <div class="card"><div class="card-label">Backlog Items</div><div class="card-value" id="kpiBacklog">—</div><div class="card-sub">Feature requests</div></div>
+        <div class="card"><div class="card-label">Emergency Mode</div><div class="card-value" id="kpiEmergency">—</div><div class="card-sub">Active alerts</div></div>
+      </div>
+
+      <!-- State machine -->
+      <div class="section">
+        <div class="section-header"><span class="section-title">Agent State Machine</span></div>
+        <div class="section-body">
+          <div class="fsm" id="fsmViz">
+            <div class="fsm-state" data-state="IDLE">IDLE</div>
+            <div class="fsm-arrow">→</div>
+            <div class="fsm-state" data-state="MONITORING">MONITORING</div>
+            <div class="fsm-arrow">→</div>
+            <div class="fsm-state" data-state="ANALYZING">ANALYZING</div>
+            <div class="fsm-arrow">→</div>
+            <div class="fsm-state" data-state="REVIEWING">REVIEWING</div>
+            <div class="fsm-arrow">→</div>
+            <div class="fsm-state" data-state="ACTING">ACTING</div>
+            <div class="fsm-arrow">→</div>
+            <div class="fsm-state" data-state="NOTIFYING">NOTIFYING</div>
+            <div class="fsm-arrow">⮐</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent activity timeline -->
+      <div class="section">
+        <div class="section-header"><span class="section-title">Recent Activity</span><span id="activityCount" class="badge badge-info">0</span></div>
+        <div class="section-body">
+          <ul class="timeline" id="activityTimeline">
+            <li class="tl-item"><div class="tl-dot i"></div><div class="tl-content"><div>Loading…</div><div class="tl-ts">—</div></div></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Observability panel -->
+    <div id="panel-observability" class="panel">
+      <div class="page-title">Observability</div>
+      <div class="page-subtitle">LLM performance metrics, cost tracking, cycle analytics</div>
+
+      <div class="cards" id="obsCards">
+        <div class="card"><div class="card-label">LLM Calls</div><div class="card-value primary" id="obsLLMTotal">—</div><div class="card-sub">Total tracked</div></div>
+        <div class="card"><div class="card-label">p95 Latency</div><div class="card-value" id="obsP95">—</div><div class="card-sub">ms</div></div>
+        <div class="card"><div class="card-label">LLM Success Rate</div><div class="card-value success" id="obsSuccessRate">—</div><div class="card-sub">%</div></div>
+        <div class="card"><div class="card-label">Fix Acceptance</div><div class="card-value" id="obsFixRate">—</div><div class="card-sub">%</div></div>
+        <div class="card"><div class="card-label">Today's Cost</div><div class="card-value" id="obsCostToday">—</div><div class="card-sub">USD (budget: <span id="obsBudget">—</span>)</div></div>
+        <div class="card"><div class="card-label">Avg Cycle Time</div><div class="card-value" id="obsAvgCycle">—</div><div class="card-sub">ms</div></div>
+      </div>
+
+      <div class="section">
+        <div class="section-header"><span class="section-title">LLM Usage by Model</span></div>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>Model</th><th>Calls</th><th>Tokens</th><th>Cost (USD)</th></tr></thead>
+            <tbody id="obsModelTable"><tr class="empty-row"><td colspan="4">No data yet</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header"><span class="section-title">Audit Trail (last 20 entries)</span>
+          <button class="btn" onclick="loadAuditLog()">↻ Refresh</button>
+        </div>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>Time</th><th>Action</th><th>Actor</th><th>Data</th></tr></thead>
+            <tbody id="auditTable"><tr class="empty-row"><td colspan="4">Loading…</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Multi-Agent panel -->
+    <div id="panel-multi-agent" class="panel">
+      <div class="page-title">Multi-Agent Architecture</div>
+      <div class="page-subtitle">Specialized sub-agents, priority queue, escalation manager</div>
+      <div class="agent-grid" id="agentGrid">
+        <div class="agent-card"><div class="agent-card-name">🛡️ security-agent</div><div id="secAgentStats">Loading…</div></div>
+        <div class="agent-card"><div class="agent-card-name">⚡ performance-agent</div><div id="perfAgentStats">Loading…</div></div>
+        <div class="agent-card"><div class="agent-card-name">✅ quality-agent</div><div id="qualAgentStats">Loading…</div></div>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Escalated Conflicts</span></div>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>Type</th><th>Agents</th><th>Summary</th><th>Severity</th><th>Status</th></tr></thead>
+            <tbody id="escalationTable"><tr class="empty-row"><td colspan="5">No conflicts</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Message Bus (recent events)</span></div>
+        <div class="section-body">
+          <div id="messageBusLog" class="code-block">Connecting…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Code Analysis panel -->
+    <div id="panel-code-analysis" class="panel">
+      <div class="page-title">Code Analysis</div>
+      <div class="page-subtitle">AST findings, complexity, dead code, duplicates, dry-run fixes</div>
+      <div class="cards">
+        <div class="card"><div class="card-label">Total Findings</div><div class="card-value" id="caTotal">—</div></div>
+        <div class="card"><div class="card-label">Critical</div><div class="card-value danger" id="caCritical">—</div></div>
+        <div class="card"><div class="card-label">High</div><div class="card-value warning" id="caHigh">—</div></div>
+        <div class="card"><div class="card-label">Proposed Fixes</div><div class="card-value primary" id="caFixes">—</div></div>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Findings</span>
+          <button class="btn btn-primary" onclick="triggerCodeAnalysis()">▶ Trigger Analysis</button>
+        </div>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>Type</th><th>Severity</th><th>File</th><th>Description</th><th>Source</th></tr></thead>
+            <tbody id="caFindingsTable"><tr class="empty-row"><td colspan="5">Loading…</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Security panel -->
+    <div id="panel-security" class="panel">
+      <div class="page-title">Security</div>
+      <div class="page-subtitle">Threats, dep vulnerabilities, security-agent findings</div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Active Threats</span></div>
+        <div class="section-body">
+          <div id="threatList" class="timeline">
+            <li class="tl-item"><div class="tl-dot i"></div><div class="tl-content">Loading…</div></li>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Dependency Vulnerabilities</span>
+          <button class="btn" onclick="triggerDepScan()">▶ Scan Now</button>
+        </div>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>Package</th><th>Severity</th><th>CVE</th><th>Fix</th></tr></thead>
+            <tbody id="depScanTable"><tr class="empty-row"><td colspan="4">Loading…</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feedback panel -->
+    <div id="panel-feedback" class="panel">
+      <div class="page-title">Feedback Intelligence</div>
+      <div class="page-subtitle">Multi-channel ingestion, sentiment trends, keyword clusters, feature backlog</div>
+      <div class="cards">
+        <div class="card"><div class="card-label">Processed</div><div class="card-value" id="fbTotal">—</div></div>
+        <div class="card"><div class="card-label">Unprocessed</div><div class="card-value warning" id="fbUnprocessed">—</div></div>
+        <div class="card"><div class="card-label">Backlog Items</div><div class="card-value primary" id="fbBacklog">—</div></div>
+        <div class="card"><div class="card-label">Trend Weeks</div><div class="card-value" id="fbTrends">—</div></div>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Sentiment Trend (last 8 weeks)</span></div>
+        <div class="section-body">
+          <div id="sentimentBars" class="bar-chart"></div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Feature Backlog</span></div>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>Title</th><th>Impact</th><th>Effort</th><th>Demand</th><th>Status</th></tr></thead>
+            <tbody id="backlogTable"><tr class="empty-row"><td colspan="5">Loading…</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Test Intelligence panel -->
+    <div id="panel-test-intel" class="panel">
+      <div class="page-title">Test Intelligence</div>
+      <div class="page-subtitle">Coverage gaps, property tests, mutation testing, flaky detection</div>
+      <div class="cards">
+        <div class="card"><div class="card-label">Uncovered Branches</div><div class="card-value warning" id="tiUncovered">—</div></div>
+        <div class="card"><div class="card-label">Flaky Tests</div><div class="card-value danger" id="tiFlaky">—</div></div>
+        <div class="card"><div class="card-label">Fix Proposals</div><div class="card-value primary" id="tiFixes">—</div></div>
+        <div class="card"><div class="card-label">Property Stubs</div><div class="card-value" id="tiStubs">—</div></div>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Quarantined Flaky Tests</span></div>
+        <div class="section-body">
+          <ul id="flakyList" class="timeline">
+            <li class="tl-item"><div class="tl-dot i"></div><div class="tl-content">Loading…</div></li>
+          </ul>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Coverage by Service</span></div>
+        <div class="section-body">
+          <div class="gauge-row" id="coverageGauges"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Doc Intelligence panel -->
+    <div id="panel-doc-intel" class="panel">
+      <div class="page-title">Documentation Intelligence</div>
+      <div class="page-subtitle">OpenAPI specs, runbooks, changelog, localization</div>
+      <div class="cards">
+        <div class="card"><div class="card-label">OpenAPI Specs</div><div class="card-value primary" id="diSpecs">—</div></div>
+        <div class="card"><div class="card-label">Runbooks</div><div class="card-value" id="diRunbooks">—</div></div>
+        <div class="card"><div class="card-label">Translations</div><div class="card-value" id="diTranslations">—</div></div>
+        <div class="card"><div class="card-label">Changelog</div><div class="card-value success" id="diChangelog">—</div></div>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">OpenAPI Specs</span>
+          <button class="btn btn-primary" onclick="triggerDocIntel()">↻ Regenerate</button>
+        </div>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>Service</th><th>Routes</th><th>Generated</th><th>Actions</th></tr></thead>
+            <tbody id="openApiTable"><tr class="empty-row"><td colspan="4">Loading…</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PR Generator panel -->
+    <div id="panel-pr-generator" class="panel">
+      <div class="page-title">PR Generator</div>
+      <div class="page-subtitle">Autonomous PR creation, regression testing, doc drift detection</div>
+      <div class="cards">
+        <div class="card"><div class="card-label">PRs Created</div><div class="card-value primary" id="prCreated">—</div></div>
+        <div class="card"><div class="card-label">Regression Runs</div><div class="card-value" id="prRegressions">—</div></div>
+        <div class="card"><div class="card-label">Doc Drift Reports</div><div class="card-value warning" id="prDrift">—</div></div>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Generated Pull Requests</span></div>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>Branch</th><th>File</th><th>Status</th><th>PR Link</th><th>Tests</th></tr></thead>
+            <tbody id="prTable"><tr class="empty-row"><td colspan="5">No PRs generated yet</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Canary / A/B panel -->
+    <div id="panel-canary" class="panel">
+      <div class="page-title">Canary Deployments &amp; A/B Flags</div>
+      <div class="page-subtitle">Feature flags, canary tracking, rollback triggers</div>
+      <div class="cards">
+        <div class="card"><div class="card-label">Active Flags</div><div class="card-value primary" id="canaryFlags">—</div></div>
+        <div class="card"><div class="card-label">Active Deployments</div><div class="card-value" id="canaryDeps">—</div></div>
+        <div class="card"><div class="card-label">Rollbacks</div><div class="card-value danger" id="canaryRollbacks">—</div></div>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Feature Flags</span>
+          <button class="btn btn-primary" onclick="showCreateFlag()">+ New Flag</button>
+        </div>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>Name</th><th>Rollout</th><th>Enabled</th><th>Evaluations</th><th>Enable Rate</th></tr></thead>
+            <tbody id="flagsTable"><tr class="empty-row"><td colspan="5">No feature flags</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Canary Deployments</span></div>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>Service</th><th>Version</th><th>Baseline</th><th>Status</th><th>Samples</th></tr></thead>
+            <tbody id="canaryTable"><tr class="empty-row"><td colspan="5">No deployments</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Permissions panel -->
+    <div id="panel-permissions" class="panel">
+      <div class="page-title">Permission Gate</div>
+      <div class="page-subtitle">Pending admin approvals for AI-proposed actions</div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Pending Actions</span><span id="pendingCount" class="badge badge-warning">0</span></div>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>Action</th><th>Description</th><th>Severity</th><th>Expires</th><th>Approve / Deny</th></tr></thead>
+            <tbody id="permTable"><tr class="empty-row"><td colspan="5">No pending approvals</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Audit Log panel -->
+    <div id="panel-audit" class="panel">
+      <div class="page-title">Audit Trail</div>
+      <div class="page-subtitle">Immutable append-only log of every AI action</div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Recent Entries</span>
+          <button class="btn" onclick="loadAuditLog()">↻ Refresh</button>
+        </div>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>Timestamp</th><th>Action</th><th>Actor</th><th>Data Preview</th></tr></thead>
+            <tbody id="auditTableFull"><tr class="empty-row"><td colspan="4">Loading…</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings panel -->
+    <div id="panel-settings" class="panel">
+      <div class="page-title">Settings</div>
+      <div class="page-subtitle">Agent configuration, API token, environment variables</div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Connection</span></div>
+        <div class="section-body">
+          <div style="display:flex;flex-direction:column;gap:10px;max-width:480px">
+            <label style="font-size:13px;color:var(--muted)">Agent Base URL</label>
+            <input id="settingBaseUrl" type="text" value="" placeholder="http://localhost:8890"
+              style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;outline:none;width:100%">
+            <label style="font-size:13px;color:var(--muted)">Bearer Token (AI_STATUS_TOKEN)</label>
+            <input id="settingToken" type="password" value="" placeholder="leave empty if token not set"
+              style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;outline:none;width:100%">
+            <label style="font-size:13px;color:var(--muted)">Auto-refresh interval (seconds, 0 = off)</label>
+            <input id="settingRefreshInterval" type="number" value="15" min="0" max="300"
+              style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;outline:none;width:120px">
+            <button class="btn btn-primary" style="width:fit-content" onclick="saveSettings()">💾 Save Settings</button>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-header"><span class="section-title">Raw Status JSON</span></div>
+        <div class="section-body">
+          <pre class="code-block" id="rawStatus">Loading…</pre>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- ── JavaScript ──────────────────────────────────────────────────────── -->
+<script>
+'use strict';
+
+// ── State ────────────────────────────────────────────────────────────────
+let BASE_URL        = localStorage.getItem('aiDashBaseUrl')  || (window.location.origin);
+let AUTH_TOKEN      = localStorage.getItem('aiDashToken')    || '';
+let REFRESH_SECS    = parseInt(localStorage.getItem('aiDashRefreshSecs') || '15', 10);
+let refreshTimer    = null;
+let latestStatus    = {};
+
+// ── Utilities ────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+function setText(id, val) { const el = $(id); if (el) el.textContent = val ?? '—'; }
+function setHtml(id, val) { const el = $(id); if (el) el.innerHTML = val; }
+function relTime(ts) {
+  if (!ts) return '—';
+  const d = (Date.now() - new Date(ts)) / 1000;
+  if (d < 60)  return Math.round(d) + 's ago';
+  if (d < 3600) return Math.round(d / 60) + 'm ago';
+  return Math.round(d / 3600) + 'h ago';
+}
+function fmtDate(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString();
+}
+function badgeSeverity(s) {
+  const m = { critical:'badge-critical', high:'badge-high', medium:'badge-medium', low:'badge-low', info:'badge-info' };
+  return `<span class="badge ${m[s] || 'badge-muted'}">${s || '—'}</span>`;
+}
+function effortLabel(e) { return e === 1 ? 'Small' : e === 2 ? 'Medium' : 'Large'; }
+
+function toast(msg, dur = 3000) {
+  const el = $('toast'); el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur);
+}
+
+// ── API helpers ──────────────────────────────────────────────────────────
+async function api(endpoint, method = 'GET', body) {
+  // Validate BASE_URL is same-origin or an allowed explicit origin
+  // to prevent token exfiltration via a tampered localStorage value.
+  const allowedOrigins = [window.location.origin, ''];
+  try {
+    const parsed = new URL(BASE_URL);
+    // Only allow http/https schemes.
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('Invalid protocol');
+    }
+  } catch (_) {
+    BASE_URL = window.location.origin;
+  }
+  const headers = { 'Content-Type': 'application/json' };
+  if (AUTH_TOKEN) headers['Authorization'] = 'Bearer ' + AUTH_TOKEN;
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+  try {
+    const res = await fetch(BASE_URL + endpoint, opts);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) return await res.json();
+    return await res.text();
+  } catch (e) {
+    throw e;
+  }
+}
+
+// ── Navigation ───────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    item.classList.add('active');
+    const panelId = 'panel-' + item.dataset.panel;
+    const panel   = $(panelId);
+    if (panel) panel.classList.add('active');
+    loadPanel(item.dataset.panel);
+  });
+});
+
+function loadPanel(name) {
+  switch (name) {
+    case 'overview':      refresh(); break;
+    case 'observability': loadObservability(); loadAuditLog(); break;
+    case 'multi-agent':   loadMultiAgent(); break;
+    case 'code-analysis': loadCodeAnalysis(); break;
+    case 'security':      loadSecurity(); break;
+    case 'feedback':      loadFeedback(); break;
+    case 'test-intel':    loadTestIntel(); break;
+    case 'doc-intel':     loadDocIntel(); break;
+    case 'pr-generator':  loadPRGenerator(); break;
+    case 'canary':        loadCanary(); break;
+    case 'permissions':   loadPermissions(); break;
+    case 'audit':         loadAuditLog(); break;
+    case 'settings':      loadSettings(); break;
+  }
+}
+
+// ── Overview / refresh ───────────────────────────────────────────────────
+async function refresh() {
+  $('refreshSpinner').classList.add('active');
+  try {
+    const status = await api('/status');
+    latestStatus = status;
+    renderOverview(status);
+  } catch (e) {
+    toast('⚠️ Could not reach agent: ' + e.message);
+  } finally {
+    $('refreshSpinner').classList.remove('active');
+    $('lastRefresh').textContent = 'Updated ' + relTime(new Date().toISOString());
+  }
+}
+
+function renderOverview(s) {
+  setText('kpiState',      s.state || '—');
+  setText('kpiCycles',     s.cycles ?? '—');
+  setText('kpiFindings',   s.codeAnalysis?.totalFindings ?? '—');
+  setText('kpiFindingsSub', `Critical: ${s.codeAnalysis?.critical ?? 0} | High: ${s.codeAnalysis?.high ?? 0}`);
+  setText('kpiVulns',      s.depScan?.total ?? '—');
+  setText('kpiVulnsSub',   `Critical: ${s.depScan?.bySeverity?.critical ?? 0}`);
+  setText('kpiFeedback',   s.feedback?.total ?? '—');
+  setText('kpiFeedbackSub',`Suggestions: ${s.feedback?.suggestions ?? 0}`);
+  setText('kpiFlaky',      s.testIntel?.flakyTests ?? '—');
+  setText('kpiBacklog',    s.feedbackIntel?.backlogItems ?? '—');
+  setText('kpiEmergency',  s.emergencyMode ? '🚨 YES' : 'No');
+  setText('sidebarState',  s.state || 'IDLE');
+
+  // Pulse colour.
+  const pulse = $('sidebarPulse');
+  pulse.className = 'pulse' + (s.emergencyMode ? ' danger' : s.state === 'MONITORING' ? '' : '');
+
+  // FSM visualizer.
+  document.querySelectorAll('.fsm-state').forEach(el => {
+    el.classList.remove('active', 'emergency');
+    if (el.dataset.state === s.state) {
+      el.classList.add(s.emergencyMode ? 'emergency' : 'active');
+    }
+  });
+
+  // Activity timeline.
+  const events = [];
+  if (s.codeAnalysis?.lastRunAt)     events.push({ ts: s.codeAnalysis.lastRunAt, text: `Code analysis: ${s.codeAnalysis.totalFindings} finding(s)`, dot: 'i' });
+  if (s.depScan?.lastRunAt)          events.push({ ts: s.depScan.lastRunAt, text: `Dep scan: ${s.depScan.total} vulnerabilities`, dot: s.depScan.total > 0 ? 'h' : 'l' });
+  if (s.feedback?.lastRunAt)         events.push({ ts: s.feedback.lastRunAt, text: `Feedback processed: ${s.feedback.total}`, dot: 'i' });
+  if (s.testIntel?.lastRunAt)        events.push({ ts: s.testIntel.lastRunAt, text: `Test intel: ${s.testIntel.flakyTests} flaky`, dot: s.testIntel.flakyTests > 0 ? 'h' : 'l' });
+  if (s.docIntel?.lastRunAt)         events.push({ ts: s.docIntel.lastRunAt, text: `Doc intel: ${s.docIntel.openApiSpecs} specs, ${s.docIntel.runbooks} runbooks`, dot: 'i' });
+  if (s.feedbackIntel?.lastRunAt)    events.push({ ts: s.feedbackIntel.lastRunAt, text: `Feedback intel: ${s.feedbackIntel.backlogItems} backlog item(s)`, dot: 'i' });
+
+  events.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  setHtml('activityTimeline', events.length === 0
+    ? '<li class="tl-item"><div class="tl-dot i"></div><div class="tl-content">No recent activity</div></li>'
+    : events.map(e => `<li class="tl-item"><div class="tl-dot ${e.dot}"></div><div class="tl-content"><div>${e.text}</div><div class="tl-ts">${fmtDate(e.ts)}</div></div></li>`).join(''));
+
+  setText('activityCount', events.length);
+}
+
+// ── Observability ────────────────────────────────────────────────────────
+async function loadObservability() {
+  try {
+    const data = await api('/observability');
+    const llm  = data.llm  || {};
+    const fix  = data.fixAcceptance || {};
+    const cost = data.cost || {};
+    const cyc  = data.cycles || {};
+
+    setText('obsLLMTotal',   llm.total ?? '—');
+    setText('obsP95',        llm.latency?.p95 ?? '—');
+    setText('obsSuccessRate', llm.successRate != null ? llm.successRate + '%' : '—');
+    setText('obsFixRate',    fix.rate != null ? fix.rate + '%' : '—');
+    setText('obsCostToday',  cost.today?.totalUsd != null ? '$' + cost.today.totalUsd : '$0.00');
+    setText('obsBudget',     cost.budget != null ? '$' + cost.budget : '—');
+    setText('obsAvgCycle',   cyc.avgMs ?? '—');
+
+    // By-model table.
+    const models = llm.byModel || {};
+    const rows   = Object.entries(models).map(([m, v]) =>
+      `<tr><td><code>${m}</code></td><td>${v.calls}</td><td>${v.tokens}</td><td>$${v.cost.toFixed(6)}</td></tr>`
+    ).join('');
+    setHtml('obsModelTable', rows || '<tr class="empty-row"><td colspan="4">No model data</td></tr>');
+  } catch (e) {
+    toast('Observability API not available yet');
+  }
+}
+
+async function loadAuditLog() {
+  try {
+    const entries = await api('/audit-log');
+    const arr = Array.isArray(entries) ? entries : (entries.entries || []);
+    const rows = arr.slice(-20).reverse().map(e =>
+      `<tr><td style="white-space:nowrap;font-size:11px">${fmtDate(e.ts)}</td>
+       <td><code>${e.action}</code></td>
+       <td><span class="badge badge-info">${e.actor || 'agent'}</span></td>
+       <td style="font-size:11px;max-width:300px;overflow:hidden;text-overflow:ellipsis">${JSON.stringify(e.data || {}).slice(0, 80)}</td></tr>`
+    ).join('');
+    const html = rows || '<tr class="empty-row"><td colspan="4">No audit entries</td></tr>';
+    setHtml('auditTable',     html);
+    setHtml('auditTableFull', html);
+  } catch (e) {
+    setHtml('auditTable', '<tr class="empty-row"><td colspan="4">Audit API not available yet</td></tr>');
+  }
+}
+
+// ── Multi-Agent ──────────────────────────────────────────────────────────
+async function loadMultiAgent() {
+  try {
+    const data = await api('/multi-agent');
+    const agents = data.agents || {};
+
+    function agentStats(stats) {
+      if (!stats) return 'No data';
+      return `<div class="agent-card-stat"><span>Last run</span><span>${relTime(stats.lastRunAt)}</span></div>
+              <div class="agent-card-stat"><span>Findings</span><span>${stats.total ?? 0}</span></div>`;
+    }
+    setHtml('secAgentStats',  agentStats(agents.security));
+    setHtml('perfAgentStats', agentStats(agents.performance));
+    setHtml('qualAgentStats', agentStats(agents.quality));
+
+    const escalations = data.escalations || 0;
+    const conflicts   = await api('/multi-agent/conflicts');
+    const cArr        = Array.isArray(conflicts) ? conflicts : [];
+    const cRows       = cArr.map(c =>
+      `<tr><td>${c.type}</td><td>${(c.agents || []).join(', ')}</td><td>${c.summary || '—'}</td>
+       <td>${badgeSeverity(c.severity)}</td><td>${c.resolution}</td></tr>`
+    ).join('');
+    setHtml('escalationTable', cRows || '<tr class="empty-row"><td colspan="5">No conflicts</td></tr>');
+
+    // Message bus log.
+    const bus = await api('/multi-agent/bus');
+    const msgs = Array.isArray(bus) ? bus : [];
+    setHtml('messageBusLog', msgs.slice(-20).reverse().map(m =>
+      `[${fmtDate(m.timestamp)}] ${m.topic} ← ${m.from}: ${JSON.stringify(m.payload).slice(0, 120)}`
+    ).join('\n') || '(no messages yet)');
+  } catch (_) {}
+}
+
+// ── Code Analysis ────────────────────────────────────────────────────────
+async function loadCodeAnalysis() {
+  try {
+    const data = await api('/code-analysis');
+    const s = data.summary || {};
+    setText('caTotal',    s.totalFindings ?? '—');
+    setText('caCritical', s.critical ?? '—');
+    setText('caHigh',     s.high ?? '—');
+    setText('caFixes',    s.proposedFixes ?? '—');
+    const findings = data.findings || [];
+    const rows     = findings.slice(0, 40).map(f =>
+      `<tr><td>${f.type || '—'}</td><td>${badgeSeverity(f.severity)}</td>
+       <td style="font-size:11px"><code>${(f.file || '').split('/').pop()}</code></td>
+       <td>${f.description || f.message || '—'}</td>
+       <td><span class="badge badge-muted">${f.source || '—'}</span></td></tr>`
+    ).join('');
+    setHtml('caFindingsTable', rows || '<tr class="empty-row"><td colspan="5">No findings</td></tr>');
+  } catch (_) {}
+}
+
+async function triggerCodeAnalysis() {
+  try {
+    await api('/code-analysis/trigger', 'POST');
+    toast('✅ Code analysis triggered');
+    setTimeout(loadCodeAnalysis, 3000);
+  } catch (e) { toast('Error: ' + e.message); }
+}
+
+// ── Security ─────────────────────────────────────────────────────────────
+async function loadSecurity() {
+  try {
+    const status = latestStatus.lastThreats || await (async () => { const s = await api('/status'); return s.lastThreats || []; })();
+    setHtml('threatList', status.slice(0, 10).map(t =>
+      `<li class="tl-item"><div class="tl-dot h"></div><div class="tl-content"><div>${JSON.stringify(t).slice(0, 120)}</div><div class="tl-ts">${fmtDate(t.detectedAt)}</div></div></li>`
+    ).join('') || '<li class="tl-item"><div class="tl-dot l"></div><div class="tl-content">No active threats</div></li>');
+
+    const dep = await api('/dep-scan');
+    const findings = dep.findings || [];
+    const rows = findings.slice(0, 30).map(f =>
+      `<tr><td><code>${f.name || '—'}</code></td><td>${badgeSeverity(f.severity)}</td>
+       <td style="font-size:11px">${(f.cves || []).join(', ') || '—'}</td>
+       <td style="font-size:11px">${f.recommendation || '—'}</td></tr>`
+    ).join('');
+    setHtml('depScanTable', rows || '<tr class="empty-row"><td colspan="4">No vulnerabilities found</td></tr>');
+  } catch (_) {}
+}
+
+async function triggerDepScan() {
+  try {
+    await api('/dep-scan/trigger', 'POST');
+    toast('✅ Dep scan triggered');
+    setTimeout(loadSecurity, 5000);
+  } catch (e) { toast('Error: ' + e.message); }
+}
+
+// ── Feedback ─────────────────────────────────────────────────────────────
+async function loadFeedback() {
+  try {
+    const data = await api('/feedback');
+    const s    = data.summary || {};
+    setText('fbTotal',       s.total ?? '—');
+    setText('fbUnprocessed', s.unprocessed ?? '—');
+    setText('fbBacklog',     latestStatus.feedbackIntel?.backlogItems ?? '—');
+    setText('fbTrends',      latestStatus.feedbackIntel?.trendWeeks ?? '—');
+
+    // Sentiment bars.
+    const trends = await api('/feedback-intelligence/trends?weeks=8');
+    const tw     = (trends.trends || []).slice(-8);
+    const maxN   = Math.max(...tw.map(t => t.total || 1), 1);
+    setHtml('sentimentBars', tw.map(t =>
+      `<div class="bar-segment" style="height:${Math.round((t.total / maxN) * 56)}px"
+        title="${t.week}: ${t.total} total, ${t.sentiment?.negative || 0} negative"></div>`
+    ).join('') || '<div style="color:var(--muted);font-size:12px">No trend data yet</div>');
+
+    // Backlog.
+    const backlog = await api('/feedback-intelligence/backlog');
+    const items   = (backlog.backlog || []).slice(0, 20);
+    const rows    = items.map(b =>
+      `<tr><td>${b.title || '—'}</td>
+       <td><strong>${b.impactScore}</strong></td>
+       <td>${effortLabel(b.effort)}</td>
+       <td>${b.demand}</td>
+       <td><span class="badge ${b.status === 'issue_created' ? 'badge-success' : b.status === 'awaiting_approval' ? 'badge-high' : 'badge-muted'}">${b.status}</span></td></tr>`
+    ).join('');
+    setHtml('backlogTable', rows || '<tr class="empty-row"><td colspan="5">No backlog items</td></tr>');
+  } catch (_) {}
+}
+
+// ── Test Intelligence ────────────────────────────────────────────────────
+async function loadTestIntel() {
+  try {
+    const data  = await api('/test-intelligence');
+    const s     = data.summary || {};
+    setText('tiUncovered', s.uncoveredBranches ?? '—');
+    setText('tiFlaky',     s.quarantined ?? '—');
+    setText('tiFixes',     s.testFixProposals ?? '—');
+    setText('tiStubs',     s.propertyStubs ?? '—');
+
+    // Flaky list.
+    const quarantined = data.flaky || [];
+    setHtml('flakyList', quarantined.length === 0
+      ? '<li class="tl-item"><div class="tl-dot l"></div><div class="tl-content">No quarantined tests ✅</div></li>'
+      : quarantined.map(t =>
+          `<li class="tl-item"><div class="tl-dot h"></div><div class="tl-content"><div><code>${t}</code></div></div></li>`
+        ).join(''));
+
+    // Coverage gauges.
+    const cov = data.coverage?.services || [];
+    setHtml('coverageGauges', cov.map(svc => {
+      const pct = svc.branchCoverage ?? 100;
+      const cls = pct < 50 ? 'danger' : pct < 75 ? 'warning' : '';
+      return `<div class="gauge">
+        <div class="gauge-label">${svc.service.replace('services/', '')}</div>
+        <div class="gauge-bar"><div class="gauge-fill ${cls}" style="width:${pct}%"></div></div>
+        <div class="gauge-value" style="color:${pct < 50 ? 'var(--danger)' : pct < 75 ? 'var(--warning)' : 'var(--success)'}">${pct ?? '?'}%</div>
+      </div>`;
+    }).join('') || '<div style="color:var(--muted)">No coverage data</div>');
+  } catch (_) {}
+}
+
+// ── Doc Intelligence ─────────────────────────────────────────────────────
+async function loadDocIntel() {
+  try {
+    const data = await api('/doc-intelligence');
+    const s    = data.summary || {};
+    setText('diSpecs',        s.openApiSpecs ?? '—');
+    setText('diRunbooks',     s.runbooks ?? '—');
+    setText('diTranslations', s.translations ?? '—');
+    setText('diChangelog',    s.hasChangelog ? 'Yes' : 'No');
+
+    const specs = data.specs || [];
+    const rows  = specs.map(sp =>
+      `<tr><td><strong>${sp.service}</strong></td>
+       <td>${sp.routeCount}</td>
+       <td style="font-size:11px">${relTime(sp.generatedAt)}</td>
+       <td>
+         <a href="${BASE_URL}/doc-intelligence/openapi/${sp.service}" target="_blank" class="btn" style="padding:3px 8px;font-size:11px">JSON</a>
+         <a href="${BASE_URL}/doc-intelligence/runbook/${sp.service}" target="_blank" class="btn" style="padding:3px 8px;font-size:11px">Runbook</a>
+       </td></tr>`
+    ).join('');
+    setHtml('openApiTable', rows || '<tr class="empty-row"><td colspan="4">No specs generated</td></tr>');
+  } catch (_) {}
+}
+
+async function triggerDocIntel() {
+  try {
+    await api('/doc-intelligence/analyze', 'POST');
+    toast('✅ Doc intelligence analysis triggered');
+    setTimeout(loadDocIntel, 3000);
+  } catch (e) { toast('Error: ' + e.message); }
+}
+
+// ── PR Generator ──────────────────────────────────────────────────────────
+async function loadPRGenerator() {
+  try {
+    const data = await api('/pr-generator');
+    const s    = data.summary || {};
+    setText('prCreated',    s.prsCreated    ?? '—');
+    setText('prRegressions',s.testResults   ?? '—');
+    setText('prDrift',      s.docDriftReports ?? '—');
+    const prs  = data.prs || [];
+    const rows = prs.map(p =>
+      `<tr><td style="font-size:11px"><code>${p.branchName}</code></td>
+       <td style="font-size:11px">${p.filePath}</td>
+       <td><span class="badge ${p.status === 'created' ? 'badge-success' : p.status === 'error' ? 'badge-critical' : 'badge-muted'}">${p.status}</span></td>
+       <td>${p.prUrl ? `<a href="${p.prUrl}" target="_blank">#${p.prNumber}</a>` : '—'}</td>
+       <td>${p.regressionResult?.skipped ? '⏭ skipped' : p.regressionResult?.passed ? `✅ ${p.regressionResult.total}` : `❌ ${p.regressionResult?.failed} failed`}</td></tr>`
+    ).join('');
+    setHtml('prTable', rows || '<tr class="empty-row"><td colspan="5">No PRs generated yet</td></tr>');
+  } catch (_) {}
+}
+
+// ── Canary ────────────────────────────────────────────────────────────────
+async function loadCanary() {
+  try {
+    const data  = await api('/canary');
+    const s     = data.summary || {};
+    setText('canaryFlags',    s.totalFlags ?? '—');
+    setText('canaryDeps',     s.activeDeployments ?? '—');
+    setText('canaryRollbacks',s.rollbackEvents ?? '—');
+
+    const flags = data.flags || [];
+    const fRows = flags.map(f =>
+      `<tr><td><strong>${f.name}</strong></td>
+       <td>${f.rolloutPct}%</td>
+       <td>${f.enabled ? '<span class="badge badge-success">on</span>' : '<span class="badge badge-muted">off</span>'}</td>
+       <td>${f.evaluations ?? 0}</td>
+       <td>${f.evaluations > 0 ? Math.round((f.enabledCount / f.evaluations) * 100) + '%' : '—'}</td></tr>`
+    ).join('');
+    setHtml('flagsTable', fRows || '<tr class="empty-row"><td colspan="5">No feature flags</td></tr>');
+
+    const deps  = data.deployments || [];
+    const dRows = deps.map(d =>
+      `<tr><td><strong>${d.service}</strong></td>
+       <td><code>${d.version}</code></td>
+       <td><code>${d.baselineVersion}</code></td>
+       <td><span class="badge ${d.status === 'active' ? 'badge-success' : d.status === 'rolled_back' ? 'badge-critical' : d.status === 'completed' ? 'badge-info' : 'badge-muted'}">${d.status}</span></td>
+       <td>${d.samples?.length ?? 0}</td></tr>`
+    ).join('');
+    setHtml('canaryTable', dRows || '<tr class="empty-row"><td colspan="5">No deployments</td></tr>');
+  } catch (_) {}
+}
+
+async function showCreateFlag() {
+  const name   = prompt('Flag name (e.g. new-chat-ui):');
+  if (!name) return;
+  const rollout = parseInt(prompt('Rollout % (0-100):', '0') || '0', 10);
+  const desc    = prompt('Description:') || '';
+  try {
+    await api('/canary/flags', 'POST', { name, rolloutPct: rollout, description: desc, enabled: true });
+    toast(`✅ Flag "${name}" created`);
+    loadCanary();
+  } catch (e) { toast('Error: ' + e.message); }
+}
+
+// ── Permissions ───────────────────────────────────────────────────────────
+async function loadPermissions() {
+  try {
+    const data    = await api('/permissions');
+    const pending = data.pending || [];
+    setText('pendingCount', pending.length);
+    const rows = pending.map(p =>
+      `<tr>
+        <td><code>${p.action}</code></td>
+        <td style="max-width:240px">${p.description}</td>
+        <td>${badgeSeverity(p.severity)}</td>
+        <td style="font-size:11px">${fmtDate(p.expiresAt)}</td>
+        <td>
+          <button class="btn btn-primary" onclick="approvePermission('${p.id}')">✓ Approve</button>
+          <button class="btn btn-danger"  onclick="denyPermission('${p.id}')">✗ Deny</button>
+        </td>
+      </tr>`
+    ).join('');
+    setHtml('permTable', rows || '<tr class="empty-row"><td colspan="5">No pending approvals ✅</td></tr>');
+  } catch (_) {}
+}
+
+async function approvePermission(id) {
+  try {
+    await api(`/permissions/${id}/approve`, 'POST');
+    toast('✅ Permission approved');
+    loadPermissions();
+  } catch (e) { toast('Error: ' + e.message); }
+}
+
+async function denyPermission(id) {
+  try {
+    await api(`/permissions/${id}/deny`, 'POST');
+    toast('Permission denied');
+    loadPermissions();
+  } catch (e) { toast('Error: ' + e.message); }
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────
+function loadSettings() {
+  $('settingBaseUrl').value          = BASE_URL;
+  $('settingToken').value            = AUTH_TOKEN;
+  $('settingRefreshInterval').value  = REFRESH_SECS;
+  api('/status').then(s => {
+    $('rawStatus').textContent = JSON.stringify(s, null, 2);
+  }).catch(() => {
+    $('rawStatus').textContent = 'Could not load status.';
+  });
+}
+
+function saveSettings() {
+  BASE_URL     = $('settingBaseUrl').value.trim()   || window.location.origin;
+  AUTH_TOKEN   = $('settingToken').value.trim();
+  REFRESH_SECS = parseInt($('settingRefreshInterval').value || '15', 10);
+  localStorage.setItem('aiDashBaseUrl',     BASE_URL);
+  localStorage.setItem('aiDashToken',       AUTH_TOKEN);
+  localStorage.setItem('aiDashRefreshSecs', REFRESH_SECS);
+  scheduleAutoRefresh();
+  toast('✅ Settings saved');
+}
+
+// ── Auto-refresh ──────────────────────────────────────────────────────────
+function scheduleAutoRefresh() {
+  clearInterval(refreshTimer);
+  if (REFRESH_SECS > 0) {
+    refreshTimer = setInterval(refresh, REFRESH_SECS * 1000);
+  }
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  $('settingBaseUrl').value = BASE_URL;
+  refresh();
+  scheduleAutoRefresh();
+});
+</script>
+</body>
+</html>

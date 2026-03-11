@@ -7,5 +7,6 @@ ssh/node_modules/
 webhook/node_modules/
 bot/node_modules/
 email/node_modules/
+ai/node_modules/
 
 # Runtime state (managed via .admin-cli/ at repo root)
