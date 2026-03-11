@@ -1,6 +1,6 @@
 {
   "name": "milonexa-admin-ai",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "AI-powered autonomous admin agent for Milonexa",
   "main": "agent.js",
   "scripts": {
@@ -9,5 +9,7 @@
   },
   "engines": { "node": ">=18.0.0" },
   "private": true,
-  "dependencies": {}
+  "dependencies": {
+    "acorn": "^8.14.1"
+  }
 }
