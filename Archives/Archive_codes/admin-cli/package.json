@@ -1,10 +1,12 @@
 {
     "name": "milonexa-admin-cli",
-    "version": "5.2.0",
-    "description": "Milonexa Omni Admin CLI — TUI, webhooks, AI remediation, multi-cluster, SLA, trends",
+    "version": "5.1.0",
+    "description": "Milonexa Omni Admin CLI — TUI, webhooks, AI remediation, multi-cluster, SLA, trends, REST API, SSH dashboard (Phase E)",
     "main": "index.js",
     "bin": {
-        "admin-cli": "./index.js"
+        "admin-cli": "./index.js",
+        "admin-server": "./admin-server.js",
+        "admin-ssh": "./ssh-admin-server.js"
     },
     "scripts": {
         "help": "node index.js --help",
@@ -32,7 +34,11 @@
         "remediate:rules": "node index.js remediate rules",
         "cluster": "ADMIN_CLI_ROLE=operator node index.js cluster list",
         "trends": "node index.js trends report",
-        "trends:anomalies": "node index.js trends anomalies"
+        "trends:anomalies": "node index.js trends anomalies",
+        "api-server": "node admin-server.js",
+        "api-server:dev": "ADMIN_API_PORT=8888 node admin-server.js",
+        "ssh-server": "ENABLE_ADMIN_SSH=true node ssh-admin-server.js",
+        "ssh-server:dev": "ENABLE_ADMIN_SSH=true ADMIN_SSH_HOST=127.0.0.1 ADMIN_SSH_PORT=2222 node ssh-admin-server.js"
     },
     "engines": {
         "node": ">=18.0.0"

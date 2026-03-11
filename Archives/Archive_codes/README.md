@@ -34,3 +34,15 @@ Archived user-side components include: AccessibilitySettings, Analytics, Appeara
 
 ### `frontend/AdminDashboard.js`
 Admin dashboard panel removed from user frontend. Admin functionality is now exclusively in the dedicated `admin_frontend` application.
+
+### `admin-cli/`
+Legacy standalone admin CLI directory (`admin-cli/`). Migrated to unified `admin/` directory structure (March 2026):
+- `admin-cli/index.js` → `admin/cli/index.js`
+- `admin-cli/admin-server.js` → `admin/rest-api/server.js`
+- `admin-cli/ssh-admin-server.js` → `admin/ssh/server.js`
+- `admin-cli/lib/*.js` → `admin/shared/*.js`
+- `admin-cli/ssh-keys/` → `admin/ssh/ssh-keys/`
+
+The old `admin_frontend/` directory has also been migrated to `admin/web/`.
+All admin interfaces now live under the unified `admin/` directory with env-based feature toggles.
+New interfaces added: webhook server, Telegram bot, Slack bot, email command interface.

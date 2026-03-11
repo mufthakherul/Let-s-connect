@@ -77,6 +77,16 @@ pids
 # Admin CLI runtime state (generated locally)
 .admin-cli/
 
+# Admin panel node_modules
+/admin/web/node_modules/
+/admin/web/build/
+/admin/cli/node_modules/
+/admin/rest-api/node_modules/
+/admin/ssh/node_modules/
+/admin/webhook/node_modules/
+/admin/bot/node_modules/
+/admin/email/node_modules/
+
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov
@@ -223,7 +233,7 @@ archives/
 *.backup
 *~
 
-# Admin frontend
+# Admin frontend (legacy path — kept for backward compat)
 /admin_frontend/node_modules/
 /admin_frontend/build/
 

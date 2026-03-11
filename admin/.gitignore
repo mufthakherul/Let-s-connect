@@ -1,0 +1,11 @@
+# Node modules in each subdir
+web/node_modules/
+web/build/
+cli/node_modules/
+rest-api/node_modules/
+ssh/node_modules/
+webhook/node_modules/
+bot/node_modules/
+email/node_modules/
+
+# Runtime state (managed via .admin-cli/ at repo root)
