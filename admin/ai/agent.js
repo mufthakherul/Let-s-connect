@@ -89,12 +89,17 @@ const { FileWatcher }       = require('./modules/file-watcher.js');
 const { DepScanner }        = require('./modules/dep-scanner.js');
 const { PromptCache }       = require('./modules/prompt-cache.js');
 const { promptTemplates }   = require('./modules/prompt-templates.js');
+// v2.2 modules.
+const { FeedbackChannels }    = require('./modules/feedback-channels.js');
+const { FeedbackIntelligence } = require('./modules/feedback-intelligence.js');
+const { TestIntelligence }    = require('./modules/test-intelligence.js');
+const { DocIntelligence }     = require('./modules/doc-intelligence.js');
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const AGENT_VERSION = '2.1.0';
+const AGENT_VERSION = '2.2.0';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -133,6 +138,11 @@ const CONFIG = {
     watchEnabled:   process.env.AI_WATCH_FILES === 'true',
     // v2.1: prompt cache TTL in minutes.
     promptCacheTtl: parseInt(process.env.AI_PROMPT_CACHE_TTL_MINUTES || '30', 10),
+    // v2.2: cadences for new modules.
+    feedbackChannelsEvery: parseInt(process.env.AI_FEEDBACK_CHANNELS_EVERY_N_CYCLES  || '3',  10),
+    feedbackIntelEvery:    parseInt(process.env.AI_FEEDBACK_INTEL_EVERY_N_CYCLES     || '8',  10),
+    testIntelEvery:        parseInt(process.env.AI_TEST_INTEL_EVERY_N_CYCLES         || '25', 10),
+    docIntelEvery:         parseInt(process.env.AI_DOC_INTEL_EVERY_N_CYCLES          || '20', 10),
 };
 
 // ---------------------------------------------------------------------------
@@ -169,6 +179,11 @@ const agentState = {
     depScan:        { lastRunAt: null, total: 0, bySeverity: {} },
     fileWatcher:    { running: false, watchedDirs: 0 },
     promptCache:    { hits: 0, misses: 0, size: 0 },
+    // v2.2 additions.
+    feedbackChannels: { lastRunAt: null, stats: {} },
+    feedbackIntel:  { lastRunAt: null, trendWeeks: 0, backlogItems: 0 },
+    testIntel:      { lastRunAt: null, uncoveredBranches: null, flakyTests: 0 },
+    docIntel:       { lastRunAt: null, openApiSpecs: 0, runbooks: 0 },
 };
 
 // ---------------------------------------------------------------------------
@@ -207,6 +222,11 @@ const testGenerator     = new TestGenerator();
 const fileWatcher       = new FileWatcher();
 const depScanner        = new DepScanner();
 const promptCache       = new PromptCache({ ttlMs: CONFIG.promptCacheTtl * 60 * 1000 });
+// v2.2 modules.
+const feedbackChannels    = new FeedbackChannels();
+const feedbackIntelligence = new FeedbackIntelligence();
+const testIntelligence    = new TestIntelligence();
+const docIntelligence     = new DocIntelligence();
 
 // v2.1 — SSE client registry (live streaming).
 /** @type {Set<http.ServerResponse>} */
@@ -348,6 +368,13 @@ function printBanner() {
         '║  ✓ User feedback processing & feature suggestions        ║',
         '║  ✓ AI documentation generation                           ║',
         '║  ✓ Test stub generation for untested routes              ║',
+        '║  ✓ Multi-channel feedback ingestion (v2.2)               ║',
+        '║  ✓ Sentiment trends & keyword clustering (v2.2)          ║',
+        '║  ✓ Feature impact scoring & GitHub issue creation (v2.2) ║',
+        '║  ✓ Coverage gaps & property-based test generation (v2.2) ║',
+        '║  ✓ Mutation testing + flaky test quarantine (v2.2)       ║',
+        '║  ✓ OpenAPI specs + runbooks + changelog (v2.2)           ║',
+        '║  ✓ Diff-based doc updates + localization (v2.2)          ║',
         '╚══════════════════════════════════════════════════════════╝',
         '',
     ];
@@ -736,6 +763,57 @@ async function runCycle() {
     agentState.fileWatcher = fileWatcher.getStatus();
     agentState.promptCache  = promptCache.getStats();
 
+    // 10f. v2.2 — Multi-channel feedback ingestion (every feedbackChannelsEvery cycles, starting at cycle 2)
+    if (cycleId > 1 && (cycleId - 2) % CONFIG.feedbackChannelsEvery === 0) {
+        try {
+            const stats = await feedbackChannels.ingestAll();
+            agentState.feedbackChannels = feedbackChannels.getStatus();
+            if (stats.total > 0) {
+                console.log(`[ai-agent] Feedback channels: ${stats.total} new item(s) ingested (email=${stats.email}, github=${stats.github})`);
+            }
+        } catch (e) {
+            console.error('[ai-agent] Feedback channel ingest error:', e.message);
+        }
+    }
+
+    // 10g. v2.2 — Feedback intelligence (every feedbackIntelEvery cycles, starting at cycle 6)
+    if (cycleId > 5 && (cycleId - 6) % CONFIG.feedbackIntelEvery === 0) {
+        try {
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            const intel = await feedbackIntelligence.analyze(feedbackProcessor.getProcessed(200), llmFn, permGate);
+            agentState.feedbackIntel = feedbackIntelligence.getLastRunSummary();
+            if (intel.backlogItems > 0) {
+                console.log(`[ai-agent] Feedback intelligence: ${intel.backlogItems} backlog item(s), ${intel.clusters} keyword cluster(s)`);
+            }
+        } catch (e) {
+            console.error('[ai-agent] Feedback intelligence error:', e.message);
+        }
+    }
+
+    // 10h. v2.2 — Test intelligence (every testIntelEvery cycles, starting at cycle 7)
+    if (cycleId > 6 && (cycleId - 7) % CONFIG.testIntelEvery === 0) {
+        try {
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            const intel = await testIntelligence.analyze(llmFn, permGate);
+            agentState.testIntel = testIntelligence.getLastRunSummary();
+            console.log(`[ai-agent] Test intelligence: ${intel.uncoveredBranches} uncovered branches, ${intel.flakyTests} flaky test(s)`);
+        } catch (e) {
+            console.error('[ai-agent] Test intelligence error:', e.message);
+        }
+    }
+
+    // 10i. v2.2 — Documentation intelligence (every docIntelEvery cycles, starting at cycle 8)
+    if (cycleId > 7 && (cycleId - 8) % CONFIG.docIntelEvery === 0) {
+        try {
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            const intel = await docIntelligence.analyze(llmFn, permGate);
+            agentState.docIntel = docIntelligence.getLastRunSummary();
+            console.log(`[ai-agent] Doc intelligence: ${intel.openApiSpecs} OpenAPI specs, ${intel.runbooksGenerated} runbooks`);
+        } catch (e) {
+            console.error('[ai-agent] Doc intelligence error:', e.message);
+        }
+    }
+
     // ── 10. Process approved permissions ────────────────────────────────────
     setState(STATES.ACTING);
     await processApprovedPermissions();
@@ -844,6 +922,13 @@ async function processApprovedPermissions() {
                 result = await docGenerator.executeApprovedDocWrite(record);
             } else if (record.action === 'write_generated_tests') {
                 result = await testGenerator.executeApprovedTestWrite(record);
+            } else if (record.action === 'create_github_issue') {
+                result = await feedbackIntelligence.executeApprovedIssueCreation(record);
+            } else if (record.action === 'apply_test_fix') {
+                result = await testIntelligence.executeApprovedTestFix(record);
+            } else if (record.action === 'write_generated_docs_v22') {
+                // For v2.2 doc intel: docs are already written to docs/generated/; just confirm.
+                result = { status: 'confirmed', action: record.action };
             } else {
                 result = { action: record.action, status: 'unhandled' };
             }
@@ -1340,6 +1425,149 @@ function startStatusServer() {
             return; // Keep connection open — do NOT call res.end().
         }
 
+        // ── v2.2 endpoints ───────────────────────────────────────────────────
+
+        // ── GET /feedback-channels/status ────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/feedback-channels/status') {
+            res.writeHead(200);
+            res.end(JSON.stringify(feedbackChannels.getStatus(), null, 2));
+            return;
+        }
+
+        // ── POST /feedback-channels/ingest ───────────────────────────────────
+        if (req.method === 'POST' && pathname === '/feedback-channels/ingest') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Multi-channel feedback ingestion triggered.' }));
+            feedbackChannels.ingestAll()
+                .then(() => { agentState.feedbackChannels = feedbackChannels.getStatus(); })
+                .catch(e => console.error('[ai-agent] Manual feedback-channel ingest error:', e.message));
+            return;
+        }
+
+        // ── GET /feedback-intelligence/trends ────────────────────────────────
+        if (req.method === 'GET' && pathname === '/feedback-intelligence/trends') {
+            const weeks = parseInt(new URL(req.url, `http://localhost`).searchParams.get('weeks') || '52', 10);
+            res.writeHead(200);
+            res.end(JSON.stringify({ trends: feedbackIntelligence.getTrendHistory(weeks) }, null, 2));
+            return;
+        }
+
+        // ── GET /feedback-intelligence/backlog ────────────────────────────────
+        if (req.method === 'GET' && pathname === '/feedback-intelligence/backlog') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ backlog: feedbackIntelligence.getBacklog(50) }, null, 2));
+            return;
+        }
+
+        // ── GET /feedback-intelligence/issues ────────────────────────────────
+        if (req.method === 'GET' && pathname === '/feedback-intelligence/issues') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ issues: feedbackIntelligence.getCreatedIssues(20) }, null, 2));
+            return;
+        }
+
+        // ── POST /feedback-intelligence/analyze ──────────────────────────────
+        if (req.method === 'POST' && pathname === '/feedback-intelligence/analyze') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Feedback intelligence analysis triggered.' }));
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            feedbackIntelligence.analyze(feedbackProcessor.getProcessed(200), llmFn, permGate)
+                .then(() => { agentState.feedbackIntel = feedbackIntelligence.getLastRunSummary(); })
+                .catch(e => console.error('[ai-agent] Manual feedback-intel error:', e.message));
+            return;
+        }
+
+        // ── GET /test-intelligence ────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/test-intelligence') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary:    testIntelligence.getLastRunSummary(),
+                coverage:   testIntelligence.getCoverageReport(),
+                flaky:      testIntelligence.getQuarantined(),
+                stubs:      testIntelligence.getPropertyStubs(10),
+                fixes:      testIntelligence.getTestFixProposals(10),
+            }, null, 2));
+            return;
+        }
+
+        // ── POST /test-intelligence/analyze ──────────────────────────────────
+        if (req.method === 'POST' && pathname === '/test-intelligence/analyze') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Test intelligence analysis triggered.' }));
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            testIntelligence.analyze(llmFn, permGate)
+                .then(() => { agentState.testIntel = testIntelligence.getLastRunSummary(); })
+                .catch(e => console.error('[ai-agent] Manual test-intel error:', e.message));
+            return;
+        }
+
+        // ── GET /doc-intelligence ─────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/doc-intelligence') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary:      docIntelligence.getLastRunSummary(),
+                specs:        docIntelligence.getOpenAPISpecs().map(s => ({ service: s.service, routeCount: s.routeCount, generatedAt: s.generatedAt })),
+                runbooks:     docIntelligence.getRunbooks().map(r => ({ service: r.service, port: r.port, generatedAt: r.generatedAt })),
+                translations: docIntelligence.getTranslations(10).map(t => ({ service: t.service, lang: t.lang, generatedAt: t.generatedAt })),
+                hasChangelog: Boolean(docIntelligence.getChangelog()),
+            }, null, 2));
+            return;
+        }
+
+        // ── GET /doc-intelligence/openapi/:service ────────────────────────────
+        const openApiMatch = pathname.match(/^\/doc-intelligence\/openapi\/([^/]+)$/);
+        if (req.method === 'GET' && openApiMatch) {
+            const svc  = openApiMatch[1];
+            const spec = docIntelligence.getOpenAPISpecs().find(s => s.service === svc);
+            if (spec) {
+                res.writeHead(200);
+                res.end(JSON.stringify(spec.spec, null, 2));
+            } else {
+                res.writeHead(404);
+                res.end(JSON.stringify({ error: `No OpenAPI spec found for service '${svc}'` }));
+            }
+            return;
+        }
+
+        // ── GET /doc-intelligence/runbook/:service ────────────────────────────
+        const runbookMatch = pathname.match(/^\/doc-intelligence\/runbook\/([^/]+)$/);
+        if (req.method === 'GET' && runbookMatch) {
+            const svc     = runbookMatch[1];
+            const runbook = docIntelligence.getRunbooks().find(r => r.service === svc);
+            if (runbook) {
+                res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8' });
+                res.end(runbook.content);
+            } else {
+                res.writeHead(404);
+                res.end(JSON.stringify({ error: `No runbook found for service '${svc}'` }));
+            }
+            return;
+        }
+
+        // ── GET /doc-intelligence/changelog ──────────────────────────────────
+        if (req.method === 'GET' && pathname === '/doc-intelligence/changelog') {
+            const changelog = docIntelligence.getChangelog();
+            if (changelog) {
+                res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8' });
+                res.end(changelog);
+            } else {
+                res.writeHead(404);
+                res.end(JSON.stringify({ error: 'No changelog generated yet' }));
+            }
+            return;
+        }
+
+        // ── POST /doc-intelligence/analyze ───────────────────────────────────
+        if (req.method === 'POST' && pathname === '/doc-intelligence/analyze') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Documentation intelligence analysis triggered.' }));
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            docIntelligence.analyze(llmFn, permGate)
+                .then(() => { agentState.docIntel = docIntelligence.getLastRunSummary(); })
+                .catch(e => console.error('[ai-agent] Manual doc-intel error:', e.message));
+            return;
+        }
+
         // ── 404 ──────────────────────────────────────────────────────────────
         res.writeHead(404);
         res.end(JSON.stringify({ error: 'Not found', availableRoutes: [
@@ -1373,6 +1601,20 @@ function startStatusServer() {
             'POST /file-watcher/stop',
             'GET  /stream  (SSE)',
             'GET  /ws      (WebSocket)',
+            // v2.2
+            'GET  /feedback-channels/status',
+            'POST /feedback-channels/ingest',
+            'GET  /feedback-intelligence/trends',
+            'GET  /feedback-intelligence/backlog',
+            'GET  /feedback-intelligence/issues',
+            'POST /feedback-intelligence/analyze',
+            'GET  /test-intelligence',
+            'POST /test-intelligence/analyze',
+            'GET  /doc-intelligence',
+            'GET  /doc-intelligence/openapi/:service',
+            'GET  /doc-intelligence/runbook/:service',
+            'GET  /doc-intelligence/changelog',
+            'POST /doc-intelligence/analyze',
         ]}));
     });
 
