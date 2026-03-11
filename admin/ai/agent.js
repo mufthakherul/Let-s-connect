@@ -94,12 +94,17 @@ const { FeedbackChannels }    = require('./modules/feedback-channels.js');
 const { FeedbackIntelligence } = require('./modules/feedback-intelligence.js');
 const { TestIntelligence }    = require('./modules/test-intelligence.js');
 const { DocIntelligence }     = require('./modules/doc-intelligence.js');
+// v3.0 modules.
+const { PRGenerator }         = require('./modules/pr-generator.js');
+const { CanaryManager }       = require('./modules/canary-manager.js');
+const { AgentOrchestrator }   = require('./modules/multi-agent.js');
+const { observability }       = require('./modules/observability.js');
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const AGENT_VERSION = '2.2.0';
+const AGENT_VERSION = '3.0.0';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -143,6 +148,12 @@ const CONFIG = {
     feedbackIntelEvery:    parseInt(process.env.AI_FEEDBACK_INTEL_EVERY_N_CYCLES     || '8',  10),
     testIntelEvery:        parseInt(process.env.AI_TEST_INTEL_EVERY_N_CYCLES         || '25', 10),
     docIntelEvery:         parseInt(process.env.AI_DOC_INTEL_EVERY_N_CYCLES          || '20', 10),
+    // v3.0: multi-agent / canary / PR generator cadences.
+    multiAgentEvery:       parseInt(process.env.AI_MULTI_AGENT_EVERY_N_CYCLES        || '5',  10),
+    canaryCheckEvery:      parseInt(process.env.AI_CANARY_CHECK_EVERY_N_CYCLES       || '2',  10),
+    prDocDriftEvery:       parseInt(process.env.AI_PR_DOC_DRIFT_EVERY_N_CYCLES       || '30', 10),
+    // v3.0: observability.
+    observabilityJsonLog:  process.env.OBSERVABILITY_JSON_LOG === 'true',
 };
 
 // ---------------------------------------------------------------------------
@@ -184,6 +195,10 @@ const agentState = {
     feedbackIntel:  { lastRunAt: null, trendWeeks: 0, backlogItems: 0 },
     testIntel:      { lastRunAt: null, uncoveredBranches: null, flakyTests: 0 },
     docIntel:       { lastRunAt: null, openApiSpecs: 0, runbooks: 0 },
+    // v3.0 additions.
+    multiAgent:     { lastRunAt: null, totalFindings: 0, escalations: 0 },
+    canary:         { lastRunAt: null, activeDeployments: 0, rolledBack: 0 },
+    prGenerator:    { lastRunAt: null, prsCreated: 0, docDriftReports: 0 },
 };
 
 // ---------------------------------------------------------------------------
@@ -227,6 +242,13 @@ const feedbackChannels    = new FeedbackChannels();
 const feedbackIntelligence = new FeedbackIntelligence();
 const testIntelligence    = new TestIntelligence();
 const docIntelligence     = new DocIntelligence();
+// v3.0 modules.
+const prGenerator         = new PRGenerator();
+const canaryManager       = new CanaryManager();
+const agentOrchestrator   = new AgentOrchestrator({
+    tokenBudget:  parseInt(process.env.AI_MULTI_AGENT_TOKEN_BUDGET || '10000', 10),
+    timeBudgetMs: parseInt(process.env.AI_MULTI_AGENT_TIME_BUDGET_MS || '45000', 10),
+});
 
 // v2.1 — SSE client registry (live streaming).
 /** @type {Set<http.ServerResponse>} */
@@ -375,6 +397,11 @@ function printBanner() {
         '║  ✓ Mutation testing + flaky test quarantine (v2.2)       ║',
         '║  ✓ OpenAPI specs + runbooks + changelog (v2.2)           ║',
         '║  ✓ Diff-based doc updates + localization (v2.2)          ║',
+        '║  ✓ Autonomous PR generation + regression tests (v3.0)    ║',
+        '║  ✓ A/B feature flags + canary rollback triggers (v3.0)   ║',
+        '║  ✓ Multi-agent: security/perf/quality + bus (v3.0)       ║',
+        '║  ✓ Observability: LLM metrics, cost tracking (v3.0)      ║',
+        '║  ✓ Self-healing docs + admin web dashboard (v3.0)        ║',
         '╚══════════════════════════════════════════════════════════╝',
         '',
     ];
@@ -538,6 +565,8 @@ async function llmAnalyze(prompt, modelSize) {
     }
 
     let result = null;
+    const llmStart = Date.now();
+    let llmSuccess = false;
     try {
         if (CONFIG.provider === 'ollama') {
             result = await callOllama(prompt, modelSize);
@@ -546,8 +575,24 @@ async function llmAnalyze(prompt, modelSize) {
         } else if (CONFIG.provider === 'anthropic' && CONFIG.anthropicKey) {
             result = await callAnthropic(prompt);
         }
+        if (result) llmSuccess = true;
     } catch (err) {
         console.error(`[ai-agent] LLM call failed (${CONFIG.provider}): ${err.message}`);
+    }
+
+    // v3.0: track LLM call metrics.
+    if (CONFIG.provider !== 'demo') {
+        const estimatedInputTokens  = Math.ceil(prompt.length / 4);
+        const estimatedOutputTokens = Math.ceil((result || '').length / 4);
+        observability.trackLLMCall({
+            provider:      CONFIG.provider,
+            model:         modelSize === 'small' ? CONFIG.ollamaModelSmall : modelSize === 'large' ? CONFIG.ollamaModelLarge : CONFIG.ollamaModel,
+            latencyMs:     Date.now() - llmStart,
+            inputTokens:   estimatedInputTokens,
+            outputTokens:  estimatedOutputTokens,
+            taskType:      modelSize === 'small' ? 'classify' : 'generate',
+            success:       llmSuccess,
+        });
     }
 
     // Cache successful responses with the same compound key.
@@ -814,6 +859,67 @@ async function runCycle() {
         }
     }
 
+    // 10j. v3.0 — Multi-agent analysis (every multiAgentEvery cycles, starting at cycle 9)
+    if (cycleId > 8 && (cycleId - 9) % CONFIG.multiAgentEvery === 0) {
+        try {
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            const maResult = await agentOrchestrator.runCycle({
+                metrics:      metrics.services ? metrics.services.reduce((o, s) => { o[s.name || s.service || 'unknown'] = s; return o; }, {}) : {},
+                threats,
+                codeFindings: codeAnalyzer.getLastRunSummary ? [] : [],
+                healthIssues: healthAssessment.issues,
+                testIntel:    testIntelligence.getLastRunSummary ? testIntelligence.getLastRunSummary() : null,
+                llmFn,
+            }, permGate);
+            agentState.multiAgent = {
+                lastRunAt:     new Date().toISOString(),
+                totalFindings: maResult.totalFindings,
+                escalations:   maResult.escalations,
+                durationMs:    maResult.durationMs,
+            };
+            if (maResult.escalations > 0) {
+                console.warn(`[ai-agent] Multi-agent: ${maResult.escalations} cross-agent conflict(s) escalated`);
+            }
+        } catch (e) {
+            console.error('[ai-agent] Multi-agent error:', e.message);
+        }
+    }
+
+    // 10k. v3.0 — Canary rollback check (every canaryCheckEvery cycles, starting at cycle 10)
+    if (cycleId > 9 && (cycleId - 10) % CONFIG.canaryCheckEvery === 0) {
+        try {
+            const triggered = await canaryManager.checkRollbackTriggers(permGate);
+            agentState.canary = canaryManager.getSummary();
+            if (triggered.length > 0) {
+                console.warn(`[ai-agent] Canary: ${triggered.length} rollback trigger(s) detected`);
+                await notifier.notify(
+                    'critical',
+                    'Canary Rollback Triggered',
+                    `${triggered.length} canary deployment(s) triggered rollback due to error rate spike.`,
+                    { triggered }
+                ).catch(() => {});
+            }
+        } catch (e) {
+            console.error('[ai-agent] Canary check error:', e.message);
+        }
+    }
+
+    // 10l. v3.0 — Doc drift / self-healing docs (every prDocDriftEvery cycles, starting at cycle 11)
+    if (cycleId > 10 && (cycleId - 11) % CONFIG.prDocDriftEvery === 0) {
+        try {
+            const liveSpecs = docIntelligence.getGeneratedSpecs ? docIntelligence.getGeneratedSpecs() : [];
+            if (liveSpecs.length > 0) {
+                const driftReports = await prGenerator.checkDocCodeDrift(liveSpecs, permGate);
+                agentState.prGenerator = prGenerator.getLastRunSummary();
+                if (driftReports.length > 0) {
+                    console.log(`[ai-agent] Doc drift: ${driftReports.length} service(s) have significant route drift`);
+                }
+            }
+        } catch (e) {
+            console.error('[ai-agent] Doc drift error:', e.message);
+        }
+    }
+
     // ── 10. Process approved permissions ────────────────────────────────────
     setState(STATES.ACTING);
     await processApprovedPermissions();
@@ -878,6 +984,14 @@ async function runCycle() {
     setState(STATES.IDLE);
     saveAgentState();
 
+    // v3.0: track cycle in observability.
+    observability.trackCycle({
+        cycleId,
+        durationMs: agentState.lastCycleMs,
+        state:      agentState.state,
+        findings:   agentState.codeAnalysis.totalFindings,
+    });
+
     console.log(
         `[ai-agent] ── Cycle ${cycleId} done in ${agentState.lastCycleMs}ms ` +
         `(score=${healthAssessment.score}, threats=${threats.length}) ──`
@@ -929,6 +1043,27 @@ async function processApprovedPermissions() {
             } else if (record.action === 'write_generated_docs_v22') {
                 // For v2.2 doc intel: docs are already written to docs/generated/; just confirm.
                 result = { status: 'confirmed', action: record.action };
+            } else if (record.action === 'create_pr') {
+                // v3.0: execute approved GitHub PR creation.
+                result = await prGenerator.executeApprovedPR(record);
+                agentState.prGenerator = prGenerator.getLastRunSummary();
+                observability.audit('create_pr', { result }, 'agent');
+            } else if (record.action === 'rollback_canary') {
+                // v3.0: execute admin-approved canary rollback.
+                result = await canaryManager.executeApprovedRollback(record);
+                agentState.canary = canaryManager.getSummary();
+                observability.audit('rollback_canary', { result }, 'admin');
+                await notifier.notify('warning', 'Canary Rollback Executed', `Rollback: ${JSON.stringify(result)}`, {}).catch(() => {});
+            } else if (record.action === 'resolve_agent_conflict') {
+                // v3.0: acknowledge cross-agent conflict resolution.
+                result = { status: 'acknowledged', conflictId: record.data && record.data.conflictId };
+                observability.audit('resolve_agent_conflict', { result }, 'admin');
+            } else if (record.action === 'sync_docs') {
+                // v3.0: doc drift sync — trigger full doc-intel re-generation.
+                const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+                docIntelligence.analyze(llmFn, permGate).catch(() => {});
+                result = { status: 'triggered', action: 'sync_docs', service: record.data && record.data.service };
+                observability.audit('sync_docs', { result }, 'admin');
             } else {
                 result = { action: record.action, status: 'unhandled' };
             }
@@ -1568,6 +1703,169 @@ function startStatusServer() {
             return;
         }
 
+        // ── v3.0 ────────────────────────────────────────────────────────────
+
+        // ── GET /dashboard ────────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/dashboard') {
+            const dashFile = path.join(__dirname, 'dashboard.html');
+            if (fs.existsSync(dashFile)) {
+                res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+                res.end(fs.readFileSync(dashFile, 'utf8'));
+            } else {
+                res.writeHead(404);
+                res.end(JSON.stringify({ error: 'Dashboard file not found.' }));
+            }
+            return;
+        }
+
+        // ── GET /observability ────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/observability') {
+            res.writeHead(200);
+            res.end(JSON.stringify(observability.getSummary(), null, 2));
+            return;
+        }
+
+        // ── GET /audit-log ────────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/audit-log') {
+            const limit  = parseInt(new URL(req.url, `http://localhost:${CONFIG.statusPort}`).searchParams.get('limit') || '100', 10);
+            const entries = observability.getAuditLog(limit);
+            res.writeHead(200);
+            res.end(JSON.stringify(entries, null, 2));
+            return;
+        }
+
+        // ── GET /multi-agent ─────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/multi-agent') {
+            res.writeHead(200);
+            res.end(JSON.stringify(agentOrchestrator.getSummary(), null, 2));
+            return;
+        }
+
+        // ── GET /multi-agent/conflicts ───────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/multi-agent/conflicts') {
+            res.writeHead(200);
+            res.end(JSON.stringify(agentOrchestrator.getEscalationManager().getConflicts(50), null, 2));
+            return;
+        }
+
+        // ── GET /multi-agent/bus ─────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/multi-agent/bus') {
+            res.writeHead(200);
+            res.end(JSON.stringify(agentOrchestrator.getMessageBus().getHistory(100), null, 2));
+            return;
+        }
+
+        // ── POST /multi-agent/trigger ─────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/multi-agent/trigger') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Multi-agent cycle triggered.' }));
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            agentOrchestrator.runCycle({ metrics: {}, threats: [], codeFindings: [], healthIssues: [], llmFn }, permGate)
+                .then(r => { agentState.multiAgent = { lastRunAt: new Date().toISOString(), totalFindings: r.totalFindings, escalations: r.escalations }; })
+                .catch(e => console.error('[ai-agent] Multi-agent trigger error:', e.message));
+            return;
+        }
+
+        // ── GET /pr-generator ─────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/pr-generator') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary:     prGenerator.getLastRunSummary(),
+                prs:         prGenerator.getPRs(20),
+                regressions: prGenerator.getRegressionResults(10),
+                docDrift:    prGenerator.getDocDriftReports(10),
+            }, null, 2));
+            return;
+        }
+
+        // ── GET /canary ───────────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/canary') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary:     canaryManager.getSummary(),
+                flags:       canaryManager.listFlags(),
+                deployments: canaryManager.listDeployments(),
+                rollbacks:   canaryManager.getRollbacks(10),
+            }, null, 2));
+            return;
+        }
+
+        // ── GET /canary/flags ─────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/canary/flags') {
+            res.writeHead(200);
+            res.end(JSON.stringify(canaryManager.listFlags(), null, 2));
+            return;
+        }
+
+        // ── POST /canary/flags ────────────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/canary/flags') {
+            readBody(req, (err, body) => {
+                if (err) { res.writeHead(400); res.end(JSON.stringify({ error: 'Bad request' })); return; }
+                try {
+                    const flag = canaryManager.createFlag(body);
+                    observability.audit('create_feature_flag', { name: flag.name, rolloutPct: flag.rolloutPct }, 'admin');
+                    res.writeHead(201);
+                    res.end(JSON.stringify(flag, null, 2));
+                } catch (e) { res.writeHead(400); res.end(JSON.stringify({ error: e.message })); }
+            });
+            return;
+        }
+
+        // ── GET /canary/flags/:name ───────────────────────────────────────────
+        const flagMatch = pathname.match(/^\/canary\/flags\/([^/]+)$/);
+        if (req.method === 'GET' && flagMatch) {
+            const flag = canaryManager.getFlag(flagMatch[1]);
+            if (flag) { res.writeHead(200); res.end(JSON.stringify(flag, null, 2)); }
+            else      { res.writeHead(404); res.end(JSON.stringify({ error: 'Flag not found' })); }
+            return;
+        }
+        // ── DELETE /canary/flags/:name ────────────────────────────────────────
+        if (req.method === 'DELETE' && flagMatch) {
+            const deleted = canaryManager.deleteFlag(flagMatch[1]);
+            observability.audit('delete_feature_flag', { name: flagMatch[1] }, 'admin');
+            res.writeHead(deleted ? 200 : 404);
+            res.end(JSON.stringify({ deleted }));
+            return;
+        }
+
+        // ── POST /canary/deployments ──────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/canary/deployments') {
+            readBody(req, (err, body) => {
+                if (err) { res.writeHead(400); res.end(JSON.stringify({ error: 'Bad request' })); return; }
+                try {
+                    const dep = canaryManager.registerDeployment(body);
+                    observability.audit('register_canary', { service: dep.service, version: dep.version }, 'admin');
+                    res.writeHead(201);
+                    res.end(JSON.stringify(dep, null, 2));
+                } catch (e) { res.writeHead(400); res.end(JSON.stringify({ error: e.message })); }
+            });
+            return;
+        }
+
+        // ── POST /canary/deployments/:id/sample ──────────────────────────────
+        const sampleMatch = pathname.match(/^\/canary\/deployments\/([^/]+)\/sample$/);
+        if (req.method === 'POST' && sampleMatch) {
+            readBody(req, (err, body) => {
+                if (err) { res.writeHead(400); res.end(JSON.stringify({ error: 'Bad request' })); return; }
+                try {
+                    const dep = canaryManager.recordSample(sampleMatch[1], body);
+                    res.writeHead(200);
+                    res.end(JSON.stringify({ consecutiveHighErrors: dep.consecutiveHighErrors, status: dep.status }));
+                } catch (e) { res.writeHead(400); res.end(JSON.stringify({ error: e.message })); }
+            });
+            return;
+        }
+
+        // ── POST /canary/deployments/:id/complete ─────────────────────────────
+        const completeMatch = pathname.match(/^\/canary\/deployments\/([^/]+)\/complete$/);
+        if (req.method === 'POST' && completeMatch) {
+            const dep = canaryManager.completeDeployment(completeMatch[1]);
+            observability.audit('complete_canary', { id: completeMatch[1] }, 'admin');
+            if (dep) { res.writeHead(200); res.end(JSON.stringify(dep, null, 2)); }
+            else     { res.writeHead(404); res.end(JSON.stringify({ error: 'Deployment not found' })); }
+            return;
+        }
+
         // ── 404 ──────────────────────────────────────────────────────────────
         res.writeHead(404);
         res.end(JSON.stringify({ error: 'Not found', availableRoutes: [
@@ -1615,6 +1913,23 @@ function startStatusServer() {
             'GET  /doc-intelligence/runbook/:service',
             'GET  /doc-intelligence/changelog',
             'POST /doc-intelligence/analyze',
+            // v3.0
+            'GET  /dashboard',
+            'GET  /observability',
+            'GET  /audit-log',
+            'GET  /multi-agent',
+            'GET  /multi-agent/conflicts',
+            'GET  /multi-agent/bus',
+            'POST /multi-agent/trigger',
+            'GET  /pr-generator',
+            'GET  /canary',
+            'GET  /canary/flags',
+            'POST /canary/flags',
+            'GET  /canary/flags/:name',
+            'DELETE /canary/flags/:name',
+            'POST /canary/deployments',
+            'POST /canary/deployments/:id/sample',
+            'POST /canary/deployments/:id/complete',
         ]}));
     });
 
@@ -1759,10 +2074,11 @@ async function main() {
     // Notify admin of startup.
     await notifier.notify(
         'info',
-        'AI Admin Agent v2.1 Started',
+        'AI Admin Agent v3.0 Started',
         `Milonexa AI Admin Agent is now monitoring the platform (provider=${CONFIG.provider}, cycle=${CONFIG.cycleSeconds}s). ` +
-        `v2.1 features: incremental analysis, AST checks, dep scan, SSE/WebSocket streaming, ` +
-        `prompt caching (TTL=${CONFIG.promptCacheTtl}m), model routing, custom templates.`,
+        `v3.0 features: autonomous PR generation, A/B feature flags, canary rollbacks, ` +
+        `multi-agent (security/performance/quality), LLM observability & cost tracking, ` +
+        `self-healing docs, admin web dashboard at /dashboard.`,
         { port: CONFIG.statusPort, autoHeal: CONFIG.autoHeal, autoSecurity: CONFIG.autoSecurity, watchEnabled: CONFIG.watchEnabled }
     ).catch(() => {});
 
