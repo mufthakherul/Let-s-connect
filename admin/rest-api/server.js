@@ -95,6 +95,14 @@ const { AnomalyDetector } = require('../shared/anomaly-detector');
 const { GDPRManager } = require('../shared/gdpr');
 const mtls = require('../shared/mtls');
 
+// Q4 2026 modules
+const { AdminTracer } = require('../shared/opentelemetry');
+const { RunbookManager } = require('../shared/runbook');
+const { ChangeLog } = require('../shared/change-log');
+const { TenantManager } = require('../shared/tenant-manager');
+const { FeatureFlagManager } = require('../shared/feature-flags');
+const { AIIntegrationBridge } = require('../shared/ai-integration');
+
 // ---------------------------------------------------------------------------
 // Logger
 // ---------------------------------------------------------------------------
@@ -237,6 +245,20 @@ function getGDPRManager() {
     if (!_gdprManager) _gdprManager = new GDPRManager(ADMIN_HOME);
     return _gdprManager;
 }
+
+let _adminTracer = null;
+let _runbookManager = null;
+let _changeLog = null;
+let _tenantManager = null;
+let _featureFlagManager = null;
+let _aiIntegration = null;
+
+function getTracer() { if (!_adminTracer) _adminTracer = new AdminTracer(ADMIN_HOME); return _adminTracer; }
+function getRunbookManager() { if (!_runbookManager) _runbookManager = new RunbookManager(ADMIN_HOME); return _runbookManager; }
+function getChangeLog() { if (!_changeLog) _changeLog = new ChangeLog(ADMIN_HOME); return _changeLog; }
+function getTenantManager() { if (!_tenantManager) _tenantManager = new TenantManager(ADMIN_HOME); return _tenantManager; }
+function getFeatureFlagManager() { if (!_featureFlagManager) _featureFlagManager = new FeatureFlagManager(ADMIN_HOME); return _featureFlagManager; }
+function getAIIntegration() { if (!_aiIntegration) _aiIntegration = new AIIntegrationBridge(ADMIN_HOME); return _aiIntegration; }
 
 // ---------------------------------------------------------------------------
 // Middleware helpers
@@ -1335,6 +1357,691 @@ async function handleRequest(req, res) {
             incidents[idx].timeline.push({ timestamp: new Date().toISOString(), text: 'Incident resolved' });
             writeIncidents(incidents);
             return sendJSON(res, 200, { incident: incidents[idx] });
+        }
+
+        // -----------------------------------------------------------------------
+        // B1. OpenTelemetry (AdminTracer)
+        // -----------------------------------------------------------------------
+
+        if (pathname === '/api/v1/telemetry/traces' && method === 'GET') {
+            const limit = parseInt(parsedUrl.searchParams.get('limit') || '100', 10);
+            const filter = {};
+            if (parsedUrl.searchParams.get('status')) filter.status = parsedUrl.searchParams.get('status');
+            if (parsedUrl.searchParams.get('name')) filter.name = parsedUrl.searchParams.get('name');
+            const traces = getTracer().getTraces(limit, filter);
+            return sendJSON(res, 200, { traces });
+        }
+
+        if (pathname === '/api/v1/telemetry/spans' && method === 'GET') {
+            const filter = {};
+            if (parsedUrl.searchParams.get('name')) filter.name = parsedUrl.searchParams.get('name');
+            if (parsedUrl.searchParams.get('status')) filter.status = parsedUrl.searchParams.get('status');
+            if (parsedUrl.searchParams.get('traceId')) filter.traceId = parsedUrl.searchParams.get('traceId');
+            if (parsedUrl.searchParams.get('dateFrom')) filter.dateFrom = parsedUrl.searchParams.get('dateFrom');
+            if (parsedUrl.searchParams.get('dateTo')) filter.dateTo = parsedUrl.searchParams.get('dateTo');
+            const spans = getTracer().getSpans(filter);
+            return sendJSON(res, 200, { spans });
+        }
+
+        if (pathname === '/api/v1/telemetry/stats' && method === 'GET') {
+            const stats = getTracer().getStats();
+            return sendJSON(res, 200, stats);
+        }
+
+        if (pathname === '/api/v1/telemetry/spans' && method === 'POST') {
+            const body = await parseBody(req);
+            const { name, attributes, parentSpanId } = body;
+            const span = getTracer().startSpan(sanitize(name || 'unnamed'), attributes || {}, parentSpanId || null);
+            span.end();
+            return sendJSON(res, 201, { span });
+        }
+
+        // -----------------------------------------------------------------------
+        // B2. Runbooks (RunbookManager) — /executions before /:id
+        // -----------------------------------------------------------------------
+
+        if (pathname === '/api/v1/runbooks' && method === 'GET') {
+            const filter = Object.fromEntries(parsedUrl.searchParams.entries());
+            const runbooks = await getRunbookManager().listRunbooks(filter);
+            return sendJSON(res, 200, { runbooks });
+        }
+
+        if (pathname === '/api/v1/runbooks' && method === 'POST') {
+            const body = await parseBody(req);
+            const runbook = await getRunbookManager().createRunbook(body);
+            return sendJSON(res, 201, { runbook });
+        }
+
+        if (pathname === '/api/v1/runbooks/executions' && method === 'GET') {
+            const limit = parseInt(parsedUrl.searchParams.get('limit') || '50', 10);
+            const history = await getRunbookManager().getExecutionHistory(null, limit);
+            return sendJSON(res, 200, { executions: history });
+        }
+
+        {
+            const execIdMatch = pathname.match(/^\/api\/v1\/runbooks\/executions\/([^/]+)$/);
+            if (execIdMatch && method === 'GET') {
+                const exec = await getRunbookManager().getExecution(execIdMatch[1]);
+                return sendJSON(res, 200, { execution: exec });
+            }
+        }
+
+        {
+            const rbMatch = pathname.match(/^\/api\/v1\/runbooks\/([^/]+)$/);
+            if (rbMatch && method === 'GET') {
+                const rb = await getRunbookManager().getRunbook(rbMatch[1]);
+                return sendJSON(res, 200, { runbook: rb });
+            }
+            if (rbMatch && method === 'PUT') {
+                const body = await parseBody(req);
+                const rb = await getRunbookManager().updateRunbook(rbMatch[1], body);
+                return sendJSON(res, 200, { runbook: rb });
+            }
+            if (rbMatch && method === 'DELETE') {
+                await getRunbookManager().deleteRunbook(rbMatch[1]);
+                return sendJSON(res, 200, { deleted: rbMatch[1] });
+            }
+        }
+
+        {
+            const rbExecMatch = pathname.match(/^\/api\/v1\/runbooks\/([^/]+)\/execute$/);
+            if (rbExecMatch && method === 'POST') {
+                const body = await parseBody(req);
+                const { params } = body;
+                const user = req.headers['x-admin-user'] || 'api';
+                const result = await getRunbookManager().executeRunbook(rbExecMatch[1], params, user);
+                return sendJSON(res, 200, { result });
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // B3. Change Log — /stats, /export, /timeline/:r before /:id
+        // -----------------------------------------------------------------------
+
+        if (pathname === '/api/v1/change-log' && method === 'GET') {
+            const query = Object.fromEntries(parsedUrl.searchParams.entries());
+            const entries = await getChangeLog().search(query);
+            return sendJSON(res, 200, { entries });
+        }
+
+        if (pathname === '/api/v1/change-log' && method === 'POST') {
+            const body = await parseBody(req);
+            const entry = await getChangeLog().record(body);
+            return sendJSON(res, 201, { entry });
+        }
+
+        if (pathname === '/api/v1/change-log/stats' && method === 'GET') {
+            const stats = await getChangeLog().getStats();
+            return sendJSON(res, 200, stats);
+        }
+
+        if (pathname === '/api/v1/change-log/export' && method === 'GET') {
+            const csv = await getChangeLog().exportAsCSV();
+            res.writeHead(200, {
+                'Content-Type': 'text/csv',
+                'Content-Disposition': 'attachment; filename="change-log.csv"',
+                ...SECURITY_HEADERS,
+            });
+            res.end(csv);
+            return;
+        }
+
+        {
+            const tlMatch = pathname.match(/^\/api\/v1\/change-log\/timeline\/([^/]+)$/);
+            if (tlMatch && method === 'GET') {
+                const timeline = await getChangeLog().getTimeline(decodeURIComponent(tlMatch[1]));
+                return sendJSON(res, 200, { timeline });
+            }
+        }
+
+        {
+            const clLinkMatch = pathname.match(/^\/api\/v1\/change-log\/([^/]+)\/link$/);
+            if (clLinkMatch && method === 'POST') {
+                const body = await parseBody(req);
+                const entry = await getChangeLog().link(clLinkMatch[1], body.ticketRef);
+                return sendJSON(res, 200, { entry });
+            }
+        }
+
+        {
+            const clApproveMatch = pathname.match(/^\/api\/v1\/change-log\/([^/]+)\/approve$/);
+            if (clApproveMatch && method === 'POST') {
+                const body = await parseBody(req);
+                const entry = await getChangeLog().approve(clApproveMatch[1], body.approvedBy);
+                return sendJSON(res, 200, { entry });
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // B4. Tenant Management — sub-routes before /:id generic
+        // -----------------------------------------------------------------------
+
+        if (pathname === '/api/v1/tenants' && method === 'GET') {
+            const filter = Object.fromEntries(parsedUrl.searchParams.entries());
+            const tenants = await getTenantManager().listTenants(filter);
+            return sendJSON(res, 200, { tenants });
+        }
+
+        if (pathname === '/api/v1/tenants' && method === 'POST') {
+            const body = await parseBody(req);
+            const tenant = await getTenantManager().createTenant(body);
+            return sendJSON(res, 201, { tenant });
+        }
+
+        {
+            const tQuotaMatch = pathname.match(/^\/api\/v1\/tenants\/([^/]+)\/quota$/);
+            if (tQuotaMatch && method === 'GET') {
+                const quota = await getTenantManager().getQuota(tQuotaMatch[1]);
+                return sendJSON(res, 200, { quota });
+            }
+            if (tQuotaMatch && method === 'PUT') {
+                const body = await parseBody(req);
+                const quota = await getTenantManager().setQuota(tQuotaMatch[1], body);
+                return sendJSON(res, 200, { quota });
+            }
+        }
+
+        {
+            const tQuotaUsageMatch = pathname.match(/^\/api\/v1\/tenants\/([^/]+)\/quota\/usage$/);
+            if (tQuotaUsageMatch && method === 'GET') {
+                const usage = await getTenantManager().getQuotaUsage(tQuotaUsageMatch[1]);
+                return sendJSON(res, 200, { usage });
+            }
+        }
+
+        {
+            const tBillingSummaryMatch = pathname.match(/^\/api\/v1\/tenants\/([^/]+)\/billing\/summary$/);
+            if (tBillingSummaryMatch && method === 'GET') {
+                const summary = await getTenantManager().getBillingSummary(tBillingSummaryMatch[1]);
+                return sendJSON(res, 200, summary);
+            }
+        }
+
+        {
+            const tBillingMatch = pathname.match(/^\/api\/v1\/tenants\/([^/]+)\/billing$/);
+            if (tBillingMatch && method === 'GET') {
+                const from = parsedUrl.searchParams.get('from') || undefined;
+                const to = parsedUrl.searchParams.get('to') || undefined;
+                const history = await getTenantManager().getBillingHistory(tBillingMatch[1], from, to);
+                return sendJSON(res, 200, { history });
+            }
+            if (tBillingMatch && method === 'POST') {
+                const body = await parseBody(req);
+                const event = await getTenantManager().recordBillingEvent(tBillingMatch[1], body);
+                return sendJSON(res, 201, { event });
+            }
+        }
+
+        {
+            const tWlMatch = pathname.match(/^\/api\/v1\/tenants\/([^/]+)\/whitelabel$/);
+            if (tWlMatch && method === 'GET') {
+                const wl = await getTenantManager().getWhiteLabel(tWlMatch[1]);
+                return sendJSON(res, 200, { whitelabel: wl });
+            }
+            if (tWlMatch && method === 'PUT') {
+                const body = await parseBody(req);
+                const wl = await getTenantManager().setWhiteLabel(tWlMatch[1], body);
+                return sendJSON(res, 200, { whitelabel: wl });
+            }
+        }
+
+        {
+            const tSuspendMatch = pathname.match(/^\/api\/v1\/tenants\/([^/]+)\/suspend$/);
+            if (tSuspendMatch && method === 'POST') {
+                const body = await parseBody(req);
+                const tenant = await getTenantManager().suspendTenant(tSuspendMatch[1], body.reason);
+                return sendJSON(res, 200, { tenant });
+            }
+        }
+
+        {
+            const tActivateMatch = pathname.match(/^\/api\/v1\/tenants\/([^/]+)\/activate$/);
+            if (tActivateMatch && method === 'POST') {
+                const tenant = await getTenantManager().activateTenant(tActivateMatch[1]);
+                return sendJSON(res, 200, { tenant });
+            }
+        }
+
+        {
+            const tIdMatch = pathname.match(/^\/api\/v1\/tenants\/([^/]+)$/);
+            if (tIdMatch && method === 'GET') {
+                const tenant = await getTenantManager().getTenant(tIdMatch[1]);
+                return sendJSON(res, 200, { tenant });
+            }
+            if (tIdMatch && method === 'PUT') {
+                const body = await parseBody(req);
+                const tenant = await getTenantManager().updateTenant(tIdMatch[1], body);
+                return sendJSON(res, 200, { tenant });
+            }
+            if (tIdMatch && method === 'DELETE') {
+                await getTenantManager().deleteTenant(tIdMatch[1]);
+                return sendJSON(res, 200, { deleted: tIdMatch[1] });
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // B5. Feature Flags — /stats, /evaluate before /:id
+        // -----------------------------------------------------------------------
+
+        if (pathname === '/api/v1/feature-flags' && method === 'GET') {
+            const filter = Object.fromEntries(parsedUrl.searchParams.entries());
+            const flags = await getFeatureFlagManager().listFlags(filter);
+            return sendJSON(res, 200, { flags });
+        }
+
+        if (pathname === '/api/v1/feature-flags' && method === 'POST') {
+            const body = await parseBody(req);
+            const flag = await getFeatureFlagManager().createFlag(body);
+            return sendJSON(res, 201, { flag });
+        }
+
+        if (pathname === '/api/v1/feature-flags/stats' && method === 'GET') {
+            const stats = await getFeatureFlagManager().getStats();
+            return sendJSON(res, 200, stats);
+        }
+
+        if (pathname === '/api/v1/feature-flags/evaluate' && method === 'POST') {
+            const body = await parseBody(req);
+            const { flagName, environment, userId } = body;
+            const result = await getFeatureFlagManager().evaluateFlag(flagName, environment, userId);
+            return sendJSON(res, 200, { result });
+        }
+
+        {
+            const ffToggleMatch = pathname.match(/^\/api\/v1\/feature-flags\/([^/]+)\/toggle$/);
+            if (ffToggleMatch && method === 'POST') {
+                const body = await parseBody(req);
+                const flag = await getFeatureFlagManager().toggleFlag(ffToggleMatch[1], body.environment, body.enabled, 'admin');
+                return sendJSON(res, 200, { flag });
+            }
+        }
+
+        {
+            const ffRolloutMatch = pathname.match(/^\/api\/v1\/feature-flags\/([^/]+)\/rollout$/);
+            if (ffRolloutMatch && method === 'POST') {
+                const body = await parseBody(req);
+                const flag = await getFeatureFlagManager().setRollout(ffRolloutMatch[1], body.environment, body.percent, 'admin');
+                return sendJSON(res, 200, { flag });
+            }
+        }
+
+        {
+            const ffHistoryMatch = pathname.match(/^\/api\/v1\/feature-flags\/([^/]+)\/history$/);
+            if (ffHistoryMatch && method === 'GET') {
+                const history = await getFeatureFlagManager().getFlagHistory(ffHistoryMatch[1]);
+                return sendJSON(res, 200, { history });
+            }
+        }
+
+        {
+            const ffIdMatch = pathname.match(/^\/api\/v1\/feature-flags\/([^/]+)$/);
+            if (ffIdMatch && method === 'GET') {
+                const flag = await getFeatureFlagManager().getFlag(ffIdMatch[1]);
+                return sendJSON(res, 200, { flag });
+            }
+            if (ffIdMatch && method === 'PUT') {
+                const body = await parseBody(req);
+                const flag = await getFeatureFlagManager().updateFlag(ffIdMatch[1], body);
+                return sendJSON(res, 200, { flag });
+            }
+            if (ffIdMatch && method === 'DELETE') {
+                await getFeatureFlagManager().deleteFlag(ffIdMatch[1]);
+                return sendJSON(res, 200, { deleted: ffIdMatch[1] });
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // B6. Developer Experience: Config, Deployments, Migrations, Logs
+        // -----------------------------------------------------------------------
+
+        // --- Config ---
+
+        if (pathname === '/api/v1/config' && method === 'GET') {
+            const configs = readJSONStore('service-configs.json', {});
+            return sendJSON(res, 200, { configs });
+        }
+
+        {
+            const cfgHistMatch = pathname.match(/^\/api\/v1\/config\/([^/]+)\/history$/);
+            if (cfgHistMatch && method === 'GET') {
+                const svc = sanitize(cfgHistMatch[1]);
+                const timeline = await getChangeLog().getTimeline(`config:${svc}`);
+                return sendJSON(res, 200, { timeline });
+            }
+        }
+
+        {
+            const cfgSvcMatch = pathname.match(/^\/api\/v1\/config\/([^/]+)$/);
+            if (cfgSvcMatch && method === 'GET') {
+                const svc = sanitize(cfgSvcMatch[1]);
+                const configs = readJSONStore('service-configs.json', {});
+                return sendJSON(res, 200, { service: svc, config: configs[svc] || {} });
+            }
+            if (cfgSvcMatch && method === 'PUT') {
+                const body = await parseBody(req);
+                const svc = sanitize(cfgSvcMatch[1]);
+                const configs = readJSONStore('service-configs.json', {});
+                if (!configs[svc]) configs[svc] = {};
+                configs[svc][sanitize(body.key)] = body.value;
+                writeJSONStore('service-configs.json', configs);
+                await getChangeLog().record({
+                    resource: `config:${svc}`,
+                    action: 'update',
+                    details: { key: body.key, value: body.value },
+                    actor: req.headers['x-admin-user'] || 'api',
+                });
+                return sendJSON(res, 200, { service: svc, config: configs[svc] });
+            }
+        }
+
+        // --- Deployments ---
+
+        const DEPLOYMENT_SERVICES = ['api-gateway', 'user-service', 'messaging-service', 'notification-service', 'content-service'];
+
+        const MOCK_PIPELINES = {
+            'api-gateway':           [{ name: 'build', status: 'success', duration: 42 }, { name: 'test', status: 'success', duration: 61 }, { name: 'deploy', status: 'success', duration: 18 }],
+            'user-service':          [{ name: 'build', status: 'success', duration: 38 }, { name: 'test', status: 'success', duration: 55 }, { name: 'deploy', status: 'success', duration: 22 }],
+            'messaging-service':     [{ name: 'build', status: 'success', duration: 44 }, { name: 'test', status: 'success', duration: 70 }, { name: 'deploy', status: 'success', duration: 15 }],
+            'notification-service':  [{ name: 'build', status: 'success', duration: 30 }, { name: 'test', status: 'success', duration: 48 }, { name: 'deploy', status: 'success', duration: 12 }],
+            'content-service':       [{ name: 'build', status: 'success', duration: 50 }, { name: 'test', status: 'success', duration: 65 }, { name: 'deploy', status: 'success', duration: 20 }],
+        };
+
+        function mockDeployment(svc) {
+            return {
+                service: svc,
+                stage: 'live',
+                version: '1.0.0',
+                lastDeploy: new Date(Date.now() - 3600000).toISOString(),
+                pipeline: MOCK_PIPELINES[svc] || [],
+            };
+        }
+
+        if (pathname === '/api/v1/deployments' && method === 'GET') {
+            return sendJSON(res, 200, { deployments: DEPLOYMENT_SERVICES.map(mockDeployment) });
+        }
+
+        {
+            const dplTriggerMatch = pathname.match(/^\/api\/v1\/deployments\/([^/]+)\/trigger$/);
+            if (dplTriggerMatch && method === 'POST') {
+                const svc = sanitize(dplTriggerMatch[1]);
+                await getChangeLog().record({
+                    resource: `deployment:${svc}`,
+                    action: 'trigger',
+                    actor: req.headers['x-admin-user'] || 'api',
+                });
+                return sendJSON(res, 200, { triggered: true, service: svc });
+            }
+        }
+
+        {
+            const dplSvcMatch = pathname.match(/^\/api\/v1\/deployments\/([^/]+)$/);
+            if (dplSvcMatch && method === 'GET') {
+                const svc = sanitize(dplSvcMatch[1]);
+                return sendJSON(res, 200, { deployment: mockDeployment(svc) });
+            }
+        }
+
+        // --- Migrations ---
+
+        if (pathname === '/api/v1/migrations/status' && method === 'GET') {
+            const migrations = readJSONStore('migrations.json', []);
+            const summary = {
+                total: migrations.length,
+                pending: migrations.filter(m => m.status === 'pending').length,
+                running: migrations.filter(m => m.status === 'running').length,
+                completed: migrations.filter(m => m.status === 'completed').length,
+                failed: migrations.filter(m => m.status === 'failed').length,
+            };
+            return sendJSON(res, 200, summary);
+        }
+
+        if (pathname === '/api/v1/migrations' && method === 'GET') {
+            const migrations = readJSONStore('migrations.json', []);
+            return sendJSON(res, 200, { migrations });
+        }
+
+        if (pathname === '/api/v1/migrations' && method === 'POST') {
+            const body = await parseBody(req);
+            const migrations = readJSONStore('migrations.json', []);
+            const migration = {
+                id: `mig_${Date.now()}`,
+                ...body,
+                status: 'pending',
+                createdAt: new Date().toISOString(),
+            };
+            migrations.push(migration);
+            writeJSONStore('migrations.json', migrations);
+            return sendJSON(res, 201, { migration });
+        }
+
+        {
+            const migRunMatch = pathname.match(/^\/api\/v1\/migrations\/([^/]+)\/run$/);
+            if (migRunMatch && method === 'POST') {
+                const id = migRunMatch[1];
+                const migrations = readJSONStore('migrations.json', []);
+                const idx = migrations.findIndex(m => m.id === id);
+                if (idx === -1) return sendError(res, 404, `Migration ${id} not found`);
+                migrations[idx].status = 'running';
+                migrations[idx].startedAt = new Date().toISOString();
+                writeJSONStore('migrations.json', migrations);
+                migrations[idx].status = 'completed';
+                migrations[idx].completedAt = new Date().toISOString();
+                writeJSONStore('migrations.json', migrations);
+                return sendJSON(res, 200, { migration: migrations[idx] });
+            }
+        }
+
+        // --- Log Search / SSE Stream ---
+
+        if (pathname === '/api/v1/logs/search' && method === 'POST') {
+            const body = await parseBody(req);
+            const { query, service, level, dateFrom, dateTo, limit = 100 } = body;
+            const auditPath = path.join(ADMIN_HOME, 'audit.log');
+            let lines = [];
+            if (fs.existsSync(auditPath)) {
+                lines = fs.readFileSync(auditPath, 'utf8').split('\n').filter(Boolean);
+            }
+            let results = lines;
+            if (query) results = results.filter(l => l.includes(query));
+            if (service) results = results.filter(l => l.includes(service));
+            if (level) results = results.filter(l => l.toLowerCase().includes(level.toLowerCase()));
+            if (dateFrom) results = results.filter(l => l >= dateFrom);
+            if (dateTo) results = results.filter(l => l <= dateTo);
+            results = results.slice(-limit);
+            return sendJSON(res, 200, { results, count: results.length });
+        }
+
+        if (pathname === '/api/v1/logs/stream' && method === 'GET') {
+            res.writeHead(200, {
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'Access-Control-Allow-Origin': process.env.ADMIN_CORS_ORIGIN || '*',
+                ...SECURITY_HEADERS,
+            });
+            const auditPath = path.join(ADMIN_HOME, 'audit.log');
+            let lines = [];
+            if (fs.existsSync(auditPath)) {
+                lines = fs.readFileSync(auditPath, 'utf8').split('\n').filter(Boolean).slice(-20);
+            }
+            for (const line of lines) {
+                res.write(`data: ${JSON.stringify({ line })}\n\n`);
+            }
+            res.end();
+            return;
+        }
+
+        // -----------------------------------------------------------------------
+        // B7. AI Integration (AIIntegrationBridge)
+        // -----------------------------------------------------------------------
+
+        if (pathname === '/api/v1/ai/integration/events' && method === 'GET') {
+            const filter = Object.fromEntries(parsedUrl.searchParams.entries());
+            const events = await getAIIntegration().subscribeEvents(filter);
+            return sendJSON(res, 200, { events });
+        }
+
+        if (pathname === '/api/v1/ai/integration/events' && method === 'POST') {
+            const body = await parseBody(req);
+            const event = await getAIIntegration().publishEvent(body);
+            return sendJSON(res, 201, { event });
+        }
+
+        if (pathname === '/api/v1/ai/integration/workflows' && method === 'GET') {
+            const filter = Object.fromEntries(parsedUrl.searchParams.entries());
+            const workflows = await getAIIntegration().listWorkflows(filter);
+            return sendJSON(res, 200, { workflows });
+        }
+
+        if (pathname === '/api/v1/ai/integration/workflows' && method === 'POST') {
+            const body = await parseBody(req);
+            const workflow = await getAIIntegration().createWorkflow(body);
+            return sendJSON(res, 201, { workflow });
+        }
+
+        if (pathname === '/api/v1/ai/integration/stats' && method === 'GET') {
+            const stats = await getAIIntegration().getStats();
+            return sendJSON(res, 200, stats);
+        }
+
+        if (pathname === '/api/v1/ai/integration/channels' && method === 'GET') {
+            const channels = await getAIIntegration().getChannelStatus();
+            return sendJSON(res, 200, { channels });
+        }
+
+        {
+            const aiApproveMatch = pathname.match(/^\/api\/v1\/ai\/integration\/workflows\/([^/]+)\/approve$/);
+            if (aiApproveMatch && method === 'POST') {
+                const body = await parseBody(req);
+                const wf = await getAIIntegration().approveWorkflow(aiApproveMatch[1], body.approvedBy, body.comment);
+                return sendJSON(res, 200, { workflow: wf });
+            }
+        }
+
+        {
+            const aiDenyMatch = pathname.match(/^\/api\/v1\/ai\/integration\/workflows\/([^/]+)\/deny$/);
+            if (aiDenyMatch && method === 'POST') {
+                const body = await parseBody(req);
+                const wf = await getAIIntegration().denyWorkflow(aiDenyMatch[1], body.deniedBy, body.reason);
+                return sendJSON(res, 200, { workflow: wf });
+            }
+        }
+
+        {
+            const aiWfMatch = pathname.match(/^\/api\/v1\/ai\/integration\/workflows\/([^/]+)$/);
+            if (aiWfMatch && method === 'GET') {
+                const wf = await getAIIntegration().getWorkflow(aiWfMatch[1]);
+                return sendJSON(res, 200, { workflow: wf });
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // B8. Grafana Dashboards
+        // -----------------------------------------------------------------------
+
+        const GRAFANA_DASHBOARDS = {
+            'service-health': {
+                title: 'Service Health',
+                panels: [
+                    { title: 'CPU Usage', type: 'graph', datasource: 'prometheus', targets: [{ expr: 'avg(rate(process_cpu_seconds_total[5m]))' }] },
+                    { title: 'Memory Usage', type: 'graph', datasource: 'prometheus', targets: [{ expr: 'process_resident_memory_bytes' }] },
+                    { title: 'Error Rate', type: 'graph', datasource: 'prometheus', targets: [{ expr: 'rate(http_requests_total{status=~"5.."}[5m])' }] },
+                    { title: 'Latency p95', type: 'graph', datasource: 'prometheus', targets: [{ expr: 'histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))' }] },
+                ],
+            },
+            'sla-overview': {
+                title: 'SLA Overview',
+                panels: [
+                    { title: 'SLA Compliance Timeline', type: 'graph', datasource: 'prometheus', targets: [{ expr: 'sla_compliance_ratio' }] },
+                    { title: 'MTTR Gauge', type: 'gauge', datasource: 'prometheus', targets: [{ expr: 'avg(incident_resolution_duration_seconds)' }] },
+                    { title: 'Breach Scatter', type: 'scatter', datasource: 'prometheus', targets: [{ expr: 'sla_breach_count' }] },
+                ],
+            },
+            'cost-overview': {
+                title: 'Cost Overview',
+                panels: [
+                    { title: 'Cost Per Service', type: 'bargauge', datasource: 'prometheus', targets: [{ expr: 'cost_per_service_dollars' }] },
+                    { title: 'Budget vs Actual', type: 'graph', datasource: 'prometheus', targets: [{ expr: 'budget_total_dollars - cost_actual_dollars' }] },
+                    { title: 'Cost Trend', type: 'graph', datasource: 'prometheus', targets: [{ expr: 'rate(cost_actual_dollars[24h])' }] },
+                ],
+            },
+        };
+
+        if (pathname === '/api/v1/grafana/dashboards' && method === 'GET') {
+            const list = Object.entries(GRAFANA_DASHBOARDS).map(([name, d]) => ({ name, title: d.title, panelCount: d.panels.length }));
+            return sendJSON(res, 200, { dashboards: list });
+        }
+
+        {
+            const grafMatch = pathname.match(/^\/api\/v1\/grafana\/dashboards\/([^/]+)$/);
+            if (grafMatch && method === 'GET') {
+                const name = sanitize(grafMatch[1]);
+                const dashboard = GRAFANA_DASHBOARDS[name];
+                if (!dashboard) return sendError(res, 404, `Dashboard ${name} not found`);
+                const body = JSON.stringify(dashboard, null, 2);
+                res.writeHead(200, {
+                    'Content-Type': 'application/json',
+                    'Content-Disposition': `attachment; filename="${name}.json"`,
+                    'Content-Length': Buffer.byteLength(body),
+                    ...SECURITY_HEADERS,
+                });
+                res.end(body);
+                return;
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // B9. SLA Reports
+        // -----------------------------------------------------------------------
+
+        if (pathname === '/api/v1/sla/report/schedule' && method === 'GET') {
+            const schedule = readJSONStore('sla-report-schedule.json', {});
+            return sendJSON(res, 200, { schedule });
+        }
+
+        if (pathname === '/api/v1/sla/report/schedule' && method === 'POST') {
+            const body = await parseBody(req);
+            const schedule = {
+                cronExpression: sanitize(body.cronExpression || '0 9 * * 1'),
+                recipients: body.recipients || [],
+                format: sanitize(body.format || 'html'),
+                updatedAt: new Date().toISOString(),
+            };
+            writeJSONStore('sla-report-schedule.json', schedule);
+            return sendJSON(res, 200, { schedule });
+        }
+
+        if (pathname === '/api/v1/sla/report/generate' && method === 'POST') {
+            const slaManager = new SLAManager(ADMIN_HOME);
+            const slaStatus = await slaManager.getStatus();
+            const reportId = `sla_report_${Date.now()}`;
+            const generatedAt = new Date().toISOString();
+            const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>SLA Report</title>
+<style>body{font-family:Arial,sans-serif;margin:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#f4f4f4}h1{color:#333}</style>
+</head>
+<body>
+<h1>SLA Report — ${generatedAt}</h1>
+<p>Generated by Milonexa Admin API</p>
+<pre>${JSON.stringify(slaStatus, null, 2)}</pre>
+</body>
+</html>`;
+            const history = readJSONStore('sla-report-history.json', []);
+            history.push({ id: reportId, generatedAt, size: html.length });
+            writeJSONStore('sla-report-history.json', history);
+            res.writeHead(200, {
+                'Content-Type': 'text/html',
+                'Content-Length': Buffer.byteLength(html),
+                ...SECURITY_HEADERS,
+            });
+            res.end(html);
+            return;
+        }
+
+        if (pathname === '/api/v1/sla/report/history' && method === 'GET') {
+            const history = readJSONStore('sla-report-history.json', []);
+            return sendJSON(res, 200, { history });
         }
 
         return sendError(res, 404, `Not found: ${method} ${pathname}`);
