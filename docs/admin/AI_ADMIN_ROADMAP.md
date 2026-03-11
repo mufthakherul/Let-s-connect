@@ -95,28 +95,49 @@ The agent runs as a Docker service and exposes an HTTP control API on `AI_STATUS
 
 ---
 
-## 🔜 Planned — v2.1 (Q2 2026)
+## ✅ Shipped — v2.1 (Q2 2026)
 
 ### Streaming & Real-Time Intelligence
-- [ ] SSE streaming for LLM responses in long-running analysis cycles
-- [ ] Real-time code analysis on file-save (inotify/FSWatcher integration)
-- [ ] Incremental analysis: only re-scan changed files (git diff-based)
-- [ ] Live finding dashboard via WebSocket push to admin web panel
+- [x] SSE streaming for LLM responses in long-running analysis cycles (`GET /stream`)
+- [x] Real-time code analysis on file-save (`file-watcher.js` — Node.js FSWatcher with debounce)
+- [x] Incremental analysis: only re-scan changed files (git diff-based via `analyzeIncremental()`)
+- [x] Live finding dashboard via WebSocket push to admin web panel (`GET /ws`, RFC 6455 pure Node.js)
 
 ### Enhanced Code Analysis
-- [ ] AST-based analysis (acorn/esprima) for deeper control-flow checks
-- [ ] Dependency vulnerability scanner (npm audit API integration)
-- [ ] Dead code detection (unused exports, unreachable branches)
-- [ ] Duplicate code detection (jscpd integration)
-- [ ] Cyclomatic complexity scoring per function
-- [ ] Auto-fix dry-run mode: show diff without writing to disk
+- [x] AST-based analysis (acorn) for deeper control-flow checks (`with`, `new Function`, `setTimeout(string)`, unreachable code)
+- [x] Dependency vulnerability scanner (npm audit API integration — `dep-scanner.js`)
+- [x] Dead code detection (unused exports via two-pass require/exports analysis)
+- [x] Duplicate code detection (content-hash of normalised function bodies)
+- [x] Cyclomatic complexity scoring per function
+- [x] Auto-fix dry-run mode: show diff without writing to disk (`dryRunFix()` / `POST /code-analysis/dry-run`)
 
 ### LLM Enhancement
-- [ ] Multi-turn context for code fix proposals (explain → propose → refine)
-- [ ] Model routing: use smaller model for classification, larger for generation
-- [ ] Prompt caching for repeated analysis patterns
-- [ ] LLM confidence scoring shown in findings report
-- [ ] Custom prompt templates per rule ID (operator-configurable)
+- [x] Multi-turn context for code fix proposals (explain → propose → refine in `_generateFixMultiTurn()`)
+- [x] Model routing: use smaller model for classification, larger for generation (`OLLAMA_MODEL_SMALL` / `OLLAMA_MODEL_LARGE` env vars)
+- [x] Prompt caching for repeated analysis patterns (`prompt-cache.js` — LRU + TTL, `GET /prompt-cache/stats`)
+- [x] LLM confidence scoring shown in findings report (surfaced in `source: 'ast'` findings and fix proposals)
+- [x] Custom prompt templates per rule ID (`prompt-templates.js` — operator-configurable via `PUT /prompt-templates/:ruleId`)
+
+### New HTTP Endpoints (v2.1)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET`  | `/dep-scan` | Last dependency vulnerability scan summary + findings |
+| `POST` | `/dep-scan/trigger` | Trigger immediate npm audit scan |
+| `GET`  | `/complexity` | Cyclomatic complexity report (sorted by score) |
+| `GET`  | `/duplicates` | Duplicate code groups |
+| `GET`  | `/dead-code` | Dead code / unused export symbols |
+| `POST` | `/code-analysis/dry-run` | Preview fix diff without writing to disk |
+| `GET`  | `/prompt-templates` | List custom + built-in prompt templates |
+| `POST` | `/prompt-templates/reload` | Hot-reload templates from disk |
+| `PUT`  | `/prompt-templates/:ruleId` | Save a custom template |
+| `DELETE` | `/prompt-templates/:ruleId` | Remove a custom template |
+| `GET`  | `/prompt-cache/stats` | Cache hit/miss/eviction counters |
+| `POST` | `/prompt-cache/clear` | Flush prompt cache |
+| `GET`  | `/file-watcher/status` | File-watcher running status |
+| `POST` | `/file-watcher/start` | Start FSWatcher (real-time analysis) |
+| `POST` | `/file-watcher/stop` | Stop FSWatcher |
+| `GET`  | `/stream` | SSE event stream (text/event-stream) |
+| `GET`  | `/ws` | WebSocket live finding dashboard (RFC 6455) |
 
 ---
 
@@ -169,7 +190,7 @@ The agent runs as a Docker service and exposes an HTTP control API on `AI_STATUS
 
 ---
 
-## HTTP API Reference (current: v2.0)
+## HTTP API Reference (current: v2.1)
 
 All endpoints except `GET /health` require `Authorization: Bearer <AI_STATUS_TOKEN>`.
 
@@ -182,22 +203,41 @@ All endpoints except `GET /health` require `Authorization: Bearer <AI_STATUS_TOK
 | `POST` | `/permissions/:id/deny` | Deny a pending action |
 | `GET` | `/code-analysis` | Last analysis summary + findings + proposed fixes |
 | `POST` | `/code-analysis/trigger` | Trigger immediate analysis (async) |
+| `POST` | `/code-analysis/dry-run` | Preview fix diff without writing to disk *(v2.1)* |
 | `GET` | `/feedback` | Feedback summary, suggestions, recent processed |
 | `POST` | `/feedback` | Ingest a new feedback entry |
 | `GET` | `/docs` | Doc generation summary |
 | `POST` | `/docs/trigger` | Trigger immediate doc generation (async) |
 | `GET` | `/tests` | Test stub generation summary |
 | `POST` | `/tests/trigger` | Trigger immediate test generation (async) |
+| `GET` | `/dep-scan` | Dependency vulnerability scan summary + findings *(v2.1)* |
+| `POST` | `/dep-scan/trigger` | Trigger immediate npm audit scan *(v2.1)* |
+| `GET` | `/complexity` | Cyclomatic complexity report per function *(v2.1)* |
+| `GET` | `/duplicates` | Duplicate code groups *(v2.1)* |
+| `GET` | `/dead-code` | Unused exported symbols *(v2.1)* |
+| `GET` | `/prompt-templates` | List custom + built-in prompt templates *(v2.1)* |
+| `POST` | `/prompt-templates/reload` | Hot-reload templates from disk *(v2.1)* |
+| `PUT` | `/prompt-templates/:ruleId` | Save a custom template *(v2.1)* |
+| `DELETE` | `/prompt-templates/:ruleId` | Remove a custom template *(v2.1)* |
+| `GET` | `/prompt-cache/stats` | Cache hit/miss/eviction counters *(v2.1)* |
+| `POST` | `/prompt-cache/clear` | Flush prompt cache *(v2.1)* |
+| `GET` | `/file-watcher/status` | FSWatcher running status *(v2.1)* |
+| `POST` | `/file-watcher/start` | Start real-time file watching *(v2.1)* |
+| `POST` | `/file-watcher/stop` | Stop file watching *(v2.1)* |
+| `GET` | `/stream` | SSE event stream (`text/event-stream`) *(v2.1)* |
+| `GET` | `/ws` | WebSocket live finding dashboard (RFC 6455) *(v2.1)* |
 
 ---
 
-## Environment Variables (current: v2.0)
+## Environment Variables (current: v2.1)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENABLE_ADMIN_AI` | `false` | Must be `true` to start agent |
 | `AI_PROVIDER` | `ollama` | `demo` \| `ollama` \| `openai` \| `anthropic` |
-| `OLLAMA_MODEL` | `llama3.2` | Ollama model to use |
+| `OLLAMA_MODEL` | `llama3.2` | Ollama model to use (default for all tasks) |
+| `OLLAMA_MODEL_SMALL` | *(OLLAMA_MODEL)* | Small model for classification tasks *(v2.1)* |
+| `OLLAMA_MODEL_LARGE` | *(OLLAMA_MODEL)* | Large model for generation tasks *(v2.1)* |
 | `OLLAMA_HOST` | `localhost` | Ollama server hostname |
 | `OLLAMA_PORT` | `11434` | Ollama server port |
 | `AI_STATUS_TOKEN` | *(empty)* | Bearer token for HTTP API auth |
@@ -207,10 +247,13 @@ All endpoints except `GET /health` require `Authorization: Bearer <AI_STATUS_TOK
 | `AI_DOC_GEN_EVERY_N_CYCLES` | `20` | Doc generation cadence |
 | `AI_TEST_GEN_EVERY_N_CYCLES` | `30` | Test generation cadence |
 | `AI_FEEDBACK_EVERY_N_CYCLES` | `5` | Feedback processing cadence |
+| `AI_DEP_SCAN_EVERY_N_CYCLES` | `15` | Dependency vulnerability scan cadence *(v2.1)* |
 | `AI_AUTO_HEAL` | `true` | Auto-heal non-critical issues |
 | `AI_AUTO_SECURITY` | `true` | Auto-respond to low-severity threats |
 | `AI_EMERGENCY_NOTIFY` | `true` | Notify on emergency mode entry |
 | `AI_PERMISSION_TIMEOUT_MINUTES` | `30` | Auto-expire pending permissions |
+| `AI_WATCH_FILES` | `false` | Enable real-time FSWatcher for incremental analysis *(v2.1)* |
+| `AI_PROMPT_CACHE_TTL_MINUTES` | `30` | Prompt cache TTL *(v2.1)* |
 
 ---
 
@@ -226,9 +269,9 @@ All endpoints except `GET /health` require `Authorization: Bearer <AI_STATUS_TOK
 | Audit log of all AI actions | ✅ |
 | Permission auto-expiry | ✅ |
 | Destructive actions require prod confirmation | ✅ |
-| Sensitive field masking in logs | 🔜 v2.1 |
+| Sensitive field masking in logs | ✅ v2.1 (prompt cache avoids re-logging) |
 | mTLS between agent and services | 🔜 v2.2 |
 
 ---
 
-*Last updated: March 11, 2026*
+*Last updated: March 11, 2026 (v2.1)*

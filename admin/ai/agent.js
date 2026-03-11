@@ -84,12 +84,17 @@ const { CodeAnalyzer }      = require('./modules/code-analyzer.js');
 const { DocGenerator }      = require('./modules/doc-generator.js');
 const { FeedbackProcessor } = require('./modules/feedback-processor.js');
 const { TestGenerator }     = require('./modules/test-generator.js');
+// v2.1 modules.
+const { FileWatcher }       = require('./modules/file-watcher.js');
+const { DepScanner }        = require('./modules/dep-scanner.js');
+const { PromptCache }       = require('./modules/prompt-cache.js');
+const { promptTemplates }   = require('./modules/prompt-templates.js');
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const AGENT_VERSION = '2.0.0';
+const AGENT_VERSION = '2.1.0';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -105,12 +110,16 @@ const CONFIG = {
     ollamaHost:     process.env.OLLAMA_HOST || 'localhost',
     ollamaPort:     parseInt(process.env.OLLAMA_PORT || '11434', 10),
     ollamaModel:    process.env.OLLAMA_MODEL || 'llama3.2',
+    // v2.1: model routing — separate models for classification vs generation.
+    ollamaModelSmall: process.env.OLLAMA_MODEL_SMALL || process.env.OLLAMA_MODEL || 'llama3.2',
+    ollamaModelLarge: process.env.OLLAMA_MODEL_LARGE || process.env.OLLAMA_MODEL || 'llama3.2',
     cycleSeconds:   parseInt(process.env.AI_CYCLE_INTERVAL_SECONDS, 10) || 60,
     // Sub-cycle cadences (every N main cycles).
     codeAnalysisEvery:  parseInt(process.env.AI_CODE_ANALYSIS_EVERY_N_CYCLES  || '10', 10),
     docGenEvery:        parseInt(process.env.AI_DOC_GEN_EVERY_N_CYCLES        || '20', 10),
     testGenEvery:       parseInt(process.env.AI_TEST_GEN_EVERY_N_CYCLES       || '30', 10),
     feedbackEvery:      parseInt(process.env.AI_FEEDBACK_EVERY_N_CYCLES       || '5',  10),
+    depScanEvery:       parseInt(process.env.AI_DEP_SCAN_EVERY_N_CYCLES       || '15', 10),
     statusPort:     parseInt(process.env.AI_STATUS_PORT, 10) || 8890,
     // Shared secret required in `Authorization: Bearer <token>` header for all non-/health routes.
     // If empty, auth is disabled (suitable only for localhost-only deployments).
@@ -120,6 +129,10 @@ const CONFIG = {
     autoHeal:       process.env.AI_AUTO_HEAL !== 'false',
     autoSecurity:   process.env.AI_AUTO_SECURITY !== 'false',
     gatewayUrl:     process.env.AI_GATEWAY_URL || 'http://localhost:8000',
+    // v2.1: incremental analysis on file-save.
+    watchEnabled:   process.env.AI_WATCH_FILES === 'true',
+    // v2.1: prompt cache TTL in minutes.
+    promptCacheTtl: parseInt(process.env.AI_PROMPT_CACHE_TTL_MINUTES || '30', 10),
 };
 
 // ---------------------------------------------------------------------------
@@ -152,6 +165,10 @@ const agentState = {
     docs:           { lastRunAt: null, docsGenerated: 0, services: [] },
     tests:          { lastRunAt: null, stubsGenerated: 0, services: [] },
     feedback:       { lastRunAt: null, total: 0, byCategory: {}, suggestions: 0, unprocessed: 0 },
+    // v2.1 additions.
+    depScan:        { lastRunAt: null, total: 0, bySeverity: {} },
+    fileWatcher:    { running: false, watchedDirs: 0 },
+    promptCache:    { hits: 0, misses: 0, size: 0 },
 };
 
 // ---------------------------------------------------------------------------
@@ -186,10 +203,122 @@ const codeAnalyzer      = new CodeAnalyzer();
 const docGenerator      = new DocGenerator();
 const feedbackProcessor = new FeedbackProcessor();
 const testGenerator     = new TestGenerator();
+// v2.1 modules.
+const fileWatcher       = new FileWatcher();
+const depScanner        = new DepScanner();
+const promptCache       = new PromptCache({ ttlMs: CONFIG.promptCacheTtl * 60 * 1000 });
 
-// ---------------------------------------------------------------------------
-// Banner
-// ---------------------------------------------------------------------------
+// v2.1 — SSE client registry (live streaming).
+/** @type {Set<http.ServerResponse>} */
+const sseClients = new Set();
+
+/**
+ * Broadcast an SSE event to all connected SSE clients.
+ * @param {string} event   SSE event name.
+ * @param {object} data    JSON-serializable payload.
+ */
+function broadcastSSE(event, data) {
+    const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const res of sseClients) {
+        try { res.write(msg); } catch (_) { sseClients.delete(res); }
+    }
+}
+
+// v2.1 — WebSocket frame helpers (pure Node.js, no ws library).
+/** @type {Set<import('net').Socket>} */
+const wsClients = new Set();
+
+/**
+ * Encode and broadcast a WebSocket text frame to all connected clients.
+ * Implements RFC 6455 frame encoding (text frames only).
+ * @param {object} payload
+ */
+function broadcastWS(payload) {
+    const text = JSON.stringify(payload);
+    const buf  = Buffer.from(text, 'utf8');
+    const len  = buf.length;
+
+    let frame;
+    if (len <= 125) {
+        frame = Buffer.allocUnsafe(2 + len);
+        frame[0] = 0x81; // FIN + text opcode.
+        frame[1] = len;
+        buf.copy(frame, 2);
+    } else if (len <= 65535) {
+        frame = Buffer.allocUnsafe(4 + len);
+        frame[0] = 0x81;
+        frame[1] = 0x7e;
+        frame.writeUInt16BE(len, 2);
+        buf.copy(frame, 4);
+    } else {
+        // Large frame (> 65535 bytes) — RFC 6455 requires 64-bit extended payload length.
+        // This branch is rarely hit in practice since agent messages are small JSON payloads.
+        // BigInt is used here only for the required Buffer.writeBigUInt64BE API.
+        frame = Buffer.allocUnsafe(10 + len);
+        frame[0] = 0x81;
+        frame[1] = 0x7f;
+        frame.writeBigUInt64BE(BigInt(len), 2);
+        buf.copy(frame, 10);
+    }
+
+    for (const sock of wsClients) {
+        try { sock.write(frame); } catch (_) { wsClients.delete(sock); }
+    }
+}
+
+/**
+ * Perform the WebSocket handshake and register the socket.
+ * @param {http.IncomingMessage} req
+ * @param {import('net').Socket} socket
+ * @param {Buffer} head
+ */
+function handleWebSocketUpgrade(req, socket, head) {
+    const key = req.headers['sec-websocket-key'];
+    if (!key) { socket.destroy(); return; }
+
+    const accept = require('crypto')
+        .createHash('sha1')
+        .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
+        .digest('base64');
+
+    socket.write([
+        'HTTP/1.1 101 Switching Protocols',
+        'Upgrade: websocket',
+        'Connection: Upgrade',
+        `Sec-WebSocket-Accept: ${accept}`,
+        '',
+        '',
+    ].join('\r\n'));
+
+    wsClients.add(socket);
+
+    socket.on('close', () => wsClients.delete(socket));
+    socket.on('error', () => wsClients.delete(socket));
+
+    // Send initial state.
+    broadcastWS({ type: 'connected', agentVersion: AGENT_VERSION, cycles: agentState.cycles });
+}
+
+// Hook code-analyzer to broadcast findings in real-time.
+function _hookAnalyzerBroadcast() {
+    const originalAnalyze = codeAnalyzer.analyzeProject.bind(codeAnalyzer);
+    codeAnalyzer.analyzeProject = async function (...args) {
+        broadcastSSE('analysis_start', { at: new Date().toISOString() });
+        broadcastWS({ type: 'analysis_start', at: new Date().toISOString() });
+        const result = await originalAnalyze(...args);
+        broadcastSSE('analysis_complete', {
+            summary: result.summary,
+            at:      new Date().toISOString(),
+        });
+        broadcastWS({ type: 'analysis_complete', summary: result.summary });
+        // Stream individual critical/high findings.
+        for (const f of result.findings.filter(fi => fi.severity === 'critical' || fi.severity === 'high').slice(0, 20)) {
+            broadcastSSE('finding', { id: f.id, severity: f.severity, file: f.relPath, line: f.line, message: f.message });
+            broadcastWS({ type: 'finding', id: f.id, severity: f.severity, file: f.relPath, line: f.line, message: f.message });
+        }
+        return result;
+    };
+}
 
 function printBanner() {
     const lines = [
@@ -209,7 +338,13 @@ function printBanner() {
         '║  ✓ Runtime monitoring & auto-healing                     ║',
         '║  ✓ Security threat detection & response                  ║',
         '║  ✓ AI-powered code analysis & vulnerability scanning     ║',
-        '║  ✓ Automated code fix proposals (admin-gated)            ║',
+        '║  ✓ AST-based analysis & cyclomatic complexity (v2.1)     ║',
+        '║  ✓ Dead code & duplicate code detection (v2.1)           ║',
+        '║  ✓ Incremental analysis on file-save (v2.1)              ║',
+        '║  ✓ Dependency vulnerability scanner (v2.1)               ║',
+        '║  ✓ Multi-turn LLM fix proposals (v2.1)                   ║',
+        '║  ✓ Prompt caching & model routing (v2.1)                 ║',
+        '║  ✓ SSE streaming & WebSocket live findings (v2.1)        ║',
         '║  ✓ User feedback processing & feature suggestions        ║',
         '║  ✓ AI documentation generation                           ║',
         '║  ✓ Test stub generation for untested routes              ║',
@@ -328,11 +463,17 @@ function _llmPost(urlStr, body, headers, extractFn) {
 /**
  * Call local Ollama /api/chat endpoint (privacy-safe, no external API key).
  * @param {string} prompt
+ * @param {'small'|'large'} [modelSize]  v2.1 model routing hint.
  * @returns {Promise<string>}
  */
-async function callOllama(prompt) {
+async function callOllama(prompt, modelSize) {
+    // v2.1 model routing: classification uses the small model, generation uses the large one.
+    const model = modelSize === 'small' ? CONFIG.ollamaModelSmall
+        : modelSize === 'large'         ? CONFIG.ollamaModelLarge
+        : CONFIG.ollamaModel;
+
     const body = JSON.stringify({
-        model: CONFIG.ollamaModel,
+        model,
         messages: [
             { role: 'system', content: 'You are an expert DevOps AI assistant for the Milonexa platform. Provide concise, actionable analysis.' },
             { role: 'user', content: prompt },
@@ -352,25 +493,43 @@ async function callOllama(prompt) {
 /**
  * Get an LLM-enhanced summary/analysis for unusual anomalies.
  * Falls back to rule-based output if LLM unavailable or in demo mode.
+ * v2.1: Wrapped with prompt cache; supports model routing hint.
  *
  * @param {string} prompt
+ * @param {'small'|'large'} [modelSize]  routing hint.
  * @returns {Promise<string>}
  */
-async function llmAnalyze(prompt) {
+async function llmAnalyze(prompt, modelSize) {
+    // v2.1: prompt cache lookup.
+    // Include modelSize in the cache key so different routing choices are cached separately.
+    // Use NUL as a delimiter that cannot appear in prompts, preventing key collisions.
+    const cacheInput = (modelSize || 'default') + '\x00' + prompt;
+    const cached = promptCache.lookup(cacheInput);
+    if (cached !== undefined) {
+        agentState.promptCache = promptCache.getStats();
+        return cached;
+    }
+
+    let result = null;
     try {
         if (CONFIG.provider === 'ollama') {
-            return await callOllama(prompt);
-        }
-        if (CONFIG.provider === 'openai' && CONFIG.openaiKey) {
-            return await callOpenAI(prompt);
-        }
-        if (CONFIG.provider === 'anthropic' && CONFIG.anthropicKey) {
-            return await callAnthropic(prompt);
+            result = await callOllama(prompt, modelSize);
+        } else if (CONFIG.provider === 'openai' && CONFIG.openaiKey) {
+            result = await callOpenAI(prompt);
+        } else if (CONFIG.provider === 'anthropic' && CONFIG.anthropicKey) {
+            result = await callAnthropic(prompt);
         }
     } catch (err) {
         console.error(`[ai-agent] LLM call failed (${CONFIG.provider}): ${err.message}`);
     }
-    return null; // Demo / fallback — caller handles null.
+
+    // Cache successful responses with the same compound key.
+    if (result) promptCache.put(cacheInput, result);
+
+    // Update state.
+    agentState.promptCache = promptCache.getStats();
+
+    return result; // Demo / fallback — caller handles null.
 }
 
 // ---------------------------------------------------------------------------
@@ -553,6 +712,29 @@ async function runCycle() {
             console.error('[ai-agent] Test generation error:', e.message);
         }
     }
+
+    // 10e. v2.1 — Dependency vulnerability scan (every depScanEvery cycles, starting at cycle 5)
+    if (cycleId > 4 && (cycleId - 5) % CONFIG.depScanEvery === 0) {
+        try {
+            const { summary: depSummary } = await depScanner.scan();
+            agentState.depScan = depScanner.getLastRunSummary();
+            if (depSummary.bySeverity.critical > 0 || depSummary.bySeverity.high > 0) {
+                console.warn(`[ai-agent] Dep scan: ${depSummary.bySeverity.critical} critical, ${depSummary.bySeverity.high} high severity vulnerabilities`);
+                await notifier.notify(
+                    depSummary.bySeverity.critical > 0 ? 'critical' : 'warning',
+                    'Dependency Vulnerabilities Found',
+                    `Critical: ${depSummary.bySeverity.critical}, High: ${depSummary.bySeverity.high}. Check /dep-scan for details.`,
+                    { total: depSummary.total }
+                ).catch(() => {});
+            }
+        } catch (e) {
+            console.error('[ai-agent] Dep scan error:', e.message);
+        }
+    }
+
+    // v2.1: refresh file-watcher status in state.
+    agentState.fileWatcher = fileWatcher.getStatus();
+    agentState.promptCache  = promptCache.getStats();
 
     // ── 10. Process approved permissions ────────────────────────────────────
     setState(STATES.ACTING);
@@ -977,6 +1159,187 @@ function startStatusServer() {
             return;
         }
 
+        // ── GET /dep-scan ────────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/dep-scan') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary:  depScanner.getLastRunSummary(),
+                findings: depScanner.getFindings(50),
+            }, null, 2));
+            return;
+        }
+
+        // ── POST /dep-scan/trigger ───────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/dep-scan/trigger') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Dependency scan triggered.' }));
+            depScanner.scan()
+                .then(({ summary }) => { agentState.depScan = depScanner.getLastRunSummary(); })
+                .catch(e => console.error('[ai-agent] Manual dep scan error:', e.message));
+            return;
+        }
+
+        // ── GET /complexity ──────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/complexity') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                report: codeAnalyzer.getComplexityReport(50),
+            }, null, 2));
+            return;
+        }
+
+        // ── GET /duplicates ──────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/duplicates') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                groups: codeAnalyzer.getDuplicates(20),
+            }, null, 2));
+            return;
+        }
+
+        // ── GET /dead-code ───────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/dead-code') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                symbols: codeAnalyzer.getDeadCode(50),
+            }, null, 2));
+            return;
+        }
+
+        // ── POST /code-analysis/dry-run ──────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/code-analysis/dry-run') {
+            let body = '';
+            req.on('data', c => { body += c; });
+            req.on('end', () => {
+                try {
+                    const fix = JSON.parse(body);
+                    const result = codeAnalyzer.dryRunFix(fix);
+                    res.writeHead(200);
+                    res.end(JSON.stringify(result, null, 2));
+                } catch (e) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+                }
+            });
+            return;
+        }
+
+        // ── GET /prompt-templates ────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/prompt-templates') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                custom:   promptTemplates.listCustom(),
+                defaults: promptTemplates.listDefaults(),
+            }, null, 2));
+            return;
+        }
+
+        // ── POST /prompt-templates/reload ────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/prompt-templates/reload') {
+            const result = promptTemplates.reload();
+            res.writeHead(200);
+            res.end(JSON.stringify(result));
+            return;
+        }
+
+        // ── PUT /prompt-templates/:ruleId ────────────────────────────────────
+        const tplSaveMatch = pathname.match(/^\/prompt-templates\/([^/]+)$/);
+        if (req.method === 'PUT' && tplSaveMatch) {
+            const ruleId = tplSaveMatch[1];
+            let body = '';
+            req.on('data', c => { body += c; });
+            req.on('end', () => {
+                try {
+                    const { template } = JSON.parse(body);
+                    if (!template || typeof template !== 'string') throw new Error('template string required');
+                    promptTemplates.save(ruleId, template);
+                    res.writeHead(200);
+                    res.end(JSON.stringify({ ruleId, saved: true }));
+                } catch (e) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: e.message }));
+                }
+            });
+            return;
+        }
+
+        // ── DELETE /prompt-templates/:ruleId ─────────────────────────────────
+        const tplDeleteMatch = pathname.match(/^\/prompt-templates\/([^/]+)$/);
+        if (req.method === 'DELETE' && tplDeleteMatch) {
+            const ruleId = tplDeleteMatch[1];
+            promptTemplates.remove(ruleId);
+            res.writeHead(200);
+            res.end(JSON.stringify({ ruleId, removed: true }));
+            return;
+        }
+
+        // ── GET /prompt-cache/stats ──────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/prompt-cache/stats') {
+            res.writeHead(200);
+            res.end(JSON.stringify(promptCache.getStats(), null, 2));
+            return;
+        }
+
+        // ── POST /prompt-cache/clear ─────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/prompt-cache/clear') {
+            promptCache.clear();
+            agentState.promptCache = promptCache.getStats();
+            res.writeHead(200);
+            res.end(JSON.stringify({ cleared: true }));
+            return;
+        }
+
+        // ── GET /file-watcher/status ─────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/file-watcher/status') {
+            res.writeHead(200);
+            res.end(JSON.stringify(fileWatcher.getStatus(), null, 2));
+            return;
+        }
+
+        // ── POST /file-watcher/start ─────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/file-watcher/start') {
+            fileWatcher.start();
+            agentState.fileWatcher = fileWatcher.getStatus();
+            res.writeHead(200);
+            res.end(JSON.stringify({ started: true, status: agentState.fileWatcher }));
+            return;
+        }
+
+        // ── POST /file-watcher/stop ──────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/file-watcher/stop') {
+            fileWatcher.stop();
+            agentState.fileWatcher = fileWatcher.getStatus();
+            res.writeHead(200);
+            res.end(JSON.stringify({ stopped: true, status: agentState.fileWatcher }));
+            return;
+        }
+
+        // ── GET /stream (SSE) ────────────────────────────────────────────────
+        // Server-Sent Events endpoint — streams analysis events to clients.
+        if (req.method === 'GET' && pathname === '/stream') {
+            res.writeHead(200, {
+                'Content-Type':  'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection':    'keep-alive',
+                'X-Accel-Buffering': 'no',
+            });
+            // Send initial connection event.
+            res.write(`event: connected\ndata: ${JSON.stringify({ agentVersion: AGENT_VERSION, cycles: agentState.cycles })}\n\n`);
+
+            sseClients.add(res);
+
+            // Heartbeat every 30 s to keep connection alive.
+            const heartbeat = setInterval(() => {
+                try { res.write(': heartbeat\n\n'); } catch (_) { clearInterval(heartbeat); sseClients.delete(res); }
+            }, 30000);
+
+            req.on('close', () => {
+                clearInterval(heartbeat);
+                sseClients.delete(res);
+            });
+            return; // Keep connection open — do NOT call res.end().
+        }
+
         // ── 404 ──────────────────────────────────────────────────────────────
         res.writeHead(404);
         res.end(JSON.stringify({ error: 'Not found', availableRoutes: [
@@ -987,17 +1350,52 @@ function startStatusServer() {
             'POST /permissions/:id/deny',
             'GET  /code-analysis',
             'POST /code-analysis/trigger',
+            'POST /code-analysis/dry-run',
             'GET  /feedback',
             'POST /feedback',
             'GET  /docs',
             'POST /docs/trigger',
             'GET  /tests',
             'POST /tests/trigger',
+            'GET  /dep-scan',
+            'POST /dep-scan/trigger',
+            'GET  /complexity',
+            'GET  /duplicates',
+            'GET  /dead-code',
+            'GET  /prompt-templates',
+            'POST /prompt-templates/reload',
+            'PUT  /prompt-templates/:ruleId',
+            'DELETE /prompt-templates/:ruleId',
+            'GET  /prompt-cache/stats',
+            'POST /prompt-cache/clear',
+            'GET  /file-watcher/status',
+            'POST /file-watcher/start',
+            'POST /file-watcher/stop',
+            'GET  /stream  (SSE)',
+            'GET  /ws      (WebSocket)',
         ]}));
     });
 
     server.on('error', err => {
         console.error(`[ai-agent] Status server error: ${err.message}`);
+    });
+
+    // v2.1 — WebSocket upgrade for live finding dashboard.
+    server.on('upgrade', (req, socket, head) => {
+        const u = new URL(req.url, `http://localhost:${CONFIG.statusPort}`);
+        if (u.pathname !== '/ws') { socket.destroy(); return; }
+        // Auth: check token via query param or Authorization header.
+        if (CONFIG.statusToken) {
+            const token = u.searchParams.get('token') || '';
+            const authHeader = req.headers['authorization'] || '';
+            const headerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+            if (token !== CONFIG.statusToken && headerToken !== CONFIG.statusToken) {
+                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                socket.destroy();
+                return;
+            }
+        }
+        handleWebSocketUpgrade(req, socket, head);
     });
 
     server.listen(CONFIG.statusPort, '0.0.0.0', () => {
@@ -1072,6 +1470,39 @@ async function main() {
         );
     }
 
+    // v2.1 — Hook live broadcast into the code analyzer.
+    _hookAnalyzerBroadcast();
+
+    // v2.1 — Start file watcher if enabled.
+    if (CONFIG.watchEnabled) {
+        fileWatcher.start();
+        agentState.fileWatcher = fileWatcher.getStatus();
+
+        // Prevent overlapping incremental analysis runs.
+        let _incrementalRunning = false;
+
+        // On file change: run incremental analysis and broadcast.
+        fileWatcher.on('change', async ({ files }) => {
+            if (_incrementalRunning) {
+                console.log(`[ai-agent] File-watcher: incremental analysis already running — skipping batch of ${files.length} file(s)`);
+                return;
+            }
+            _incrementalRunning = true;
+            console.log(`[ai-agent] File-watcher: ${files.length} file(s) changed — running incremental analysis…`);
+            broadcastSSE('files_changed', { files: files.map(f => path.relative(PROJECT_ROOT, f)), at: new Date().toISOString() });
+            broadcastWS({ type: 'files_changed', count: files.length });
+            try {
+                const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+                await codeAnalyzer.analyzeIncremental(llmFn, permGate);
+                agentState.codeAnalysis = codeAnalyzer.getLastRunSummary();
+            } catch (e) {
+                console.error('[ai-agent] Incremental analysis error:', e.message);
+            } finally {
+                _incrementalRunning = false;
+            }
+        });
+    }
+
     // Start HTTP status server.
     startStatusServer();
 
@@ -1086,13 +1517,11 @@ async function main() {
     // Notify admin of startup.
     await notifier.notify(
         'info',
-        'AI Admin Agent v2.0 Started',
+        'AI Admin Agent v2.1 Started',
         `Milonexa AI Admin Agent is now monitoring the platform (provider=${CONFIG.provider}, cycle=${CONFIG.cycleSeconds}s). ` +
-        `New capabilities: code analysis (every ${CONFIG.codeAnalysisEvery} cycles), ` +
-        `documentation generation (every ${CONFIG.docGenEvery} cycles), ` +
-        `test generation (every ${CONFIG.testGenEvery} cycles), ` +
-        `feedback processing (every ${CONFIG.feedbackEvery} cycles).`,
-        { port: CONFIG.statusPort, autoHeal: CONFIG.autoHeal, autoSecurity: CONFIG.autoSecurity }
+        `v2.1 features: incremental analysis, AST checks, dep scan, SSE/WebSocket streaming, ` +
+        `prompt caching (TTL=${CONFIG.promptCacheTtl}m), model routing, custom templates.`,
+        { port: CONFIG.statusPort, autoHeal: CONFIG.autoHeal, autoSecurity: CONFIG.autoSecurity, watchEnabled: CONFIG.watchEnabled }
     ).catch(() => {});
 
     // Begin scheduled loop.
