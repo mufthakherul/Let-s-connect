@@ -1,5 +1,5 @@
 const express = require('express');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const http = require('http');
 const Redis = require('ioredis');
 const crypto = require('crypto');
 const { HealthChecker, checkRedis } = require('../shared/monitoring');
@@ -13,9 +13,14 @@ const healthChecker = new HealthChecker('ai-service');
 app.use(express.json());
 app.use(healthChecker.metricsMiddleware());
 
-// Gemini Configuration
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// ─────────────────────────────────────────────────────────────────────────────
+// Local LLM (Ollama) Configuration
+// Privacy-safe, runs entirely on your own infrastructure — no data leaves.
+// ─────────────────────────────────────────────────────────────────────────────
+const OLLAMA_HOST   = process.env.OLLAMA_HOST  || 'ollama';
+const OLLAMA_PORT   = parseInt(process.env.OLLAMA_PORT || '11434', 10);
+const OLLAMA_MODEL  = process.env.OLLAMA_MODEL || 'llama3.2';
+const OLLAMA_TIMEOUT_MS = parseInt(process.env.OLLAMA_TIMEOUT_MS || '120000', 10);
 
 // Redis for caching
 const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
@@ -23,62 +28,91 @@ const LONG_TERM_CACHE_TTL = 86400 * 30;
 const TRENDING_CACHE_TTL = 900;
 
 healthChecker.registerCheck('redis', () => checkRedis(redis));
-healthChecker.registerCheck('geminiApiKey', async () => ({
-  healthy: Boolean(process.env.GEMINI_API_KEY),
-  message: process.env.GEMINI_API_KEY ? 'Configured' : 'Missing GEMINI_API_KEY'
-}));
+healthChecker.registerCheck('ollama', async () => {
+  return new Promise((resolve) => {
+    const req = http.request(
+      { hostname: OLLAMA_HOST, port: OLLAMA_PORT, path: '/api/tags', method: 'GET', timeout: 5000 },
+      (res) => {
+        res.resume();
+        resolve({ healthy: res.statusCode < 400, message: `Ollama reachable (HTTP ${res.statusCode})` });
+      }
+    );
+    req.on('timeout', () => { req.destroy(); resolve({ healthy: false, message: 'Ollama timeout' }); });
+    req.on('error', (e) => resolve({ healthy: false, message: `Ollama unreachable: ${e.message}` }));
+    req.end();
+  });
+});
 
 const hashCacheSegment = (value) => crypto.createHash('sha1').update(String(value)).digest('hex');
 const buildHashedAiKey = (prefix, payload) => CacheKeyBuilder.custom('ai', prefix, hashCacheSegment(payload));
 
-const buildGeminiRequest = (messages) => {
-  const contents = [];
-  const systemParts = [];
+/**
+ * Call the local Ollama /api/chat endpoint.
+ * @param {Array<{role:string,content:string}>} messages
+ * @param {number} numPredict  max tokens to generate
+ * @returns {Promise<string>}
+ */
+const ollamaChat = (messages, numPredict = 500) =>
+  new Promise((resolve, reject) => {
+    const body = JSON.stringify({
+      model:   OLLAMA_MODEL,
+      messages,
+      stream:  false,
+      options: { num_predict: numPredict, temperature: 0.7 }
+    });
 
-  (messages || []).forEach((message) => {
-    if (!message || typeof message.content !== 'string') {
-      return;
-    }
+    const req = http.request(
+      {
+        hostname: OLLAMA_HOST,
+        port:     OLLAMA_PORT,
+        path:     '/api/chat',
+        method:   'POST',
+        headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+        timeout:  OLLAMA_TIMEOUT_MS
+      },
+      (res) => {
+        let data = '';
+        // Cap response size to prevent memory exhaustion (8 MB).
+        const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+        let totalBytes = 0;
+        res.on('data', (chunk) => {
+          totalBytes += chunk.length;
+          if (totalBytes > MAX_RESPONSE_BYTES) {
+            req.destroy();
+            reject(new Error('Ollama response exceeded maximum size'));
+            return;
+          }
+          data += chunk;
+        });
+        res.on('error', (err) => reject(new Error(`Ollama response stream error: ${err.message}`)));
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            try {
+              const parsed = JSON.parse(data);
+              resolve(parsed?.message?.content || parsed?.response || '');
+            } catch (e) {
+              reject(new Error(`Failed to parse Ollama response: ${e.message}`));
+            }
+          } else {
+            reject(new Error(`Ollama HTTP ${res.statusCode}: ${data.slice(0, 300)}`));
+          }
+        });
+      }
+    );
 
-    if (message.role === 'system') {
-      systemParts.push(message.content);
-      return;
-    }
-
-    const role = message.role === 'assistant' ? 'model' : 'user';
-    contents.push({ role, parts: [{ text: message.content }] });
+    req.on('timeout', () => { req.destroy(); reject(new Error('Ollama request timed out')); });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
   });
 
-  return {
-    contents,
-    systemInstruction: systemParts.length ? systemParts.join('\n') : undefined
-  };
-};
+const generateTextFromMessages = (messages, maxOutputTokens) =>
+  ollamaChat(messages, maxOutputTokens);
 
-const generateTextFromMessages = async (messages, maxOutputTokens) => {
-  const { contents, systemInstruction } = buildGeminiRequest(messages);
-  const model = genAI.getGenerativeModel(
-    systemInstruction
-      ? { model: GEMINI_MODEL, systemInstruction }
-      : { model: GEMINI_MODEL }
-  );
-  const result = await model.generateContent({
-    contents,
-    generationConfig: { maxOutputTokens }
-  });
-
-  return result.response.text();
-};
-
-const generateTextFromPrompt = async ({ system, prompt, maxOutputTokens }) => {
+const generateTextFromPrompt = ({ system, prompt, maxOutputTokens }) => {
   const messages = [];
-
-  if (system) {
-    messages.push({ role: 'system', content: system });
-  }
-
+  if (system) messages.push({ role: 'system', content: system });
   messages.push({ role: 'user', content: prompt });
-
   return generateTextFromMessages(messages, maxOutputTokens);
 };
 
@@ -786,9 +820,45 @@ app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
     service: 'ai-service',
-    message: 'AI service is running.',
-    health: '/health'
+    message: 'AI service is running (powered by local Ollama LLM — fully private).',
+    model: OLLAMA_MODEL,
+    health: '/health',
+    endpoints: [
+      'POST /chat', 'POST /summarize', 'POST /moderate', 'POST /suggest',
+      'POST /search/summary', 'POST /search/semantic-expand',
+      'POST /recommend/content', 'POST /recommend/collaborative',
+      'POST /recommend/trending', 'POST /recommend/learn-preferences',
+      'GET  /recommend/preferences/:userId',
+      'POST /tag', 'POST /sentiment', 'POST /translate',
+      'POST /meeting/summarize', 'POST /digest',
+      'POST /writing/assist', 'POST /suggest/chat',
+      'POST /embed', 'GET  /models'
+    ]
   });
+});
+
+// List available Ollama models
+app.get('/models', async (req, res) => {
+  try {
+    const models = await new Promise((resolve, reject) => {
+      const request = http.request(
+        { hostname: OLLAMA_HOST, port: OLLAMA_PORT, path: '/api/tags', method: 'GET', timeout: 10000 },
+        (response) => {
+          let data = '';
+          response.on('data', (c) => { data += c; });
+          response.on('end', () => {
+            try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+          });
+        }
+      );
+      request.on('timeout', () => { request.destroy(); reject(new Error('timeout')); });
+      request.on('error', reject);
+      request.end();
+    });
+    res.json({ activeModel: OLLAMA_MODEL, available: models.models || [] });
+  } catch (error) {
+    res.status(503).json({ error: 'Ollama not reachable', details: error.message });
+  }
 });
 
 // ============================================================================

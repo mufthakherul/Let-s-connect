@@ -104,7 +104,7 @@ Required environment variables:
 JWT_SECRET=your-secret-key-here
 DB_PASSWORD=your-db-password
 ADMIN_API_SECRET=your-admin-secret
-GEMINI_API_KEY=your-gemini-key (optional)
+OLLAMA_MODEL=llama3.2  # Local AI — no API key needed
 ```
 
 3. **Start Infrastructure:**

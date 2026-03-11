@@ -1,11 +1,10 @@
 {
   "name": "ai-service",
-  "version": "1.0.0",
-  "description": "AI assistant service",
+  "version": "2.0.0",
+  "description": "AI assistant service — powered by local Ollama LLM (privacy-safe, no external API keys required)",
   "main": "server.js",
   "dependencies": {
     "express": "^5.2.1",
-    "@google/generative-ai": "^0.24.1",
     "ioredis": "^5.10.0",
     "dotenv": "^17.3.1"
   }

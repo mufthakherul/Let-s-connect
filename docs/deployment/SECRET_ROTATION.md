@@ -20,7 +20,6 @@ This runbook documents how to rotate all platform secrets safely, with zero-down
 | `ADMIN_SECRET` | `milonexa-secrets/ADMIN_SECRET` | api-gateway admin endpoints | Quarterly |
 | `DATABASE_PASSWORD` | `milonexa-secrets/DATABASE_PASSWORD` | All DB-connected services | Bi-annually |
 | `REDIS_PASSWORD` | `milonexa-secrets/REDIS_PASSWORD` | All cache-connected services | Bi-annually |
-| `GEMINI_API_KEY` | `milonexa-secrets/GEMINI_API_KEY` | ai-service | Annually / on revocation |
 | `AWS_SECRET_ACCESS_KEY` | `milonexa-secrets/AWS_SECRET_ACCESS_KEY` | media-service | Quarterly |
 | `SMTP_PASSWORD` | `milonexa-secrets/SMTP_PASSWORD` | user-service (email) | Annually |
 | `ENCRYPTION_KEY` | `milonexa-secrets/ENCRYPTION_KEY` | user-service (data encryption) | Annually |
@@ -182,7 +181,6 @@ cd frontend && npm run test:e2e -- tests/smoke.spec.js
 | DATABASE_PASSWORD | March 2026 | September 2026 | DevOps |
 | REDIS_PASSWORD | March 2026 | September 2026 | DevOps |
 | AWS Keys | March 2026 | June 2026 | DevOps |
-| GEMINI_API_KEY | March 2026 | March 2027 | AI team |
 | SMTP_PASSWORD | March 2026 | March 2027 | Backend Lead |
 | ENCRYPTION_KEY | March 2026 | March 2027 | Backend Lead |
 
