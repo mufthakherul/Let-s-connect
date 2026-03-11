@@ -297,7 +297,10 @@ function revokeBreakGlass(actor) {
 // ---------------------------------------------------------------------------
 function getKeyFingerprint(keyPath) {
     try {
-        const result = execSync(`ssh-keygen -lf ${JSON.stringify(keyPath)} 2>&1`, { encoding: 'utf8', timeout: 5000 });
+        // Validate keyPath to prevent command injection: only allow safe path characters
+        if (!/^[\w/\-. ]+$/.test(keyPath)) return '(invalid path)';
+        const { execFileSync } = require('child_process');
+        const result = execFileSync('ssh-keygen', ['-lf', keyPath], { encoding: 'utf8', timeout: 5000 });
         return result.trim();
     } catch (_) { return '(unknown)'; }
 }
@@ -1107,8 +1110,7 @@ async function handleCommand(line, user, stream) {
             writeln(`  All commands during this window are flagged as ${c('red', 'breakGlass: true')}.`);
             writeln(`  An audit alert will be sent immediately.`);
             writeln('');
-            writeln(`  ${c('yellow', 'Type the word EMERGENCY to confirm, or anything else to cancel:')}`);
-            // We need to read the confirmation interactively — prompt for next input
+            writeln(`  ${c('yellow', 'Type exactly')} ${c('bold', 'EMERGENCY')} ${c('yellow', '(uppercase, no spaces) to confirm, or anything else to cancel:')}`);
             // Store pending state in the stream-local context via closure
             stream._breakGlassPending = true;
             break;
