@@ -1,0 +1,18 @@
+{
+    "name": "milonexa-admin-ssh",
+    "version": "1.0.0",
+    "description": "SSH Admin Dashboard for Milonexa",
+    "main": "server.js",
+    "scripts": {
+        "start": "ENABLE_ADMIN_SSH=true node server.js",
+        "dev": "ENABLE_ADMIN_SSH=true ADMIN_SSH_HOST=127.0.0.1 ADMIN_SSH_PORT=2222 node server.js"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "license": "UNLICENSED",
+    "private": true,
+    "dependencies": {
+        "ssh2": "^1.17.0"
+    }
+}
