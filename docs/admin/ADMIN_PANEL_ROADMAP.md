@@ -99,13 +99,13 @@ The admin panel is a collection of interfaces and utilities for platform operato
 ## 🔜 Planned — Q2 2026
 
 ### CLI Enhancements
-- [ ] Plugin system: load additional CLI commands from `admin/cli/plugins/`
-- [ ] Batch operations: apply command to multiple services at once
-- [ ] Diff viewer: show what would change before applying a config update
-- [ ] Auto-complete for service names and command flags (readline hints)
-- [ ] `tail-logs` command: stream live service logs via Docker/k8s API
-- [ ] Config snapshot/restore: save and restore service configuration
-- [ ] Side-by-side service comparison: CPU, memory, error rate, latency
+- [x] Plugin system: load additional CLI commands from `admin/cli/plugins/`
+- [x] Batch operations: apply command to multiple services at once
+- [x] Diff viewer: show what would change before applying a config update
+- [x] Auto-complete for service names and command flags (readline hints)
+- [x] `tail-logs` command: stream live service logs via Docker/k8s API
+- [x] Config snapshot/restore: save and restore service configuration
+- [x] Side-by-side service comparison: CPU, memory, error rate, latency
 
 ### REST API Enhancements
 - [ ] GraphQL layer: expose platform metrics and audit log via GraphQL
