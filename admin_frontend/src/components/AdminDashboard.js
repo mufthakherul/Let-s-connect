@@ -37,14 +37,13 @@ import {
     Delete,
     Search,
     FilterList,
-    Database,
+    Storage as Database,
     Backup,
     Restore,
     CloudUpload,
     CloudDownload,
     SystemUpdate,
     Memory,
-    Storage as StorageIcon,
     Speed,
     Assessment,
     Timeline,
@@ -80,12 +79,27 @@ import {
     ArrowDownward,
     ExitToApp
 } from '@mui/icons-material';
+import {
+    Webhook,
+    NotificationImportant,
+    Cloud,
+    BarChart as BarChartIcon,
+    SmartToy,
+    Hub,
+    Insights,
+    AutoGraph,
+} from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import api from '../utils/api';
 import AdminLogin from './AdminLogin';
+import SLAPanel from './dashboard/SLAPanel';
+import WebhookPanel from './dashboard/WebhookPanel';
+import AIRemediationPanel from './dashboard/AIRemediationPanel';
+import MultiClusterPanel from './dashboard/MultiClusterPanel';
+import TrendAnalysisPanel from './dashboard/TrendAnalysisPanel';
 
 const AdminDashboard = () => {
     useEffect(() => {
@@ -1332,6 +1346,11 @@ const AdminDashboard = () => {
                             <Tab icon={<Api />} label="API Management" />
                             <Tab icon={<Security />} label="Security" />
                             <Tab icon={<Settings />} label="Settings" />
+                            <Tab icon={<Timeline />} label="SLA Monitor" />
+                            <Tab icon={<Webhook />} label="Webhooks" />
+                            <Tab icon={<SmartToy />} label="AI Remediation" />
+                            <Tab icon={<Cloud />} label="Multi-Cluster" />
+                            <Tab icon={<AutoGraph />} label="Trend Analysis" />
                         </Tabs>
 
                         {currentTab === 0 && renderStatsTab()}
@@ -1343,6 +1362,11 @@ const AdminDashboard = () => {
                         {currentTab === 6 && renderApiTab()}
                         {currentTab === 7 && renderSecurityTab()}
                         {currentTab === 8 && renderSettingsTab()}
+                        {currentTab === 9 && <SLAPanel />}
+                        {currentTab === 10 && <WebhookPanel />}
+                        {currentTab === 11 && <AIRemediationPanel />}
+                        {currentTab === 12 && <MultiClusterPanel />}
+                        {currentTab === 13 && <TrendAnalysisPanel />}
                     </Paper>
 
                     {/* Speed Dial for Quick Actions */}

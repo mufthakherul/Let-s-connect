@@ -51,6 +51,14 @@ const { CostAnalyzer, forecastCosts } = require('./lib/cost-analyzer');
 const { ComplianceManager } = require('./lib/compliance');
 const { RecommendationEngine } = require('./lib/recommendations');
 
+// Phase E modules
+const { TUIDashboard } = require('./lib/tui');
+const { WebhookManager } = require('./lib/webhooks');
+const { SLAManager } = require('./lib/sla');
+const { RemediationEngine } = require('./lib/ai-remediation');
+const { MultiClusterManager } = require('./lib/multi-cluster');
+const { TrendAnalyzer, sparkline, barChart, lineChart } = require('./lib/trend-analysis');
+
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -547,6 +555,13 @@ function resolveEnvFile(profile) {
 
 function emitJSON(payload) {
     process.stdout.write(JSON.stringify(payload, null, 2) + os.EOL);
+}
+
+/** Pad a string to a given length for tabular output. */
+function pad(str, len, align = 'left') {
+    const s = String(str == null ? '' : str);
+    if (align === 'right') return s.padStart(len).slice(-len);
+    return s.padEnd(len).slice(0, len);
 }
 
 /** Parse simple durations like 30m, 2h, 1d into seconds. */
@@ -2063,6 +2078,14 @@ function cmdDashboard(rawArgs) {
     const costAnalyzer = new CostAnalyzer(costDir);
     const budgetStatus = costAnalyzer.checkBudgetStatus();
 
+    const slaDir = path.join(ADMIN_HOME, 'sla');
+    const slaMgr = new SLAManager(slaDir);
+    const slaSummary = slaMgr.getSummary();
+
+    const webhooksDir = path.join(ADMIN_HOME, 'webhooks');
+    const webhookMgr = new WebhookManager(webhooksDir);
+    const webhookStats = webhookMgr.getStats();
+
     if (toBool(options.json, false)) {
         emitJSON({
             command: 'dashboard',
@@ -2071,15 +2094,627 @@ function cmdDashboard(rawArgs) {
             alerts: alertStats,
             compliance: { ...complianceStatus, checks: undefined },
             budget: budgetStatus,
+            sla: slaSummary,
+            webhooks: webhookStats,
         });
     } else {
         console.log(`  Alerts: ${alertStats.active} active, ${alertStats.critical} critical`);
         console.log(`  Compliance: ${complianceStatus.passed}/${complianceStatus.total} passed`);
         console.log(`  Budget: $${budgetStatus.usage}/$${budgetStatus.budget} (${budgetStatus.percentUsed}%)`);
         console.log(`  Metrics: ${metrics.length} data points collected`);
+        console.log(`  SLA: ${slaSummary.ok}/${slaSummary.total} OK, ${slaSummary.atRisk} at risk, ${slaSummary.breached} breached`);
+        console.log(`  Webhooks: ${webhookStats.total} configured, ${webhookStats.deliveries} deliveries`);
         console.log('');
-        console.log('Use: metrics, alerts, compliance, costs, recommendations for detailed views');
+        console.log('For interactive TUI: node admin-cli/index.js tui');
+        console.log('Commands: metrics, alerts, compliance, costs, recommendations, sla, webhooks, trends, cluster, remediate');
     }
+}
+
+// ---------------------------------------------------------------------------
+// Phase E: Interactive TUI
+// ---------------------------------------------------------------------------
+
+function cmdTUI(rawArgs) {
+    const { options } = parseArgs(rawArgs);
+    const interval = parseInt(options.interval) || 3;
+
+    const metricsDir = path.join(ADMIN_HOME, 'metrics');
+    const alertsDir = path.join(ADMIN_HOME, 'alerts');
+    const complianceDir = path.join(ADMIN_HOME, 'compliance');
+    const costDir = path.join(ADMIN_HOME, 'costs');
+    const slaDir = path.join(ADMIN_HOME, 'sla');
+    const clustersDir = path.join(ADMIN_HOME, 'clusters');
+
+    const dashboard = new TUIDashboard({
+        interval,
+        metricsCollector: new MetricsCollector(metricsDir),
+        alertManager: new AlertManager(alertsDir),
+        slaManager: new SLAManager(slaDir),
+        costAnalyzer: new CostAnalyzer(costDir),
+        complianceManager: new ComplianceManager(complianceDir),
+        multiClusterManager: new MultiClusterManager(clustersDir),
+    });
+
+    dashboard.start();
+}
+
+// ---------------------------------------------------------------------------
+// Phase E: Webhook Integrations
+// ---------------------------------------------------------------------------
+
+async function cmdWebhooks(rawArgs) {
+    const { options, positionals } = parseArgs(rawArgs);
+    const action = positionals[0] || 'list';
+    const webhooksDir = path.join(ADMIN_HOME, 'webhooks');
+    const mgr = new WebhookManager(webhooksDir);
+    const jsonMode = toBool(options.json, false);
+
+    if (action === 'list') {
+        const type = options.type || null;
+        const hooks = mgr.listWebhooks(type);
+        if (jsonMode) { emitJSON({ command: 'webhooks list', webhooks: hooks, stats: mgr.getStats() }); return; }
+        console.log(`${c('bold', 'Webhooks')}  (${hooks.length} total)\n`);
+        if (hooks.length === 0) {
+            console.log(c('yellow', '  No webhooks configured.'));
+            console.log('  Add one: node admin-cli/index.js webhooks add --type slack --name "My Slack" --url https://hooks.slack.com/...');
+            return;
+        }
+        console.log(`  ${'TYPE'.padEnd(12)} ${'NAME'.padEnd(25)} ${'STATUS'.padEnd(10)} ${'SEVERITY'.padEnd(10)} ID`);
+        console.log(`  ${'─'.repeat(80)}`);
+        for (const h of hooks) {
+            const statusStr = h.enabled ? c('green', 'enabled') : c('gray', 'disabled');
+            console.log(`  ${pad(h.type || '-', 12)} ${pad(h.name, 25)} ${statusStr.padEnd(10)} ${pad(h.severity || 'all', 10)} ${h.id}`);
+        }
+        console.log('');
+        const stats = mgr.getStats();
+        console.log(`  Total deliveries: ${stats.deliveries}`);
+        return;
+    }
+
+    if (action === 'add') {
+        const type = options.type;
+        if (!type) fatal('--type is required (slack|teams|pagerduty|github)');
+        const hook = mgr.addWebhook(type, {
+            name: options.name || type,
+            url: options.url || '',
+            token: options.token || '',
+            channel: options.channel || '',
+            severity: options.severity || 'all',
+        });
+        if (jsonMode) { emitJSON({ created: hook }); return; }
+        success(`Webhook added: ${hook.name} (${hook.type}) — ID: ${hook.id}`);
+        return;
+    }
+
+    if (action === 'remove') {
+        const type = options.type;
+        const id = options.id || positionals[1];
+        if (!type || !id) fatal('--type and --id are required');
+        const ok = mgr.removeWebhook(type, id);
+        if (jsonMode) { emitJSON({ removed: ok }); return; }
+        if (ok) success(`Webhook ${id} removed`);
+        else warn(`Webhook ${id} not found`);
+        return;
+    }
+
+    if (action === 'enable' || action === 'disable') {
+        const type = options.type;
+        const id = options.id || positionals[1];
+        if (!type || !id) fatal('--type and --id are required');
+        mgr.toggleWebhook(type, id, action === 'enable');
+        if (jsonMode) { emitJSON({ action, id }); return; }
+        success(`Webhook ${id} ${action}d`);
+        return;
+    }
+
+    if (action === 'fire') {
+        const event = options.event || 'manual';
+        const severity = options.severity || 'info';
+        const message = options.message || 'Manual webhook test from Milonexa Admin CLI';
+        info(`Firing webhooks for event: ${event} (severity: ${severity})`);
+        const results = await mgr.fire(event, { message, source: 'admin-cli', timestamp: new Date().toISOString() }, severity);
+        if (jsonMode) { emitJSON({ results }); return; }
+        for (const r of results) {
+            if (r.status === 'ok') success(`  ${r.type}/${r.name}: delivered`);
+            else warn(`  ${r.type}/${r.name}: failed — ${r.error}`);
+        }
+        if (results.length === 0) warn('No webhooks matched. Check severity filter and ensure webhooks are enabled.');
+        return;
+    }
+
+    if (action === 'history') {
+        const limit = parseInt(options.limit) || 20;
+        const history = mgr.getHistory(limit);
+        if (jsonMode) { emitJSON({ history }); return; }
+        console.log(`${c('bold', 'Webhook Delivery History')}  (last ${history.length})\n`);
+        for (const h of history) {
+            const ok = h.results.filter(r => r.status === 'ok').length;
+            const fail = h.results.filter(r => r.status === 'error').length;
+            const ts = new Date(h.ts).toLocaleString();
+            console.log(`  ${ts}  ${c('cyan', h.eventType)}  sev:${h.severity}  ✓${ok} ✗${fail}`);
+        }
+        return;
+    }
+
+    if (action === 'stats') {
+        const stats = mgr.getStats();
+        if (jsonMode) { emitJSON(stats); return; }
+        console.log(`${c('bold', 'Webhook Stats')}\n`);
+        console.log(`  Total:       ${stats.total}`);
+        console.log(`  Enabled:     ${stats.enabled}`);
+        console.log(`  Deliveries:  ${stats.deliveries}`);
+        console.log(`  By type:     Slack:${stats.byType.slack} Teams:${stats.byType.teams} PagerDuty:${stats.byType.pagerduty} GitHub:${stats.byType.github}`);
+        return;
+    }
+
+    fatal(`Unknown webhooks action: ${action}\nUsage: webhooks list|add|remove|enable|disable|fire|history|stats`);
+}
+
+// ---------------------------------------------------------------------------
+// Phase E: SLA Management
+// ---------------------------------------------------------------------------
+
+function cmdSLA(rawArgs) {
+    const { options, positionals } = parseArgs(rawArgs);
+    const action = positionals[0] || 'status';
+    const slaDir = path.join(ADMIN_HOME, 'sla');
+    const mgr = new SLAManager(slaDir);
+    const jsonMode = toBool(options.json, false);
+
+    if (action === 'status') {
+        const statuses = mgr.getStatus();
+        const summary = mgr.getSummary();
+        if (jsonMode) { emitJSON({ summary, statuses }); return; }
+        console.log(`${c('bold', 'SLA Status')}\n`);
+        console.log(`  Total: ${summary.total}  OK: ${c('green', summary.ok)}  At Risk: ${c('yellow', summary.atRisk)}  Breached: ${c('red', summary.breached)}  No Data: ${c('gray', summary.noData)}\n`);
+        console.log(`  ${'SLO'.padEnd(25)} ${'SERVICE'.padEnd(15)} ${'TARGET'.padEnd(10)} ${'CURRENT'.padEnd(10)} ${'AVG'.padEnd(10)} STATUS`);
+        console.log(`  ${'─'.repeat(90)}`);
+        for (const s of statuses) {
+            const statusColor = s.status === 'ok' ? 'green' : s.status === 'at_risk' ? 'yellow' : s.status === 'breached' ? 'red' : 'gray';
+            const target = `${s.slo.target}${s.slo.unit === 'percent' ? '%' : s.slo.unit}`;
+            const current = s.current !== null ? `${s.current}` : 'N/A';
+            const avg = s.avg !== null ? `${s.avg}` : 'N/A';
+            console.log(`  ${pad(s.slo.name, 25)} ${pad(s.slo.service, 15)} ${pad(target, 10)} ${pad(current, 10)} ${pad(avg, 10)} ${c(statusColor, s.status)}`);
+        }
+        return;
+    }
+
+    if (action === 'predict') {
+        const predictions = mgr.getPredictions();
+        if (jsonMode) { emitJSON({ predictions }); return; }
+        console.log(`${c('bold', 'SLA Breach Predictions')}\n`);
+        if (predictions.length === 0) {
+            console.log(c('green', '  ✓ No high/medium risk SLA breaches predicted'));
+            return;
+        }
+        for (const p of predictions) {
+            const riskColor = p.breachRisk.risk === 'high' ? 'red' : 'yellow';
+            const hrs = p.breachRisk.hoursUntilBreach;
+            console.log(`  ${c(riskColor, `[${p.breachRisk.risk.toUpperCase()}]`)} ${c('bold', p.slo.name)}`);
+            console.log(`    Service: ${p.slo.service}  Target: ${p.slo.target}${p.slo.unit === 'percent' ? '%' : ''}  Current: ${p.current || 'N/A'}`);
+            console.log(`    Trend: ${p.breachRisk.trend}  ${hrs ? `Breach in ~${hrs}h` : 'Degrading'}  Slope: ${p.breachRisk.slope}`);
+            console.log('');
+        }
+        return;
+    }
+
+    if (action === 'add') {
+        const slo = mgr.addSLO({
+            service: options.service,
+            name: options.name,
+            type: options.type || 'availability',
+            target: options.target,
+            window: options.window || '30d',
+            unit: options.unit || 'percent',
+            description: options.description || '',
+        });
+        if (jsonMode) { emitJSON({ created: slo }); return; }
+        success(`SLO added: ${slo.name} (${slo.id})`);
+        return;
+    }
+
+    if (action === 'record') {
+        const sloId = options.id || positionals[1];
+        const value = parseFloat(options.value);
+        if (!sloId || isNaN(value)) fatal('--id and --value are required');
+        const m = mgr.record(sloId, value);
+        if (jsonMode) { emitJSON({ recorded: m }); return; }
+        success(`Recorded: ${sloId} = ${value}`);
+        return;
+    }
+
+    if (action === 'simulate') {
+        // Record synthetic measurements for all SLOs
+        const count = parseInt(options.count) || 10;
+        let total = 0;
+        for (const slo of mgr.slos) {
+            for (let i = 0; i < count; i++) {
+                mgr.recordSyntheticMeasurement(slo.id);
+                total++;
+            }
+        }
+        if (jsonMode) { emitJSON({ recorded: total }); return; }
+        success(`Recorded ${total} synthetic measurements across ${mgr.slos.length} SLOs`);
+        return;
+    }
+
+    if (action === 'list') {
+        if (jsonMode) { emitJSON({ slos: mgr.slos }); return; }
+        console.log(`${c('bold', 'SLO Definitions')}  (${mgr.slos.length} total)\n`);
+        for (const slo of mgr.slos) {
+            console.log(`  ${c('cyan', slo.id)}  ${c('bold', slo.name)}  [${slo.service}]  target: ${slo.target}${slo.unit === 'percent' ? '%' : ' ' + slo.unit}  window: ${slo.window}`);
+        }
+        return;
+    }
+
+    fatal(`Unknown sla action: ${action}\nUsage: sla status|predict|add|record|simulate|list`);
+}
+
+// ---------------------------------------------------------------------------
+// Phase E: AI-Assisted Remediation
+// ---------------------------------------------------------------------------
+
+async function cmdRemediate(rawArgs) {
+    const { options, positionals } = parseArgs(rawArgs);
+    const action = positionals[0] || 'analyze';
+    const remediationDir = path.join(ADMIN_HOME, 'remediation');
+    const engine = new RemediationEngine(remediationDir);
+    const jsonMode = toBool(options.json, false);
+
+    if (action === 'analyze') {
+        info('Gathering system context for AI analysis...');
+
+        // Collect current state
+        const alertsDir = path.join(ADMIN_HOME, 'alerts');
+        const alertMgr = new AlertManager(alertsDir);
+        const slaDir = path.join(ADMIN_HOME, 'sla');
+        const slaMgr = new SLAManager(slaDir);
+        const complianceDir = path.join(ADMIN_HOME, 'compliance');
+        const complianceMgr = new ComplianceManager(complianceDir);
+
+        const alerts = (alertMgr.history || []).filter(h => h.status === 'active').slice(-20);
+        const slaStatus = slaMgr.getStatus();
+        const complianceStatus = complianceMgr.getStatus();
+
+        const context = { alerts, slaStatus, complianceStatus };
+        const suggestions = await engine.analyze(context);
+
+        if (jsonMode) { emitJSON({ suggestions }); return; }
+
+        console.log(`${c('bold', '🤖 AI-Assisted Remediation Analysis')}\n`);
+        console.log(`  Analyzed: ${alerts.length} alerts, ${slaStatus.length} SLOs, compliance status`);
+        console.log('');
+
+        if (suggestions.length === 0) {
+            console.log(c('green', '  ✓ No critical issues identified — system appears healthy'));
+            return;
+        }
+
+        for (let i = 0; i < suggestions.length; i++) {
+            const s = suggestions[i];
+            const sevColor = s.severity === 'critical' ? 'red' : s.severity === 'warning' ? 'yellow' : 'cyan';
+            console.log(`${c(sevColor, `[${i + 1}] ${s.severity.toUpperCase()}`)} ${c('bold', s.title)}`);
+            if (s.source === 'llm') console.log(`     ${c('magenta', '🧠 AI-powered suggestion')}`);
+            if (s.trigger) {
+                const t = s.trigger;
+                if (t.type === 'alert') console.log(`     Trigger: alert "${t.alert}" = ${t.value}`);
+                if (t.type === 'sla') console.log(`     Trigger: SLA "${t.sloId}" breach in ~${t.hoursUntilBreach}h`);
+                if (t.type === 'compliance') console.log(`     Trigger: ${t.failed} compliance failure(s)`);
+            }
+            console.log(`     ${c('bold', 'Remediation Steps:')}`);
+            for (let j = 0; j < s.steps.length; j++) {
+                console.log(`       ${j + 1}. ${s.steps[j]}`);
+            }
+            if (s.references && s.references.length > 0) {
+                console.log(`     References: ${s.references.join(', ')}`);
+            }
+            console.log('');
+        }
+        return;
+    }
+
+    if (action === 'rules') {
+        const rules = engine.getRules();
+        if (jsonMode) { emitJSON({ rules }); return; }
+        console.log(`${c('bold', 'Remediation Rules')}  (${rules.length} built-in)\n`);
+        for (const r of rules) {
+            console.log(`  ${c('cyan', r.id)}  ${c('bold', r.title)}  [${r.severity}]`);
+        }
+        return;
+    }
+
+    if (action === 'history') {
+        const limit = parseInt(options.limit) || 10;
+        const history = engine.getHistory(limit);
+        if (jsonMode) { emitJSON({ history }); return; }
+        console.log(`${c('bold', 'Remediation Session History')}  (last ${history.length})\n`);
+        for (const h of history) {
+            console.log(`  ${new Date(h.ts).toLocaleString()}  alerts:${h.context.alertCount}  sla_issues:${h.context.slaIssues}  suggestions:${h.suggestionCount}`);
+        }
+        return;
+    }
+
+    if (action === 'config') {
+        if (options['llm-key'] || options['llm-url'] || options['llm-model'] || options['llm-enable'] !== undefined) {
+            const cfg = {};
+            if (options['llm-key']) cfg.llmApiKey = options['llm-key'];
+            if (options['llm-url']) cfg.llmApiUrl = options['llm-url'];
+            if (options['llm-model']) cfg.llmModel = options['llm-model'];
+            if (options['llm-enable'] !== undefined) cfg.llmEnabled = toBool(options['llm-enable'], false);
+            engine.configureLLM(cfg);
+            if (jsonMode) { emitJSON({ config: engine.config }); return; }
+            success('Remediation config updated');
+            if (cfg.llmEnabled) info('LLM-assisted analysis enabled. Set OPENAI_API_KEY env var for authentication.');
+        } else {
+            const cfg = { ...engine.config, llmApiKey: engine.config.llmApiKey ? '***' : '(not set)' };
+            if (jsonMode) { emitJSON({ config: cfg }); return; }
+            console.log(`${c('bold', 'Remediation Config')}\n`);
+            console.log(`  LLM enabled:  ${engine.config.llmEnabled}`);
+            console.log(`  LLM provider: ${engine.config.llmProvider}`);
+            console.log(`  LLM model:    ${engine.config.llmModel}`);
+            console.log(`  LLM API URL:  ${engine.config.llmApiUrl}`);
+            console.log(`  LLM API key:  ${engine.config.llmApiKey ? '***configured***' : '(not set)'}`);
+        }
+        return;
+    }
+
+    fatal(`Unknown remediate action: ${action}\nUsage: remediate analyze|rules|history|config`);
+}
+
+// ---------------------------------------------------------------------------
+// Phase E: Multi-Cluster Kubernetes Management
+// ---------------------------------------------------------------------------
+
+function cmdCluster(rawArgs) {
+    const { options, positionals } = parseArgs(rawArgs);
+    const action = positionals[0] || 'list';
+    const clustersDir = path.join(ADMIN_HOME, 'clusters');
+    const mgr = new MultiClusterManager(clustersDir);
+    const jsonMode = toBool(options.json, false);
+
+    if (action === 'list') {
+        const clusters = mgr.listClusters();
+        if (jsonMode) { emitJSON({ clusters }); return; }
+        console.log(`${c('bold', 'Registered Clusters')}  (${clusters.length} total)\n`);
+        if (clusters.length === 0) {
+            console.log(c('yellow', '  No clusters registered.'));
+            console.log('  Add one: node admin-cli/index.js cluster register --name prod-us --context gke_proj_us --env prod');
+            return;
+        }
+        console.log(`  ${'NAME'.padEnd(20)} ${'CONTEXT'.padEnd(30)} ${'ENV'.padEnd(12)} ${'REGION'.padEnd(15)} ${'NS'.padEnd(12)} STATUS`);
+        console.log(`  ${'─'.repeat(105)}`);
+        for (const cl of clusters) {
+            const envColor = cl.environment === 'prod' ? 'red' : cl.environment === 'staging' ? 'yellow' : 'green';
+            console.log(`  ${pad(cl.name, 20)} ${pad(cl.context, 30)} ${c(envColor, pad(cl.environment, 12))} ${pad(cl.region, 15)} ${pad(cl.namespace, 12)} ${cl.enabled ? c('green', 'enabled') : c('gray', 'disabled')}`);
+        }
+        return;
+    }
+
+    if (action === 'register') {
+        const cluster = mgr.registerCluster({
+            name: options.name,
+            context: options.context,
+            namespace: options.namespace || 'milonexa',
+            region: options.region || 'unknown',
+            environment: options.env || options.environment || 'dev',
+            kubeconfigPath: options.kubeconfig,
+        });
+        if (jsonMode) { emitJSON({ registered: cluster }); return; }
+        success(`Cluster registered: ${cluster.name} (context: ${cluster.context})`);
+        return;
+    }
+
+    if (action === 'deregister') {
+        const name = options.name || positionals[1];
+        if (!name) fatal('--name is required');
+        const ok = mgr.deregisterCluster(name);
+        if (jsonMode) { emitJSON({ deregistered: ok }); return; }
+        if (ok) success(`Cluster '${name}' deregistered`);
+        else warn(`Cluster '${name}' not found`);
+        return;
+    }
+
+    if (action === 'contexts') {
+        const result = mgr.getKubeconfigContexts(options.kubeconfig);
+        if (jsonMode) { emitJSON(result); return; }
+        if (!result.available) {
+            warn(`kubectl not available: ${result.error}`);
+            return;
+        }
+        console.log(`${c('bold', 'Available kubectl contexts')}  (${result.contexts.length})\n`);
+        const current = mgr.getCurrentContext();
+        for (const ctx of result.contexts) {
+            const marker = ctx === current ? c('green', '● ') : '  ';
+            console.log(`${marker}${ctx}`);
+        }
+        return;
+    }
+
+    if (action === 'status') {
+        info('Fetching status from all registered clusters (this may take a moment)...');
+        const results = mgr.getClusterStatus(options.namespace);
+        if (jsonMode) { emitJSON({ clusterStatus: results }); return; }
+        console.log(`${c('bold', 'Multi-Cluster Status')}\n`);
+        for (const r of results) {
+            const envColor = r.environment === 'prod' ? 'red' : r.environment === 'staging' ? 'yellow' : 'green';
+            if (!r.available) {
+                console.log(`  ${c('red', '✗')} ${c('bold', r.cluster)} [${r.context}]  ${c('red', 'UNREACHABLE')}`);
+                continue;
+            }
+            const podColor = r.pods.running === r.pods.total ? 'green' : r.pods.running < r.pods.total ? 'yellow' : 'gray';
+            console.log(`  ${c('green', '✓')} ${c('bold', r.cluster)} [${c(envColor, r.environment)}/${r.region}]  pods: ${c(podColor, r.pods.running + '/' + r.pods.total)} running  nodes: ${r.nodes.ready}/${r.nodes.total} ready`);
+        }
+        return;
+    }
+
+    if (action === 'exec') {
+        const name = options.name || positionals[1];
+        if (!name) fatal('--name (cluster name) is required');
+        const kubectlArgs = positionals.slice(2);
+        if (kubectlArgs.length === 0) fatal('Provide kubectl arguments after cluster name');
+        const result = mgr.execOnCluster(name, kubectlArgs);
+        if (jsonMode) { emitJSON(result); return; }
+        if (!result.success) { warn(`Command failed: ${result.error || result.stderr}`); return; }
+        process.stdout.write(result.stdout);
+        return;
+    }
+
+    if (action === 'switch') {
+        const context = options.context || positionals[1];
+        if (!context) fatal('--context is required');
+        const result = mgr.switchContext(context);
+        if (jsonMode) { emitJSON(result); return; }
+        if (result.success) success(`Switched kubectl context to: ${context}`);
+        else warn(`Failed: ${result.error}`);
+        return;
+    }
+
+    if (action === 'diff') {
+        info('Comparing deployments across clusters...');
+        const result = mgr.compareDeployments();
+        if (jsonMode) { emitJSON(result); return; }
+        console.log(`${c('bold', 'Deployment Diff Across Clusters')}\n`);
+        const mismatched = result.diff.filter(d => d.missingFrom.length > 0);
+        if (mismatched.length === 0) {
+            success('All deployments are consistent across all clusters');
+            return;
+        }
+        for (const d of mismatched) {
+            console.log(`  ${c('yellow', '⚠')} ${d.deployment}  present in: ${d.presentIn.join(', ')}  missing from: ${c('red', d.missingFrom.join(', '))}`);
+        }
+        return;
+    }
+
+    fatal(`Unknown cluster action: ${action}\nUsage: cluster list|register|deregister|contexts|status|exec|switch|diff`);
+}
+
+// ---------------------------------------------------------------------------
+// Phase E: Advanced Trend Analysis & Visualization
+// ---------------------------------------------------------------------------
+
+function cmdTrends(rawArgs) {
+    const { options, positionals } = parseArgs(rawArgs);
+    const action = positionals[0] || 'report';
+    const metricsDir = path.join(ADMIN_HOME, 'metrics');
+    const collector = new MetricsCollector(metricsDir);
+    const analyzer = new TrendAnalyzer(metricsDir);
+    const jsonMode = toBool(options.json, false);
+
+    if (action === 'report') {
+        const category = options.category || null;
+        const service = options.service || null;
+        let metrics = collector.query(category ? { category } : {});
+        if (service) metrics = metrics.filter(m => m.service === service || m.tags?.service === service);
+
+        // Group by category
+        const byCat = {};
+        for (const m of metrics) {
+            const key = m.category || 'unknown';
+            if (!byCat[key]) byCat[key] = [];
+            byCat[key].push(m.value);
+        }
+
+        const reports = [];
+        for (const [cat, values] of Object.entries(byCat)) {
+            reports.push(analyzer.analyze(cat, values));
+        }
+
+        if (jsonMode) { emitJSON({ reports }); return; }
+
+        console.log(`${c('bold', '📈 Trend Analysis Report')}\n`);
+        if (reports.length === 0) {
+            console.log(c('yellow', '  No metrics data. Record with: node admin-cli/index.js metrics record --category cpu --value 45'));
+            return;
+        }
+
+        for (const r of reports) {
+            if (r.status === 'no_data') continue;
+            const trendColor = r.regression.trend === 'increasing' ? 'yellow' : r.regression.trend === 'decreasing' ? 'cyan' : 'green';
+            console.log(`  ${c('bold', r.name.padEnd(15))} n=${r.count}  mean=${r.mean}  min=${r.min}  max=${r.max}`);
+            console.log(`  ${''.padEnd(15)} trend: ${c(trendColor, r.regression.trend.padEnd(12))} slope=${r.regression.slope}  R²=${r.regression.r2}  anomalies=${r.anomalies}`);
+            console.log(`  ${''.padEnd(15)} forecast(3): ${r.forecast.map(v => v.toFixed(1)).join(', ')}`);
+            console.log(`  ${''.padEnd(15)} ${c('dim', r.sparkline)}`);
+            console.log('');
+        }
+        return;
+    }
+
+    if (action === 'chart') {
+        const category = options.category;
+        if (!category) fatal('--category is required (e.g. --category cpu)');
+        const metrics = collector.query({ category });
+        const values = metrics.map(m => m.value).filter(v => typeof v === 'number');
+        if (values.length === 0) {
+            warn(`No data for category: ${category}`);
+            return;
+        }
+        if (jsonMode) {
+            const report = analyzer.analyze(category, values);
+            emitJSON(report);
+            return;
+        }
+        console.log(`${c('bold', `📊 Line Chart: ${category}`)}\n`);
+        const chartLines = lineChart(values, { width: 60, height: 10, label: category, unit: '' });
+        for (const l of chartLines) console.log('  ' + l);
+        console.log('');
+        const report = analyzer.analyze(category, values);
+        console.log(`  Mean: ${report.mean}  Min: ${report.min}  Max: ${report.max}`);
+        console.log(`  Trend: ${c(report.regression.trend === 'increasing' ? 'yellow' : 'green', report.regression.trend)}  Slope: ${report.regression.slope}  R²: ${report.regression.r2}`);
+        console.log(`  Anomalies: ${report.anomalies}  Forecast(3): ${report.forecast.join(', ')}`);
+        return;
+    }
+
+    if (action === 'anomalies') {
+        const category = options.category || null;
+        const metrics = collector.query(category ? { category } : {});
+        const byCat = {};
+        for (const m of metrics) {
+            if (!byCat[m.category]) byCat[m.category] = [];
+            byCat[m.category].push({ value: m.value, ts: m.timestamp });
+        }
+
+        if (jsonMode) {
+            const results = {};
+            for (const [cat, pts] of Object.entries(byCat)) {
+                results[cat] = analyzer.detectAnomalies(pts.map(p => p.value));
+            }
+            emitJSON({ anomalies: results });
+            return;
+        }
+
+        console.log(`${c('bold', '🔍 Anomaly Detection')}\n`);
+        for (const [cat, pts] of Object.entries(byCat)) {
+            const anomalies = analyzer.detectAnomalies(pts.map(p => p.value));
+            if (anomalies.length === 0) {
+                console.log(`  ${c('green', '✓')} ${cat.padEnd(15)} no anomalies`);
+            } else {
+                console.log(`  ${c('yellow', '⚠')} ${cat.padEnd(15)} ${anomalies.length} anomaly(ies):`);
+                for (const a of anomalies.slice(0, 5)) {
+                    const ts = pts[a.index]?.ts ? new Date(pts[a.index].ts).toLocaleTimeString() : `idx[${a.index}]`;
+                    console.log(`      ${ts}  value=${a.value}  z-score=${a.zscore.toFixed(2)}`);
+                }
+            }
+        }
+        return;
+    }
+
+    if (action === 'forecast') {
+        const category = options.category;
+        const steps = parseInt(options.steps) || 5;
+        if (!category) fatal('--category is required');
+        const metrics = collector.query({ category });
+        const values = metrics.map(m => m.value).filter(v => typeof v === 'number');
+        const forecast = analyzer.forecast(values, steps);
+        if (jsonMode) { emitJSON({ category, steps, forecast }); return; }
+        console.log(`${c('bold', `Forecast: ${category}`)}  (next ${steps} steps)\n`);
+        console.log(`  Historical: ${values.slice(-5).join(', ')}`);
+        console.log(`  Forecast:   ${forecast.join(', ')}`);
+        const spark = sparkline([...values.slice(-20), ...forecast]);
+        console.log(`  Sparkline: ${spark} ${c('dim', '← forecast →')}`);
+        return;
+    }
+
+    fatal(`Unknown trends action: ${action}\nUsage: trends report|chart|anomalies|forecast`);
 }
 
 // ---------------------------------------------------------------------------
@@ -2125,7 +2760,7 @@ function cmdSetRole(rawArgs) {
 
 function printHelp() {
     const helpText = `
-${c('bold', 'Milonexa Omni Admin CLI')} ${c('cyan', 'Phase D (Advanced Intelligence & Governance)')}
+${c('bold', 'Milonexa Omni Admin CLI')} ${c('cyan', 'Phase E (TUI · Webhooks · AI · Multi-Cluster · SLA · Trends)')}
 
 Usage:
   node admin-cli/index.js <command> [options] [services]
@@ -2167,10 +2802,18 @@ Phase D — Advanced Intelligence & Governance:
   recommendations top|dismiss|implement [--limit 10] [--json]
   dashboard    [--interval 5] [--json]
 
+Phase E — TUI · Webhooks · AI Remediation · Multi-Cluster · SLA · Trends:
+  tui          [--interval 3]                        Interactive full-screen TUI dashboard
+  webhooks     list|add|remove|enable|disable|fire|history|stats [--type slack|teams|pagerduty|github]
+  sla          status|predict|add|record|simulate|list [--id] [--value] [--json]
+  remediate    analyze|rules|history|config [--json] [--llm-enable true]
+  cluster      list|register|deregister|contexts|status|exec|switch|diff [--name] [--context]
+  trends       report|chart|anomalies|forecast [--category] [--steps N] [--json]
+
 Roles (ascending privilege):
   viewer       Read-only (doctor, role, status, logs, health, check, audit, monitor, run, incident, metrics, etc.)
-  operator     + build, start/restart, scale/rollout (non-prod), metrics recording, alerts
-  admin        + stop, backup, scale/rollout/start/restart in prod/k8s, policy creation, budget management
+  operator     + build, start/restart, scale/rollout (non-prod), metrics recording, alerts, sla record
+  admin        + stop, backup, scale/rollout/start/restart in prod/k8s, policy creation, budget management, webhooks
   break-glass  Emergency override — skips prompts, always flagged in audit
 
 Set role via env:  ADMIN_CLI_ROLE=admin node admin-cli/index.js start ...
@@ -2191,8 +2834,25 @@ Key flags:
   --status <status>            Filter by status (active, resolved, pending, implemented)
   --limit <number>             Limit output (for rankings, history)
   --format <format>            Output format (summary, detailed)
+  --interval <seconds>         Refresh interval for TUI/dashboard (default: 3-5s)
 
 Examples:
+  node admin-cli/index.js tui
+  node admin-cli/index.js tui --interval 5
+  node admin-cli/index.js webhooks add --type slack --name "Ops Slack" --url https://hooks.slack.com/...
+  node admin-cli/index.js webhooks fire --event alert --severity critical --message "High CPU"
+  node admin-cli/index.js sla status --json
+  node admin-cli/index.js sla predict
+  node admin-cli/index.js sla simulate --count 20
+  node admin-cli/index.js remediate analyze
+  node admin-cli/index.js remediate config --llm-enable true --llm-model gpt-4o-mini
+  node admin-cli/index.js cluster register --name prod-us --context gke_project_us --env prod --region us-east1
+  node admin-cli/index.js cluster status
+  node admin-cli/index.js cluster diff
+  node admin-cli/index.js trends report --json
+  node admin-cli/index.js trends chart --category cpu
+  node admin-cli/index.js trends anomalies
+  node admin-cli/index.js trends forecast --category memory --steps 10
   node admin-cli/index.js doctor
   node admin-cli/index.js metrics status --service api-gateway --json
   node admin-cli/index.js alerts list --json
@@ -2213,13 +2873,17 @@ Examples:
   node admin-cli/index.js audit --tail 20
   node admin-cli/index.js set-role operator
 
-Phase D Data Directories (.admin-cli/):
+Data Directories (.admin-cli/):
   metrics/       Metrics time-series data and aggregations
   alerts/        Alert rules and trigger history
   policies/      Custom policy-as-code definitions
   costs/         Cost records and budget tracking
   compliance/    Compliance check results and reports
   recommendations/ Intelligence engine recommendations
+  sla/           SLA definitions and measurements (Phase E)
+  webhooks/      Webhook configurations and delivery history (Phase E)
+  clusters/      Multi-cluster Kubernetes registry (Phase E)
+  remediation/   AI remediation config and session history (Phase E)
 
 Learn more: Review docs/admin/CLI_ADMIN_PANEL.md for detailed documentation
 `;
@@ -2294,6 +2958,13 @@ async function main() {
             case 'compliance': cmdCompliance(rawArgs); break;
             case 'recommendations': cmdRecommendations(rawArgs); break;
             case 'dashboard': cmdDashboard(rawArgs); break;
+            // Phase E
+            case 'tui': cmdTUI(rawArgs); break;
+            case 'webhooks': await cmdWebhooks(rawArgs); break;
+            case 'sla': cmdSLA(rawArgs); break;
+            case 'remediate': await cmdRemediate(rawArgs); break;
+            case 'cluster': cmdCluster(rawArgs); break;
+            case 'trends': cmdTrends(rawArgs); break;
             case 'start': cmdStart(rawArgs); break;
             case 'stop': cmdStop(rawArgs); break;
             case 'restart': cmdRestart(rawArgs); break;
