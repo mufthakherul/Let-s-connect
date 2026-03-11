@@ -1,10 +1,11 @@
 {
     "name": "milonexa-admin-cli",
-    "version": "4.0.0",
-    "description": "Milonexa Omni Admin CLI — advanced multi-runtime control plane with intelligence & governance (Phase D)",
+    "version": "5.0.0",
+    "description": "Milonexa Omni Admin CLI — advanced TUI, webhooks, AI remediation, multi-cluster, SLA, trend analysis (Phase E)",
     "main": "index.js",
     "bin": {
-        "admin-cli": "./index.js"
+        "admin-cli": "./index.js",
+        "admin-server": "./admin-server.js"
     },
     "scripts": {
         "help": "node index.js --help",
@@ -22,7 +23,19 @@
         "costs": "node index.js costs summary --json",
         "compliance": "node index.js compliance status --json",
         "recommendations": "node index.js recommendations top --limit 10",
-        "dashboard": "node index.js dashboard --interval 5"
+        "dashboard": "node index.js dashboard --interval 5",
+        "tui": "node index.js tui --interval 3",
+        "sla": "node index.js sla status",
+        "sla:predict": "node index.js sla predict",
+        "sla:simulate": "node index.js sla simulate --count 10",
+        "webhooks": "ADMIN_CLI_ROLE=operator node index.js webhooks list",
+        "remediate": "node index.js remediate analyze",
+        "remediate:rules": "node index.js remediate rules",
+        "cluster": "ADMIN_CLI_ROLE=operator node index.js cluster list",
+        "trends": "node index.js trends report",
+        "trends:anomalies": "node index.js trends anomalies",
+        "api-server": "node admin-server.js",
+        "api-server:dev": "ADMIN_API_PORT=8888 node admin-server.js"
     },
     "engines": {
         "node": ">=18.0.0"

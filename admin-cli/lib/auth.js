@@ -52,6 +52,13 @@ const COMMAND_POLICY = {
     restart: 'operator',
     stop: 'admin',
     backup: 'admin',
+    // Phase E
+    tui: 'viewer',
+    webhooks: 'operator',
+    sla: 'viewer',
+    remediate: 'viewer',
+    cluster: 'operator',
+    trends: 'viewer',
 };
 
 /**
