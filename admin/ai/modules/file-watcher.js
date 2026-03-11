@@ -83,6 +83,7 @@ class FileWatcher extends EventEmitter {
         }
         this._watchers.clear();
         this._pending.clear();
+        this._watchedDirs = 0;
         console.log('[file-watcher] Stopped.');
     }
 
