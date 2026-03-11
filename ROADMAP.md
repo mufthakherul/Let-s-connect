@@ -1,1085 +1,370 @@
-# Milonexa — Professional Modernization Roadmap (2026)
+# Milonexa — Website Features Roadmap (2026–2027)
 
 <!-- markdownlint-disable MD022 MD024 MD032 MD047 -->
 
-**Version:** 1.0  
-**Date:** March 9, 2026  
-**Scope:** Full platform modernization (frontend, admin frontend, API gateway, backend services, database/data layer, DevOps, quality, UX/UI)
+**Version:** 2.0
+**Date:** March 11, 2026
+**Scope:** End-user website features — landing page, authentication, home feed, social features, messaging, groups, pages, streaming (TV & Radio)
+
+> **Note:** The original platform modernization roadmap (v1.0) has been archived to `Archives/Archive_codes/ROADMAP-v1.0-archived-2026-03-11.md`. This roadmap focuses on user-facing product feature improvements.
 
 ---
 
 ## Executive Summary
 
-Before adding major new features, this roadmap focuses on upgrading the existing platform into a **professional, modern, advanced, reliable, and user-friendly system**.
-
-This plan is based on a repository-wide audit and is designed to:
-- Raise engineering quality and release safety
-- Modernize UX/UI and information architecture across pages
-- Improve backend consistency and gateway resilience
-- Strengthen security and operational maturity
-- Create a predictable delivery cadence with measurable KPIs
+This roadmap covers the complete improvement and modernization of all user-facing pages and features of the Milonexa platform, including frontend UI/UX, backend API routes, real-time features, and performance optimizations.
 
 ---
 
-## Baseline Snapshot (Audit Evidence)
+## Pages in Scope
 
-### Current strengths
-- Clear microservices domain split with gateway orchestration
-- Shared backend utilities (`services/shared/`) for logging, monitoring, error handling, caching, and DB sync policy
-- Rich product surface area (social, chat, docs, media, streaming, shop, AI)
-- Dockerized runtime and Kubernetes manifests available
-- Documentation structure is organized in `docs/admin`, `docs/user`, `docs/deployment`, `docs/development`
-
-### Current baseline metrics (as observed)
-- Source files (`frontend/`, `admin_frontend/`, `services/`): **~300 JS/TS files**
-- User frontend components: **~105**
-- Admin frontend components: **~27**
-- Service route files: **~13**
-- Service model files: **~35**
-- Test/spec files found: **~6 total** (very low for platform size)
-
-### Key modernization gap themes
-1. Test coverage and quality gates are insufficient for safe scaling.
-2. Frontend app shell and route orchestration are too monolithic.
-3. State/data patterns are inconsistent across pages.
-4. API gateway has complexity drift and needs policy hardening.
-5. Service-level standards (validation, contracts, reliability patterns) are uneven.
-6. Observability and operational controls are not yet production-mature.
+1. **Landing Page** (unregistered users)
+2. **Login & Register Pages**
+3. **Home Page** (registered users — main feed)
+4. **Feeds** (activity, content, social)
+5. **Friends** (discovery, requests, suggestions)
+6. **Groups** (creation, management, content)
+7. **Messaging** (1:1 chat, group chat, real-time)
+8. **Pages** (public pages / creator pages)
+9. **Streaming** (TV live streaming & Radio)
 
 ---
 
-## Modernization Objectives
+## Phase 1 — Q2 2026: Foundation & Core UX Polish
 
-By the end of this roadmap, the platform should achieve:
+### 🖥️ Landing Page (Unregistered)
 
-1. **Professional UX baseline** across all core pages (consistent, fast, accessible)
-2. **Reliable release process** with CI quality gates and rollback safety
-3. **Service reliability and security hardening** (gateway + backend)
-4. **Data-layer resilience** (migrations, indexes, connection/pool tuning, recovery practices)
-5. **Operational excellence** (metrics, tracing, alerting, runbooks)
-6. **Sustainable developer velocity** via architecture cleanup and testing foundations
+**Frontend:**
+- [ ] Redesign hero section with animated gradient background and value propositions
+- [ ] Add feature showcase cards with hover animations (recharts sparkline demos)
+- [ ] Social proof section: user count, testimonials, media logos
+- [ ] Responsive mobile-first layout (breakpoints: 320px / 768px / 1280px)
+- [ ] Dark mode support with system preference detection
+- [ ] Performance: lazy-load images, defer non-critical JS (LCP < 2.5 s target)
+- [ ] SEO: proper `<meta>` tags, Open Graph, Twitter Card, structured data (JSON-LD)
+- [ ] Accessibility: WCAG 2.1 AA — keyboard nav, skip links, color contrast ≥ 4.5:1
+- [ ] CTA buttons: "Get Started", "See Plans", "Watch Demo" with framer-motion animations
 
----
-
-## Guiding Principles
-
-- **Stabilize first, expand second**: fix quality/reliability before new feature expansion.
-- **Small, verifiable increments**: no risky “big bang” rewrites.
-- **Contract-first integration**: API contracts and schema validation become mandatory.
-- **User-centered modernization**: every UX change should improve discoverability, speed, or accessibility.
-- **Security by default**: harden secrets, auth boundaries, and admin surfaces continuously.
-
----
-
-## Workstream A — UX/UI & Product Experience Modernization ✅
-
-**Status:** Completed March 10, 2026
-
-### Goals
-- Upgrade all major pages to a unified, modern design language
-- Improve navigation clarity and task completion speed
-- Increase accessibility and responsiveness quality
-
-### A1. Design System 2.0 ✅
-- Consolidate tokens (spacing, typography, radii, elevation, motion)
-- Define component variants for cards, forms, nav, lists, dialogs, dashboards
-- Introduce reusable page templates (feed-like, detail-like, settings-like, data-table-like)
-- Standardize empty states, loading states, and error states
-
-### A2. Navigation and Information Architecture ✅
-- Simplify top-level navigation for unauthenticated/authenticated users
-- Introduce clearer route grouping: discovery, social, collaboration, commerce, media, account
-- Add consistent secondary navigation for settings/help/admin sections
-
-### A3. Page Family Modernization Matrix ✅
-- Created standardized state pattern components: EmptyState, LoadingState, ErrorState, SkeletonCard
-- Reusable components ready for application across all page families
-- Consistent UX patterns for empty, loading, and error states
-
-### A4. Accessibility and inclusivity ✅
-- Keyboard-first interactions validated on core flows
-- Comprehensive accessibility hooks: focus trap, keyboard shortcuts, screen reader announce
-- Focus management patterns established
-- ARIA labels and roles standardized
-
-### Deliverables Completed ✅
-- ✅ Extended design system with comprehensive tokens (400+ lines)
-- ✅ Component variants (cards, buttons, inputs, navigation)
-- ✅ Page templates (feed-like, detail-like, settings-like, data-table-like)
-- ✅ Standardized state patterns (empty, loading, error, skeleton)
-- ✅ Accessibility hooks and utilities (`hooks/useAccessibility.js`)
-- ✅ Comprehensive documentation (`docs/development/WORKSTREAM_A_B_IMPLEMENTATION.md`)
+**Backend/Routes:**
+- [ ] `GET /` — serve optimized static landing with SSR-ready meta tags
+- [ ] `GET /api/public/stats` — public platform stats (user count, post count, uptime)
+- [ ] `GET /api/public/features` — feature list for dynamic landing page content
+- [ ] Rate limiting on public endpoints (50 req/min per IP)
 
 ---
 
-## Workstream B — User Frontend Architecture & Performance ✅
+### 🔐 Login & Register Pages
 
-**Status:** Completed March 10, 2026
+**Frontend:**
+- [ ] Unified Auth Hub: single-page with animated tab switching (Login ↔ Register)
+- [ ] OAuth providers: Google, GitHub, Discord, Apple — one-click social login buttons
+- [ ] Progressive disclosure registration: step 1 (email/pass) → step 2 (profile info) → step 3 (interests)
+- [ ] Real-time field validation with debounced API checks (username/email availability)
+- [ ] Password strength meter with entropy-based scoring
+- [ ] Remember me + persistent session token management
+- [ ] Forgot password: email OTP flow with countdown timer (60 s resend)
+- [ ] 2FA setup wizard: QR code + TOTP backup codes (framer-motion animated stepper)
+- [ ] Error messaging: clear, accessible inline error states (not just toast)
+- [ ] Redirect to originally requested URL after login (deep link support)
 
-### Goals
-- Reduce monolith complexity in app shell and route handling
-- Improve maintainability and data flow consistency
-- Reduce regressions via stronger component boundaries
-
-### B1. App shell modularization ✅
-- Break `frontend/src/App.js` into:
-  - route registries
-  - navigation modules
-  - layout wrappers
-  - auth guards
-  - feature modules
-- Keep route declarations co-located with feature modules
-
-### B2. State management unification ✅
-- Define clear boundaries:
-  - **Zustand** for client/session/UI state
-  - **React Query** for server state and caching
-- Remove scattered localStorage logic into centralized utilities/hooks
-- Introduce selector patterns and avoid broad store subscriptions
-
-### B3. Feature module standards 🟡
-- `components/feature-name/`
-  - `index.js`
-  - `hooks/`
-  - `api/`
-  - `view/`
-  - `state/`
-  - `__tests__/`
-- Require feature-level docs for complex modules
-- **Status:** Documentation provided, migration ongoing
-
-### B4. Performance targets ✅
-- Route-level code splitting for heavy sections
-- Virtualized lists for long feeds/chats/catalog pages (ready for implementation)
-- Optimize media lazy loading and thumbnail strategy
-- Add Core Web Vitals instrumentation and budget checks in CI
-
-### Deliverables Completed ✅
-- ✅ App shell modularization (Phase 1 completion)
-- ✅ Enhanced storage utility with key registry, expiration, cross-tab sync (`utils/storage.js`)
-- ✅ Web Vitals instrumentation with performance budgets (`utils/webVitals.js`)
-- ✅ State management patterns unified (Zustand + React Query + centralized storage)
-- ✅ Code splitting implemented (30+ lazy-loaded routes)
-- 🟡 Feature module standards documented (migration ongoing)
-- ✅ Comprehensive documentation (`docs/development/WORKSTREAM_A_B_IMPLEMENTATION.md`)
+**Backend/Routes:**
+- [ ] `POST /api/auth/register` — validate, hash password (bcrypt cost 12), send verification email
+- [ ] `POST /api/auth/login` — return JWT + refresh token; handle 2FA challenge
+- [ ] `POST /api/auth/logout` — revoke refresh token
+- [ ] `POST /api/auth/refresh` — rotate refresh token
+- [ ] `POST /api/auth/forgot-password` — send OTP to email
+- [ ] `POST /api/auth/reset-password` — verify OTP + set new password
+- [ ] `POST /api/auth/verify-email` — verify email token
+- [ ] `GET /api/auth/oauth/:provider` — OAuth redirect
+- [ ] `POST /api/auth/2fa/setup` — generate TOTP secret
+- [ ] `POST /api/auth/2fa/verify` — verify TOTP code
+- [ ] Rate limiting: 5 failed login attempts → 15-minute lockout per IP + per account
 
 ---
 
-## Workstream C — Admin Frontend Modernization ✅
+### 🏠 Home Page (Registered — Main Feed)
 
-**Status:** Completed March 10, 2026
+**Frontend:**
+- [ ] Infinite scroll feed with virtualization (react-window) — 60fps smooth scroll
+- [ ] Post composer: rich text (bold/italic/links), image upload, emoji picker, @mentions
+- [ ] Feed algorithm toggle: "Top" (ranked) vs "Latest" (chronological)
+- [ ] Story/Highlight bar (horizontal scroll, 24-hour expiry indicator)
+- [ ] Right sidebar: trending topics, suggested friends, upcoming events
+- [ ] Left sidebar: quick-nav (feed, friends, groups, messages, pages, streaming)
+- [ ] Notification bell with badge counter and categorized dropdown
+- [ ] Keyboard shortcuts: `J/K` to navigate posts, `L` to like, `R` to reply
+- [ ] Dark/light/system theme from user preferences
 
-### Goals
-- Make admin panel robust, secure, and efficient for moderation/operations
-
-### C1. Scope hardening ✅
-- Keep admin frontend focused on admin workflows (no user-app drift)
-- Build dedicated admin layout/navigation patterns
-
-### C2. Admin UX upgrades ✅
-- Dashboard KPIs and health overview
-- Moderation queue improvements
-- User management workflows with safer confirmations
-- Better filtering/search for admin tables
-
-### C3. Security UX ✅
-- 2FA/secure session UX improvements
-- Clear denied-access and permission-state messaging
-- Audit trail visibility in admin interactions
-
-### Deliverables Completed ✅
-- ✅ Composed Dashboard page with tabbed interface (`admin_frontend/src/pages/Dashboard.jsx`)
-- ✅ Integrated HealthMetricsPanel, KeyMetricsPanel, and ModerationQueuePanel
-- ✅ Two-Factor Authentication setup wizard and management (`components/security/TwoFactorSetup.jsx`)
-- ✅ Session security status indicators
-- ✅ Permission Denied component with escalation paths (`components/security/PermissionDenied.jsx`)
-- ✅ Keyboard shortcuts system for productivity (`hooks/useKeyboardShortcuts.js`)
-- ✅ Batch action confirmations for moderation workflow
-- ✅ Enhanced ModerationQueuePanel with keyboard shortcuts integration
-- ✅ Comprehensive documentation (`docs/admin/WORKSTREAM_C_IMPLEMENTATION.md`)
+**Backend/Routes:**
+- [ ] `GET /api/feed` — paginated feed (cursor-based); algorithm param: `top|latest|friends|groups`
+- [ ] `POST /api/feed/post` — create post (text, media, visibility: public/friends/private)
+- [ ] `DELETE /api/feed/post/:id` — delete own post
+- [ ] `POST /api/feed/post/:id/like` — toggle like
+- [ ] `POST /api/feed/post/:id/share` — share/repost
+- [ ] `GET /api/feed/stories` — fetch active stories
+- [ ] `POST /api/feed/story` — create story (auto-expires in 24 h)
+- [ ] `GET /api/feed/trending` — trending hashtags and topics
+- [ ] WebSocket: `ws://…/feed/live` — push new posts to connected clients (SSE fallback)
 
 ---
 
-## Workstream D — API Gateway, Routing & Contract Modernization ✅
+## Phase 2 — Q3 2026: Social Features
 
-**Status:** ✅ Completed March 10, 2026
+### 👥 Friends
 
-**Deliverables:**
-- ✅ D1: Policy hardening - Error envelopes, trace propagation, normalized auth guards
-- ✅ D2: Route governance - Route registry, API versioning, OpenAPI contracts, ownership
-- ✅ D3: Reliability controls - Timeouts, retries, circuit breakers (pre-existing, integrated)
+**Frontend:**
+- [ ] Friend discovery: "People You May Know" based on mutual friends + interests
+- [ ] Friend request management: accept / decline / ignore with undo
+- [ ] Friend list: searchable, filterable by mutual friends, location, common groups
+- [ ] Follow mode: asymmetric follow (for influencer accounts) vs symmetric friend
+- [ ] Birthday reminders widget
+- [ ] Friend activity: "X is listening to …", "Y just joined group Z"
 
-**Implementation Files:**
-- `services/api-gateway/route-registry.js` - Central route definitions with classifications, SLA tiers, rate limit policies
-- `services/api-gateway/error-envelope.js` - Standardized error responses with trace context
-- `services/api-gateway/contract-generator.js` - OpenAPI 3.0 spec generation from route registry
-- `services/api-gateway/route-governance.js` - Route policy enforcement middleware
-- `docs/development/WORKSTREAM_D_IMPLEMENTATION.md` - Complete implementation guide
-
-**Key Features:**
-- 30+ routes registered with governance metadata (class, SLA, owner, version)
-- 10 standard error categories with trace propagation
-- 4 route classifications: PUBLIC, AUTHENTICATED, ADMIN, INTERNAL
-- 3 SLA tiers: CRITICAL (99.9%), STANDARD (99.5%), BEST_EFFORT (95%)
-- Auto-generated OpenAPI 3.0 contracts from route registry
-- API versioning lifecycle with deprecation windows
-- Classification-based rate limiting policies
-
-### Goals
-- Make gateway behavior predictable, secure, and resilient ✅
-
-### D1. Policy hardening ✅
-- ✅ Re-enable/normalize rate-limiting policy behavior by route class
-- ✅ Normalize auth/public route guard strategy and route-level metadata
-- ✅ Standardize error envelopes and gateway trace propagation
-
-### D2. Route governance ✅
-- ✅ Introduce explicit API version lifecycle policy (`v1`, `v2`, deprecation windows)
-- ✅ Define contract publication strategy (OpenAPI artifacts, release notes)
-- ✅ Add route ownership tags (service owner, SLA class)
-
-### D3. Reliability controls ✅
-- ✅ Timeouts, retries, and circuit-breaker policy for downstream services (pre-existing in resilience-config.js)
-- ✅ Better fallback responses for degraded dependencies
-- ✅ Gateway-level traffic observability and saturation metrics
+**Backend/Routes:**
+- [ ] `GET /api/friends` — friend list (paginated)
+- [ ] `GET /api/friends/suggestions` — PYMK algorithm (mutual friends, interests, location)
+- [ ] `POST /api/friends/request` — send friend request: `{ targetUserId }`
+- [ ] `POST /api/friends/request/:id/accept` — accept friend request
+- [ ] `POST /api/friends/request/:id/decline` — decline friend request
+- [ ] `DELETE /api/friends/:userId` — unfriend
+- [ ] `POST /api/friends/:userId/follow` — follow (asymmetric)
+- [ ] `POST /api/friends/:userId/unfollow` — unfollow
+- [ ] `GET /api/friends/requests` — pending incoming/outgoing requests
+- [ ] `GET /api/friends/:userId/mutual` — mutual friends
 
 ---
 
-## Workstream E — Backend Service Standardization ✅
+### 👥 Groups
 
-**Status:** ✅ Completed March 10, 2026  
-**Documentation:** `docs/development/WORKSTREAM_E_IMPLEMENTATION.md`
+**Frontend:**
+- [ ] Group discovery: browse by category, trending, suggested by interests
+- [ ] Group creation wizard: name, description, category, privacy (public/closed/secret), cover photo
+- [ ] Group home: feed, members, events, files, about tabs
+- [ ] Member management: invite, approve/decline requests, moderator roles
+- [ ] Group rules editor (rich text)
+- [ ] Pinned posts + announcements
+- [ ] Group events calendar integration
+- [ ] Group files/media library
 
-### Goals
-- Establish consistent service quality baseline across all backend services ✅
-
-### Deliverables
-
-**Shared Utilities (services/shared/):**
-- ✅ `validation.js` - Joi-based request validation with common schemas (id, email, password, username, pagination)
-- ✅ `graceful-shutdown.js` - SIGTERM/SIGINT handling with cleanup registration and connection tracking
-- ✅ `health-check.js` - Kubernetes liveness/readiness probes with dependency checks
-- ✅ `sanitization.js` - Input sanitization for XSS/SQL injection prevention with security audit logging
-- ✅ `authorization.js` - RBAC with 4 roles, 30+ permissions, ownership checks
-- ✅ `response-wrapper.js` - Enhanced with Workstream D error envelope alignment
-- ✅ `SERVICE_BLUEPRINT.md` - Complete service template with full working examples (650+ lines)
-
-**E1. Service blueprint standard ✅**
-For each service (`user`, `content`, `messaging`, `collaboration`, `media`, `shop`, `ai`, `streaming`, `security`):
-- ✅ Standard folder conventions (`routes`, `controllers`, `services`, `validators`, `repositories`)
-- ✅ Request schema validation coverage with Joi-based middleware
-- ✅ Consistent response wrappers aligned with Workstream D error envelopes
-- ✅ Structured logs with request correlation IDs (pino-based logger)
-
-**E2. Reliability and scalability patterns ✅**
-- ✅ Graceful shutdown handlers on SIGTERM (30s timeout, 5s grace period)
-- ✅ Health/ready separation with dependency checks (database, Redis, memory, HTTP services)
-- ✅ Backpressure strategy documentation (rate limiting, timeouts, queue management)
-- ✅ Async job offloading recommendations (bull/bee-queue integration)
-
-**E3. Security standards ✅**
-- ✅ Strong authz checks with RBAC middleware (requireAuth, requireRole, requirePermission, requireOwnership)
-- ✅ Input sanitization for text/media fields (detectXss, detectSqlInjection, sanitizeText, sanitizeRichText)
-- ✅ Secrets hardening and startup validation (env-validator.js with placeholder detection)
+**Backend/Routes:**
+- [ ] `GET /api/groups` — list groups (filter: category, joined, suggested)
+- [ ] `POST /api/groups` — create group
+- [ ] `GET /api/groups/:id` — group details
+- [ ] `PUT /api/groups/:id` — update group settings (owner/admin only)
+- [ ] `POST /api/groups/:id/join` — join / request to join
+- [ ] `POST /api/groups/:id/leave` — leave group
+- [ ] `GET /api/groups/:id/members` — member list (paginated)
+- [ ] `POST /api/groups/:id/members/:userId/promote` — promote to moderator
+- [ ] `DELETE /api/groups/:id/members/:userId` — remove member
+- [ ] `GET /api/groups/:id/feed` — group feed (cursor-based)
+- [ ] `POST /api/groups/:id/post` — post in group
 
 ---
 
-## Workstream F — Database, Migrations, Caching & Search
+### 📱 Pages (Creator/Business Pages)
 
-### Status: ✅ Completed March 10, 2026
+**Frontend:**
+- [ ] Page creation: category, name, description, cover/profile photos, CTA button
+- [ ] Page tabs: Posts, About, Events, Shop, Reviews, Insights
+- [ ] Page insights dashboard: reach, engagement rate, follower growth chart (recharts)
+- [ ] Follower/following management
+- [ ] Page verification badge request flow
+- [ ] Scheduled posts with draft management
+- [ ] Page stories (distinct from personal stories)
 
-**Documentation:** See [WORKSTREAM_F_IMPLEMENTATION.md](docs/development/WORKSTREAM_F_IMPLEMENTATION.md)
-
-**Deliverables:**
-- ✅ Migration template with rollback support (`services/shared/migration-template.js`)
-- ✅ Slow query monitoring and N+1 detection (`services/shared/query-monitor.js`)
-- ✅ Connection pool profiles and capacity guardrails (`services/shared/pool-config.js`)
-- ✅ Standardized cache key strategy and invalidation (`services/shared/cache-strategy.js`)
-- ✅ Automated backup verification and restore drills (`scripts/backup-automation.sh`)
-
-### Goals
-- ✅ Improve reliability, query performance, and data integrity
-
-### F1. Migration maturity
-- ✅ Keep migration-first schema evolution as production default
-- ✅ Add migration rehearsal pipeline in staging before production
-- ✅ Rollback scripts and data safety checklist per migration
-
-### F2. Query and index optimization
-- ✅ Establish slow-query review cadence (query-monitor.js with /debug/query-stats)
-- ✅ Add missing indexes for high-cardinality lookup paths (optimization recommendations)
-- ✅ Remove N+1 hotspots and optimize eager-loading patterns (automatic N+1 detection)
-
-### F3. Connection and pooling strategy
-- ✅ Explicit Sequelize pool configuration per service profile (4 profiles: lightweight, standard, heavy, batch)
-- ✅ Database capacity guardrails and connection budget per service (DatabaseCapacityGuardrail class)
-
-### F4. Caching and search
-- ✅ Harmonize Redis cache key strategy and TTL policies (CacheKeyBuilder with 30+ TTLs)
-- Integrate Elasticsearch where search workloads justify it
-- ✅ Cache invalidation playbook for high-churn entities (CacheInvalidation with wildcard patterns)
-
-### F5. Backup and recovery posture
-- ✅ Restore drills and backup verification automation (backup-automation.sh with drill command)
-- Data retention and archival policy refinement
+**Backend/Routes:**
+- [ ] `GET /api/pages` — list pages (filter: category, followed, suggested)
+- [ ] `POST /api/pages` — create page
+- [ ] `GET /api/pages/:id` — page details
+- [ ] `PUT /api/pages/:id` — update page
+- [ ] `POST /api/pages/:id/follow` — follow page
+- [ ] `POST /api/pages/:id/unfollow` — unfollow page
+- [ ] `GET /api/pages/:id/feed` — page posts (cursor-based)
+- [ ] `POST /api/pages/:id/post` — create page post
+- [ ] `GET /api/pages/:id/insights` — analytics (views, reach, engagement, follower growth)
+- [ ] `POST /api/pages/:id/schedule` — schedule a post: `{ content, scheduledAt }`
 
 ---
 
-## Workstream G — Quality Engineering & Automated Testing
+## Phase 3 — Q4 2026: Messaging & Streaming
 
-### Status: ✅ Completed March 10, 2026
+### 💬 Messaging
 
-**Documentation:** See [WORKSTREAM_G_BASELINE.md](docs/development/WORKSTREAM_G_BASELINE.md)
+**Frontend:**
+- [ ] Conversation list sidebar: search, unread badge, typing indicator, last message preview
+- [ ] Chat window: virtualized message list, infinite scroll (load older messages)
+- [ ] Message composer: rich text, emoji, GIF search, file/media attachment, voice messages
+- [ ] Message reactions: emoji reaction bar on hover
+- [ ] Message status: sent / delivered / read receipts
+- [ ] Group chats: up to 256 members, admin roles, announcement mode
+- [ ] Ephemeral messages: disappearing messages (1 hour / 24 hours / custom)
+- [ ] End-to-end encryption indicator badge
+- [ ] Message search within conversation
+- [ ] Video/voice call button (WebRTC integration)
 
-**Deliverables:**
-- ✅ G1: Testing pyramid rollout with 7 test suites (6 flows + 1 contract test)
-- ✅ G2: Critical-path suites with strict assertions and response validation
-- ✅ G3: CI quality gates with coverage thresholds and flaky-test detection
-- ✅ G4: Strict assertion framework (assertStatus, assertProperties, assertUUID, assertEmail, assertTrue, assertEqual)
-- ✅ G5: Contract testing for gateway-to-service interactions
-- ✅ G6: Deterministic test fixtures for users, posts, products, conversations, orders, media
-- ✅ G7: Coverage thresholds (40% global, 60% user-service, 50% api-gateway)
-- ✅ G8: Flaky test detection framework with quarantine policy
-- ✅ G9: Test artifact collection (JUnit XML, logs, 7-day retention)
-
-**Implementation Files:**
-- `tests/critical-path/_helpers.js` - 10+ assertion helpers + fixtures
-- `tests/critical-path/fixtures.js` - Deterministic seeded test data
-- `tests/critical-path/auth-register-login-reset.test.js` - Auth flow with strict assertions
-- `tests/critical-path/feed-create-read-engage.test.js` - Feed flow with strict assertions
-- `tests/critical-path/messaging-send-receive-reconnect.test.js` - Messaging flow with strict assertions
-- `tests/critical-path/media-upload-list-delete.test.js` - Media flow with strict assertions
-- `tests/critical-path/shop-browse-cart-order.test.js` - Shop flow with strict assertions
-- `tests/critical-path/admin-login-controls.test.js` - Admin flow with strict assertions
-- `tests/critical-path/contract-gateway-services.test.js` - Gateway contract tests
-- `jest.config.critical-path.js` - Jest config with coverage thresholds and JUnit reporter
-- `tests/quarantine/README.md` - Flaky test quarantine policy
-- `.github/workflows/ci.yml` - Enhanced with 3 new jobs (coverage-thresholds, flaky-test-detection, quality-gates updated)
-
-**Key Features:**
-- 7 test suites passing or gracefully skipping when services unreachable
-- 10+ assertion types for strict response validation
-- Deterministic fixtures with 50+ pre-defined test objects
-- Jest configuration with global and service-specific coverage thresholds
-- Flaky test detection framework with automatic quarantine policy
-- CI integration with JUnit XML artifact collection (7-day retention)
-- GitHub Actions jobs for coverage validation and test stability monitoring
-
-### Goals ✅
-- ✅ Build confidence for continuous delivery
-- ✅ Establish testing pyramid baseline (unit + integration + contract + E2E)
-- ✅ Create executable, non-blocking critical-path harness
-- ✅ Implement strict assertion framework vs. capability probes
-- ✅ Add deterministic test fixtures
-- ✅ Establish coverage threshold policy
-- ✅ Create flaky test detection and quarantine process
-
-### G1. Testing Pyramid Rollout ✅
-- ✅ Unit and integration tests retained from services
-- ✅ Cross-service critical-path harness with 7 suites
-- ✅ Contract tests for gateway-service interactions
-- ✅ E2E capability validation for all major flows
-
-### G2. Critical-Path Test Suites ✅
-- ✅ Auth: register/login/check-username/password-reset
-- ✅ Feed: create/read/engage/reactions
-- ✅ Messaging: create conversation/list/fetch messages/reconnect
-- ✅ Media: upload/get signed URL/delete capability
-- ✅ Shop: browse/create product/cart/order
-- ✅ Admin: login/controls guard/debug endpoint guard
-- ✅ Gateway contracts: routing/error envelope/resilience behavior
-
-### G3. CI Quality Gates ✅
-- ✅ Mandatory test pass before merge
-- ✅ Coverage thresholds enforced per service
-- ✅ Flaky test detection and quarantine automation
-- ✅ Test artifact collection with 7-day retention
-- ✅ Detailed quality gates summary in workflow
+**Backend/Routes:**
+- [ ] `GET /api/messages/conversations` — conversation list (paginated, sorted by last message)
+- [ ] `POST /api/messages/conversations` — create conversation: `{ participants[] }`
+- [ ] `GET /api/messages/conversations/:id/messages` — messages (cursor-based)
+- [ ] `POST /api/messages/conversations/:id/messages` — send message
+- [ ] `DELETE /api/messages/:messageId` — delete message (within 15 min window)
+- [ ] `POST /api/messages/:messageId/react` — react to message: `{ emoji }`
+- [ ] `POST /api/messages/:messageId/read` — mark as read
+- [ ] `GET /api/messages/unread-count` — total unread count badge
+- [ ] WebSocket: `ws://…/messages/live` — real-time message delivery, typing indicators
+- [ ] `POST /api/messages/conversations/:id/call` — initiate WebRTC call session
 
 ---
 
-## Workstream H — DevOps, CI/CD & Environments
+### 📺 Streaming (TV & Radio)
 
-### Status: H1 ✅ Completed March 15, 2026 | H2 ✅ Completed | H3 ✅ Completed
+**Frontend — TV:**
+- [ ] Live stream browser: channels grid with thumbnails, viewer count, category filter
+- [ ] Player: Shaka Player integration, adaptive bitrate, Picture-in-Picture, full-screen
+- [ ] Stream creation wizard: title, category, thumbnail, stream key display
+- [ ] Live chat overlay (scrollable, emoji, moderation tools)
+- [ ] Stream schedule / upcoming streams calendar
+- [ ] VOD library: recorded streams with search and playback
+- [ ] Clip creation: highlight 30-second clips from live stream
+- [ ] Subscription tiers for premium channels
 
-**Documentation:** See [CI_CD_ARCHITECTURE.md](docs/deployment/CI_CD_ARCHITECTURE.md) and [DEPLOYMENT_RUNBOOK.md](docs/deployment/DEPLOYMENT_RUNBOOK.md)
+**Frontend — Radio:**
+- [ ] Radio station browser: genre filter, language filter, country filter
+- [ ] Persistent mini-player (always-visible bottom bar, doesn't interrupt browsing)
+- [ ] Station favorites / recently played
+- [ ] Now Playing: album art, track info, lyrics (if available)
+- [ ] Sleep timer
+- [ ] Schedule: upcoming shows on a station with countdown
 
-### Goals
-- Make delivery safer and more repeatable
-- Implement production-ready CI/CD with multi-stage deployments
-- Achieve infrastructure-as-code for all environments
-
----
-
-### ✅ H1. CI/CD Pipeline Modernization (COMPLETED - March 15, 2026)
-
-**Deliverables Completed:**
-
-1. ✅ **GitHub Actions Deploy Workflow** (`.github/workflows/deploy.yml`)
-   - Container image building for 12 services in parallel
-   - Docker multi-layer caching for faster builds
-   - Push to GitHub Container Registry (ghcr.io)
-   - Semantic versioning with git tags (v*.*)
-   - Image tagging strategy: branch + semver + commit-SHA + latest
-   - Container vulnerability scanning with Trivy
-   - HIGH/CRITICAL CVE detection with build failure
-
-2. ✅ **Multi-Stage Deployment Pipeline**
-   - Staging: Auto-deployment on main branch merge
-   - Production: Manual deployment via git tags with approval gates
-   - Staged rollout strategy (data → gateway → services → frontend)
-   - Health verification via /health endpoints
-   - Deployment audit trail (who/what/when/where)
-
-3. ✅ **Blue-Green Deployment Pattern**
-   - Zero-downtime deployment capability
-   - Automatic rollback (kubectl rollout undo)
-   - Emergency halt procedures
-   - Smoke test validation post-deployment
-
-4. ✅ **Environment Configuration Management**
-   - `.env.dev`: Development config (localhost, debug mode, all beta features)
-   - `.env.staging`: Staging config (external services, rate limiting, TLS)
-   - `.env.production`: Production config (strict security, managed services, compliance)
-   - Per-environment: JWT expiry, admin panel toggle, feature flags
-   - Secret rotation strategy with quarterly schedule
-
-5. ✅ **Kubernetes Security & RBAC** (`k8s/rbac.yaml`)
-   - Service accounts: One per microservice
-   - Custom roles: api-gateway, backend-service, media-service, ai-service, security-service
-   - Network policies: Default deny, explicit allows
-   - Pod security policies: Restricted (non-root, no privilege escalation)
-   - Audit logging configuration
-
-6. ✅ **Secret Management Infrastructure** (`k8s/secrets-production.yaml`)
-   - Core secrets: JWT, encryption keys, admin credentials
-   - Database secrets: Per-service RDS URLs
-   - Cache secrets: Redis + Sentinel configuration
-   - Storage secrets: AWS S3 with MFA delete
-   - Email, AI, monitoring, OAuth secrets
-   - Secret rotation schedule and RBAC controls
-
-7. ✅ **Production-Grade Ingress & TLS** (`k8s/ingress-production.yaml`)
-   - Main + CDN + admin ingress configurations
-   - Security headers: X-Frame-Options, CSP, HSTS, Permissions-Policy
-   - CORS: Strict domain whitelist
-   - TLS 1.3 preferred, strong ciphers (ECDHE-RSA/ECDSA with AES-256-GCM)
-   - Certificate auto-renewal via cert-manager + Let's Encrypt
-   - Rate limiting: 1000 RPS global, 100 RPS per IP
-   - Modsecurity WAF with OWASP Core Rules
-
-8. ✅ **Comprehensive Deployment Documentation**
-   - `docs/deployment/DEPLOYMENT_RUNBOOK.md` (700+ lines)
-     * Pre-deployment checklist
-     * Phase-by-phase workflow with timings
-     * Blue-green and rollback procedures
-     * Health verification checklist
-     * Troubleshooting guide (6 common issues)
-     * Incident response procedures
-     * War room template
-   - `docs/deployment/CI_CD_ARCHITECTURE.md` (600+ lines)
-     * Pipeline philosophy and architecture
-     * Detailed CI/Deploy workflow breakdown
-     * Configuration management strategy
-     * Security & compliance controls
-     * Monitoring and observability setup
-
-**Implementation Stats:**
-- Files created: 8 (deploy.yml, 3 env files, 3 K8s manifests, 2 docs)
-- Total lines added: ~3,750
-- Services supported: 12 (all microservices + frontend/admin)
-- Test coverage: ~50 test suites across critical-path, contract, and integration tests
-
-**Key Features:**
-- Parallel image builds (12 services): ~5-10 minutes total
-- Multi-stage rollout: ~5-10 minutes (depends on pod startup time)
-- Rollback time: <2 minutes (kubectl rollout undo + pod restart)
-- Security: RBAC, network policies, TLS 1.3, WAF, audit logging
-- Compliance: GDPR, CCPA, HIPAA support via feature flags
+**Backend/Routes:**
+- [ ] `GET /api/streaming/tv/channels` — list live channels (filter: category, language, live-only)
+- [ ] `GET /api/streaming/tv/channels/:id` — channel details
+- [ ] `POST /api/streaming/tv/channels` — create channel / go live
+- [ ] `PUT /api/streaming/tv/channels/:id` — update stream metadata
+- [ ] `DELETE /api/streaming/tv/channels/:id` — end stream
+- [ ] `GET /api/streaming/tv/channels/:id/chat` — SSE stream of live chat messages
+- [ ] `POST /api/streaming/tv/channels/:id/chat` — send chat message
+- [ ] `GET /api/streaming/tv/vod` — VOD library (cursor-based)
+- [ ] `GET /api/streaming/radio/stations` — list radio stations
+- [ ] `GET /api/streaming/radio/stations/:id` — station details + stream URL
+- [ ] `POST /api/streaming/radio/favorites` — favorite a station
+- [ ] `DELETE /api/streaming/radio/favorites/:id` — unfavorite
+- [ ] `GET /api/streaming/radio/schedule/:stationId` — upcoming show schedule
 
 ---
 
-### ✅ H2. Environment Parity (COMPLETED)
+## Phase 4 — Q1 2027: Notifications, Search & Personalization
 
-**Deliverables Completed:**
+### 🔔 Notifications
 
-1. ✅ **Config Drift Detection** (`scripts/config-drift-detect.sh`)
-   - Compares live K8s ConfigMap values against expected per-environment config
-   - Detects missing, extra, and changed keys across dev/staging/prod
-   - Validates secrets exist and contain no CHANGEME placeholders
-   - Checks image tags and health probe definitions on all deployments
-   - Exit code 1 on any drift — suitable for CI gating
+**Frontend:**
+- [ ] Notification center with categories: Social, Messages, Groups, Pages, Streaming, System
+- [ ] Actionable notifications (inline approve/dismiss friend requests, reactions)
+- [ ] Push notifications via Web Push API (service worker)
+- [ ] Email digest: daily/weekly summary with unsubscribe management
+- [ ] Notification preferences per-category (in-app, email, push)
 
-2. ✅ **Image Tagging Standards** (`scripts/validate-image-tags.sh`)
-   - Enforces semantic tagging: `{branch}-{sha8}`, `v{semver}`, `pr-{number}`
-   - Blocks `:latest` outside main branch (`ALLOW_LATEST=true` guard)
-   - `--generate` mode prints recommended tags + docker build command
-   - `--all` mode scans all running cluster images for policy violations
-
-3. ✅ **Blue-Green Config Validation** (`scripts/validate-bluegreen-config.sh`)
-   - Pre-swap gate: validates secrets, ConfigMaps, pod readiness, health endpoints
-   - Checks database migration job completion before traffic switch
-   - Validates PVC Bound status and rejects `:latest` image tags in production
-   - Pass/fail summary with remediation steps; integrates into deploy.yml pipeline
+**Backend/Routes:**
+- [ ] `GET /api/notifications` — paginated notification list (filter: category, read/unread)
+- [ ] `POST /api/notifications/:id/read` — mark as read
+- [ ] `POST /api/notifications/read-all` — mark all read
+- [ ] `GET /api/notifications/preferences` — get preferences
+- [ ] `PUT /api/notifications/preferences` — update preferences
+- [ ] `POST /api/notifications/push/subscribe` — register push subscription
+- [ ] WebSocket: `ws://…/notifications/live` — real-time notification delivery
 
 ---
 
-### ✅ H3. Kubernetes Production Readiness (COMPLETED)
+### 🔍 Search
 
-**Deliverables Completed:**
+**Frontend:**
+- [ ] Global search bar in navbar (keyboard shortcut: `/`)
+- [ ] Autocomplete suggestions: people, groups, pages, posts, hashtags
+- [ ] Search results page with tab filters: All / People / Groups / Pages / Posts / Media
+- [ ] Advanced filters: date range, location, language, media type
+- [ ] Search history with clear option
 
-1. ✅ **Production Storage Configuration** (`k8s/storage.yaml`)
-   - PVCs for all stateful workloads: postgres (50Gi SSD), redis (10Gi SSD),
-     minio (100Gi standard), elasticsearch (30Gi SSD), backup (100Gi HDD),
-     prometheus (20Gi), grafana (5Gi)
-   - Tiered storage classes: `fast-ssd`, `standard`, `slow-hdd` with Retain policy
-   - StorageClass definitions with cloud provider annotations
-    - Fixed `backup-cronjob.yaml` secret inconsistency (`postgres-secret` → `milonexa-secrets`)
-    - Replaced backup/restore ConfigMap placeholder scripts with executable pg/redis backup + restore logic
-
-2. ✅ **Pod Disruption Budgets** (`k8s/pod-disruption-budgets.yaml`)
-   - PDB for 17 workloads: api-gateway (minAvailable: 2), all backend services
-     (minAvailable: 1), postgres, redis, elasticsearch, minio, frontends, monitoring
-   - Prevents full outage during node drains and cluster upgrades
-   - Works in tandem with RBAC network policies from H1
-
-3. ✅ **Backup & Restore** (`scripts/backup-restore.sh`)
-   - Commands: `backup`, `restore`, `list`, `verify`, `prune`, `schedule`
-   - Targets: `postgres` (pg_dump), `redis` (RDB snapshot), `minio` (mirror/sync)
-   - SHA-256 checksum written alongside every backup file
-   - gzip integrity verification before restore
-   - Interactive CONFIRM gate on destructive restore operations
-   - Optional Slack notifications on backup success/failure
-   - Retention prune with configurable `--days` override
-
-4. ✅ **Disaster Recovery Runbook** (`docs/deployment/DISASTER_RECOVERY.md`)
-   - RTO: 1 hour | RPO: 24 hours
-   - 8 failure scenario playbooks with step-by-step kubectl commands:
-     pod crash, DB corruption, node failure, etcd failure, full cluster loss,
-     region failure, credential compromise, registry outage
-   - Quarterly DR drill checklist with pass/fail criteria
-   - Escalation path and contact matrix
-   - Runbook validation checklist for quarterly review
+**Backend/Routes:**
+- [ ] `GET /api/search?q=…` — global search (paginated by type)
+- [ ] `GET /api/search/suggestions?q=…` — autocomplete (debounced, max 8 results)
+- [ ] `GET /api/search/people?q=…` — people search with filters
+- [ ] `GET /api/search/groups?q=…` — group search
+- [ ] `GET /api/search/pages?q=…` — page search
+- [ ] `GET /api/search/posts?q=…` — full-text post search
 
 ---
 
-## Workstream I — Observability, Reliability & SRE Readiness
+### ⚙️ Profile & Settings
 
-### Status: ✅ Completed March 10, 2026
+**Frontend:**
+- [ ] Profile page: cover photo, avatar, bio, social links, activity stats, mutual friends
+- [ ] Edit profile wizard: personal info, contact, education, work, interests
+- [ ] Privacy settings: who can see posts, friend list, contact info (per-field granularity)
+- [ ] Account security: password change, active sessions, 2FA management
+- [ ] Appearance: theme (light/dark/system), font size, language (i18n)
+- [ ] Data & Privacy: download my data, delete account (GDPR)
+- [ ] Accessibility settings: high contrast, reduced motion, screen reader hints
 
-**Documentation:**
-- [WORKSTREAM_I_IMPLEMENTATION.md](docs/development/WORKSTREAM_I_IMPLEMENTATION.md)
-- [ERROR_BUDGET_POLICY.md](docs/development/operations/ERROR_BUDGET_POLICY.md)
-- [INCIDENT_RESPONSE_RUNBOOK.md](docs/development/operations/INCIDENT_RESPONSE_RUNBOOK.md)
-
-### Goals ✅
-- Reduce incident frequency and recovery time
-
-### ✅ I1. Telemetry stack
-
-1. ✅ **Standardized metrics labels across services**
-  - Upgraded shared telemetry core (`services/shared/monitoring.js`)
-  - Standard labels: `service`, `environment`, `method`, `route`, `status`, `status_class`
-  - Added Prometheus histogram metrics: `http_request_duration_seconds_bucket`
-  - Added in-flight request gauge and low-cardinality route normalization
-
-2. ✅ **Centralized logs (structured ingestion)**
-  - Added Fluent Bit DaemonSet manifest (`k8s/logging.yaml`)
-  - Kubernetes metadata enrichment + JSON/Pino parsing
-  - Elasticsearch index shipping (`milonexa-logs-*`) for centralized search
-
-3. ✅ **Distributed tracing for request path visualization**
-  - W3C trace context (`traceparent`) generation and propagation in shared middleware
-  - API gateway forwards trace headers to downstream services
-  - Structured logs enriched with `traceId`, `spanId`, `requestId`, `correlationId`
-
-### ✅ I2. SLO/SLI model
-
-1. ✅ **Availability and latency SLO classes defined**
-  - Tier1: 99.9%, Tier2: 99.5%, Tier3: 99.0%
-  - Latency baselines: Tier1 p95 ≤ 500ms, p99 ≤ 1000ms
-  - Policy documented in `docs/development/operations/ERROR_BUDGET_POLICY.md`
-
-2. ✅ **Alerting rules for error rate, saturation, and dependency failures**
-  - Existing Prometheus alert packs in `deploy/monitoring/alerts/`
-  - In-cluster Prometheus alert rule loading wired in `k8s/prometheus.yaml`
-  - Alert routing wired to in-cluster Alertmanager (`k8s/alertmanager.yaml`, target `alertmanager:9093`)
-  - Fast/slow burn-rate, latency SLO, and canary guard alerts enabled
-
-3. ✅ **Incident response runbooks and escalation matrix**
-  - `docs/development/operations/INCIDENT_RESPONSE_RUNBOOK.md`
-  - Severity model, role definitions, communication templates, escalation paths
-
-### ✅ I3. Operational hygiene
-
-1. ✅ **Post-incident review template**
-  - `docs/development/operations/POST_INCIDENT_REVIEW_TEMPLATE.md`
-
-2. ✅ **Error budget tracking automation**
-  - Added `scripts/error-budget-report.sh`
-  - Generates class-level budget burn/consumption reports from Prometheus
-  - Supports strict mode (`--fail-on-breach`) for release/ops gating
-
-3. ✅ **Release health checks and canary verification checklist**
-  - `scripts/release-health-check.sh` for deployment gates
-  - `docs/development/operations/RELEASE_HEALTH_AND_CANARY_CHECKLIST.md`
-  - `scripts/run-game-day-drill.sh` for recurring operational drill execution
+**Backend/Routes:**
+- [ ] `GET /api/profile/:userId` — public profile
+- [ ] `GET /api/profile/me` — own profile (authenticated)
+- [ ] `PUT /api/profile/me` — update profile fields
+- [ ] `PUT /api/profile/me/avatar` — upload/update avatar
+- [ ] `PUT /api/profile/me/cover` — upload/update cover photo
+- [ ] `GET /api/settings` — get all settings
+- [ ] `PUT /api/settings/privacy` — update privacy settings
+- [ ] `PUT /api/settings/security` — update security settings
+- [ ] `PUT /api/settings/appearance` — update appearance preferences
+- [ ] `POST /api/settings/data/export` — trigger GDPR data export
+- [ ] `POST /api/settings/account/delete` — initiate account deletion (2-step confirmation)
 
 ---
 
-## Phased Delivery Plan
+## Cross-Cutting Improvements (All Phases)
 
-## Phase 0 — Stabilization (Weeks 1–2) ✅ **COMPLETED**
+### UI/UX Design System
+- [ ] Implement design tokens (colors, typography, spacing, shadows, radii) consistently across all pages
+- [ ] Component library audit: replace ad-hoc MUI overrides with design-token-driven variants
+- [ ] Skeleton loading states for every data-loaded section
+- [ ] Empty states with helpful CTAs (not just "No data")
+- [ ] Error boundaries per page section with retry buttons
+- [ ] Offline indicator + graceful degradation (service worker cache)
+- [ ] Animation guidelines: 150ms micro-interactions, 300ms page transitions (framer-motion)
+- [ ] Touch gesture support for mobile (swipe to delete, pull-to-refresh)
 
-**Objective:** reduce immediate platform risk.
+### Performance Targets
+- [ ] **LCP** < 2.5 s (all pages)
+- [ ] **FID / INP** < 100 ms
+- [ ] **CLS** < 0.1
+- [ ] Bundle size: main chunk < 200 KB gzipped; per-route lazy chunks < 50 KB
+- [ ] API response time p95 < 200 ms for all core endpoints
 
-### Deliverables ✅
-- ✅ Gateway policy cleanup (rate-limit/auth consistency)
-- ✅ Environment/secret validation checks (env-validator.js)
-- ✅ Critical security and config hardening updates (K8s secrets, CORS)
-- ✅ Initial smoke validation of core routes (verify-health-checks.sh)
+### Backend Standards
+- [ ] Input validation: Joi/Zod schemas on all request bodies
+- [ ] Rate limiting on all user-facing endpoints (configurable per endpoint group)
+- [ ] Consistent error response shape: `{ error: string, code: string, requestId: string }`
+- [ ] API versioning: all new endpoints under `/api/v2/`
+- [ ] Request/response logging with structured JSON (pino)
+- [ ] OpenAPI 3.0 spec for all endpoints (auto-generated via JSDoc annotations)
 
-### Exit criteria ✅
-- ✅ No contradictory gateway policy states
-- ✅ Required secrets enforced and documented
-- ✅ Core health endpoints verified
-
-**Status:** Completed March 9, 2026. All deliverables merged to main.
-
----
-
-## Phase 1 — Foundation (Weeks 3–8) ✅ **COMPLETED**
-
-**Objective:** establish quality and architecture baseline.
-
-### Final Summary (Completed March 10, 2026)
-- ✅ Backend testing bootstrap delivered for `services/user-service` (Jest + Supertest tooling)
-- ✅ User-service backend test suites passing (**4 suites, 25 tests**)
-- ✅ Frontend testing bootstrap validated with React Testing Library
-- ✅ Service-level validation standards introduced in user-service auth routes:
-  - `POST /register` - Joi schema validation
-  - `POST /login` - Joi schema validation  
-  - `GET /check-username` - Joi schema validation
-- ✅ Frontend app-shell modularization completed:
-  - Monolithic `App.js` (1319 lines) split into modular architecture
-  - Created `AppProviders.jsx` - Router and QueryClient setup
-  - Created `MainLayout.jsx` - Navigation, drawer, breadcrumbs, error boundaries
-  - Created `AppRoutes.jsx` - Route definitions with lazy loading
-  - App.js now thin compositional shell
-- ✅ CI gating implemented via GitHub Actions:
-  - Automated frontend tests on PR/push
-  - Automated backend tests (user-service + extensible)
-  - Build validation checks
-  - Security audit workflow
-
-### Deliverables ✅
-- ✅ Testing bootstrap for frontend + backend
-- ✅ First critical-path automated tests
-- ✅ Frontend modularization plan execution (app shell split)
-- ✅ Service-level validation standards introduced
-
-### Exit criteria ✅
-- ✅ CI enforces tests/lint for core repositories
-- ✅ Major app shell complexity reduced
-- ✅ Public API request validation coverage improved
-
-**Status:** Completed March 10, 2026. All deliverables merged to main.
+### Testing
+- [ ] Unit tests for all new shared utilities and hooks (Jest, ≥ 80% coverage)
+- [ ] Integration tests for all REST API endpoints
+- [ ] E2E tests for critical user flows: register → post → message → stream (Playwright)
+- [ ] Visual regression tests for UI components (Storybook + Chromatic)
+- [ ] Performance budgets enforced in CI (Lighthouse CI)
 
 ---
 
-## Phase 2 — Experience & Reliability (Months 3–4) ✅ **COMPLETED**
+## Delivery Cadence
 
-**Objective:** visible UX upgrades + stronger reliability controls.
-
-### Completed Summary (March 10, 2026)
-- Gateway resilience controls
-  - Per-service timeout configuration (5s-60s)
-  - Circuit breaker pattern with monitoring endpoints
-  - Exponential backoff retry logic
-  - 22/22 tests passing
-- Observability expansion
-  - Enhanced structured logging utilities
-  - Request/response correlation with timing
-  - Business event logging
-  - Security event tracking
-  - Circuit breaker state change logging
-- Admin UX workflow improvements
-  - HealthMetricsPanel: real-time service health monitoring
-  - KeyMetricsPanel: KPI dashboard (users, content, engagement, revenue)
-  - ModerationQueuePanel: streamlined moderation with batch operations
-- Observability visualization
-  - Prometheus metrics collection configured
-  - Grafana dashboards and alert rules deployed
-  - Complete monitoring stack with exporters
-
-### Deliverables ✅
-- ✅ Page family redesign rollout (public + core authenticated pages)
-- ✅ Admin UX workflow modernization
-- ✅ Gateway resilience controls (timeouts/retries/circuit strategy)
-- ✅ Observability expansion (logs + traces + actionable dashboards)
-
-### Exit criteria ✅
-- ✅ Core page journeys modernized and consistent
-- ✅ Improved latency/error monitoring in place
-- ✅ Admin workflows measurably faster and safer
-
-**Status:** Completed March 10, 2026. All deliverables merged to main.
+| Phase | Target | Focus |
+|-------|--------|-------|
+| Phase 1 — Q2 2026 | June 2026 | Landing page, Auth, Home Feed foundation |
+| Phase 2 — Q3 2026 | September 2026 | Friends, Groups, Pages |
+| Phase 3 — Q4 2026 | December 2026 | Messaging, Streaming TV & Radio |
+| Phase 4 — Q1 2027 | March 2027 | Notifications, Search, Profile & Settings |
 
 ---
 
-## Phase 3 — Data & Scale (Months 5–6) ✅ **COMPLETED**
-
-**Objective:** data and performance modernization for growth.
-
-### Completed Summary (March 10, 2026)
-- Database optimization
-  - Comprehensive indexing strategy for major tables
-  - Missing foreign key index detection
-  - Duplicate/unused index cleanup analysis
-  - Autovacuum tuning for high-traffic tables
-  - Query performance and table bloat monitoring views
-- Cache policy harmonization
-  - Unified cache strategy and TTL policy map
-  - Key namespacing and cache-aside patterns
-  - Distributed locking and cache warming support
-  - Batch invalidation for related entities
-- Performance testing framework
-  - Artillery-based load test scenarios
-  - Custom Node.js load test orchestrator and metrics collection
-  - Automated threshold validation for latency/error/throughput
-
-### Deliverables ✅
-- ✅ DB tuning and index improvement wave
-- ✅ Cache policy harmonization and search improvements
-- ✅ Load/performance test scenarios and tuning loops
-
-### Exit criteria ✅
-- ✅ Query latency and throughput targets instrumented for staging benchmarks
-- ✅ High-volume endpoint SLO monitoring and regression tooling in place
-
-**Status:** Completed March 10, 2026. All deliverables merged to main.
-
----
-
-## Phase 4 — Advanced Platform Maturity (Months 7–9) ✅ **COMPLETED**
-
-**Objective:** professional-grade operational maturity.
-
-### Completion update (March 10, 2026)
-**Current focus achieved:** Security/compliance playbooks and reliability process hardening wired into runtime and workflows
-
-✅ **Completed:**
-- Extended security/compliance controls
-  - Incident response runbook
-  - Post-incident review template
-  - Error budget policy (SLO tiers + burn-rate governance)
-  - Release health and canary checklist
-- Reliability process maturity foundations
-  - SLO/error-budget/canary alert rules
-  - Release health gate automation script
-  - CI reliability gate extension to additional backend services (user-service, api-gateway, content-service)
-  - Operational drill execution script (`run-game-day-drill.sh`) and reporting workflows (`.github/workflows/operations-reporting.yml`)
-  - Monitoring documentation updates
-- Operational drill cadence
-  - Recurring scheduled drill/report workflow + manual scenario execution controls
-  - Game-day scenario template for incident/rollback/security exercises
-- Runtime observability parity for Prometheus-scraped services
-  - Standardized `/metrics` and `/health/ready` endpoints wired in messaging, collaboration, shop, and AI services
-  - Shared latency/error/in-flight instrumentation middleware applied across all scraped services
-
-📋 **Deferred to Additional Important Phases:**
-- Optional deeper type-safety migration strategy execution
-
-### Deliverables
-- Extended security/compliance controls
-- Reliability process maturity (error budgets, incident ops)
-- Optional deeper type-safety migration strategy execution
-
-### Exit criteria
-- Operational playbooks tested
-- Release risk profile significantly reduced
-- Team delivery cadence stable and predictable
-
-**Status:** Completed March 10, 2026.
-
-## Risk Register (Top Risks)
-
-1. **Under-tested changes cause regressions**  
-   Mitigation: enforce test gates before major refactors.
-
-2. **Gateway policy drift creates security/reliability gaps**  
-   Mitigation: route policy manifest + automated checks.
-
-3. **UI modernization becomes cosmetic only**  
-   Mitigation: tie redesign tasks to measurable UX outcomes.
-
-4. **Data migration errors in live environments**  
-   Mitigation: rehearsal + rollback + backup validation.
-
-5. **Operational blind spots persist**  
-   Mitigation: mandatory telemetry and alerting milestones.
-
-6. **Scope creep delays foundational upgrades**  
-   Mitigation: freeze net-new feature intake during Phase 0–1 except critical fixes.
-
----
-
-## Team & Ownership Model
-
-Recommended minimum execution squad:
-- **Frontend Lead + 2 FE engineers** (UX/UI + architecture)
-- **Backend Lead + 2 BE engineers** (gateway + service standards)
-- **DevOps/SRE engineer** (CI/CD + observability + infra hardening)
-- **QA engineer** (test strategy + automation)
-- **Product/Design support** (IA + usability validation)
-
----
-
-## First 30-Day Action Board (Concrete Start)
-
-1. Lock Phase 0 scope and freeze non-critical feature additions
-2. Create modernization branch strategy and release checkpoints
-3. Standardize gateway policy table (public/auth/rate-limit classes)
-4. Add shared API validation pattern and start with auth/content endpoints
-5. Split frontend app shell into route/navigation/layout modules
-6. Build test harnesses (frontend + selected backend services)
-7. Implement first 15–20 critical-path automated tests
-8. Harden env/secret startup checks for all deploy modes
-9. Define KPI dashboard schema and baselines
-10. Publish weekly modernization status report template
-
----
-
-## Definition of Success
-
-This modernization initiative is successful when:
-- Releases are safer and faster (quality gates + lower regressions)
-- UX is consistently modern and user-friendly across the platform
-- Gateway/services are resilient under normal and burst traffic
-- Data operations are predictable, recoverable, and performant
-- Teams can add future features without reintroducing architectural debt
-
----
-
-## Related Documentation
-
-- `README.md` (root project overview)
-- `docs/README.md` (documentation index)
-- `docs/development/ARCHITECTURE.md`
-- `docs/development/API.md`
-- `docs/development/ROADMAP.md` (historical/feature roadmap context)
-- `docs/deployment/DEPLOYMENT_GUIDE.md`
-
----
-
-**Status:** Phases 0–4 completed.
-
-
-#### ADDITIONL IMPORTANT PHASES
-
-## Phase 13: Mobile & PWA 
-**Priority: High**
-
-### 13.1 Progressive Web App
-- [x] Full offline support with service workers
-- [x] Push notifications (Web Push API)
-- [x] App install banner with PWA manifest optimization
-- [x] Background sync for offline posts/messages
-
-### 13.2 Mobile-First Refinements
-- [x] Bottom navigation bar for mobile (touch-optimized)
-- [x] Swipe gestures for feed navigation
-- [x] Camera access for in-app media capture
-- [x] Haptic feedback for interactions
-
-### 13.3 React Native / Expo
-- [x] iOS app (React Native + Expo)
-- [x] Android app (React Native + Expo)
-- [x] Shared API layer between web and mobile
-
----
-
-## Phase 14: Notifications & Real-Time 
-**Priority: High**
-
-### 14.1 Push Notifications
-- [x] Browser push notifications (non-intrusive)
-- [x] Email digest notifications (daily/weekly summary)
-- [x] In-app notification center with grouped updates
-- [x] Notification preferences per category
-
-### 14.2 Real-Time Enhancements
-- [x] Typing indicators in group chats
-- [x] Message delivery receipts (sent/delivered/read)
-- [x] Online presence indicators with custom status
-- [x] Live reaction overlays in streams
-
-### 14.3 Event-Driven Architecture
-- [x] Message broker (Redis Streams or Kafka) for cross-service events
-- [x] Webhook support for external integrations
-- [x] Event replay for missed notifications
-
----
-
-
-## Phase 15: Search & Discovery 
-**Priority: High**
-
-### 15.1 Full-Text Search
-- [x] Elasticsearch integration for posts, wikis, documents
-- [x] Faceted search (filter by type, date, author)
-- [x] Search result highlighting and snippets
-- [x] Saved search queries
-
-### 15.2 Discovery
-- [x] Trending topics and hashtags
-- [x] People you may know / follow recommendations
-- [x] Group discovery by interest
-- [x] Content recommendations (collaborative filtering)
-
-### 15.3 AI-Powered Search
-- [x] Semantic search using embeddings
-- [x] Natural language query support
-- [x] Summarized search results via AI
-- [x] Smart content deduplication
-
----
-
-## Phase 16: E-Commerce & Marketplace ✅
-**Priority: High**
-
-### 16.1 Product Listings
-- [x] Product creation with images, pricing, and stock management
-- [x] Product browsing, search, and filtering
-- [x] Seller profiles and storefront pages
-- [x] Product reviews and ratings (ProductReview.js)
-
-### 16.2 Shopping Cart & Orders
-- [x] Persistent shopping cart (Cart.js)
-- [x] Order creation and management
-- [x] Order history and status tracking
-- [x] Guest + authenticated checkout flows
-
-### 16.3 Marketplace Infrastructure
-- [x] Shop service (`services/shop-service/`) — products, cart, orders
-- [x] Critical-path shop tests (`tests/critical-path/shop-browse-cart-order.test.js`)
-- [x] Shop frontend (`frontend/src/components/Shop.js`)
-- [x] E2E Playwright tests for shop flow
-
----
-
-## Phase 17: Collaboration & Productivity ✅
-**Priority: High**
-
-### 17.1 Documents & Wikis
-- [x] Rich-text document editor (Docs.js with collaboration service)
-- [x] Wiki pages and knowledge base
-- [x] Document versioning and history (ContentHistoryViewer.js)
-- [x] Collaborative real-time editing (collaboration-service WebSockets)
-
-### 17.2 Meetings & Video
-- [x] Meeting lobby and room management (MeetingLobby.js, MeetingRoom.js)
-- [x] Meeting modes (Meetings.js, meeting-modes/)
-- [x] AI meeting summaries via `/ai-service/meeting/summarize`
-- [x] Screen sharing and media in meetings
-
-### 17.3 Project Management
-- [x] Groups and team workspaces (Groups.js)
-- [x] Collaboration service (`services/collaboration-service/`)
-- [x] Hubs for cross-functional team organization (hubs/)
-- [x] Pages for structured content publishing (Pages.js)
-
----
-
-## Phase 18: AI & Intelligence 
-**Priority: High**
-### 18.1 Content Intelligence
-- [x] Auto-tagging of posts and documents
-- [x] Sentiment analysis on discussions
-- [x] Automatic meeting summaries from transcripts
-- [x] Spam and harmful content detection (real-time)
-
-### 18.2 Personalization
-- [x] Personalized feed algorithm (ML-based ranking)
-- [x] Smart digest: surface important content from while you were away
-- [x] AI writing assistant for posts and documents
-- [x] Automatic language translation for international teams
-
-### 18.3 AI Infrastructure
-- [x] Vector database for semantic embeddings (hash-based embedding endpoint)
-- [x] Fine-tuned content moderation model
-- [x] Real-time AI suggestions in chat (opt-in)
-
-### 18.4 Privacy-Safe Local LLM (Ollama) ✅ — March 2026
-- [x] Replace Google Gemini with local Ollama runtime (no external API key required)
-- [x] Custom `Modelfile` persona built on `llama3.2` for platform-specific context
-- [x] Ollama service added to Docker Compose with persistent model volume and health checks
-- [x] All 20+ AI endpoints (chat, summarize, tag, sentiment, translate, writing assist, moderation, embeddings) ported to Ollama
-- [x] `GET /models` endpoint to enumerate available loaded models
-- [x] `OLLAMA_MODEL`, `OLLAMA_HOST`, `OLLAMA_PORT` environment configuration
-
-### 18.5 AI Admin Agent v2.0 ✅ — March 2026
-- [x] Code analysis module: 15 static security/quality rules, LLM-assisted fix proposals, admin-gated apply
-- [x] User feedback processing: LLM categorization, ticket generation, weekly reports
-- [x] AI documentation generator: per-service user guides from live routes, admin-gated publish
-- [x] AI test stub generator: Jest stubs for untested routes, admin-gated write
-- [x] HTTP control API with bearer-token auth (`/code-analysis`, `/feedback`, `/docs`, `/tests`)
-- [x] Staggered sub-cycle scheduling to prevent startup resource spikes
-- [x] REVIEWING FSM state; stale-cycle offsets
-
-### 18.6 AI Roadmap (Upcoming)
-- [ ] Streaming LLM responses (SSE) for chat endpoints
-- [ ] Model fine-tuning pipeline for platform-specific vocabulary
-- [ ] Multi-model routing: route complex requests to larger models automatically
-- [ ] AI-driven onboarding assistant
-- [ ] Voice-to-text meeting transcription (Whisper)
-- [ ] Proactive anomaly narrative: LLM explains metric spikes in plain English
-- [ ] Cross-service embedding store with approximate nearest-neighbor search
-- [ ] A/B testing framework for AI feature rollout
-
----
-
-## Phase 19: Performance & Scalability 
-**Priority: Ongoing**
-
-### 19.1 Backend Performance
-- [x] Horizontal scaling for user and content services
-- [x] Read replicas for PostgreSQL (high-traffic queries)
-- [x] CDN integration for static assets and media
-- [x] Connection pooling optimization (PgBouncer)
-
-### 19.2 Frontend Performance
-- [x] Code splitting and route-based lazy loading (review and tighten)
-- [x] Image optimization pipeline (WebP/AVIF auto-conversion)
-- [x] Virtual scrolling for large lists (feeds, chats)
-- [x] Performance monitoring (Core Web Vitals tracking)
-
-### 19.3 Infrastructure
-- [x] Kubernetes auto-scaling (HPA)
-- [x] Multi-region deployment (k8s/multi-region.yaml — active-active with global routing policy)
-- [x] Disaster recovery and automated backups
-- [x] Blue-green deployments with zero downtime
-
----
-
-## Technical Debt & Maintenance 
-
-### Code Quality
-- [x] Increase test coverage to >80% (unit + integration)
-- [x] End-to-end tests with Playwright for critical flows
-- [x] ESLint + Prettier enforcement in CI
-- [x] TypeScript migration for frontend (incremental)
-
-### Security
-- [x] Automated dependency vulnerability scanning (Dependabot)
-- [x] Regular penetration testing (schedule documented — OWASP_COMPLIANCE.md)
-- [x] Secret rotation procedures documented (docs/deployment/SECRET_ROTATION.md)
-- [x] OWASP Top 10 compliance review (docs/development/OWASP_COMPLIANCE.md)
-
-### Documentation
-- [x] Interactive API documentation (Swagger UI at /api/docs + ReDoc at /api/redoc)
-- [x] Video walkthrough for setup and deployment (QUICK_START.md + DEPLOYMENT_GUIDE.md)
-- [x] Contribution guide (CONTRIBUTING.md)
-- [x] Storybook for UI components (.storybook/ + frontend/src/stories/)
-- [x] AI Admin Panel roadmap → `docs/admin/AI_ADMIN_ROADMAP.md`
-- [x] Admin Panel (non-AI) roadmap → `docs/admin/ADMIN_PANEL_ROADMAP.md`
+*Last updated: March 11, 2026*

@@ -61,7 +61,7 @@ const generateSparkline = (base = 50, count = 10) =>
 const buildMockServices = () =>
     SERVICE_NAMES.map((name) => {
         const roll = Math.random();
-        const status = roll > 0.85 ? 'degraded' : roll > 0.95 ? 'down' : 'healthy';
+        const status = roll > 0.95 ? 'down' : roll > 0.85 ? 'degraded' : 'healthy';
         const baseCpu = status === 'healthy' ? 25 : status === 'degraded' ? 65 : 95;
         const baseLatency = status === 'healthy' ? 40 : status === 'degraded' ? 180 : 500;
         return {

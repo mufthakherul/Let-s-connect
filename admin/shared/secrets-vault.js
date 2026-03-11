@@ -110,10 +110,12 @@ const LOCAL_ENC_VERSION = 1;
 const ALGO = 'aes-256-gcm';
 
 function deriveKey(rawKey) {
-    // Accept 32-byte hex or arbitrary string → derive 32-byte key via SHA-256
-    const buf = Buffer.from(rawKey, 'utf8');
-    if (buf.length === 32) return buf;
-    return crypto.createHash('sha256').update(buf).digest();
+    // Accept 64-char hex string (32 bytes encoded as hex), or arbitrary string → SHA-256
+    if (typeof rawKey !== 'string') rawKey = String(rawKey);
+    if (/^[0-9a-fA-F]{64}$/.test(rawKey)) {
+        return Buffer.from(rawKey, 'hex');
+    }
+    return crypto.createHash('sha256').update(Buffer.from(rawKey, 'utf8')).digest();
 }
 
 function encryptValue(key, plaintext) {
@@ -184,11 +186,24 @@ class SecretsVault {
 
     _localKey() {
         const raw = process.env.VAULT_ENCRYPTION_KEY;
-        if (!raw) {
-            process.stderr.write('[secrets-vault] WARNING: VAULT_ENCRYPTION_KEY not set. Using insecure default key — set this env var in production!\n');
-            return deriveKey('default-dev-key-change-in-prod!!');
+        if (raw && String(raw).trim() !== '') {
+            return deriveKey(raw);
         }
-        return deriveKey(raw);
+
+        // Only allow insecure default in explicit development mode
+        const isExplicitDevMode =
+            process.env.NODE_ENV === 'development' ||
+            process.env.VAULT_ALLOW_INSECURE_LOCAL_DEV === 'true';
+
+        if (!isExplicitDevMode) {
+            const msg = '[secrets-vault] FATAL: VAULT_ENCRYPTION_KEY not set. ' +
+                'Set VAULT_ENCRYPTION_KEY or configure a remote secrets backend (Vault/AWS Secrets Manager).\n';
+            process.stderr.write(msg);
+            throw new Error('VAULT_ENCRYPTION_KEY is required when using the local-encrypted secrets backend in non-development mode');
+        }
+
+        process.stderr.write('[secrets-vault] WARNING: VAULT_ENCRYPTION_KEY not set. Using insecure default key for local dev — DO NOT USE IN PRODUCTION!\n');
+        return deriveKey('default-dev-key-change-in-prod!!');
     }
 
     // ---- HashiCorp Vault helpers ----
