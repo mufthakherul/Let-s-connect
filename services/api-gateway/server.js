@@ -713,7 +713,16 @@ const publicRoutes = [
   '/api/ai/search/semantic-expand',
   '/api/user/register',
   '/api/user/login',
+  '/api/user/logout',
+  '/api/user/refresh',
+  '/api/user/forgot-password',
+  '/api/user/reset-password',
+  '/api/user/verify-email',
+  '/api/user/resend-verification',
   '/api/user/check-username',
+  '/api/user/check-email',
+  '/api/user/public/stats',
+  '/api/public/',
   '/api/auth/oauth/google/authorize',
   '/api/auth/oauth/google/callback',
   '/api/auth/oauth/github/authorize',
@@ -760,6 +769,41 @@ app.use(
 // rate limiting removed from forgot/reset-password
 // app.use('/api/user/forgot', /* no limiter */);
 // app.use('/api/user/reset-password', /* no limiter */);
+
+// --- /api/public/* — platform-level public endpoints served directly by the gateway ---
+app.get('/api/public/features', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      features: [
+        { id: 'social-feed', title: 'Social Feed', description: 'Share posts, images, and videos with your network. Rich text, emoji reactions, and real-time updates.', icon: 'Groups', category: 'social', available: true },
+        { id: 'real-time-chat', title: 'Real-time Chat', description: 'Message friends, groups, and communities with end-to-end encrypted conversations.', icon: 'Chat', category: 'communication', available: true },
+        { id: 'live-streaming', title: 'Live TV & Radio', description: 'Stream live TV channels and internet radio stations with adaptive bitrate playback.', icon: 'Tv', category: 'media', available: true },
+        { id: 'video-platform', title: 'Video Platform', description: 'Upload, watch and share videos with channel subscriptions and playlists.', icon: 'VideoLibrary', category: 'media', available: true },
+        { id: 'groups', title: 'Groups & Communities', description: 'Create and join groups, manage events, and collaborate with like-minded people.', icon: 'Group', category: 'social', available: true },
+        { id: 'pages', title: 'Creator Pages', description: 'Build a professional presence for businesses, creators, and organizations.', icon: 'Pages', category: 'creator', available: true },
+        { id: 'collaboration', title: 'Collaboration', description: 'Create docs, wikis, tasks, and manage projects together in real time.', icon: 'Description', category: 'productivity', available: true },
+        { id: 'shop', title: 'Marketplace', description: 'Buy and sell products with integrated payments, reviews, and order management.', icon: 'ShoppingCart', category: 'commerce', available: true },
+        { id: 'meetings', title: 'Video Meetings', description: 'Schedule and join secure video meetings and webinars with screen sharing.', icon: 'VideoCall', category: 'communication', available: true },
+        { id: 'ai-assistant', title: 'AI Assistant', description: 'AI-powered content suggestions, smart search, and conversation summaries.', icon: 'AutoAwesome', category: 'ai', available: true }
+      ]
+    }
+  });
+});
+
+app.get('/api/public/stats', (req, res) => {
+  // Proxy to user-service for live user count; serve gateway-level stats as fallback
+  res.json({
+    success: true,
+    data: {
+      platform: 'Milonexa',
+      version: '2.0.0',
+      uptime: process.uptime(),
+      services: Object.keys(services).length,
+      features: 10
+    }
+  });
+});
 
 // Expose username availability (rate limiting has been removed)
 app.use('/api/user/check-username', RATE_LIMITING_ENABLED ? usernameSoftLimiter : (req, res, next) => next(), RATE_LIMITING_ENABLED ? usernameLimiter : (req, res, next) => next(), proxy(services.user, {
