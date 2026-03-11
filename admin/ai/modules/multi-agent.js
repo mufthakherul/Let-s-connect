@@ -82,7 +82,7 @@ class MessageBus {
             timestamp: new Date().toISOString(),
         };
         this._history.push(envelope);
-        if (this._history.length > 200) this._history.splice(0, this._history.length - 200);
+        if (this._history.length > 200) this._history = this._history.slice(-200);
 
         const listeners = this._listeners.get(topic) || [];
         for (const fn of listeners) {

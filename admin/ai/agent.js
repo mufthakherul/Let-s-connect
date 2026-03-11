@@ -249,6 +249,10 @@ const agentOrchestrator   = new AgentOrchestrator({
     tokenBudget:  parseInt(process.env.AI_MULTI_AGENT_TOKEN_BUDGET || '10000', 10),
     timeBudgetMs: parseInt(process.env.AI_MULTI_AGENT_TIME_BUDGET_MS || '45000', 10),
 });
+// v3.0 — Cache dashboard HTML on startup to avoid blocking reads per request.
+const DASHBOARD_FILE = path.join(__dirname, 'dashboard.html');
+let _dashboardHtml = null;
+try { _dashboardHtml = fs.readFileSync(DASHBOARD_FILE, 'utf8'); } catch (_) {}
 
 // v2.1 — SSE client registry (live streaming).
 /** @type {Set<http.ServerResponse>} */
@@ -866,7 +870,7 @@ async function runCycle() {
             const maResult = await agentOrchestrator.runCycle({
                 metrics:      metrics.services ? metrics.services.reduce((o, s) => { o[s.name || s.service || 'unknown'] = s; return o; }, {}) : {},
                 threats,
-                codeFindings: codeAnalyzer.getLastRunSummary ? [] : [],
+                codeFindings: codeAnalyzer.getLastRunSummary ? (codeAnalyzer.getLastRunSummary().findings || []) : [],
                 healthIssues: healthAssessment.issues,
                 testIntel:    testIntelligence.getLastRunSummary ? testIntelligence.getLastRunSummary() : null,
                 llmFn,
@@ -1707,10 +1711,9 @@ function startStatusServer() {
 
         // ── GET /dashboard ────────────────────────────────────────────────────
         if (req.method === 'GET' && pathname === '/dashboard') {
-            const dashFile = path.join(__dirname, 'dashboard.html');
-            if (fs.existsSync(dashFile)) {
+            if (_dashboardHtml) {
                 res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-                res.end(fs.readFileSync(dashFile, 'utf8'));
+                res.end(_dashboardHtml);
             } else {
                 res.writeHead(404);
                 res.end(JSON.stringify({ error: 'Dashboard file not found.' }));

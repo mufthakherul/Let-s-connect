@@ -224,7 +224,11 @@ class CanaryManager {
         // Check rollback trigger.
         const baseline = sample.baselineErrorRate;
         const canary   = sample.canaryErrorRate;
-        const ratio    = baseline > 0 ? canary / baseline : (canary > 0.01 ? 999 : 0);
+        const ratio    = baseline > 0 ? canary / baseline
+            // When baseline error rate is zero but canary has errors, use a sentinel
+            // ratio (999) that always exceeds the threshold — this prevents false
+            // negatives when a previously error-free service starts failing.
+            : (canary > 0.01 ? 999 : 0);
 
         if (ratio >= ERROR_RATE_THRESHOLD) {
             dep.consecutiveHighErrors++;
