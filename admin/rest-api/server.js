@@ -55,6 +55,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { URL } = require('url');
+const crypto = require('crypto');
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -292,6 +293,37 @@ async function handleRequest(req, res) {
             return sendJSON(res, 200, { history: new WebhookManager(getDir('webhooks')).getHistory(limit) });
         }
 
+        if (webhookMatch && method === 'PUT') {
+            const id = webhookMatch[1];
+            const type = parsedUrl.searchParams.get('type') || body.type;
+            if (!type) return sendError(res, 400, 'type query parameter or body field is required');
+            const mgr = new WebhookManager(getDir('webhooks'));
+            const updated = mgr.updateWebhook
+                ? mgr.updateWebhook(type, id, body)
+                : { id, type, ...body, updatedAt: new Date().toISOString() };
+            return sendJSON(res, 200, { updated });
+        }
+
+        const webhookSubMatch = pathname.match(/^\/api\/v1\/webhooks\/([^/]+)\/(test|logs)$/);
+        if (webhookSubMatch && method === 'POST' && webhookSubMatch[2] === 'test') {
+            const id = webhookSubMatch[1];
+            const eventType = body.eventType || 'webhook.test';
+            const results = await new WebhookManager(getDir('webhooks')).fire(
+                eventType,
+                { message: 'Test event from admin API', webhookId: id, timestamp: new Date().toISOString() },
+                'info'
+            );
+            return sendJSON(res, 200, { tested: true, webhookId: id, results });
+        }
+
+        if (webhookSubMatch && method === 'GET' && webhookSubMatch[2] === 'logs') {
+            const id = webhookSubMatch[1];
+            const limit = parseInt(parsedUrl.searchParams.get('limit')) || 20;
+            const history = new WebhookManager(getDir('webhooks')).getHistory(limit);
+            const logs = history.filter(h => !h.webhookId || h.webhookId === id);
+            return sendJSON(res, 200, { webhookId: id, count: logs.length, logs });
+        }
+
         // ---- Clusters ----
         if (pathname === '/api/v1/clusters' && method === 'GET') {
             return sendJSON(res, 200, { clusters: new MultiClusterManager(getDir('clusters')).listClusters() });
@@ -394,12 +426,445 @@ async function handleRequest(req, res) {
             return sendJSON(res, 200, { count: entries.length, entries });
         }
 
+        // ---- GraphQL ----
+        if (pathname === '/api/v1/graphql' && method === 'POST') {
+            const { query: gqlQuery } = body;
+            if (!gqlQuery) return sendError(res, 400, 'query field is required');
+            try {
+                const parsed = parseGraphQL(gqlQuery);
+                const data = await executeGraphQL(parsed.fields);
+                return sendJSON(res, 200, { data });
+            } catch (err) {
+                return sendJSON(res, 200, { errors: [{ message: err.message }] });
+            }
+        }
+
+        // ---- Users ----
+        if (pathname === '/api/v1/users' && method === 'GET') {
+            let users = getUsers();
+            const status = parsedUrl.searchParams.get('status');
+            const role = parsedUrl.searchParams.get('role');
+            if (status) users = users.filter(u => u.status === status);
+            if (role) users = users.filter(u => u.role === role);
+            return sendJSON(res, 200, { count: users.length, users });
+        }
+
+        if (pathname === '/api/v1/users/bulk' && method === 'POST') {
+            const { action, userIds, role } = body;
+            if (!action || !Array.isArray(userIds) || userIds.length === 0)
+                return sendError(res, 400, 'action and userIds[] are required');
+            const validActions = ['suspend', 'activate', 'delete', 'role-change'];
+            if (!validActions.includes(action)) return sendError(res, 400, `action must be one of: ${validActions.join(', ')}`);
+            if (action === 'role-change' && !role) return sendError(res, 400, 'role is required for role-change action');
+            const users = getUsers();
+            const affected = [];
+            const updated = users.filter(u => {
+                if (!userIds.includes(u.id)) return true;
+                if (action === 'delete') { affected.push(u.id); return false; }
+                if (action === 'suspend') u.status = 'suspended';
+                else if (action === 'activate') u.status = 'active';
+                else if (action === 'role-change') u.role = role;
+                u.updatedAt = new Date().toISOString();
+                affected.push(u.id);
+                return true;
+            });
+            saveUsers(updated);
+            appendAuditEvent({ action: `bulk-user-${action}`, userIds: affected, by: 'admin-api' });
+            return sendJSON(res, 200, { affected: affected.length, action, userIds: affected });
+        }
+
+        if (pathname === '/api/v1/users/export' && method === 'GET') {
+            const format = parsedUrl.searchParams.get('format') || 'json';
+            const users = getUsers();
+            if (format === 'csv') {
+                const escapeCsv = v => { const s = String(v ?? ''); return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+                const header = 'id,name,email,role,status,createdAt,lastLogin';
+                const rows = users.map(u => [u.id, u.name, u.email, u.role, u.status, u.createdAt, u.lastLogin].map(escapeCsv).join(','));
+                const csv = [header, ...rows].join('\n');
+                res.writeHead(200, { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="users.csv"', 'Content-Length': Buffer.byteLength(csv), 'Access-Control-Allow-Origin': process.env.ADMIN_CORS_ORIGIN || '*' });
+                res.end(csv);
+                return;
+            }
+            return sendJSON(res, 200, { count: users.length, users });
+        }
+
+        const userMatch = pathname.match(/^\/api\/v1\/users\/([^/]+)$/);
+        if (userMatch && method === 'PUT') {
+            const id = userMatch[1];
+            const users = getUsers();
+            const idx = users.findIndex(u => u.id === id);
+            if (idx === -1) return sendError(res, 404, `User ${id} not found`);
+            for (const key of ['role', 'status', 'name', 'email']) { if (body[key] !== undefined) users[idx][key] = body[key]; }
+            users[idx].updatedAt = new Date().toISOString();
+            saveUsers(users);
+            return sendJSON(res, 200, { updated: users[idx] });
+        }
+
+        const userActionMatch = pathname.match(/^\/api\/v1\/users\/([^/]+)\/(suspend|activate)$/);
+        if (userActionMatch && method === 'POST') {
+            const [, id, action] = userActionMatch;
+            const users = getUsers();
+            const idx = users.findIndex(u => u.id === id);
+            if (idx === -1) return sendError(res, 404, `User ${id} not found`);
+            users[idx].status = action === 'suspend' ? 'suspended' : 'active';
+            users[idx].updatedAt = new Date().toISOString();
+            saveUsers(users);
+            appendAuditEvent({ action: `user-${action}`, userId: id, by: 'admin-api' });
+            return sendJSON(res, 200, { id, status: users[idx].status });
+        }
+
+        // ---- API Keys ----
+        if (pathname === '/api/v1/api-keys' && method === 'GET') {
+            const keys = getApiKeys().map(({ keyHash, ...meta }) => meta);
+            return sendJSON(res, 200, { count: keys.length, keys });
+        }
+
+        if (pathname === '/api/v1/api-keys' && method === 'POST') {
+            const { name, service, expiresIn = '90d' } = body;
+            if (!name || !service) return sendError(res, 400, 'name and service are required');
+            const keyValue = crypto.randomBytes(32).toString('hex');
+            const keyHash = crypto.createHash('sha256').update(keyValue).digest('hex');
+            const days = ({ '30d': 30, '90d': 90, '1y': 365 })[expiresIn] || 90;
+            const key = { id: `key_${crypto.randomBytes(8).toString('hex')}`, name, service, keyHash, created: new Date().toISOString(), lastUsed: null, expiresAt: new Date(Date.now() + days * 86400000).toISOString() };
+            const keys = getApiKeys(); keys.push(key); saveApiKeys(keys);
+            appendAuditEvent({ action: 'api-key-created', keyId: key.id, name, service, by: 'admin-api' });
+            const { keyHash: _, ...meta } = key;
+            return sendJSON(res, 201, { created: meta, key: keyValue });
+        }
+
+        const apiKeyMatch = pathname.match(/^\/api\/v1\/api-keys\/([^/]+)$/);
+        if (apiKeyMatch && method === 'DELETE') {
+            const id = apiKeyMatch[1];
+            const keys = getApiKeys();
+            const idx = keys.findIndex(k => k.id === id);
+            if (idx === -1) return sendError(res, 404, `API key ${id} not found`);
+            const [removed] = keys.splice(idx, 1); saveApiKeys(keys);
+            appendAuditEvent({ action: 'api-key-revoked', keyId: id, name: removed.name, by: 'admin-api' });
+            return sendJSON(res, 200, { revoked: true, id });
+        }
+
+        const apiKeyRotateMatch = pathname.match(/^\/api\/v1\/api-keys\/([^/]+)\/rotate$/);
+        if (apiKeyRotateMatch && method === 'POST') {
+            const id = apiKeyRotateMatch[1];
+            const keys = getApiKeys();
+            const idx = keys.findIndex(k => k.id === id);
+            if (idx === -1) return sendError(res, 404, `API key ${id} not found`);
+            const newValue = crypto.randomBytes(32).toString('hex');
+            keys[idx].keyHash = crypto.createHash('sha256').update(newValue).digest('hex');
+            keys[idx].rotatedAt = new Date().toISOString();
+            saveApiKeys(keys);
+            appendAuditEvent({ action: 'api-key-rotated', keyId: id, name: keys[idx].name, by: 'admin-api' });
+            return sendJSON(res, 200, { rotated: true, id, key: newValue });
+        }
+
+        // ---- Rate Limits ----
+        if (pathname === '/api/v1/rate-limits' && method === 'GET') {
+            return sendJSON(res, 200, { rateLimits: getRateLimits() });
+        }
+
+        if (pathname === '/api/v1/rate-limits/stats' && method === 'GET') {
+            const limits = getRateLimits();
+            return sendJSON(res, 200, {
+                total: limits.length,
+                blocked: limits.filter(r => r.blocked).length,
+                totalViolations: limits.reduce((s, r) => s + (r.violations || 0), 0),
+                topOffenders: [...limits].sort((a, b) => (b.violations || 0) - (a.violations || 0)).slice(0, 10),
+            });
+        }
+
+        if (pathname === '/api/v1/rate-limits/reset' && method === 'POST') {
+            const { ip, userId } = body;
+            if (!ip && !userId) return sendError(res, 400, 'ip or userId is required');
+            const limits = getRateLimits().map(r => {
+                if ((ip && r.ip === ip) || (userId && r.userId === userId))
+                    return { ...r, requestCount: 0, blocked: false, violations: 0, windowStart: new Date().toISOString() };
+                return r;
+            });
+            saveRateLimits(limits);
+            return sendJSON(res, 200, { reset: true, ip, userId });
+        }
+
+        // ---- Events / Event Sourcing ----
+        if (pathname === '/api/v1/events' && method === 'GET') {
+            const limit = parseInt(parsedUrl.searchParams.get('limit')) || 100;
+            const events = getAdminEvents(limit);
+            return sendJSON(res, 200, { count: events.length, events });
+        }
+
+        if (pathname === '/api/v1/events/replay' && method === 'POST') {
+            const { from, to, filter } = body;
+            if (!from) return sendError(res, 400, 'from (ISO date) is required');
+            const fromDate = new Date(from);
+            if (isNaN(fromDate)) return sendError(res, 400, 'from must be a valid ISO date');
+            const toDate = to ? new Date(to) : new Date();
+            let sequence = getAdminEvents(10000).filter(e => {
+                const ts = new Date(e.timestamp || e.ts || 0);
+                return ts >= fromDate && ts <= toDate;
+            });
+            if (filter) { const re = new RegExp(filter, 'i'); sequence = sequence.filter(e => re.test(JSON.stringify(e))); }
+            return sendJSON(res, 200, { from, to: toDate.toISOString(), count: sequence.length, sequence });
+        }
+
+        if (pathname === '/api/v1/events/stream' && method === 'GET') {
+            res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'Access-Control-Allow-Origin': process.env.ADMIN_CORS_ORIGIN || '*', 'X-Powered-By': 'Milonexa-Admin-API/5.0' });
+            res.write(`data: ${JSON.stringify({ type: 'connected', timestamp: new Date().toISOString() })}\n\n`);
+            const iv = setInterval(() => { if (res.writableEnded) { clearInterval(iv); return; } res.write(': heartbeat\n\n'); }, 15000);
+            req.on('close', () => clearInterval(iv));
+            return;
+        }
+
+        // ---- Alert Rules ----
+        if (pathname === '/api/v1/alerts/rules' && method === 'GET') {
+            return sendJSON(res, 200, { rules: getAlertRules() });
+        }
+
+        if (pathname === '/api/v1/alerts/rules' && method === 'POST') {
+            const { name, condition, threshold, severity = 'warning', service, enabled = true } = body;
+            if (!name || !condition) return sendError(res, 400, 'name and condition are required');
+            const rule = { id: `rule_${crypto.randomBytes(6).toString('hex')}`, name, condition, threshold, severity, service, enabled, createdAt: new Date().toISOString() };
+            const rules = getAlertRules(); rules.push(rule); saveAlertRules(rules);
+            return sendJSON(res, 201, { created: rule });
+        }
+
+        const alertRuleMatch = pathname.match(/^\/api\/v1\/alerts\/rules\/([^/]+)$/);
+        if (alertRuleMatch && method === 'PUT') {
+            const id = alertRuleMatch[1];
+            const rules = getAlertRules();
+            const idx = rules.findIndex(r => r.id === id);
+            if (idx === -1) return sendError(res, 404, `Alert rule ${id} not found`);
+            for (const k of ['name', 'condition', 'threshold', 'severity', 'service', 'enabled']) { if (body[k] !== undefined) rules[idx][k] = body[k]; }
+            rules[idx].updatedAt = new Date().toISOString();
+            saveAlertRules(rules);
+            return sendJSON(res, 200, { updated: rules[idx] });
+        }
+
+        if (alertRuleMatch && method === 'DELETE') {
+            const id = alertRuleMatch[1];
+            const rules = getAlertRules();
+            const idx = rules.findIndex(r => r.id === id);
+            if (idx === -1) return sendError(res, 404, `Alert rule ${id} not found`);
+            rules.splice(idx, 1); saveAlertRules(rules);
+            return sendJSON(res, 200, { deleted: true, id });
+        }
+
+        // ---- AI Permissions ----
+        if (pathname === '/api/v1/ai/permissions' && method === 'GET') {
+            const statusFilter = parsedUrl.searchParams.get('status');
+            let perms = getAIPermissions();
+            if (statusFilter) perms = perms.filter(p => p.status === statusFilter);
+            return sendJSON(res, 200, { count: perms.length, permissions: perms });
+        }
+
+        const aiPermMatch = pathname.match(/^\/api\/v1\/ai\/permissions\/([^/]+)\/(approve|deny)$/);
+        if (aiPermMatch && method === 'POST') {
+            const [, id, decision] = aiPermMatch;
+            const perms = getAIPermissions();
+            const idx = perms.findIndex(p => p.id === id);
+            if (idx === -1) return sendError(res, 404, `Permission request ${id} not found`);
+            perms[idx].status = decision === 'approve' ? 'approved' : 'denied';
+            perms[idx].decidedAt = new Date().toISOString();
+            if (body.reason) perms[idx].reason = body.reason;
+            saveAIPermissions(perms);
+            appendAuditEvent({ action: `ai-permission-${decision}d`, permId: id, by: 'admin-api' });
+            return sendJSON(res, 200, { id, status: perms[idx].status, decidedAt: perms[idx].decidedAt });
+        }
+
         return sendError(res, 404, `Not found: ${method} ${pathname}`);
 
     } catch (err) {
         log('error', `${method} ${pathname} — ${err.message}`);
         return sendError(res, 500, `Internal server error: ${err.message}`);
     }
+}
+
+// ---------------------------------------------------------------------------
+// JSON store helpers
+// ---------------------------------------------------------------------------
+
+function readJSONStore(filename, defaultVal) {
+    const p = path.join(ADMIN_HOME, filename);
+    if (!fs.existsSync(p)) return typeof defaultVal === 'function' ? defaultVal() : defaultVal;
+    try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { return typeof defaultVal === 'function' ? defaultVal() : defaultVal; }
+}
+
+function writeJSONStore(filename, data) {
+    if (!fs.existsSync(ADMIN_HOME)) fs.mkdirSync(ADMIN_HOME, { recursive: true });
+    fs.writeFileSync(path.join(ADMIN_HOME, filename), JSON.stringify(data, null, 2), 'utf8');
+}
+
+// ---- Users ----
+function getUsers() {
+    return readJSONStore('users.json', () => {
+        const mock = [
+            { id: 'u1', name: 'Alice Johnson', email: 'alice@example.com', role: 'admin', status: 'active', createdAt: '2025-01-15T10:00:00Z', lastLogin: '2026-03-10T08:30:00Z' },
+            { id: 'u2', name: 'Bob Smith', email: 'bob@example.com', role: 'moderator', status: 'active', createdAt: '2025-02-01T09:00:00Z', lastLogin: '2026-03-09T14:20:00Z' },
+            { id: 'u3', name: 'Carol White', email: 'carol@example.com', role: 'user', status: 'active', createdAt: '2025-03-10T11:00:00Z', lastLogin: '2026-03-08T16:45:00Z' },
+            { id: 'u4', name: 'Dave Brown', email: 'dave@example.com', role: 'user', status: 'suspended', createdAt: '2025-04-20T08:00:00Z', lastLogin: '2026-02-28T10:00:00Z' },
+            { id: 'u5', name: 'Eve Davis', email: 'eve@example.com', role: 'viewer', status: 'active', createdAt: '2025-05-05T12:00:00Z', lastLogin: '2026-03-10T07:00:00Z' },
+        ];
+        writeJSONStore('users.json', mock);
+        return mock;
+    });
+}
+function saveUsers(data) { writeJSONStore('users.json', data); }
+
+// ---- API Keys ----
+function getApiKeys() { return readJSONStore('api-keys.json', []); }
+function saveApiKeys(data) { writeJSONStore('api-keys.json', data); }
+
+// ---- Rate Limits ----
+function getRateLimits() {
+    return readJSONStore('rate-limits.json', () => {
+        const mock = [
+            { ip: '192.168.1.100', userId: null, requestCount: 120, windowStart: new Date(Date.now() - 300000).toISOString(), blocked: false, violations: 0 },
+            { ip: '10.0.0.55', userId: 'u3', requestCount: 450, windowStart: new Date(Date.now() - 60000).toISOString(), blocked: true, violations: 3 },
+        ];
+        writeJSONStore('rate-limits.json', mock);
+        return mock;
+    });
+}
+function saveRateLimits(data) { writeJSONStore('rate-limits.json', data); }
+
+// ---- Alert Rules ----
+function getAlertRules() {
+    return readJSONStore('alert-rules.json', () => {
+        const mock = [
+            { id: 'rule_default1', name: 'High CPU', condition: 'cpu > threshold', threshold: 90, severity: 'critical', service: '*', enabled: true, createdAt: '2026-01-01T00:00:00Z' },
+            { id: 'rule_default2', name: 'Memory Pressure', condition: 'memory > threshold', threshold: 85, severity: 'warning', service: '*', enabled: true, createdAt: '2026-01-01T00:00:00Z' },
+        ];
+        writeJSONStore('alert-rules.json', mock);
+        return mock;
+    });
+}
+function saveAlertRules(data) { writeJSONStore('alert-rules.json', data); }
+
+// ---- AI Permissions ----
+function getAIPermissions() {
+    return readJSONStore('ai-permissions.json', () => {
+        const mock = [
+            { id: 'aip1', agent: 'ContentModerator', action: 'delete-post', resourceId: 'post_123', reason: 'Violates community guidelines', status: 'pending', requestedAt: new Date(Date.now() - 3600000).toISOString() },
+            { id: 'aip2', agent: 'SpamDetector', action: 'suspend-user', resourceId: 'u99', reason: 'Automated spam detection threshold exceeded', status: 'pending', requestedAt: new Date(Date.now() - 7200000).toISOString() },
+            { id: 'aip3', agent: 'DataCleaner', action: 'purge-records', resourceId: 'dataset_old', reason: 'Data retention policy: records older than 2 years', status: 'approved', requestedAt: new Date(Date.now() - 86400000).toISOString(), decidedAt: new Date(Date.now() - 82800000).toISOString() },
+        ];
+        writeJSONStore('ai-permissions.json', mock);
+        return mock;
+    });
+}
+function saveAIPermissions(data) { writeJSONStore('ai-permissions.json', data); }
+
+// ---- Admin events ----
+function getAdminEvents(limit) {
+    const auditFile = path.join(ADMIN_HOME, 'audit.log');
+    const eventsFile = path.join(ADMIN_HOME, 'admin-events.json');
+    const events = [];
+    if (fs.existsSync(auditFile)) {
+        const lines = fs.readFileSync(auditFile, 'utf8').trim().split('\n').filter(Boolean);
+        for (const l of lines.slice(-limit)) { try { events.push(JSON.parse(l)); } catch (_) { events.push({ raw: l, timestamp: new Date(0).toISOString() }); } }
+    }
+    if (fs.existsSync(eventsFile)) { try { events.push(...JSON.parse(fs.readFileSync(eventsFile, 'utf8'))); } catch (_) {} }
+    events.sort((a, b) => new Date(a.timestamp || 0) - new Date(b.timestamp || 0));
+    return events.slice(-limit);
+}
+
+function appendAuditEvent(evt) {
+    const eventsFile = path.join(ADMIN_HOME, 'admin-events.json');
+    const events = [];
+    if (fs.existsSync(eventsFile)) { try { events.push(...JSON.parse(fs.readFileSync(eventsFile, 'utf8'))); } catch (_) {} }
+    events.push({ ...evt, timestamp: new Date().toISOString() });
+    if (!fs.existsSync(ADMIN_HOME)) fs.mkdirSync(ADMIN_HOME, { recursive: true });
+    fs.writeFileSync(eventsFile, JSON.stringify(events, null, 2), 'utf8');
+}
+
+// ---------------------------------------------------------------------------
+// Minimal GraphQL parser and executor
+// ---------------------------------------------------------------------------
+
+function parseGraphQL(queryStr) {
+    const q = queryStr.replace(/#[^\n]*/g, '').trim();
+    const bodyMatch = q.match(/^(?:query|mutation)?\s*\w*\s*(?:\([^)]*\))?\s*\{([\s\S]+)\}\s*$/);
+    const body = bodyMatch ? bodyMatch[1] : q.replace(/^\s*\{/, '').replace(/\}\s*$/, '');
+    return { fields: extractGQLFields(body) };
+}
+
+function extractGQLFields(body) {
+    const fields = {};
+    const re = /(\w+)(\s*\([^)]*\))?\s*(?:\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\})?/g;
+    let m;
+    while ((m = re.exec(body)) !== null) {
+        const [, name, argsRaw, subRaw] = m;
+        if (!name) continue;
+        fields[name] = { args: parseGQLArgs(argsRaw || ''), sub: subRaw ? extractGQLFields(subRaw) : null };
+    }
+    return fields;
+}
+
+function parseGQLArgs(argsStr) {
+    const inner = argsStr.replace(/^\s*\(\s*/, '').replace(/\s*\)\s*$/, '');
+    if (!inner) return {};
+    const args = {};
+    const re = /(\w+)\s*:\s*(?:"([^"]*)"|(\d+(?:\.\d+)?)|(true|false)|(\w+))/g;
+    let m;
+    while ((m = re.exec(inner)) !== null) {
+        const [, key, strVal, numVal, boolVal, identVal] = m;
+        if (strVal !== undefined) args[key] = strVal;
+        else if (numVal !== undefined) args[key] = Number(numVal);
+        else if (boolVal !== undefined) args[key] = boolVal === 'true';
+        else args[key] = identVal;
+    }
+    return args;
+}
+
+async function executeGraphQL(fields) {
+    const data = {};
+    for (const [name, { args }] of Object.entries(fields)) {
+        switch (name) {
+            case 'metrics': {
+                const filters = {};
+                if (args.category) filters.category = args.category;
+                if (args.service) filters.service = args.service;
+                let list = new MetricsCollector(getDir('metrics')).query(filters);
+                if (args.limit) list = list.slice(-Math.abs(args.limit));
+                data.metrics = list;
+                break;
+            }
+            case 'auditLog': {
+                const limit = args.limit || 50;
+                const auditFile = path.join(ADMIN_HOME, 'audit.log');
+                let entries = [];
+                if (fs.existsSync(auditFile)) {
+                    const lines = fs.readFileSync(auditFile, 'utf8').trim().split('\n').filter(Boolean);
+                    entries = lines.slice(-limit).map(l => { try { return JSON.parse(l); } catch (_) { return { raw: l }; } });
+                }
+                if (args.severity) entries = entries.filter(e => e.severity === args.severity);
+                data.auditLog = entries;
+                break;
+            }
+            case 'alerts': {
+                const mgr = new AlertManager(getDir('alerts'));
+                data.alerts = { rules: mgr.rules, stats: mgr.getStats() };
+                break;
+            }
+            case 'sla': {
+                const mgr = new SLAManager(getDir('sla'));
+                data.sla = { summary: mgr.getSummary(), statuses: mgr.getStatus() };
+                break;
+            }
+            case 'costs': {
+                const analyzer = new CostAnalyzer(getDir('costs'));
+                data.costs = { summary: analyzer.getSummary ? analyzer.getSummary() : {}, budget: analyzer.checkBudgetStatus() };
+                break;
+            }
+            case 'dashboard': {
+                const metrics = new MetricsCollector(getDir('metrics')).query();
+                const alertStats = new AlertManager(getDir('alerts')).getStats();
+                const slaSummary = new SLAManager(getDir('sla')).getSummary();
+                data.dashboard = { timestamp: new Date().toISOString(), metrics: { count: metrics.length }, alerts: alertStats, sla: slaSummary };
+                break;
+            }
+            default: break;
+        }
+    }
+    return data;
 }
 
 // ---------------------------------------------------------------------------
@@ -414,10 +879,11 @@ server.on('error', (err) => {
 });
 
 server.listen(PORT, HOST, () => {
-    log('info', `Milonexa Admin REST API Server v5.0 started`);
+    log('info', `Milonexa Admin REST API Server v6.0 started`);
     log('info', `Listening on http://${HOST}:${PORT}`);
     log('info', `Auth: ${API_KEY ? 'Bearer token enabled (ADMIN_API_KEY)' : HOST === '127.0.0.1' || HOST === 'localhost' ? 'Loopback-only (no ADMIN_API_KEY — set for non-loopback deployment)' : 'BLOCKED — set ADMIN_API_KEY to allow access from non-loopback host'}`);
-    log('info', `Endpoints: GET /health, /api/v1/dashboard, /api/v1/metrics, /api/v1/alerts, /api/v1/sla, /api/v1/webhooks, /api/v1/clusters, /api/v1/trends, /api/v1/compliance, /api/v1/costs, /api/v1/recommendations, /api/v1/audit`);
+    log('info', `Core: GET /health, /api/v1/dashboard, /api/v1/metrics, /api/v1/alerts, /api/v1/sla, /api/v1/webhooks, /api/v1/clusters, /api/v1/trends, /api/v1/compliance, /api/v1/costs, /api/v1/recommendations, /api/v1/audit`);
+    log('info', `Q2-2026: POST /api/v1/graphql, /api/v1/users[/bulk|/export|/:id], /api/v1/api-keys, /api/v1/rate-limits, /api/v1/events[/replay|/stream], /api/v1/alerts/rules, /api/v1/ai/permissions, PUT|test|logs on /api/v1/webhooks/:id`);
     if (!API_KEY) {
         if (HOST === '127.0.0.1' || HOST === 'localhost') {
             log('warn', 'WARNING: ADMIN_API_KEY is not set. API allows unauthenticated loopback access only.');
