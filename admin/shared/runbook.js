@@ -122,8 +122,10 @@ class RunbookManager {
                 const timeout = step.timeout || 30000;
 
                 if (step.type === 'shell') {
-                    // NOTE: command strings are split on whitespace only; quoted
-                    // arguments with internal spaces are not supported.
+                    // LIMITATION: command strings are split on whitespace only.
+                    // Arguments with internal spaces (e.g., "my arg") are NOT supported
+                    // because this uses execFile (not a shell) for security. Store each
+                    // argument as a separate element in step.args if you need spaces.
                     const parts = (step.command || '').split(/\s+/).filter(Boolean);
                     if (!parts.length) throw new Error('Empty shell command');
                     const cmd = parts[0];

@@ -129,8 +129,10 @@ class TenantManager {
     getQuotaUsage(tenantId) {
         const quota = this.getQuota(tenantId);
         if (!quota) throw new Error(`No quota found for tenant ${tenantId}`);
-        // NOTE: Returns simulated (random) usage percentages for demonstration purposes.
-        // Replace with real metrics from your monitoring infrastructure in production.
+        // SIMULATED: Returns randomised usage percentages for demo/UI purposes.
+        // In production, replace with real metrics from your monitoring system
+        // (e.g. Prometheus, cAdvisor, cloud provider APIs) before relying on
+        // this data for capacity planning or billing decisions.
 
         const pct = () => Math.floor(Math.random() * 100);
         const field = (limit, percent) => ({ limit, used: Math.floor(limit * percent / 100), percent });

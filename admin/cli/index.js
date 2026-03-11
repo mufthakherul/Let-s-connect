@@ -59,6 +59,13 @@ const { RemediationEngine } = require('../shared/ai-remediation');
 const { MultiClusterManager } = require('../shared/multi-cluster');
 const { TrendAnalyzer, sparkline, barChart, lineChart } = require('../shared/trend-analysis');
 
+// Q4 2026 modules
+const { FeatureFlagManager } = require('../shared/feature-flags');
+const { TenantManager } = require('../shared/tenant-manager');
+const { RunbookManager } = require('../shared/runbook');
+const { AIIntegrationBridge } = require('../shared/ai-integration');
+const { ChangeLog } = require('../shared/change-log');
+
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -3297,6 +3304,359 @@ function cmdCompare(rawArgs) {
 }
 
 // ---------------------------------------------------------------------------
+// Q4 2026 Commands
+// ---------------------------------------------------------------------------
+
+function cmdFeatureFlags(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const subCmd = (positionals[0] || 'list').toLowerCase();
+    const mgr = new FeatureFlagManager(ADMIN_HOME);
+
+    switch (subCmd) {
+        case 'list': {
+            const flags = mgr.listFlags();
+            if (flags.length === 0) {
+                console.log(c('dim', '  No feature flags defined.'));
+                return;
+            }
+            console.log('');
+            console.log(c('bold', `  Feature Flags (${flags.length})`));
+            console.log('  ' + '─'.repeat(80));
+            console.log(`  ${c('dim', 'ID'.padEnd(24))}${c('dim', 'NAME'.padEnd(30))}${c('dim', 'PROD'.padEnd(8))}${c('dim', 'STAGING'.padEnd(10))}${c('dim', 'DEV')}`);
+            console.log('  ' + '─'.repeat(80));
+            for (const f of flags) {
+                const prod = f.environments && f.environments.production ? c('green', '✓') : c('red', '✗');
+                const staging = f.environments && f.environments.staging ? c('green', '✓') : c('red', '✗');
+                const dev = f.environments && f.environments.development ? c('green', '✓') : c('red', '✗');
+                console.log(`  ${f.flagId.padEnd(24)}${f.name.padEnd(30)}${prod.padEnd(8)}${staging.padEnd(10)}${dev}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'create': {
+            const name = positionals[1];
+            const description = positionals[2] || '';
+            if (!name) { console.error(c('red', '  Usage: feature-flags create <name> [description]')); return; }
+            const flag = mgr.createFlag({ name, description, environments: { production: false, staging: true, development: true }, rolloutPercent: 100, tags: [], owner: 'admin' });
+            console.log(c('green', `  ✓ Created flag '${name}' (${flag.flagId})`));
+            break;
+        }
+        case 'toggle': {
+            const id = positionals[1];
+            const env = positionals[2];
+            const state = positionals[3];
+            if (!id || !env || !state) { console.error(c('red', '  Usage: feature-flags toggle <id> <env> <on|off>')); return; }
+            const enabled = state === 'on' || state === 'true';
+            const updated = mgr.toggleFlag(id, env, enabled, 'admin-cli');
+            if (!updated) { console.error(c('red', `  Flag '${id}' not found`)); return; }
+            console.log(c('green', `  ✓ Flag '${updated.name}' in '${env}': ${enabled ? 'ENABLED' : 'DISABLED'}`));
+            break;
+        }
+        case 'delete': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: feature-flags delete <id>')); return; }
+            const ok = mgr.deleteFlag(id);
+            console.log(ok ? c('green', `  ✓ Deleted flag ${id}`) : c('red', `  Flag '${id}' not found`));
+            break;
+        }
+        default:
+            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: list|create|toggle|delete`));
+    }
+}
+
+function cmdTenant(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const subCmd = (positionals[0] || 'list').toLowerCase();
+    const mgr = new TenantManager(ADMIN_HOME);
+
+    switch (subCmd) {
+        case 'list': {
+            const tenants = mgr.listTenants();
+            if (tenants.length === 0) { console.log(c('dim', '  No tenants defined.')); return; }
+            console.log('');
+            console.log(c('bold', `  Tenants (${tenants.length})`));
+            console.log('  ' + '─'.repeat(80));
+            console.log(`  ${c('dim', 'ID'.padEnd(20))}${c('dim', 'NAME'.padEnd(24))}${c('dim', 'PLAN'.padEnd(14))}${c('dim', 'STATUS')}`);
+            console.log('  ' + '─'.repeat(80));
+            for (const t of tenants) {
+                const statusColor = t.status === 'active' ? 'green' : t.status === 'suspended' ? 'yellow' : 'red';
+                console.log(`  ${t.tenantId.padEnd(20)}${t.name.padEnd(24)}${(t.plan || '').padEnd(14)}${c(statusColor, t.status)}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'create': {
+            const name = positionals[1];
+            const plan = positionals[2] || 'starter';
+            if (!name) { console.error(c('red', '  Usage: tenant create <name> [plan]')); return; }
+            const tenant = mgr.createTenant({ name, domain: name.toLowerCase().replace(/\s+/g, '-') + '.example.com', plan, ownerId: 'admin-cli' });
+            console.log(c('green', `  ✓ Created tenant '${name}' (${tenant.tenantId}) plan=${plan}`));
+            break;
+        }
+        case 'suspend': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: tenant suspend <id>')); return; }
+            mgr.suspendTenant(id, 'Suspended via CLI');
+            console.log(c('yellow', `  ✓ Tenant ${id} suspended`));
+            break;
+        }
+        case 'activate': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: tenant activate <id>')); return; }
+            mgr.activateTenant(id);
+            console.log(c('green', `  ✓ Tenant ${id} activated`));
+            break;
+        }
+        case 'quota': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: tenant quota <id>')); return; }
+            const usage = mgr.getQuotaUsage(id);
+            console.log('');
+            console.log(c('bold', `  Quota Usage — ${id}`));
+            console.log('  ' + '─'.repeat(60));
+            for (const [key, val] of Object.entries(usage)) {
+                const bar = '█'.repeat(Math.round((val.percent || 0) / 5)).padEnd(20, '░');
+                const color = val.percent >= 90 ? 'red' : val.percent >= 70 ? 'yellow' : 'green';
+                console.log(`  ${key.padEnd(18)}  ${c(color, bar)}  ${val.used}/${val.limit} (${val.percent}%)`);
+            }
+            console.log('');
+            break;
+        }
+        default:
+            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: list|create|suspend|activate|quota`));
+    }
+}
+
+async function cmdRunbook(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const subCmd = (positionals[0] || 'list').toLowerCase();
+    const mgr = new RunbookManager(ADMIN_HOME);
+
+    switch (subCmd) {
+        case 'list': {
+            const runbooks = mgr.listRunbooks();
+            if (runbooks.length === 0) { console.log(c('dim', '  No runbooks defined.')); return; }
+            console.log('');
+            console.log(c('bold', `  Runbooks (${runbooks.length})`));
+            console.log('  ' + '─'.repeat(80));
+            for (const rb of runbooks) {
+                const lastExec = rb.lastExecuted ? new Date(rb.lastExecuted).toLocaleString() : 'never';
+                console.log(`  ${c('cyan', rb.id.padEnd(20))}  ${rb.name.padEnd(30)}  steps=${rb.steps ? rb.steps.length : 0}  last=${lastExec}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'run': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: runbook run <id>')); return; }
+            console.log(`  Running runbook ${c('cyan', id)}...`);
+            const result = await mgr.executeRunbook(id, {}, 'admin-cli');
+            console.log('');
+            console.log(c('bold', `  Execution: ${result.executionId}`));
+            console.log('  ' + '─'.repeat(60));
+            for (const step of (result.steps || [])) {
+                const color = step.status === 'success' ? 'green' : step.status === 'failed' ? 'red' : 'yellow';
+                console.log(`  ${c(color, step.status.padEnd(10))}  ${step.name}  (${step.duration}ms)`);
+                if (step.output) console.log(`    ${c('dim', step.output.slice(0, 120))}`);
+            }
+            const overallColor = result.status === 'completed' ? 'green' : 'red';
+            console.log(`\n  Overall: ${c(overallColor, result.status)}`);
+            console.log('');
+            break;
+        }
+        case 'history': {
+            const history = mgr.getExecutionHistory(null, 20);
+            if (history.length === 0) { console.log(c('dim', '  No execution history.')); return; }
+            console.log('');
+            console.log(c('bold', '  Recent Runbook Executions'));
+            console.log('  ' + '─'.repeat(80));
+            for (const exec of history) {
+                const color = exec.status === 'completed' ? 'green' : 'red';
+                const ts = exec.startTime ? new Date(exec.startTime).toLocaleString() : '';
+                console.log(`  ${c(color, exec.status.padEnd(12))}  ${exec.executionId.padEnd(20)}  ${exec.runbookId.padEnd(20)}  ${ts}`);
+            }
+            console.log('');
+            break;
+        }
+        default:
+            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: list|run|history`));
+    }
+}
+
+async function cmdAI(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const subCmd = (positionals[0] || 'status').toLowerCase();
+    const bridge = new AIIntegrationBridge(ADMIN_HOME);
+
+    switch (subCmd) {
+        case 'status': {
+            const channels = bridge.getChannelStatus();
+            console.log('');
+            console.log(c('bold', '  AI Integration Channel Status'));
+            console.log('  ' + '─'.repeat(50));
+            for (const [name, status] of Object.entries(channels)) {
+                const icon = status.connected ? c('green', '✓') : c('red', '✗');
+                const enabled = status.enabled ? c('green', 'enabled') : c('dim', 'disabled');
+                console.log(`  ${icon}  ${name.padEnd(12)}  ${enabled}`);
+            }
+            const stats = bridge.getStats();
+            console.log(`\n  Workflows: ${stats.totalWorkflows} total, ${stats.pendingApprovals} pending approval`);
+            console.log('');
+            break;
+        }
+        case 'workflows': {
+            const workflows = bridge.listWorkflows({ status: 'pending_approval' });
+            if (workflows.length === 0) { console.log(c('dim', '  No pending AI workflows.')); return; }
+            console.log('');
+            console.log(c('bold', `  Pending AI Workflows (${workflows.length})`));
+            console.log('  ' + '─'.repeat(80));
+            for (const wf of workflows) {
+                console.log(`  ${c('yellow', wf.workflowId.padEnd(24))}  ${wf.name.padEnd(30)}  channel=${wf.channel || 'api'}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'approve': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: ai approve <workflowId>')); return; }
+            await bridge.approveWorkflow(id, 'admin-cli', 'Approved via CLI');
+            console.log(c('green', `  ✓ Workflow ${id} approved and executing`));
+            break;
+        }
+        case 'deny': {
+            const id = positionals[1];
+            if (!id) { console.error(c('red', '  Usage: ai deny <workflowId>')); return; }
+            bridge.denyWorkflow(id, 'admin-cli', 'Denied via CLI');
+            console.log(c('yellow', `  ✓ Workflow ${id} denied`));
+            break;
+        }
+        default:
+            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: status|workflows|approve|deny`));
+    }
+}
+
+function cmdChangeLog(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const subCmd = (positionals[0] || 'list').toLowerCase();
+    const log = new ChangeLog(ADMIN_HOME);
+
+    switch (subCmd) {
+        case 'list': {
+            const changes = log.search({});
+            const recent = changes.slice(-20).reverse();
+            if (recent.length === 0) { console.log(c('dim', '  No changes recorded.')); return; }
+            console.log('');
+            console.log(c('bold', '  Recent Changes'));
+            console.log('  ' + '─'.repeat(90));
+            console.log(`  ${c('dim', 'ID'.padEnd(20))}${c('dim', 'ACTOR'.padEnd(16))}${c('dim', 'ACTION'.padEnd(20))}${c('dim', 'RESOURCE'.padEnd(20))}${c('dim', 'TIME')}`);
+            console.log('  ' + '─'.repeat(90));
+            for (const ch of recent) {
+                const ts = ch.timestamp ? new Date(ch.timestamp).toLocaleString() : '';
+                console.log(`  ${ch.changeId.padEnd(20)}${(ch.actor || '').padEnd(16)}${(ch.action || '').padEnd(20)}${(ch.resource || '').padEnd(20)}${ts}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'search': {
+            const query = positionals[1] || '';
+            const results = log.search({}).filter(c =>
+                JSON.stringify(c).toLowerCase().includes(query.toLowerCase())
+            );
+            console.log('');
+            console.log(c('bold', `  Search: "${query}" — ${results.length} result(s)`));
+            for (const ch of results.slice(-20)) {
+                console.log(`  ${ch.changeId}  ${ch.actor}  ${ch.action}  ${ch.resource}  ${ch.timestamp}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'link': {
+            const changeId = positionals[1];
+            const ticket = positionals[2];
+            if (!changeId || !ticket) { console.error(c('red', '  Usage: change-log link <changeId> <ticket>')); return; }
+            log.link(changeId, ticket);
+            console.log(c('green', `  ✓ Linked ${changeId} → ${ticket}`));
+            break;
+        }
+        default:
+            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: list|search|link`));
+    }
+}
+
+function cmdConfig(rawArgs) {
+    const { positionals } = parseArgs(rawArgs);
+    const subCmd = (positionals[0] || 'list').toLowerCase();
+    const configFile = path.join(ADMIN_HOME, 'service-configs.json');
+
+    function readConfigs() {
+        if (!fs.existsSync(configFile)) return {};
+        try { return JSON.parse(fs.readFileSync(configFile, 'utf8')); } catch (_) { return {}; }
+    }
+    function writeConfigs(data) {
+        if (!fs.existsSync(ADMIN_HOME)) fs.mkdirSync(ADMIN_HOME, { recursive: true });
+        fs.writeFileSync(configFile, JSON.stringify(data, null, 2), 'utf8');
+    }
+
+    switch (subCmd) {
+        case 'list': {
+            const configs = readConfigs();
+            const services = Object.keys(configs);
+            if (services.length === 0) { console.log(c('dim', '  No service configs stored.')); return; }
+            console.log('');
+            console.log(c('bold', '  Service Configurations'));
+            console.log('  ' + '─'.repeat(60));
+            for (const svc of services) {
+                const keys = Object.keys(configs[svc]);
+                console.log(`  ${c('cyan', svc.padEnd(30))}  ${keys.length} key(s): ${keys.slice(0, 5).join(', ')}${keys.length > 5 ? '...' : ''}`);
+            }
+            console.log('');
+            break;
+        }
+        case 'get': {
+            const service = positionals[1];
+            if (!service) { console.error(c('red', '  Usage: config get <service>')); return; }
+            const configs = readConfigs();
+            const svcConfig = configs[service] || {};
+            console.log('');
+            console.log(c('bold', `  Config: ${service}`));
+            console.log('  ' + '─'.repeat(60));
+            if (Object.keys(svcConfig).length === 0) {
+                console.log(c('dim', '  No config entries for this service.'));
+            } else {
+                for (const [k, v] of Object.entries(svcConfig)) {
+                    console.log(`  ${c('cyan', k.padEnd(30))}  ${v}`);
+                }
+            }
+            console.log('');
+            break;
+        }
+        case 'set': {
+            const service = positionals[1];
+            const key = positionals[2];
+            const value = positionals[3];
+            if (!service || !key || value === undefined) {
+                console.error(c('red', '  Usage: config set <service> <key> <value>'));
+                return;
+            }
+            const configs = readConfigs();
+            if (!configs[service]) configs[service] = {};
+            const before = configs[service][key];
+            configs[service][key] = value;
+            writeConfigs(configs);
+            // Record in change log
+            try {
+                const cl = new ChangeLog(ADMIN_HOME);
+                cl.record({ actor: 'admin-cli', action: 'config.set', resource: `config:${service}`, before: { [key]: before }, after: { [key]: value }, environment: 'production' });
+            } catch (_) {}
+            console.log(c('green', `  ✓ Set ${service}.${key} = ${value}`));
+            break;
+        }
+        default:
+            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: list|get|set`));
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Help
 // ---------------------------------------------------------------------------
 
@@ -3539,6 +3899,13 @@ async function main() {
             case 'tail-logs': await cmdTailLogs(rawArgs); break;
             case 'snapshot': await cmdSnapshot(rawArgs); break;
             case 'compare': cmdCompare(rawArgs); break;
+            // Q4 2026
+            case 'feature-flags': cmdFeatureFlags(rawArgs); break;
+            case 'tenant': cmdTenant(rawArgs); break;
+            case 'runbook': await cmdRunbook(rawArgs); break;
+            case 'ai': await cmdAI(rawArgs); break;
+            case 'change-log': cmdChangeLog(rawArgs); break;
+            case 'config': cmdConfig(rawArgs); break;
             default:
                 fatal(`Unknown command: ${command}\nUse: node admin-cli/index.js --help`);
         }

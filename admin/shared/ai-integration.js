@@ -146,8 +146,11 @@ class AIIntegrationBridge {
     }
 
     executeApprovedWorkflow(workflowId) {
-        // NOTE: Step execution is simulated — each step is immediately marked completed.
-        // Integrate with RunbookManager or service APIs for real step dispatch.
+        // STUB: Step execution is simulated — each step is immediately marked completed.
+        // This is intentional for the admin panel bridge layer, which coordinates
+        // approval flow rather than running steps directly. To execute real work,
+        // integrate with RunbookManager (admin/shared/runbook.js) or call the
+        // appropriate service APIs per step.channel before shipping to production.
         const workflows = this._readJSON(this.workflowsFile, []);
         const idx = workflows.findIndex(w => w.workflowId === workflowId);
         if (idx === -1) throw new Error(`Workflow ${workflowId} not found`);

@@ -105,6 +105,10 @@ const { RemediationEngine } = require('../shared/ai-remediation');
 const { ComplianceManager } = require('../shared/compliance');
 const { CostAnalyzer } = require('../shared/cost-analyzer');
 const { RecommendationEngine } = require('../shared/recommendations');
+// Q4 2026 modules
+const { AIIntegrationBridge } = require('../shared/ai-integration');
+const { FeatureFlagManager } = require('../shared/feature-flags');
+const { TenantManager } = require('../shared/tenant-manager');
 
 function getDir(sub) { return path.join(ADMIN_HOME, sub); }
 
@@ -1145,15 +1149,131 @@ async function handleCommand(line, user, stream) {
             break;
         }
 
+        case 'ai-status': {
+            try {
+                const bridge = new AIIntegrationBridge(getDir(''));
+                const channels = bridge.getChannelStatus();
+                const stats = bridge.getStats();
+                writeln('');
+                writeln(c('bold', '  AI Integration Channel Status'));
+                writeln('  ' + hline(50));
+                for (const [name, status] of Object.entries(channels)) {
+                    const icon = status.connected ? c('green', '✓') : c('red', '✗');
+                    const enabled = status.enabled ? c('green', 'enabled') : c('dim', 'disabled');
+                    writeln(`  ${icon}  ${name.padEnd(12)}  ${enabled}`);
+                }
+                writeln(`\n  Workflows: ${stats.totalWorkflows} total, ${c('yellow', String(stats.pendingApprovals))} pending`);
+            } catch (err) {
+                writeln('  ' + c('red', `Error: ${err.message}`));
+            }
+            writeln('');
+            break;
+        }
+
+        case 'ai-workflows': {
+            try {
+                const bridge = new AIIntegrationBridge(getDir(''));
+                const workflows = bridge.listWorkflows({ status: 'pending_approval' });
+                writeln('');
+                writeln(c('bold', `  Pending AI Workflows (${workflows.length})`));
+                writeln('  ' + hline(80));
+                if (workflows.length === 0) {
+                    writeln('  ' + c('dim', 'No pending AI workflows'));
+                } else {
+                    for (const wf of workflows) {
+                        writeln(`  ${c('yellow', wf.workflowId.padEnd(24))}  ${wf.name.padEnd(30)}  ${wf.channel || 'api'}`);
+                    }
+                }
+            } catch (err) {
+                writeln('  ' + c('red', `Error: ${err.message}`));
+            }
+            writeln('');
+            break;
+        }
+
+        case 'ai-approve': {
+            try {
+                const id = subArgs[0];
+                if (!id) { writeln('  ' + c('red', 'Usage: ai-approve <workflowId>')); break; }
+                const bridge = new AIIntegrationBridge(getDir(''));
+                await bridge.approveWorkflow(id, user, 'Approved via SSH');
+                writeln('  ' + c('green', `✓ Workflow ${id} approved and executing`));
+            } catch (err) {
+                writeln('  ' + c('red', `Error: ${err.message}`));
+            }
+            writeln('');
+            break;
+        }
+
+        case 'ai-deny': {
+            try {
+                const id = subArgs[0];
+                if (!id) { writeln('  ' + c('red', 'Usage: ai-deny <workflowId>')); break; }
+                const bridge = new AIIntegrationBridge(getDir(''));
+                bridge.denyWorkflow(id, user, 'Denied via SSH');
+                writeln('  ' + c('yellow', `✓ Workflow ${id} denied`));
+            } catch (err) {
+                writeln('  ' + c('red', `Error: ${err.message}`));
+            }
+            writeln('');
+            break;
+        }
+
+        case 'feature-flags': {
+            try {
+                const mgr = new FeatureFlagManager(getDir(''));
+                const flags = mgr.listFlags();
+                writeln('');
+                writeln(c('bold', `  Feature Flags (${flags.length})`));
+                writeln('  ' + hline(80));
+                if (flags.length === 0) {
+                    writeln('  ' + c('dim', 'No feature flags defined'));
+                } else {
+                    writeln(`  ${c('dim', 'NAME'.padEnd(30))}${c('dim', 'PROD'.padEnd(8))}${c('dim', 'STAGING'.padEnd(10))}${c('dim', 'DEV')}`);
+                    writeln('  ' + hline(60));
+                    for (const f of flags) {
+                        const prod = f.environments && f.environments.production ? c('green', '✓') : c('red', '✗');
+                        const staging = f.environments && f.environments.staging ? c('green', '✓') : c('red', '✗');
+                        const dev = f.environments && f.environments.development ? c('green', '✓') : c('red', '✗');
+                        writeln(`  ${f.name.padEnd(30)}${prod.padEnd(8)}${staging.padEnd(10)}${dev}`);
+                    }
+                }
+            } catch (err) {
+                writeln('  ' + c('red', `Error: ${err.message}`));
+            }
+            writeln('');
+            break;
+        }
+
+        case 'tenants': {
+            try {
+                const mgr = new TenantManager(getDir(''));
+                const tenants = mgr.listTenants();
+                writeln('');
+                writeln(c('bold', `  Tenants (${tenants.length})`));
+                writeln('  ' + hline(80));
+                if (tenants.length === 0) {
+                    writeln('  ' + c('dim', 'No tenants defined'));
+                } else {
+                    writeln(`  ${c('dim', 'NAME'.padEnd(24))}${c('dim', 'PLAN'.padEnd(14))}${c('dim', 'STATUS')}`);
+                    writeln('  ' + hline(60));
+                    for (const t of tenants) {
+                        const statusColor = t.status === 'active' ? 'green' : t.status === 'suspended' ? 'yellow' : 'red';
+                        writeln(`  ${t.name.padEnd(24)}${(t.plan || '').padEnd(14)}${c(statusColor, t.status)}`);
+                    }
+                }
+            } catch (err) {
+                writeln('  ' + c('red', `Error: ${err.message}`));
+            }
+            writeln('');
+            break;
+        }
+
         default:
             writeln(`  ${c('red', 'Unknown command:')} ${c('yellow', cmd)}  — type ${c('cyan', 'help')} for available commands`);
             writeln('');
     }
 }
-
-// ---------------------------------------------------------------------------
-// Session manager
-// ---------------------------------------------------------------------------
 let activeSessions = 0;
 
 function createSession(client, remoteIP) {
