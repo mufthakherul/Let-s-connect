@@ -30,133 +30,133 @@ This roadmap covers the complete improvement and modernization of all user-facin
 
 ---
 
-## Phase 1 — Q2 2026: Foundation & Core UX Polish
+## Phase 1 — Q2 2026: Foundation & Core UX Polish ✅ COMPLETED
 
 ### 🖥️ Landing Page (Unregistered)
 
 **Frontend:**
-- [ ] Redesign hero section with animated gradient background and value propositions
-- [ ] Add feature showcase cards with hover animations (recharts sparkline demos)
-- [ ] Social proof section: user count, testimonials, media logos
-- [ ] Responsive mobile-first layout (breakpoints: 320px / 768px / 1280px)
-- [ ] Dark mode support with system preference detection
-- [ ] Performance: lazy-load images, defer non-critical JS (LCP < 2.5 s target)
-- [ ] SEO: proper `<meta>` tags, Open Graph, Twitter Card, structured data (JSON-LD)
-- [ ] Accessibility: WCAG 2.1 AA — keyboard nav, skip links, color contrast ≥ 4.5:1
-- [ ] CTA buttons: "Get Started", "See Plans", "Watch Demo" with framer-motion animations
+- [x] Redesign hero section with animated gradient background and value propositions
+- [x] Add feature showcase cards with hover animations (recharts sparkline demos)
+- [x] Social proof section: user count, testimonials, media logos
+- [x] Responsive mobile-first layout (breakpoints: 320px / 768px / 1280px)
+- [x] Dark mode support with system preference detection
+- [x] Performance: lazy-load images, defer non-critical JS (LCP < 2.5 s target)
+- [x] SEO: proper `<meta>` tags, Open Graph, Twitter Card, structured data (JSON-LD)
+- [x] Accessibility: WCAG 2.1 AA — keyboard nav, skip links, color contrast ≥ 4.5:1
+- [x] CTA buttons: "Get Started", "See Plans", "Watch Demo" with framer-motion animations
 
 **Backend/Routes:**
-- [ ] `GET /` — serve optimized static landing with SSR-ready meta tags
-- [ ] `GET /api/public/stats` — public platform stats (user count, post count, uptime)
-- [ ] `GET /api/public/features` — feature list for dynamic landing page content
-- [ ] Rate limiting on public endpoints (50 req/min per IP)
+- [x] `GET /` — serve optimized static landing with SSR-ready meta tags
+- [x] `GET /api/public/stats` — public platform stats (user count, post count, uptime)
+- [x] `GET /api/public/features` — feature list for dynamic landing page content
+- [x] Rate limiting on public endpoints (50 req/min per IP)
 
 ---
 
 ### 🔐 Login & Register Pages
 
 **Frontend:**
-- [ ] Unified Auth Hub: single-page with animated tab switching (Login ↔ Register)
-- [ ] OAuth providers: Google, GitHub, Discord, Apple — one-click social login buttons
-- [ ] Progressive disclosure registration: step 1 (email/pass) → step 2 (profile info) → step 3 (interests)
-- [ ] Real-time field validation with debounced API checks (username/email availability)
-- [ ] Password strength meter with entropy-based scoring
-- [ ] Remember me + persistent session token management
-- [ ] Forgot password: email OTP flow with countdown timer (60 s resend)
-- [ ] 2FA setup wizard: QR code + TOTP backup codes (framer-motion animated stepper)
-- [ ] Error messaging: clear, accessible inline error states (not just toast)
-- [ ] Redirect to originally requested URL after login (deep link support)
+- [x] Unified Auth Hub: single-page with animated tab switching (Login ↔ Register)
+- [x] OAuth providers: Google, GitHub, Discord, Apple — one-click social login buttons
+- [x] Progressive disclosure registration: step 1 (email/pass) → step 2 (profile info) → step 3 (interests)
+- [x] Real-time field validation with debounced API checks (username/email availability)
+- [x] Password strength meter with entropy-based scoring
+- [x] Remember me + persistent session token management
+- [x] Forgot password: email OTP flow with countdown timer (60 s resend)
+- [x] 2FA setup wizard: QR code + TOTP backup codes (framer-motion animated stepper)
+- [x] Error messaging: clear, accessible inline error states (not just toast)
+- [x] Redirect to originally requested URL after login (deep link support)
 
 **Backend/Routes:**
-- [ ] `POST /api/auth/register` — validate, hash password (bcrypt cost 12), send verification email
-- [ ] `POST /api/auth/login` — return JWT + refresh token; handle 2FA challenge
-- [ ] `POST /api/auth/logout` — revoke refresh token
-- [ ] `POST /api/auth/refresh` — rotate refresh token
-- [ ] `POST /api/auth/forgot-password` — send OTP to email
-- [ ] `POST /api/auth/reset-password` — verify OTP + set new password
-- [ ] `POST /api/auth/verify-email` — verify email token
-- [ ] `GET /api/auth/oauth/:provider` — OAuth redirect
-- [ ] `POST /api/auth/2fa/setup` — generate TOTP secret
-- [ ] `POST /api/auth/2fa/verify` — verify TOTP code
-- [ ] Rate limiting: 5 failed login attempts → 15-minute lockout per IP + per account
+- [x] `POST /api/auth/register` — validate, hash password (bcrypt cost 12), send verification email
+- [x] `POST /api/auth/login` — return JWT + refresh token; handle 2FA challenge
+- [x] `POST /api/auth/logout` — revoke refresh token
+- [x] `POST /api/auth/refresh` — rotate refresh token
+- [x] `POST /api/auth/forgot-password` — send OTP to email
+- [x] `POST /api/auth/reset-password` — verify OTP + set new password
+- [x] `POST /api/auth/verify-email` — verify email token
+- [x] `GET /api/auth/oauth/:provider` — OAuth redirect
+- [x] `POST /api/auth/2fa/setup` — generate TOTP secret
+- [x] `POST /api/auth/2fa/verify` — verify TOTP code
+- [x] Rate limiting: 5 failed login attempts → 15-minute lockout per IP + per account
 
 ---
 
 ### 🏠 Home Page (Registered — Main Feed)
 
 **Frontend:**
-- [ ] Infinite scroll feed with virtualization (react-window) — 60fps smooth scroll
-- [ ] Post composer: rich text (bold/italic/links), image upload, emoji picker, @mentions
-- [ ] Feed algorithm toggle: "Top" (ranked) vs "Latest" (chronological)
-- [ ] Story/Highlight bar (horizontal scroll, 24-hour expiry indicator)
-- [ ] Right sidebar: trending topics, suggested friends, upcoming events
-- [ ] Left sidebar: quick-nav (feed, friends, groups, messages, pages, streaming)
-- [ ] Notification bell with badge counter and categorized dropdown
-- [ ] Keyboard shortcuts: `J/K` to navigate posts, `L` to like, `R` to reply
-- [ ] Dark/light/system theme from user preferences
+- [x] Infinite scroll feed with virtualization (react-window) — 60fps smooth scroll
+- [x] Post composer: rich text (bold/italic/links), image upload, emoji picker, @mentions
+- [x] Feed algorithm toggle: "Top" (ranked) vs "Latest" (chronological)
+- [x] Story/Highlight bar (horizontal scroll, 24-hour expiry indicator)
+- [x] Right sidebar: trending topics, suggested friends, upcoming events
+- [x] Left sidebar: quick-nav (feed, friends, groups, messages, pages, streaming)
+- [x] Notification bell with badge counter and categorized dropdown
+- [x] Keyboard shortcuts: `J/K` to navigate posts, `L` to like, `R` to reply
+- [x] Dark/light/system theme from user preferences
 
 **Backend/Routes:**
-- [ ] `GET /api/feed` — paginated feed (cursor-based); algorithm param: `top|latest|friends|groups`
-- [ ] `POST /api/feed/post` — create post (text, media, visibility: public/friends/private)
-- [ ] `DELETE /api/feed/post/:id` — delete own post
-- [ ] `POST /api/feed/post/:id/like` — toggle like
-- [ ] `POST /api/feed/post/:id/share` — share/repost
-- [ ] `GET /api/feed/stories` — fetch active stories
-- [ ] `POST /api/feed/story` — create story (auto-expires in 24 h)
-- [ ] `GET /api/feed/trending` — trending hashtags and topics
-- [ ] WebSocket: `ws://…/feed/live` — push new posts to connected clients (SSE fallback)
+- [x] `GET /api/feed` — paginated feed (cursor-based); algorithm param: `top|latest|friends|groups`
+- [x] `POST /api/feed/post` — create post (text, media, visibility: public/friends/private)
+- [x] `DELETE /api/feed/post/:id` — delete own post
+- [x] `POST /api/feed/post/:id/like` — toggle like
+- [x] `POST /api/feed/post/:id/share` — share/repost
+- [x] `GET /api/feed/stories` — fetch active stories
+- [x] `POST /api/feed/story` — create story (auto-expires in 24 h)
+- [x] `GET /api/feed/trending` — trending hashtags and topics
+- [x] WebSocket: `ws://…/feed/live` — push new posts to connected clients (SSE fallback)
 
 ---
 
-## Phase 2 — Q3 2026: Social Features
+## Phase 2 — Q3 2026: Social Features 🚧 IN PROGRESS
 
 ### 👥 Friends
 
 **Frontend:**
-- [ ] Friend discovery: "People You May Know" based on mutual friends + interests
-- [ ] Friend request management: accept / decline / ignore with undo
-- [ ] Friend list: searchable, filterable by mutual friends, location, common groups
-- [ ] Follow mode: asymmetric follow (for influencer accounts) vs symmetric friend
+- [x] Friend discovery: "People You May Know" based on mutual friends + interests
+- [x] Friend request management: accept / decline / ignore with undo
+- [x] Friend list: searchable, filterable by mutual friends, location, common groups
+- [x] Follow mode: asymmetric follow (for influencer accounts) vs symmetric friend
 - [ ] Birthday reminders widget
 - [ ] Friend activity: "X is listening to …", "Y just joined group Z"
 
 **Backend/Routes:**
-- [ ] `GET /api/friends` — friend list (paginated)
-- [ ] `GET /api/friends/suggestions` — PYMK algorithm (mutual friends, interests, location)
-- [ ] `POST /api/friends/request` — send friend request: `{ targetUserId }`
-- [ ] `POST /api/friends/request/:id/accept` — accept friend request
-- [ ] `POST /api/friends/request/:id/decline` — decline friend request
-- [ ] `DELETE /api/friends/:userId` — unfriend
-- [ ] `POST /api/friends/:userId/follow` — follow (asymmetric)
-- [ ] `POST /api/friends/:userId/unfollow` — unfollow
-- [ ] `GET /api/friends/requests` — pending incoming/outgoing requests
-- [ ] `GET /api/friends/:userId/mutual` — mutual friends
+- [x] `GET /api/friends` — friend list (paginated)
+- [x] `GET /api/friends/suggestions` — PYMK algorithm (mutual friends, interests, location)
+- [x] `POST /api/friends/request` — send friend request: `{ targetUserId }`
+- [x] `POST /api/friends/request/:id/accept` — accept friend request
+- [x] `POST /api/friends/request/:id/decline` — decline friend request
+- [x] `DELETE /api/friends/:userId` — unfriend
+- [x] `POST /api/friends/:userId/follow` — follow (asymmetric)
+- [x] `DELETE /api/friends/:userId/follow` — unfollow
+- [x] `GET /api/friends/requests` — pending incoming/outgoing requests
+- [x] `GET /api/friends/:userId/mutual` — mutual friends
 
 ---
 
 ### 👥 Groups
 
 **Frontend:**
-- [ ] Group discovery: browse by category, trending, suggested by interests
-- [ ] Group creation wizard: name, description, category, privacy (public/closed/secret), cover photo
-- [ ] Group home: feed, members, events, files, about tabs
-- [ ] Member management: invite, approve/decline requests, moderator roles
+- [x] Group discovery: browse by category, trending, suggested by interests
+- [x] Group creation wizard: name, description, category, privacy (public/closed/secret), cover photo
+- [x] Group home: feed, members, events, files, about tabs
+- [x] Member management: invite, approve/decline requests, moderator roles
 - [ ] Group rules editor (rich text)
 - [ ] Pinned posts + announcements
 - [ ] Group events calendar integration
 - [ ] Group files/media library
 
 **Backend/Routes:**
-- [ ] `GET /api/groups` — list groups (filter: category, joined, suggested)
-- [ ] `POST /api/groups` — create group
-- [ ] `GET /api/groups/:id` — group details
-- [ ] `PUT /api/groups/:id` — update group settings (owner/admin only)
-- [ ] `POST /api/groups/:id/join` — join / request to join
-- [ ] `POST /api/groups/:id/leave` — leave group
-- [ ] `GET /api/groups/:id/members` — member list (paginated)
-- [ ] `POST /api/groups/:id/members/:userId/promote` — promote to moderator
-- [ ] `DELETE /api/groups/:id/members/:userId` — remove member
-- [ ] `GET /api/groups/:id/feed` — group feed (cursor-based)
+- [x] `GET /api/groups` — list groups (filter: category, joined, suggested)
+- [x] `POST /api/groups` — create group
+- [x] `GET /api/groups/:id` — group details
+- [x] `PUT /api/groups/:id` — update group settings (owner/admin only)
+- [x] `POST /api/groups/:id/join` — join / request to join
+- [x] `POST /api/groups/:id/leave` — leave group
+- [x] `GET /api/groups/:id/members` — member list (paginated)
+- [x] `POST /api/groups/:id/members/:userId/promote` — promote to moderator
+- [x] `DELETE /api/groups/:id/members/:userId` — remove member
+- [x] `GET /api/groups/:id/feed` — group feed (cursor-based)
 - [ ] `POST /api/groups/:id/post` — post in group
 
 ---
@@ -164,25 +164,25 @@ This roadmap covers the complete improvement and modernization of all user-facin
 ### 📱 Pages (Creator/Business Pages)
 
 **Frontend:**
-- [ ] Page creation: category, name, description, cover/profile photos, CTA button
-- [ ] Page tabs: Posts, About, Events, Shop, Reviews, Insights
-- [ ] Page insights dashboard: reach, engagement rate, follower growth chart (recharts)
-- [ ] Follower/following management
+- [x] Page creation: category, name, description, cover/profile photos, CTA button
+- [x] Page tabs: Posts, About, Events, Shop, Reviews, Insights
+- [x] Page insights dashboard: reach, engagement rate, follower growth chart (recharts)
+- [x] Follower/following management
 - [ ] Page verification badge request flow
-- [ ] Scheduled posts with draft management
+- [x] Scheduled posts with draft management
 - [ ] Page stories (distinct from personal stories)
 
 **Backend/Routes:**
-- [ ] `GET /api/pages` — list pages (filter: category, followed, suggested)
-- [ ] `POST /api/pages` — create page
-- [ ] `GET /api/pages/:id` — page details
-- [ ] `PUT /api/pages/:id` — update page
-- [ ] `POST /api/pages/:id/follow` — follow page
-- [ ] `POST /api/pages/:id/unfollow` — unfollow page
-- [ ] `GET /api/pages/:id/feed` — page posts (cursor-based)
+- [x] `GET /api/pages` — list pages (filter: category, followed, suggested)
+- [x] `POST /api/pages` — create page
+- [x] `GET /api/pages/:id` — page details
+- [x] `PUT /api/pages/:id` — update page
+- [x] `POST /api/pages/:id/follow` — follow page
+- [x] `POST /api/pages/:id/unfollow` — unfollow page
+- [x] `GET /api/pages/:id/feed` — page posts (cursor-based)
 - [ ] `POST /api/pages/:id/post` — create page post
-- [ ] `GET /api/pages/:id/insights` — analytics (views, reach, engagement, follower growth)
-- [ ] `POST /api/pages/:id/schedule` — schedule a post: `{ content, scheduledAt }`
+- [x] `GET /api/pages/:id/insights` — analytics (views, reach, engagement, follower growth)
+- [x] `POST /api/pages/:id/schedule` — schedule a post: `{ content, scheduledAt }`
 
 ---
 

@@ -656,45 +656,42 @@ const TV = () => {
                                     width: '100%',
                                     height: '100%'
                                 }}
-                                                        />
-                                                        {/* Phase 14: Floating reaction overlay */}
-                                                        <Box
-                                                            sx={{
-                                                                position: 'absolute',
-                                                                inset: 0,
-                                                                pointerEvents: 'none',
-                                                                overflow: 'hidden',
-                                                                zIndex: 10,
-                                                                '@keyframes tvReactionFloat': {
-                                                                    '0%':   { opacity: 1,   transform: 'translateY(0)    scale(1)' },
-                                                                    '70%':  { opacity: 0.9, transform: 'translateY(-80px) scale(1.3)' },
-                                                                    '100%': { opacity: 0,   transform: 'translateY(-140px) scale(1.5)' },
-                                                                },
-                                                            }}
-                                                        >
-                                                            {floatingReactions.map(r => (
-                                                                <Box
-                                                                    key={r.id}
-                                                                    sx={{
-                                                                        position: 'absolute',
-                                                                        bottom: '15%',
-                                                                        left: `${r.x}%`,
-                                                                        fontSize: '2rem',
-                                                                        lineHeight: 1,
-                                                                        animation: `tvReactionFloat ${REACTION_LIFETIME_MS}ms ease-out forwards`,
-                                                                        willChange: 'transform, opacity',
-                                                                        userSelect: 'none',
-                                                                    }}
-                                                                >
-                                                                    {r.emoji}
-                                                                </Box>
-                                                            ))}
-                                                        </Box>
-                                                    </Box>
-                                }}
                             />
                         )}
-                </Box>
+                        {/* Floating reaction overlay */}
+                        <Box
+                            sx={{
+                                position: 'absolute',
+                                inset: 0,
+                                pointerEvents: 'none',
+                                overflow: 'hidden',
+                                zIndex: 10,
+                                '@keyframes tvReactionFloat': {
+                                    '0%':   { opacity: 1,   transform: 'translateY(0)    scale(1)' },
+                                    '70%':  { opacity: 0.9, transform: 'translateY(-80px) scale(1.3)' },
+                                    '100%': { opacity: 0,   transform: 'translateY(-140px) scale(1.5)' },
+                                },
+                            }}
+                        >
+                            {floatingReactions.map(r => (
+                                <Box
+                                    key={r.id}
+                                    sx={{
+                                        position: 'absolute',
+                                        bottom: '15%',
+                                        left: `${r.x}%`,
+                                        fontSize: '2rem',
+                                        lineHeight: 1,
+                                        animation: `tvReactionFloat ${REACTION_LIFETIME_MS}ms ease-out forwards`,
+                                        willChange: 'transform, opacity',
+                                        userSelect: 'none',
+                                    }}
+                                >
+                                    {r.emoji}
+                                </Box>
+                            ))}
+                        </Box>
+                    </Box>
                     {playerError && (
                 <Alert severity="error" sx={{ mt: 2 }}>
                     {playerError}

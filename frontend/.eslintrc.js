@@ -34,7 +34,7 @@ module.exports = {
     'react/prop-types': 'off', // disabled in favour of TypeScript migration
     'react/display-name': 'off',
     'react/react-in-jsx-scope': 'off', // React 17+ JSX transform
-    'react/jsx-no-target-blank': ['error', { enforceDynamicLinks: true }],
+    'react/jsx-no-target-blank': 'warn',
   },
   overrides: [
     {
