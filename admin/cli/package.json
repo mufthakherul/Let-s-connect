@@ -1,0 +1,51 @@
+{
+    "name": "milonexa-admin-cli",
+    "version": "5.1.0",
+    "description": "Milonexa Omni Admin CLI — TUI, webhooks, AI remediation, multi-cluster, SLA, trends, REST API, SSH dashboard (Phase E)",
+    "main": "index.js",
+    "bin": {
+        "admin-cli": "./index.js",
+        "admin-server": "./admin-server.js",
+        "admin-ssh": "./ssh-admin-server.js"
+    },
+    "scripts": {
+        "help": "node index.js --help",
+        "doctor": "node index.js doctor",
+        "start": "node index.js start --runtime docker --env dev",
+        "stop": "node index.js stop --runtime docker",
+        "status": "node index.js status --runtime docker",
+        "audit": "node index.js audit",
+        "check": "node index.js check all --dry-run",
+        "scale": "node index.js scale --runtime k8s --service api-gateway --replicas 2 --dry-run",
+        "rollout": "node index.js rollout --runtime k8s --strategy rolling --service api-gateway --dry-run",
+        "incident": "node index.js incident summarize --runtime docker --service api-gateway --dry-run",
+        "metrics": "node index.js metrics status --json",
+        "alerts": "node index.js alerts list --json",
+        "costs": "node index.js costs summary --json",
+        "compliance": "node index.js compliance status --json",
+        "recommendations": "node index.js recommendations top --limit 10",
+        "dashboard": "node index.js dashboard --interval 5",
+        "tui": "node index.js tui --interval 3",
+        "sla": "node index.js sla status",
+        "sla:predict": "node index.js sla predict",
+        "sla:simulate": "node index.js sla simulate --count 10",
+        "webhooks": "ADMIN_CLI_ROLE=operator node index.js webhooks list",
+        "remediate": "node index.js remediate analyze",
+        "remediate:rules": "node index.js remediate rules",
+        "cluster": "ADMIN_CLI_ROLE=operator node index.js cluster list",
+        "trends": "node index.js trends report",
+        "trends:anomalies": "node index.js trends anomalies",
+        "api-server": "node admin-server.js",
+        "api-server:dev": "ADMIN_API_PORT=8888 node admin-server.js",
+        "ssh-server": "ENABLE_ADMIN_SSH=true node ssh-admin-server.js",
+        "ssh-server:dev": "ENABLE_ADMIN_SSH=true ADMIN_SSH_HOST=127.0.0.1 ADMIN_SSH_PORT=2222 node ssh-admin-server.js"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "license": "UNLICENSED",
+    "private": true,
+    "dependencies": {
+        "ssh2": "^1.17.0"
+    }
+}
