@@ -171,7 +171,7 @@ class CodeAnalyzer {
         this._duplicates = [];
         /** @type {object[]} Dead code findings from last run. */
         this._deadCode = [];
-        /** v2.1: Incremental — mtime fingerprint cache */
+        /** v2.1: Incremental — mtime fingerprint cache (path → mtime ms). Used when git is unavailable. */
         this._fileHashes = new Map();
     }
 
@@ -920,7 +920,9 @@ class CodeAnalyzer {
 
     /**
      * Return absolute paths of files changed since the last commit (git diff --name-only).
-     * Falls back to mtime-based detection if git is unavailable.
+     * Falls back to mtime-based detection (using `_fileHashes` cache) if git is unavailable.
+     * The mtime cache is updated after each incremental run so only genuinely new changes
+     * are returned on subsequent calls.
      * @private
      */
     async _getChangedFiles() {
@@ -937,8 +939,19 @@ class CodeAnalyzer {
                     return SCAN_EXTENSIONS.has(ext) && fs.existsSync(fp);
                 });
         } catch (_) {
-            // Git unavailable — return all files (full scan).
-            return this._walkProject(PROJECT_ROOT);
+            // Git unavailable — use mtime-based detection against the last-seen snapshot.
+            const allFiles = this._walkProject(PROJECT_ROOT);
+            const changed  = [];
+            for (const fp of allFiles) {
+                try {
+                    const mtime = fs.statSync(fp).mtimeMs;
+                    if (!this._fileHashes.has(fp) || this._fileHashes.get(fp) !== mtime) {
+                        changed.push(fp);
+                        this._fileHashes.set(fp, mtime); // Update snapshot.
+                    }
+                } catch (_) {}
+            }
+            return changed;
         }
     }
 

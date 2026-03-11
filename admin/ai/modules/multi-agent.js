@@ -24,7 +24,15 @@ const path   = require('path');
 const crypto = require('crypto');
 
 // ---------------------------------------------------------------------------
-// Paths
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Approximate characters per token (GPT-family average; used for budget estimation). */
+const CHARS_PER_TOKEN       = 4;
+/** Conservative output token buffer added to every LLM call estimate. */
+const RESPONSE_TOKEN_BUFFER = 200;
+/** Maximum number of conflicts retained in EscalationManager history. */
+const MAX_CONFLICTS_HISTORY = 200;
 // ---------------------------------------------------------------------------
 
 const ADMIN_HOME       = process.env.ADMIN_HOME || path.resolve(__dirname, '..', '..', '..', '.admin-cli');
@@ -161,6 +169,17 @@ class SubAgent {
 
     /** @protected — called when another agent publishes a finding. */
     _onExternalFinding(_msg) {}
+
+    /**
+     * Estimate LLM token usage for a given prompt string.
+     * Uses CHARS_PER_TOKEN approximation plus a response buffer.
+     * @protected
+     * @param {string} prompt
+     * @returns {number} Estimated token count.
+     */
+    _estimateTokens(prompt) {
+        return Math.ceil(prompt.length / CHARS_PER_TOKEN) + RESPONSE_TOKEN_BUFFER;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -187,6 +206,7 @@ class SecurityAgent extends SubAgent {
                 severity:   'high',
                 summary:    `${authThreats.length} authentication threat(s) detected — possible brute-force campaign`,
                 detail:     authThreats.slice(0, 5).map(t => JSON.stringify(t)).join('\n'),
+                service:    SecurityAgent._extractServiceId(authThreats[0]),
                 confidence: 0.85,
                 source:     'security-agent',
             });
@@ -202,13 +222,14 @@ class SecurityAgent extends SubAgent {
                 severity:   vulnFindings.some(f => f.severity === 'critical') ? 'critical' : 'high',
                 summary:    `${vulnFindings.length} security vulnerability finding(s) require CVE cross-reference`,
                 detail:     vulnFindings.slice(0, 3).map(f => f.description || f.message || JSON.stringify(f)).join('\n'),
+                service:    SecurityAgent._extractServiceId(vulnFindings[0]),
                 confidence: 0.80,
                 source:     'security-agent',
                 crossRef:   'https://cve.mitre.org (manual lookup recommended)',
             });
         }
 
-        // 3. LLM-enhanced threat assessment (if llmFn available).
+        // 3. LLM-enhanced threat assessment — publishes token usage to bus for budget tracking.
         if (typeof llmFn === 'function' && authThreats.length + vulnFindings.length > 0) {
             try {
                 const prompt = [
@@ -217,6 +238,7 @@ class SecurityAgent extends SubAgent {
                     `Code vulnerabilities: ${JSON.stringify(vulnFindings.slice(0, 3))}`,
                     `Return JSON: { "riskLevel": "critical|high|medium|low", "topRisk": "one sentence", "immediateActions": ["action1", "action2"] }`,
                 ].join('\n');
+                this._bus.publish('llm_call', { from: this.name, payload: { tokens: this._estimateTokens(prompt), phase: 'security_assessment' } });
                 const response = await llmFn(prompt);
                 const match = response && response.match(/\{[\s\S]*\}/);
                 if (match) {
@@ -226,6 +248,7 @@ class SecurityAgent extends SubAgent {
                         severity:   assessment.riskLevel || 'medium',
                         summary:    assessment.topRisk || 'Security assessment completed',
                         actions:    assessment.immediateActions || [],
+                        service:    null,
                         confidence: 0.75,
                         source:     'security-agent',
                         llmEnhanced: true,
@@ -247,6 +270,7 @@ class SecurityAgent extends SubAgent {
                 type:        'potential_dos',
                 fromAgent:   msg.from,
                 finding:     f,
+                service:     f.service || null,
                 detectedAt:  new Date().toISOString(),
                 resolution:  'pending',
             });
@@ -254,6 +278,16 @@ class SecurityAgent extends SubAgent {
     }
 
     getConflicts() { return this._conflicts; }
+
+    /**
+     * Extract a service identifier from a threat or finding object.
+     * Checks `.service` then `.target` then returns null.
+     * @private
+     */
+    static _extractServiceId(obj) {
+        if (!obj || typeof obj !== 'object') return null;
+        return (obj.service || obj.target || null) || null;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -409,7 +443,7 @@ class QualityAgent extends SubAgent {
             }
         }
 
-        // 3. LLM tech-debt narrative.
+        // 3. LLM tech-debt narrative — publishes token usage to bus for budget tracking.
         if (typeof llmFn === 'function' && debtScore >= 30) {
             try {
                 const prompt = [
@@ -418,6 +452,8 @@ class QualityAgent extends SubAgent {
                     `Sample findings: ${JSON.stringify(codeFindings.slice(0, 5).map(f => f.description || f.message || f.type))}`,
                     `Return JSON: { "priority": "high|medium|low", "topIssue": "one sentence", "recommendations": ["rec1", "rec2", "rec3"], "estimatedDays": 1-30 }`,
                 ].join('\n');
+                const estTokens = this._estimateTokens(prompt);
+                this._bus.publish('llm_call', { from: this.name, payload: { tokens: estTokens, phase: 'quality_assessment' } });
                 const response = await llmFn(prompt);
                 const match = response && response.match(/\{[\s\S]*\}/);
                 if (match) {
@@ -452,12 +488,21 @@ class EscalationManager {
         this._bus      = messageBus;
         this._conflicts = [];
 
-        // Listen for cross-agent conflicts.
-        this._bus.on('conflict', (msg) => this._conflicts.push(msg));
+        // Listen for cross-agent conflicts published by agents or detectAndEscalate().
+        this._bus.on('conflict', (msg) => {
+            const payload = msg.payload;
+            if (Array.isArray(payload)) {
+                for (const c of payload) this._conflicts.push(c);
+            } else if (payload && typeof payload === 'object') {
+                this._conflicts.push(payload);
+            }
+            if (this._conflicts.length > MAX_CONFLICTS_HISTORY) this._conflicts = this._conflicts.slice(-MAX_CONFLICTS_HISTORY);
+        });
     }
 
     /**
      * Detect and escalate conflicts between agent findings.
+     * Uses structured `service` field on findings for reliable cross-agent matching.
      * @param {SubAgent[]} agents
      * @param {object}     [permGate]
      * @returns {Promise<object[]>} Escalated conflicts.
@@ -468,12 +513,16 @@ class EscalationManager {
 
         // Rule: If security-agent + performance-agent both find high-severity issues
         // for the same service within the same cycle, escalate as a compound risk.
+        // Match is done via the explicit `service` field added to each finding.
         const secFindings  = allFindings.filter(f => f.source === 'security-agent'    && /critical|high/.test(f.severity));
         const perfFindings = allFindings.filter(f => f.source === 'performance-agent' && /critical|high/.test(f.severity));
 
         for (const sf of secFindings) {
+            if (!sf.service) continue; // Skip unserviced findings — can't reliably match.
+
             const conflictingPerf = perfFindings.find(pf =>
-                pf.service && sf.detail && pf.service.toLowerCase() === (sf.detail || '').split('\n')[0].toLowerCase()
+                pf.service &&
+                pf.service.toLowerCase() === sf.service.toLowerCase()
             );
 
             if (conflictingPerf) {
@@ -483,7 +532,8 @@ class EscalationManager {
                     agents:          [sf.source, conflictingPerf.source],
                     securityFinding: sf,
                     perfFinding:     conflictingPerf,
-                    summary:         `Compound risk: security + performance degradation on same service`,
+                    service:         sf.service,
+                    summary:         `Compound risk on '${sf.service}': security + performance degradation in same cycle`,
                     severity:        'critical',
                     detectedAt:      new Date().toISOString(),
                     resolution:      'pending',
@@ -503,13 +553,16 @@ class EscalationManager {
         }
 
         if (escalated.length > 0) {
+            // Publish to 'conflict' topic — the bus listener above will store them.
+            this._bus.publish('conflict', { from: 'escalation-manager', payload: escalated });
+            // Also publish as 'escalation' for backwards-compat listeners.
             this._bus.publish('escalation', { from: 'escalation-manager', payload: escalated });
         }
 
         return escalated;
     }
 
-    /** @returns {object[]} All conflicts. */
+    /** @returns {object[]} All conflicts (from bus listener + direct detection). */
     getConflicts(limit = 20) {
         return this._conflicts.slice(-limit);
     }
