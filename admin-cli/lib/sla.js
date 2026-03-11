@@ -256,13 +256,16 @@ class SLAManager {
             ? (new Date(pts[pts.length - 1].ts) - new Date(pts[0].ts)) / (pts.length - 1)
             : 3600000;
 
+        const MAX_BREACH_HOURS = 720; // Cap predictions at 30 days to avoid misleading values
+
         let trend, risk, hoursUntilBreach = null;
 
         if (slo.type === 'availability') {
             trend = slope > 0.01 ? 'improving' : slope < -0.01 ? 'degrading' : 'stable';
             if (slope < 0 && intercept > slo.target) {
                 const stepsUntil = (slo.target - intercept) / slope;
-                hoursUntilBreach = Math.round((stepsUntil * avgTimeDiffMs) / 3600000);
+                const hrs = Math.round((stepsUntil * avgTimeDiffMs) / 3600000);
+                hoursUntilBreach = hrs > 0 && hrs <= MAX_BREACH_HOURS ? hrs : null;
             }
             risk = hoursUntilBreach !== null && hoursUntilBreach < 24 ? 'high'
                 : hoursUntilBreach !== null && hoursUntilBreach < 72 ? 'medium'
@@ -271,7 +274,8 @@ class SLAManager {
             trend = slope < -0.01 ? 'improving' : slope > 0.01 ? 'degrading' : 'stable';
             if (slope > 0 && intercept < slo.target) {
                 const stepsUntil = (slo.target - intercept) / slope;
-                hoursUntilBreach = Math.round((stepsUntil * avgTimeDiffMs) / 3600000);
+                const hrs = Math.round((stepsUntil * avgTimeDiffMs) / 3600000);
+                hoursUntilBreach = hrs > 0 && hrs <= MAX_BREACH_HOURS ? hrs : null;
             }
             risk = hoursUntilBreach !== null && hoursUntilBreach < 24 ? 'high'
                 : hoursUntilBreach !== null && hoursUntilBreach < 72 ? 'medium'

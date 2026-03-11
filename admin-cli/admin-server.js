@@ -122,7 +122,12 @@ function sendError(res, code, message) {
 }
 
 function authenticate(req) {
-    if (!API_KEY) return true; // No API key configured — open (dev mode only)
+    if (!API_KEY) {
+        // No API key configured — only allow if explicitly opted-in for development mode
+        // or if server is bound to loopback interface only
+        const isLoopback = HOST === '127.0.0.1' || HOST === 'localhost' || HOST === '::1';
+        return isLoopback;  // Deny all if not on loopback and no API_KEY set
+    }
     const authHeader = req.headers['authorization'] || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
     return token === API_KEY;
@@ -402,10 +407,15 @@ server.on('error', (err) => {
 server.listen(PORT, HOST, () => {
     log('info', `Milonexa Admin REST API Server v5.0 started`);
     log('info', `Listening on http://${HOST}:${PORT}`);
-    log('info', `Auth: ${API_KEY ? 'Bearer token enabled (ADMIN_API_KEY)' : 'OPEN — set ADMIN_API_KEY for production!'}`);
+    log('info', `Auth: ${API_KEY ? 'Bearer token enabled (ADMIN_API_KEY)' : HOST === '127.0.0.1' || HOST === 'localhost' ? 'Loopback-only (no ADMIN_API_KEY — set for non-loopback deployment)' : 'BLOCKED — set ADMIN_API_KEY to allow access from non-loopback host'}`);
     log('info', `Endpoints: GET /health, /api/v1/dashboard, /api/v1/metrics, /api/v1/alerts, /api/v1/sla, /api/v1/webhooks, /api/v1/clusters, /api/v1/trends, /api/v1/compliance, /api/v1/costs, /api/v1/recommendations, /api/v1/audit`);
     if (!API_KEY) {
-        log('warn', 'WARNING: ADMIN_API_KEY is not set. API is unauthenticated — do not expose to public networks!');
+        if (HOST === '127.0.0.1' || HOST === 'localhost') {
+            log('warn', 'WARNING: ADMIN_API_KEY is not set. API allows unauthenticated loopback access only.');
+        } else {
+            log('warn', 'WARNING: ADMIN_API_KEY is not set and server is not on loopback — all requests will be rejected with 401!');
+            log('warn', 'Set ADMIN_API_KEY=<secret> to enable access.');
+        }
     }
 });
 
