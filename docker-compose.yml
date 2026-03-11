@@ -267,6 +267,52 @@ services:
     networks:
       - milonexa-network
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # Local LLM Runtime (Ollama) — privacy-safe, no external API keys needed.
+  # Models are stored in the ollama-data volume and pulled on first start.
+  # To use the custom Let's Connect persona:
+  #   docker compose exec ollama ollama create letsconnect-ai -f /modelfiles/Modelfile
+  # ─────────────────────────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+      - ./services/ai-service/Modelfile:/modelfiles/Modelfile:ro
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-1}
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:11434/api/tags > /dev/null 2>&1 || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - milonexa-network
+
+  # Model initialiser — pulls the default model on first run then exits.
+  ollama-init:
+    image: ollama/ollama:latest
+    restart: "no"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+    entrypoint: >
+      sh -c "
+        ollama pull $${OLLAMA_MODEL:-llama3.2} &&
+        echo 'Model ready.'
+      "
+    networks:
+      - milonexa-network
+
   # AI Assistant Service
   ai-service:
     build:
@@ -276,18 +322,22 @@ services:
       - "127.0.0.1:8007:8007"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - OLLAMA_HOST=ollama
+      - OLLAMA_PORT=11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+      - OLLAMA_TIMEOUT_MS=${OLLAMA_TIMEOUT_MS:-120000}
       - REDIS_URL=redis://redis:6379
     depends_on:
       redis:
+        condition: service_healthy
+      ollama:
         condition: service_healthy
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://localhost:8007/health > /dev/null 2>&1 || exit 1" ]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 15s
+      start_period: 30s
     networks:
       - milonexa-network
 
@@ -684,6 +734,7 @@ volumes:
   minio-data:
   elasticsearch-data:
   admin-state:
+  ollama-data:
 
 
 networks:

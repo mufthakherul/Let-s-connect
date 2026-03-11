@@ -157,8 +157,9 @@ S3_ACCESS_KEY=your-r2-access-key
 S3_SECRET_KEY=your-r2-secret-key
 S3_BUCKET=lets-connect-media
 
-# AI Service (Optional)
-GEMINI_API_KEY=your-gemini-api-key
+# AI Service — uses local Ollama LLM (no external API key required)
+# On Render, point OLLAMA_HOST to your self-hosted Ollama instance or use AI_PROVIDER=demo
+OLLAMA_MODEL=llama3.2
 
 # Service URLs (Fill in after deploying each service)
 API_GATEWAY_URL=https://your-api-gateway.onrender.com

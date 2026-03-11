@@ -321,21 +321,67 @@ class RemediationEngine {
 
     /**
      * Call LLM API for AI-powered suggestions.
+     * Supports: ollama (local, default), openai, or any OpenAI-compatible endpoint.
      */
     async _callLLM(context, existingRules) {
-        const apiKey = this.config.llmApiKey || process.env.OPENAI_API_KEY || process.env.LLM_API_KEY || '';
-        if (!apiKey) {
-            throw new Error('No LLM API key configured. Set OPENAI_API_KEY or configure via: remediate config --llm-key <key>');
+        const prompt = this._buildPrompt(context, existingRules);
+        const systemPrompt = 'You are an expert DevOps/SRE assistant for Milonexa platform. Provide concise, actionable remediation steps. Format response as JSON with: { "title": "...", "severity": "info|warning|critical", "steps": ["step1", "step2", ...], "summary": "brief description" }';
+
+        // ── Ollama (local LLM — no API key needed) ───────────────────────────
+        const useOllama = this.config.llmProvider === 'ollama' ||
+            (!this.config.llmProvider && !this.config.llmApiKey &&
+             !process.env.OPENAI_API_KEY && !process.env.LLM_API_KEY);
+
+        if (useOllama) {
+            const ollamaHost  = this.config.ollamaHost  || process.env.OLLAMA_HOST  || 'localhost';
+            const ollamaPort  = this.config.ollamaPort  || process.env.OLLAMA_PORT  || '11434';
+            const ollamaModel = this.config.ollamaModel || process.env.OLLAMA_MODEL || 'llama3.2';
+            const body = JSON.stringify({
+                model: ollamaModel,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: prompt },
+                ],
+                stream: false,
+                options: { num_predict: 800, temperature: 0.3 },
+            });
+
+            const response = await this._post(
+                `http://${ollamaHost}:${ollamaPort}/api/chat`,
+                body,
+                { 'Content-Type': 'application/json' }
+            );
+
+            try {
+                const parsed = JSON.parse(response.body);
+                const content = parsed.message?.content || '';
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const suggestion = JSON.parse(jsonMatch[0]);
+                    return {
+                        id: 'llm-suggestion',
+                        title: suggestion.title || 'AI Remediation Suggestion',
+                        source: 'llm-ollama',
+                        severity: suggestion.severity || 'info',
+                        summary: suggestion.summary || '',
+                        steps: suggestion.steps || [],
+                        references: [],
+                    };
+                }
+            } catch (_) { /* ignore parse errors */ }
+            return null;
         }
 
-        const prompt = this._buildPrompt(context, existingRules);
+        // ── OpenAI-compatible endpoint (external) ────────────────────────────
+        const apiKey = this.config.llmApiKey || process.env.OPENAI_API_KEY || process.env.LLM_API_KEY || '';
+        if (!apiKey) {
+            throw new Error('No LLM API key configured. Set OPENAI_API_KEY, or use Ollama (local) by setting AI_PROVIDER=ollama or leaving OPENAI_API_KEY unset.');
+        }
+
         const body = JSON.stringify({
             model: this.config.llmModel || 'gpt-4o-mini',
             messages: [
-                {
-                    role: 'system',
-                    content: 'You are an expert DevOps/SRE assistant for Milonexa platform. Provide concise, actionable remediation steps. Format response as JSON with: { "title": "...", "severity": "info|warning|critical", "steps": ["step1", "step2", ...], "summary": "brief description" }',
-                },
+                { role: 'system', content: systemPrompt },
                 { role: 'user', content: prompt },
             ],
             max_tokens: 800,
@@ -354,7 +400,6 @@ class RemediationEngine {
         try {
             const parsed = JSON.parse(response.body);
             const content = parsed.choices?.[0]?.message?.content || '';
-            // Try to parse LLM JSON response
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 const suggestion = JSON.parse(jsonMatch[0]);

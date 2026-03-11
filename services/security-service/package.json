@@ -18,8 +18,8 @@
     "helmet": "^8.1.0",
     "ip-range-check": "^0.2.0",
     "jsonwebtoken": "^9.0.0",
-    "sequelize": "^6.32.1",
-    "pg": "^8.11.2",
+    "sequelize": "^6.37.8",
+    "pg": "^8.18.0",
     "speakeasy": "^2.0.0"
   },
   "devDependencies": {

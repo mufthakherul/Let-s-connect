@@ -613,9 +613,10 @@ ENCRYPTION_KEY=another-strong-random-encryption-key
 **Optional Services Configuration:**
 
 ```bash
-# ==================== AI SERVICE (Optional) ====================
-# Get your API key from: https://aistudio.google.com/app/apikey
-GEMINI_API_KEY=your-gemini-api-key-here
+# ==================== AI SERVICE ====================
+# Uses local Ollama LLM — no external API key required.
+# The Ollama service pulls the model on first startup.
+OLLAMA_MODEL=llama3.2
 
 # ==================== MAILGUN EMAIL (Optional) ====================
 # Get credentials from: https://app.mailgun.com/app/account/security/api_keys
@@ -1369,8 +1370,8 @@ stringData:
   GITHUB_CLIENT_ID: "your-github-oauth-app-id"
   GITHUB_CLIENT_SECRET: "your-github-oauth-secret"
   
-  # AI Service
-  GEMINI_API_KEY: "your-gemini-api-key"
+  # AI Service — local Ollama LLM (no API key needed)
+  OLLAMA_MODEL: "llama3.2"
 ```
 
 **Apply the secrets:**
