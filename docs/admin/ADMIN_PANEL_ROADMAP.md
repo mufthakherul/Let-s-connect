@@ -161,6 +161,13 @@ The admin panel is a collection of interfaces and utilities for platform operato
 - [ ] **Database migration runner**: trigger and monitor DB migrations from admin UI
 - [ ] **Log aggregation viewer**: centralized structured log search (ElasticSearch/Loki)
 
+### Enter Connection Between several Admin Panels
+- [ ] **AI<->CLI**: If AI & CLI both enabled then Admin cam monitor AI admin panels works from CLI also admin can approve and have full control AI admins workflow
+- [ ] **AI<->Web Dashboard**: If AI & Web Dashboard both enabled then Admin cam monitor AI admin panels works from Web Dashboard/AI admin monitor page also admin can approve and control AI admins workflow and view graphical vision of AI admin and manage it
+- [ ] **AI<->SSH**: If AI & SSH both enabled then Admin cam monitor AI admin panels works from SSH also admin can approve and control AI admins workflow those possible
+- [ ] **AI<->REST API**: If AI & REST API both enabled then Admin cam monitor AI admin panels works from REST API also admin can approve and control AI admins workflow those possible
+- [ ] **AI<->WEBHOOK**: If AI & WEBHOOK both enabled then Admin cam monitor AI admin panels works from WEBHOOK also admin can approve and control AI admins workflow those possible
+
 ---
 
 ## Web Dashboard Component Plan
