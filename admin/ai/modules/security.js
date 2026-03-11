@@ -82,7 +82,7 @@ class SecurityMonitor {
         // Record in history.
         for (const t of threats) {
             t.detectedAt = t.detectedAt || new Date().toISOString();
-            t.id = t.id || this._uuid();
+            t.id = t.id || crypto.randomUUID();
             this._threatHistory.push(t);
         }
 
@@ -448,13 +448,6 @@ class SecurityMonitor {
         }
     }
 
-    /** @private */
-    _uuid() {
-        return crypto.randomBytes(16).toString('hex').replace(
-            /^(.{8})(.{4})(.{4})(.{4})(.{12})$/,
-            '$1-$2-$3-$4-$5'
-        );
-    }
 }
 
 module.exports = { SecurityMonitor };
