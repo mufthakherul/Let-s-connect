@@ -595,7 +595,9 @@ export default function SecurityDashboard() {
     };
 
     const handleRotateSecret = async (key) => {
-        const newVal = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+        const newVal = window.crypto
+            ? Array.from(window.crypto.getRandomValues(new Uint8Array(32))).map(b => b.toString(16).padStart(2, '0')).join('')
+            : `rotate-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         try {
             await api.post(`/api/v1/security/secrets/${encodeURIComponent(key)}/rotate`, { newValue: newVal });
             setSecrets(prev => prev.map(s => s.key === key ? { ...s, rotatedAt: new Date().toISOString() } : s));
