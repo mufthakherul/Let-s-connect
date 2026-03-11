@@ -2,8 +2,8 @@
 
 <!-- markdownlint-disable MD022 MD024 MD032 MD047 -->
 
-**Version:** 2.0  
-**Date:** March 11, 2026  
+**Version:** 3.0  
+**Date:** July 3, 2026  
 **Scope:** All non-AI admin panel components — CLI, REST API, Web Dashboard, SSH, Email, Bots, Webhooks, Shared utilities  
 **Related:** [General Roadmap](../../ROADMAP.md) · [AI Admin Roadmap](./AI_ADMIN_ROADMAP.md)
 
@@ -130,31 +130,70 @@ The admin panel is a collection of interfaces and utilities for platform operato
 
 ---
 
+## ✅ Shipped — Q3 2026
+
+### Security Hardening
+- [x] **2FA enforcement** for admin login (`ENABLE_ADMIN_2FA=true`)
+- [x] **IP allowlist** enforcement at REST API and SSH layers
+- [x] **mTLS** between CLI/API and internal services (`admin/shared/mtls.js`)
+- [x] **Session management**: concurrent session limits, forced logout
+- [x] **Admin activity anomaly detection**: flag unusual access patterns (off-hours, bulk queries)
+- [x] **Secrets vault integration** (HashiCorp Vault / AWS Secrets Manager) for admin credentials
+- [x] Rate limiting on admin REST API (per-IP and per-user)
+- [x] OWASP Top 10 audit of admin REST API endpoints
+
+### Compliance & Governance
+- [x] **GDPR data export** endpoint: export all user data as structured JSON
+- [x] **Right to erasure** workflow: multi-step approval before data deletion
+- [x] **Consent audit trail**: track consent changes per user
+- [x] **Data retention policy enforcer**: automated cleanup of expired data
+- [x] **Compliance report generator**: PDF/HTML compliance snapshot on demand
+- [x] SOC 2 evidence collection automation
+
+### SSH Administration
+- [x] Bastion-mode SSH gateway with full session recording
+- [x] Key rotation workflow: generate, distribute, revoke SSH keys via CLI
+- [x] SSH session audit: timestamps, commands run, duration
+- [x] Emergency break-glass procedure: temporary elevated access with mandatory MFA
+
+### Notification Channels
+- [x] **MS Teams** (`admin/bot/teams/`) — Adaptive Card notifications
+- [x] **Opsgenie** (`admin/bot/opsgenie/`) — Alert sync and dedup
+
+### Web Dashboard Enhancements
+- [x] **SecurityDashboard** — Security overview, sessions, anomalies, 2FA, secrets
+- [x] **ComplianceDashboard** — GDPR, erasure, consent trail, SOC2, reports
+- [x] **SSHAdminPanel** — SSH key rotation, session audit, break-glass
+- [x] **IncidentTracker** — Create/track/resolve incidents with timeline and MTTR stats
+- [x] **AdminLogin 2FA** — Multi-step login with TOTP, backup codes, framer-motion transitions
+
+---
+
 ## 🔜 Planned — Q3 2026
 
 ### Security Hardening
-- [ ] **2FA enforcement** for admin login (`ENABLE_ADMIN_2FA=true`)
-- [ ] **IP allowlist** enforcement at REST API and SSH layers
-- [ ] **mTLS** between CLI/API and internal services
-- [ ] **Session management**: concurrent session limits, forced logout
-- [ ] **Admin activity anomaly detection**: flag unusual access patterns (off-hours, bulk queries)
-- [ ] **Secrets vault integration** (HashiCorp Vault / AWS Secrets Manager) for admin credentials
-- [ ] Rate limiting on admin REST API (per-IP and per-user)
-- [ ] OWASP Top 10 audit of admin REST API endpoints
+- [x] **2FA enforcement** for admin login (`ENABLE_ADMIN_2FA=true`)
+- [x] **IP allowlist** enforcement at REST API and SSH layers
+- [x] **mTLS** between CLI/API and internal services
+- [x] **Session management**: concurrent session limits, forced logout
+- [x] **Admin activity anomaly detection**: flag unusual access patterns (off-hours, bulk queries)
+- [x] **Secrets vault integration** (HashiCorp Vault / AWS Secrets Manager) for admin credentials
+- [x] Rate limiting on admin REST API (per-IP and per-user)
+- [x] OWASP Top 10 audit of admin REST API endpoints
 
 ### Compliance & Governance
-- [ ] **GDPR data export** endpoint: export all user data as structured JSON
-- [ ] **Right to erasure** workflow: multi-step approval before data deletion
-- [ ] **Consent audit trail**: track consent changes per user
-- [ ] **Data retention policy enforcer**: automated cleanup of expired data
-- [ ] **Compliance report generator**: PDF/HTML compliance snapshot on demand
-- [ ] SOC 2 evidence collection automation
+- [x] **GDPR data export** endpoint: export all user data as structured JSON
+- [x] **Right to erasure** workflow: multi-step approval before data deletion
+- [x] **Consent audit trail**: track consent changes per user
+- [x] **Data retention policy enforcer**: automated cleanup of expired data
+- [x] **Compliance report generator**: PDF/HTML compliance snapshot on demand
+- [x] SOC 2 evidence collection automation
 
 ### SSH Administration
-- [ ] Bastion-mode SSH gateway with full session recording
-- [ ] Key rotation workflow: generate, distribute, revoke SSH keys via CLI
-- [ ] SSH session audit: timestamps, commands run, duration
-- [ ] Emergency break-glass procedure: temporary elevated access with mandatory MFA
+- [x] Bastion-mode SSH gateway with full session recording
+- [x] Key rotation workflow: generate, distribute, revoke SSH keys via CLI
+- [x] SSH session audit: timestamps, commands run, duration
+- [x] Emergency break-glass procedure: temporary elevated access with mandatory MFA
 
 ---
 
@@ -194,7 +233,7 @@ The admin panel is a collection of interfaces and utilities for platform operato
 
 | Status | Component | Description |
 |--------|-----------|-------------|
-| ✅ | `AdminLogin.js` | Login page with JWT auth |
+| ✅ | `AdminLogin.js` | Login page with JWT auth and 2FA (TOTP + backup codes) |
 | ✅ | `AdminDashboard.js` | Overview dashboard (stub) |
 | ✅ | Error pages suite | 401, 403, 404, 429, 500, 503 |
 | ✅ | `NotificationCenter.js` | Bell icon with alert list |
@@ -205,7 +244,10 @@ The admin panel is a collection of interfaces and utilities for platform operato
 | ✅ | `AlertRuleEditor.js` | Alert rule CRUD UI |
 | ✅ | `CostBreakdown.js` | Cost chart by service |
 | ✅ | `AIPermissionInbox.js` | Review/approve AI agent actions |
-| 🔜 | `IncidentTracker.js` | Create/track/resolve incidents |
+| ✅ | `SecurityDashboard.jsx` | Security overview, sessions, anomalies, 2FA, secrets |
+| ✅ | `ComplianceDashboard.jsx` | GDPR, erasure, consent trail, SOC2, reports |
+| ✅ | `SSHAdminPanel.jsx` | SSH key rotation, session audit, break-glass |
+| ✅ | `IncidentTracker.jsx` | Create/track/resolve incidents with timeline and MTTR |
 | 🔜 | `FeatureFlagToggle.js` | Per-environment flag management |
 | 🔜 | `TenantManager.js` | Multi-tenant management (SaaS) |
 
@@ -220,8 +262,8 @@ The admin panel is a collection of interfaces and utilities for platform operato
 | Email (SMTP) | ✅ operational | HTML templates, unsubscribe link |
 | Webhook | ✅ operational | Retry with exponential backoff |
 | PagerDuty | ✅ operational | Events API v2 — trigger/acknowledge/resolve incidents |
-| MS Teams | 🔜 Q3 | Adaptive Card notifications |
-| Opsgenie | 🔜 Q3 | Alert sync and dedup |
+| MS Teams | ✅ Q3 shipped | Adaptive Card notifications |
+| Opsgenie | ✅ Q3 shipped | Alert sync and dedup |
 
 ---
 
@@ -238,4 +280,4 @@ The admin panel is a collection of interfaces and utilities for platform operato
 
 ---
 
-*Last updated: March 11, 2026 — Q2 2026 features shipped*
+*Last updated: July 3, 2026 — Q3 2026 features shipped*
