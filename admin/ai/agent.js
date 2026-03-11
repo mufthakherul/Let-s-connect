@@ -6,31 +6,37 @@
  * Guards: if ENABLE_ADMIN_AI !== 'true', logs a message and exits.
  *
  * Architecture:
- *   - State machine: IDLE → MONITORING → ANALYZING → ACTING → NOTIFYING → IDLE
+ *   - State machine: IDLE → MONITORING → ANALYZING → REVIEWING → ACTING → NOTIFYING → IDLE
  *   - Main loop runs every AI_CYCLE_INTERVAL_SECONDS (default 60 s).
+ *   - Code analysis / doc generation / test generation run on a slower cadence
+ *     controlled by AI_CODE_ANALYSIS_EVERY_N_CYCLES (default 10).
  *   - Emergency mode: cycle every 10 s, notify all channels immediately.
  *   - HTTP status/control server on AI_STATUS_PORT (default 8890).
- *   - Optional LLM enhancement: openai | anthropic | demo (rule-based only).
+ *   - Optional LLM enhancement: ollama (local) | openai | anthropic | demo (rule-based only).
  *
  * All heavy lifting is delegated to modules/ and ../shared/ modules.
  * Only Node.js built-in modules are used here.
  *
  * Environment variables:
- *   ENABLE_ADMIN_AI             (required) must be 'true'
- *   AI_PROVIDER                 demo | ollama | openai | anthropic  (default: demo)
- *   OLLAMA_HOST                 Ollama server hostname (default: localhost)
- *   OLLAMA_PORT                 Ollama server port (default: 11434)
- *   OLLAMA_MODEL                Model name (default: llama3.2)
- *   OPENAI_API_KEY              (optional, only if AI_PROVIDER=openai)
- *   ANTHROPIC_API_KEY           (optional, only if AI_PROVIDER=anthropic)
- *   AI_CYCLE_INTERVAL_SECONDS   (default: 60)
- *   AI_STATUS_PORT              (default: 8890)
- *   AI_NOTIFY_EVERY_CYCLE       (default: false)
- *   AI_EMERGENCY_NOTIFY         (default: true)
- *   AI_AUTO_HEAL                (default: true)
- *   AI_AUTO_SECURITY            (default: true)
- *   AI_GATEWAY_URL              (default: http://localhost:8000)
- *   ADMIN_HOME                  (default: <repo-root>/.admin-cli)
+ *   ENABLE_ADMIN_AI                  (required) must be 'true'
+ *   AI_PROVIDER                      demo | ollama | openai | anthropic  (default: demo)
+ *   OLLAMA_HOST                      Ollama server hostname (default: localhost)
+ *   OLLAMA_PORT                      Ollama server port (default: 11434)
+ *   OLLAMA_MODEL                     Model name (default: llama3.2)
+ *   OPENAI_API_KEY                   (optional, only if AI_PROVIDER=openai)
+ *   ANTHROPIC_API_KEY                (optional, only if AI_PROVIDER=anthropic)
+ *   AI_CYCLE_INTERVAL_SECONDS        (default: 60)
+ *   AI_CODE_ANALYSIS_EVERY_N_CYCLES  (default: 10)  — run code analysis every N cycles
+ *   AI_DOC_GEN_EVERY_N_CYCLES        (default: 20)  — run doc generation every N cycles
+ *   AI_TEST_GEN_EVERY_N_CYCLES       (default: 30)  — run test generation every N cycles
+ *   AI_FEEDBACK_EVERY_N_CYCLES       (default: 5)   — run feedback processing every N cycles
+ *   AI_STATUS_PORT                   (default: 8890)
+ *   AI_NOTIFY_EVERY_CYCLE            (default: false)
+ *   AI_EMERGENCY_NOTIFY              (default: true)
+ *   AI_AUTO_HEAL                     (default: true)
+ *   AI_AUTO_SECURITY                 (default: true)
+ *   AI_GATEWAY_URL                   (default: http://localhost:8000)
+ *   ADMIN_HOME                       (default: <repo-root>/.admin-cli)
  */
 
 // ---------------------------------------------------------------------------
@@ -69,11 +75,21 @@ const { TrendAnalyzer }       = require(path.join(SHARED_DIR, 'trend-analysis.js
 // AI module imports
 // ---------------------------------------------------------------------------
 
-const { Notifier }       = require('./modules/notifier.js');
-const { PermissionGate } = require('./modules/permission.js');
-const { SecurityMonitor } = require('./modules/security.js');
-const { AutoHealer }     = require('./modules/healer.js');
-const { Optimizer }      = require('./modules/optimizer.js');
+const { Notifier }          = require('./modules/notifier.js');
+const { PermissionGate }    = require('./modules/permission.js');
+const { SecurityMonitor }   = require('./modules/security.js');
+const { AutoHealer }        = require('./modules/healer.js');
+const { Optimizer }         = require('./modules/optimizer.js');
+const { CodeAnalyzer }      = require('./modules/code-analyzer.js');
+const { DocGenerator }      = require('./modules/doc-generator.js');
+const { FeedbackProcessor } = require('./modules/feedback-processor.js');
+const { TestGenerator }     = require('./modules/test-generator.js');
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const AGENT_VERSION = '2.0.0';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -90,6 +106,11 @@ const CONFIG = {
     ollamaPort:     parseInt(process.env.OLLAMA_PORT || '11434', 10),
     ollamaModel:    process.env.OLLAMA_MODEL || 'llama3.2',
     cycleSeconds:   parseInt(process.env.AI_CYCLE_INTERVAL_SECONDS, 10) || 60,
+    // Sub-cycle cadences (every N main cycles).
+    codeAnalysisEvery:  parseInt(process.env.AI_CODE_ANALYSIS_EVERY_N_CYCLES  || '10', 10),
+    docGenEvery:        parseInt(process.env.AI_DOC_GEN_EVERY_N_CYCLES        || '20', 10),
+    testGenEvery:       parseInt(process.env.AI_TEST_GEN_EVERY_N_CYCLES       || '30', 10),
+    feedbackEvery:      parseInt(process.env.AI_FEEDBACK_EVERY_N_CYCLES       || '5',  10),
     statusPort:     parseInt(process.env.AI_STATUS_PORT, 10) || 8890,
     notifyEvery:    process.env.AI_NOTIFY_EVERY_CYCLE === 'true',
     emergencyNotify: process.env.AI_EMERGENCY_NOTIFY !== 'false',
@@ -107,6 +128,7 @@ const STATES = Object.freeze({
     IDLE:        'IDLE',
     MONITORING:  'MONITORING',
     ANALYZING:   'ANALYZING',
+    REVIEWING:   'REVIEWING',   // code analysis / doc generation / test generation
     ACTING:      'ACTING',
     NOTIFYING:   'NOTIFYING',
     EMERGENCY:   'EMERGENCY',
@@ -123,6 +145,10 @@ const agentState = {
     lastHealthIssues: [],
     lastOpportunities: [],
     errors:         [],
+    codeAnalysis:   { lastRunAt: null, totalFindings: 0, critical: 0, high: 0, medium: 0, low: 0, proposedFixes: 0 },
+    docs:           { lastRunAt: null, docsGenerated: 0, services: [] },
+    tests:          { lastRunAt: null, stubsGenerated: 0, services: [] },
+    feedback:       { lastRunAt: null, total: 0, byCategory: {}, suggestions: 0, unprocessed: 0 },
 };
 
 // ---------------------------------------------------------------------------
@@ -139,6 +165,7 @@ ensureDir(path.join(ADMIN_HOME, 'alerts'));
 ensureDir(path.join(ADMIN_HOME, 'sla'));
 ensureDir(path.join(ADMIN_HOME, 'remediation'));
 ensureDir(path.join(ADMIN_HOME, 'recommendations'));
+ensureDir(path.join(ADMIN_HOME, 'feedback'));
 
 const metricsCollector  = new MetricsCollector(path.join(ADMIN_HOME, 'metrics'));
 const alertManager      = new AlertManager(path.join(ADMIN_HOME, 'alerts'));
@@ -147,11 +174,15 @@ const remediationEngine = new RemediationEngine(path.join(ADMIN_HOME, 'remediati
 const recommendEngine   = new RecommendationEngine(path.join(ADMIN_HOME, 'recommendations'));
 const trendAnalyzer     = new TrendAnalyzer(path.join(ADMIN_HOME, 'metrics'));
 
-const notifier    = new Notifier();
-const permGate    = new PermissionGate();
-const secMonitor  = new SecurityMonitor();
-const autoHealer  = new AutoHealer();
-const optimizer   = new Optimizer();
+const notifier          = new Notifier();
+const permGate          = new PermissionGate();
+const secMonitor        = new SecurityMonitor();
+const autoHealer        = new AutoHealer();
+const optimizer         = new Optimizer();
+const codeAnalyzer      = new CodeAnalyzer();
+const docGenerator      = new DocGenerator();
+const feedbackProcessor = new FeedbackProcessor();
+const testGenerator     = new TestGenerator();
 
 // ---------------------------------------------------------------------------
 // Banner
@@ -161,14 +192,24 @@ function printBanner() {
     const lines = [
         '',
         '╔══════════════════════════════════════════════════════════╗',
-        '║          Milonexa AI Admin Agent  v1.0.0                 ║',
+        `║          Milonexa AI Admin Agent  v${AGENT_VERSION}                 ║`,
         '╠══════════════════════════════════════════════════════════╣',
         `║  Provider  : ${CONFIG.provider.padEnd(44)}║`,
+        `║  Model     : ${CONFIG.ollamaModel.padEnd(44)}║`,
         `║  Cycle     : ${String(CONFIG.cycleSeconds + 's').padEnd(44)}║`,
         `║  Port      : ${String(CONFIG.statusPort).padEnd(44)}║`,
         `║  Auto-Heal : ${String(CONFIG.autoHeal).padEnd(44)}║`,
         `║  Auto-Sec  : ${String(CONFIG.autoSecurity).padEnd(44)}║`,
         `║  Gateway   : ${CONFIG.gatewayUrl.padEnd(44)}║`,
+        '╠══════════════════════════════════════════════════════════╣',
+        '║  Active capabilities:                                    ║',
+        '║  ✓ Runtime monitoring & auto-healing                     ║',
+        '║  ✓ Security threat detection & response                  ║',
+        '║  ✓ AI-powered code analysis & vulnerability scanning     ║',
+        '║  ✓ Automated code fix proposals (admin-gated)            ║',
+        '║  ✓ User feedback processing & feature suggestions        ║',
+        '║  ✓ AI documentation generation                           ║',
+        '║  ✓ Test stub generation for untested routes              ║',
         '╚══════════════════════════════════════════════════════════╝',
         '',
     ];
@@ -445,6 +486,71 @@ async function runCycle() {
         }
     }
 
+    // ── 10. Slow-cadence sub-cycles (REVIEWING state) ────────────────────────
+    // Each capability is offset so they don't all pile up on the same cycle.
+    // Feedback on cycle 1, N+1... Code on cycle 2, N+2... Docs on cycle 3... Tests on cycle 4...
+    setState(STATES.REVIEWING);
+
+    // 10a. Feedback processing (every feedbackEvery cycles, starting at cycle 1)
+    if (cycleId > 0 && (cycleId - 1) % CONFIG.feedbackEvery === 0) {
+        try {
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            const fbResult = await feedbackProcessor.processAll(llmFn, permGate);
+            agentState.feedback = feedbackProcessor.getSummary();
+            if (fbResult.processed > 0) {
+                console.log(`[ai-agent] Feedback: processed ${fbResult.processed} items, ${fbResult.suggestions.length} actionable`);
+            }
+        } catch (e) {
+            console.error('[ai-agent] Feedback processing error:', e.message);
+        }
+    }
+
+    // 10b. Code analysis (every codeAnalysisEvery cycles, starting at cycle 2)
+    if (cycleId > 1 && (cycleId - 2) % CONFIG.codeAnalysisEvery === 0) {
+        try {
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            const { summary } = await codeAnalyzer.analyzeProject(llmFn, permGate);
+            agentState.codeAnalysis = codeAnalyzer.getLastRunSummary();
+            if (summary.bySeverity.critical > 0 || summary.bySeverity.high > 0) {
+                console.warn(`[ai-agent] Code analysis: ${summary.bySeverity.critical} critical, ${summary.bySeverity.high} high severity findings`);
+                await notifier.notify(
+                    summary.bySeverity.critical > 0 ? 'critical' : 'warning',
+                    'Code Analysis: Vulnerabilities Found',
+                    `Critical: ${summary.bySeverity.critical}, High: ${summary.bySeverity.high}, Medium: ${summary.bySeverity.medium}. Check /code-analysis for details.`,
+                    { total: summary.total, proposedFixes: agentState.codeAnalysis.proposedFixes }
+                ).catch(() => {});
+            }
+        } catch (e) {
+            console.error('[ai-agent] Code analysis error:', e.message);
+        }
+    }
+
+    // 10c. Documentation generation (every docGenEvery cycles, starting at cycle 3)
+    if (cycleId > 2 && (cycleId - 3) % CONFIG.docGenEvery === 0) {
+        try {
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            await docGenerator.generateAll(llmFn, permGate);
+            agentState.docs = docGenerator.getLastRunSummary();
+            console.log(`[ai-agent] Documentation: generated for ${agentState.docs.docsGenerated} services`);
+        } catch (e) {
+            console.error('[ai-agent] Doc generation error:', e.message);
+        }
+    }
+
+    // 10d. Test generation (every testGenEvery cycles, starting at cycle 4)
+    if (cycleId > 3 && (cycleId - 4) % CONFIG.testGenEvery === 0) {
+        try {
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            const { stubsGenerated } = await testGenerator.generateTests(llmFn, permGate);
+            agentState.tests = testGenerator.getLastRunSummary();
+            if (stubsGenerated > 0) {
+                console.log(`[ai-agent] Test generation: ${stubsGenerated} new test stub(s) ready for review`);
+            }
+        } catch (e) {
+            console.error('[ai-agent] Test generation error:', e.message);
+        }
+    }
+
     // ── 10. Process approved permissions ────────────────────────────────────
     setState(STATES.ACTING);
     await processApprovedPermissions();
@@ -547,6 +653,12 @@ async function processApprovedPermissions() {
                 result = await autoHealer.executeApprovedAction(record);
             } else if (/optimize/.test(record.action)) {
                 result = await optimizer.executeApprovedAction(record);
+            } else if (record.action === 'apply_code_fix') {
+                result = await codeAnalyzer.executeApprovedFix(record);
+            } else if (record.action === 'write_generated_docs') {
+                result = await docGenerator.executeApprovedDocWrite(record);
+            } else if (record.action === 'write_generated_tests') {
+                result = await testGenerator.executeApprovedTestWrite(record);
             } else {
                 result = { action: record.action, status: 'unhandled' };
             }
@@ -739,14 +851,122 @@ function startStatusServer() {
             return;
         }
 
+        // ── GET /code-analysis ───────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/code-analysis') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary:      codeAnalyzer.getLastRunSummary(),
+                findings:     codeAnalyzer.getLastFindings(50),
+                proposedFixes: codeAnalyzer.getProposedFixes(20),
+            }, null, 2));
+            return;
+        }
+
+        // ── POST /code-analysis/trigger ──────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/code-analysis/trigger') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Code analysis scheduled for next cycle or running now.' }));
+            // Trigger asynchronously in background.
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            codeAnalyzer.analyzeProject(llmFn, permGate)
+                .then(r => { agentState.codeAnalysis = codeAnalyzer.getLastRunSummary(); })
+                .catch(e => console.error('[ai-agent] Manual code analysis error:', e.message));
+            return;
+        }
+
+        // ── GET /feedback ────────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/feedback') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary:     feedbackProcessor.getSummary(),
+                suggestions: feedbackProcessor.getSuggestions(20),
+                recent:      feedbackProcessor.getProcessed(20),
+            }, null, 2));
+            return;
+        }
+
+        // ── POST /feedback ───────────────────────────────────────────────────
+        // Accepts a new feedback entry from any source.
+        if (req.method === 'POST' && pathname === '/feedback') {
+            let body = '';
+            req.on('data', c => { body += c; });
+            req.on('end', () => {
+                try {
+                    const data = JSON.parse(body);
+                    const id = feedbackProcessor.ingest({
+                        userId:  data.userId || 'anonymous',
+                        content: data.content || data.text || '',
+                        source:  data.source || 'api',
+                        metadata: data.metadata || {},
+                    });
+                    res.writeHead(201);
+                    res.end(JSON.stringify({ id, message: 'Feedback received' }));
+                } catch (e) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+                }
+            });
+            return;
+        }
+
+        // ── GET /docs ────────────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/docs') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary: docGenerator.getLastRunSummary(),
+                docs:    docGenerator.getGeneratedDocs(),
+            }, null, 2));
+            return;
+        }
+
+        // ── POST /docs/trigger ───────────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/docs/trigger') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Documentation generation triggered.' }));
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            docGenerator.generateAll(llmFn, permGate)
+                .then(() => { agentState.docs = docGenerator.getLastRunSummary(); })
+                .catch(e => console.error('[ai-agent] Manual doc gen error:', e.message));
+            return;
+        }
+
+        // ── GET /tests ───────────────────────────────────────────────────────
+        if (req.method === 'GET' && pathname === '/tests') {
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                summary: testGenerator.getLastRunSummary(),
+                stubs:   testGenerator.getGeneratedStubs(30),
+            }, null, 2));
+            return;
+        }
+
+        // ── POST /tests/trigger ──────────────────────────────────────────────
+        if (req.method === 'POST' && pathname === '/tests/trigger') {
+            res.writeHead(202);
+            res.end(JSON.stringify({ message: 'Test generation triggered.' }));
+            const llmFn = CONFIG.provider !== 'demo' ? llmAnalyze : null;
+            testGenerator.generateTests(llmFn, permGate)
+                .then(() => { agentState.tests = testGenerator.getLastRunSummary(); })
+                .catch(e => console.error('[ai-agent] Manual test gen error:', e.message));
+            return;
+        }
+
         // ── 404 ──────────────────────────────────────────────────────────────
         res.writeHead(404);
         res.end(JSON.stringify({ error: 'Not found', availableRoutes: [
-            'GET /health',
-            'GET /status',
-            'GET /permissions',
+            'GET  /health',
+            'GET  /status',
+            'GET  /permissions',
             'POST /permissions/:id/approve',
             'POST /permissions/:id/deny',
+            'GET  /code-analysis',
+            'POST /code-analysis/trigger',
+            'GET  /feedback',
+            'POST /feedback',
+            'GET  /docs',
+            'POST /docs/trigger',
+            'GET  /tests',
+            'POST /tests/trigger',
         ]}));
     });
 
@@ -831,8 +1051,12 @@ async function main() {
     // Notify admin of startup.
     await notifier.notify(
         'info',
-        'AI Admin Agent Started',
-        `Milonexa AI Admin Agent is now monitoring the platform (provider=${CONFIG.provider}, cycle=${CONFIG.cycleSeconds}s).`,
+        'AI Admin Agent v2.0 Started',
+        `Milonexa AI Admin Agent is now monitoring the platform (provider=${CONFIG.provider}, cycle=${CONFIG.cycleSeconds}s). ` +
+        `New capabilities: code analysis (every ${CONFIG.codeAnalysisEvery} cycles), ` +
+        `documentation generation (every ${CONFIG.docGenEvery} cycles), ` +
+        `test generation (every ${CONFIG.testGenEvery} cycles), ` +
+        `feedback processing (every ${CONFIG.feedbackEvery} cycles).`,
         { port: CONFIG.statusPort, autoHeal: CONFIG.autoHeal, autoSecurity: CONFIG.autoSecurity }
     ).catch(() => {});
 
