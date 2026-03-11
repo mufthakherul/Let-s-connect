@@ -1,0 +1,13 @@
+{
+  "name": "milonexa-admin-ai",
+  "version": "1.0.0",
+  "description": "AI-powered autonomous admin agent for Milonexa",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "dev": "ENABLE_ADMIN_AI=true AI_PROVIDER=demo node agent.js"
+  },
+  "engines": { "node": ">=18.0.0" },
+  "private": true,
+  "dependencies": {}
+}
