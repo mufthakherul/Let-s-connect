@@ -112,6 +112,9 @@ const CONFIG = {
     testGenEvery:       parseInt(process.env.AI_TEST_GEN_EVERY_N_CYCLES       || '30', 10),
     feedbackEvery:      parseInt(process.env.AI_FEEDBACK_EVERY_N_CYCLES       || '5',  10),
     statusPort:     parseInt(process.env.AI_STATUS_PORT, 10) || 8890,
+    // Shared secret required in `Authorization: Bearer <token>` header for all non-/health routes.
+    // If empty, auth is disabled (suitable only for localhost-only deployments).
+    statusToken:    process.env.AI_STATUS_TOKEN || '',
     notifyEvery:    process.env.AI_NOTIFY_EVERY_CYCLE === 'true',
     emergencyNotify: process.env.AI_EMERGENCY_NOTIFY !== 'false',
     autoHeal:       process.env.AI_AUTO_HEAL !== 'false',
@@ -778,6 +781,22 @@ function buildLLMPrompt(threats, issues, opps, rems) {
 // HTTP status/control server
 // ---------------------------------------------------------------------------
 
+/**
+ * Verify the shared-secret Bearer token when AI_STATUS_TOKEN is configured.
+ * Returns true if the request is authorized, false otherwise.
+ * /health is always public so liveness probes work without credentials.
+ * @param {http.IncomingMessage} req
+ * @param {string} pathname
+ * @returns {boolean}
+ */
+function isAuthorized(req, pathname) {
+    if (!CONFIG.statusToken) return true; // auth disabled — localhost-only recommended
+    if (pathname === '/health') return true; // always public
+    const authHeader = req.headers['authorization'] || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    return token === CONFIG.statusToken;
+}
+
 function startStatusServer() {
     const server = http.createServer((req, res) => {
         const u = new URL(req.url, `http://localhost:${CONFIG.statusPort}`);
@@ -785,6 +804,13 @@ function startStatusServer() {
 
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('X-Powered-By', 'Milonexa-AI-Agent');
+
+        // ── Auth guard ───────────────────────────────────────────────────────
+        if (!isAuthorized(req, pathname)) {
+            res.writeHead(401);
+            res.end(JSON.stringify({ error: 'Unauthorized: provide a valid Bearer token in Authorization header' }));
+            return;
+        }
 
         // ── GET /health ──────────────────────────────────────────────────────
         if (req.method === 'GET' && pathname === '/health') {
@@ -1036,6 +1062,15 @@ process.on('unhandledRejection', (reason) => {
 
 async function main() {
     printBanner();
+
+    // Warn if auth is disabled on the HTTP control server.
+    if (!CONFIG.statusToken) {
+        console.warn(
+            '[ai-agent] ⚠️  WARNING: AI_STATUS_TOKEN is not set. ' +
+            'The HTTP control server is unauthenticated. ' +
+            'Ensure the port is firewalled and not publicly reachable, or set AI_STATUS_TOKEN.'
+        );
+    }
 
     // Start HTTP status server.
     startStatusServer();

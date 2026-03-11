@@ -1010,6 +1010,33 @@ This modernization initiative is successful when:
 - [x] Fine-tuned content moderation model
 - [x] Real-time AI suggestions in chat (opt-in)
 
+### 18.4 Privacy-Safe Local LLM (Ollama) ✅ — March 2026
+- [x] Replace Google Gemini with local Ollama runtime (no external API key required)
+- [x] Custom `Modelfile` persona built on `llama3.2` for platform-specific context
+- [x] Ollama service added to Docker Compose with persistent model volume and health checks
+- [x] All 20+ AI endpoints (chat, summarize, tag, sentiment, translate, writing assist, moderation, embeddings) ported to Ollama
+- [x] `GET /models` endpoint to enumerate available loaded models
+- [x] `OLLAMA_MODEL`, `OLLAMA_HOST`, `OLLAMA_PORT` environment configuration
+
+### 18.5 AI Admin Agent v2.0 ✅ — March 2026
+- [x] Code analysis module: 15 static security/quality rules, LLM-assisted fix proposals, admin-gated apply
+- [x] User feedback processing: LLM categorization, ticket generation, weekly reports
+- [x] AI documentation generator: per-service user guides from live routes, admin-gated publish
+- [x] AI test stub generator: Jest stubs for untested routes, admin-gated write
+- [x] HTTP control API with bearer-token auth (`/code-analysis`, `/feedback`, `/docs`, `/tests`)
+- [x] Staggered sub-cycle scheduling to prevent startup resource spikes
+- [x] REVIEWING FSM state; stale-cycle offsets
+
+### 18.6 AI Roadmap (Upcoming)
+- [ ] Streaming LLM responses (SSE) for chat endpoints
+- [ ] Model fine-tuning pipeline for platform-specific vocabulary
+- [ ] Multi-model routing: route complex requests to larger models automatically
+- [ ] AI-driven onboarding assistant
+- [ ] Voice-to-text meeting transcription (Whisper)
+- [ ] Proactive anomaly narrative: LLM explains metric spikes in plain English
+- [ ] Cross-service embedding store with approximate nearest-neighbor search
+- [ ] A/B testing framework for AI feature rollout
+
 ---
 
 ## Phase 19: Performance & Scalability 
@@ -1054,3 +1081,5 @@ This modernization initiative is successful when:
 - [x] Video walkthrough for setup and deployment (QUICK_START.md + DEPLOYMENT_GUIDE.md)
 - [x] Contribution guide (CONTRIBUTING.md)
 - [x] Storybook for UI components (.storybook/ + frontend/src/stories/)
+- [x] AI Admin Panel roadmap → `docs/admin/AI_ADMIN_ROADMAP.md`
+- [x] Admin Panel (non-AI) roadmap → `docs/admin/ADMIN_PANEL_ROADMAP.md`

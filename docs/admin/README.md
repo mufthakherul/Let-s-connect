@@ -12,6 +12,8 @@ Technical guides and references for platform administrators.
 | [CONTENT_MODERATION.md](CONTENT_MODERATION.md) | Comprehensive content moderation guide and best practices |
 | [HELPCENTER_SETUP.md](HELPCENTER_SETUP.md) | Help center configuration and management |
 | [CLI_ADMIN_PANEL.md](CLI_ADMIN_PANEL.md) | CLI-first admin control panel — Phase E: TUI, webhooks, SLA, AI remediation, multi-cluster, trends |
+| [AI_ADMIN_ROADMAP.md](AI_ADMIN_ROADMAP.md) | **AI Admin Agent v2.0 roadmap** — code analysis, feedback, docs, tests, LLM features |
+| [ADMIN_PANEL_ROADMAP.md](ADMIN_PANEL_ROADMAP.md) | **Admin panel (non-AI) roadmap** — CLI, web dashboard, REST API, security, compliance |
 
 ## Admin Interface Methods (Phase E — 4 methods)
 

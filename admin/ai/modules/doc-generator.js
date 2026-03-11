@@ -114,7 +114,12 @@ class DocGenerator {
             return { status: 'skipped', reason: 'No outputDir specified' };
         }
 
-        const targetDir = path.join(PROJECT_ROOT, data.outputDir);
+        // Validate that outputDir stays within the project root (prevent path traversal).
+        const targetDir = path.resolve(PROJECT_ROOT, data.outputDir);
+        const rootWithSep = PROJECT_ROOT.endsWith(path.sep) ? PROJECT_ROOT : PROJECT_ROOT + path.sep;
+        if (targetDir !== PROJECT_ROOT && !targetDir.startsWith(rootWithSep)) {
+            return { status: 'failed', reason: 'Invalid outputDir: must be inside the project root' };
+        }
         try {
             if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
 
