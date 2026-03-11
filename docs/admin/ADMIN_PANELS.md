@@ -1,27 +1,33 @@
 # Milonexa Admin Panels — Complete Reference Guide
 
-This document covers all four admin interface methods, explains how to enable/disable each via environment variables, and provides usage instructions for every panel.
+All admin interfaces are organized under the unified `admin/` directory. Each interface is a self-contained module with its own subdirectory.
 
 ---
 
-## Overview: Four Admin Interface Methods
+## Overview: Eight Admin Interface Methods
 
-Milonexa provides **four independent admin interfaces**. Each can be enabled independently using environment variables.
+Milonexa provides **eight independent admin interfaces**. All live under `admin/`. Each can be enabled independently using environment variables.
 
-| # | Interface | Access Method | Port | Toggle Env Var | Default |
-|---|-----------|--------------|------|----------------|---------|
-| 1 | **CLI Admin Panel** | Local terminal | — | Always on (local only) | ✅ always |
-| 2 | **Admin Frontend** | Web browser | 3001 | `ENABLE_ADMIN_FRONTEND` | ❌ off |
-| 3 | **Admin REST API** | HTTP/JSON | 8888 | `ENABLE_ADMIN_REST_API` | ❌ off |
-| 4 | **SSH Admin Dashboard** | SSH terminal | 2222 | `ENABLE_ADMIN_SSH` | ❌ off |
+**Default: Only the web dashboard is enabled. All other interfaces are disabled unless explicitly turned on. The CLI is always available locally and has no toggle.**
 
-> **CLI Admin Panel** runs directly from the filesystem and always works locally. It does not have an on/off toggle because it requires no server process — it only needs Node.js.
+| # | Interface | Directory | Access Method | Port | Toggle Env Var | Default |
+|---|-----------|-----------|--------------|------|----------------|---------|
+| 1 | **Web Dashboard** | `admin/web/` | Web browser | 3001 | `ENABLE_ADMIN_WEB` | ✅ **ON** |
+| 2 | **CLI Admin Panel** | `admin/cli/` | Local terminal | — | Always on (local) | ✅ always |
+| 3 | **REST API** | `admin/rest-api/` | HTTP/JSON | 8888 | `ENABLE_ADMIN_REST_API` | ❌ off |
+| 4 | **SSH Dashboard** | `admin/ssh/` | SSH terminal | 2222 | `ENABLE_ADMIN_SSH` | ❌ off |
+| 5 | **Webhook Server** | `admin/webhook/` | HTTP | 8889 | `ENABLE_ADMIN_WEBHOOK` | ❌ off |
+| 6 | **Telegram Bot** | `admin/bot/telegram/` | Telegram | — | `ENABLE_ADMIN_BOT_TELEGRAM` | ❌ off |
+| 7 | **Slack Bot** | `admin/bot/slack/` | Slack Socket Mode | 3003 | `ENABLE_ADMIN_BOT_SLACK` | ❌ off |
+| 8 | **Email Interface** | `admin/email/` | IMAP/SMTP | — | `ENABLE_ADMIN_EMAIL` | ❌ off |
+
+> **CLI Admin Panel** runs directly from the filesystem and always works locally (no server process needed).
 
 ---
 
 ## Environment Variable Control
 
-All admin panels (except CLI) are controlled by environment variables in your `.env` file. Copy `.env.example` to `.env` and set the values:
+All admin panels (except CLI) are controlled by environment variables in your `.env` file:
 
 ```bash
 cp .env.example .env
@@ -30,48 +36,75 @@ cp .env.example .env
 ### Master Toggle Variables
 
 ```env
-# --- Admin Frontend (React Web UI) ---
-ENABLE_ADMIN_FRONTEND=false        # Set true to enable
+# Web Dashboard (ON by default)
+ENABLE_ADMIN_WEB=true
 
-# --- Admin REST API Server ---
-ENABLE_ADMIN_REST_API=false        # Set true to enable
-ADMIN_API_KEY=your-secret-key      # REQUIRED when exposed beyond loopback
+# REST API
+ENABLE_ADMIN_REST_API=false
+ADMIN_API_KEY=your-secret-key      # REQUIRED
 
-# --- Admin SSH Dashboard ---
-ENABLE_ADMIN_SSH=false             # Set true to enable
-ADMIN_SSH_PASSWORD=your-password   # For password authentication
-```
+# SSH Dashboard
+ENABLE_ADMIN_SSH=false
+ADMIN_SSH_PASSWORD=your-password
 
-### Enabling Multiple Panels
+# Webhook Server
+ENABLE_ADMIN_WEBHOOK=false
+ADMIN_WEBHOOK_SECRET=your-secret
 
-You can run any combination of panels simultaneously:
+# Telegram Bot
+ENABLE_ADMIN_BOT_TELEGRAM=false
+TELEGRAM_BOT_TOKEN=your-token
+TELEGRAM_ADMIN_USER_IDS=123456789
 
-```bash
-# Enable all three network-accessible panels
-ENABLE_ADMIN_FRONTEND=true
-ENABLE_ADMIN_REST_API=true
-ENABLE_ADMIN_SSH=true
+# Slack Bot
+ENABLE_ADMIN_BOT_SLACK=false
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_APP_TOKEN=xapp-...
+SLACK_SIGNING_SECRET=...
+
+# Email Interface
+ENABLE_ADMIN_EMAIL=false
+ADMIN_EMAIL_USER=admin@yourdomain.com
+ADMIN_EMAIL_PASSWORD=...
+ADMIN_EMAIL_IMAP_HOST=imap.yourdomain.com
+ADMIN_EMAIL_SMTP_HOST=smtp.yourdomain.com
+ADMIN_EMAIL_ALLOWED_SENDERS=owner@yourdomain.com
 ```
 
 ### Starting with Docker Compose Profiles
 
-Each network panel has a corresponding Docker Compose profile:
-
 ```bash
-# Admin Frontend only
+# Web Dashboard only (default)
 docker compose --profile admin up -d
 
-# Admin REST API only
+# REST API only
 docker compose --profile admin-api up -d
 
-# Admin SSH Dashboard only
+# SSH Dashboard only
 docker compose --profile admin-ssh up -d
 
-# All admin panels at once
-docker compose --profile admin --profile admin-api --profile admin-ssh up -d
+# Webhook server only
+docker compose --profile admin-webhook up -d
 
-# Check which services are running
-docker compose ps
+# Telegram bot only
+docker compose --profile admin-bot-telegram up -d
+
+# Slack bot only
+docker compose --profile admin-bot-slack up -d
+
+# Email interface only
+docker compose --profile admin-email up -d
+
+# All admin panels at once
+docker compose \
+  --profile admin \
+  --profile admin-api \
+  --profile admin-ssh \
+  --profile admin-webhook \
+  --profile admin-bot-telegram \
+  --profile admin-bot-slack \
+  --profile admin-email \
+  up -d
 ```
 
 ---
@@ -85,47 +118,47 @@ The CLI runs directly from the repository directory and accesses the filesystem.
 ### Quick Start
 
 ```bash
-node admin-cli/index.js --help              # Full command reference
-node admin-cli/index.js doctor              # Health check
-node admin-cli/index.js dashboard           # Live operations dashboard
-node admin-cli/index.js tui                 # Interactive TUI (full-screen)
+node admin/cli/index.js --help              # Full command reference
+node admin/cli/index.js doctor              # Health check
+node admin/cli/index.js dashboard           # Live operations dashboard
+node admin/cli/index.js tui                 # Interactive TUI (full-screen)
 ```
 
 ### Phase E Commands
 
 ```bash
 # SLA Monitoring
-node admin-cli/index.js sla status          # SLO compliance
-node admin-cli/index.js sla predict         # Breach predictions
-node admin-cli/index.js sla simulate        # Generate sample data
+node admin/cli/index.js sla status          # SLO compliance
+node admin/cli/index.js sla predict         # Breach predictions
+node admin/cli/index.js sla simulate        # Generate sample data
 
 # Webhook Management
-ADMIN_CLI_ROLE=operator node admin-cli/index.js webhooks add --type slack --name "Ops" --url https://...
-ADMIN_CLI_ROLE=operator node admin-cli/index.js webhooks list
-ADMIN_CLI_ROLE=operator node admin-cli/index.js webhooks fire --event alert --severity critical
+ADMIN_CLI_ROLE=operator node admin/cli/index.js webhooks add --type slack --name "Ops" --url https://...
+ADMIN_CLI_ROLE=operator node admin/cli/index.js webhooks list
+ADMIN_CLI_ROLE=operator node admin/cli/index.js webhooks fire --event alert --severity critical
 
 # AI Remediation
-node admin-cli/index.js remediate analyze   # Run AI analysis
-node admin-cli/index.js remediate rules     # Show knowledge base
+node admin/cli/index.js remediate analyze   # Run AI analysis
+node admin/cli/index.js remediate rules     # Show knowledge base
 
 # Multi-Cluster Kubernetes
-ADMIN_CLI_ROLE=operator node admin-cli/index.js cluster register --name prod-us --context gke_proj_us
-ADMIN_CLI_ROLE=operator node admin-cli/index.js cluster status
+ADMIN_CLI_ROLE=operator node admin/cli/index.js cluster register --name prod-us --context gke_proj_us
+ADMIN_CLI_ROLE=operator node admin/cli/index.js cluster status
 
 # Trend Analysis
-node admin-cli/index.js trends report
-node admin-cli/index.js trends chart --category cpu
-node admin-cli/index.js trends anomalies
+node admin/cli/index.js trends report
+node admin/cli/index.js trends chart --category cpu
+node admin/cli/index.js trends anomalies
 ```
 
 ### Role-Based Access
 
 ```bash
 # Set role for privileged operations
-ADMIN_CLI_ROLE=admin node admin-cli/index.js stop --runtime docker
-ADMIN_CLI_ROLE=operator node admin-cli/index.js scale --service api-gateway --replicas 3
+ADMIN_CLI_ROLE=admin node admin/cli/index.js stop --runtime docker
+ADMIN_CLI_ROLE=operator node admin/cli/index.js scale --service api-gateway --replicas 3
 # Emergency override
-ADMIN_CLI_ROLE=break-glass node admin-cli/index.js rollout --strategy rolling --service api-gateway
+ADMIN_CLI_ROLE=break-glass node admin/cli/index.js rollout --strategy rolling --service api-gateway
 ```
 
 | Role | Permitted Actions |
@@ -163,7 +196,7 @@ A full-featured React web application providing a graphical admin interface.
 ### Environment Variables
 
 ```env
-ENABLE_ADMIN_FRONTEND=true
+ENABLE_ADMIN_WEB=true
 REACT_APP_ADMIN_SECRET=your-admin-secret     # Must match ADMIN_API_SECRET
 REACT_APP_API_URL=http://localhost:8000       # API Gateway URL
 REACT_APP_ADMIN_PORT=3001                    # Port (development only)
@@ -173,7 +206,7 @@ REACT_APP_ADMIN_PORT=3001                    # Port (development only)
 
 **With Docker Compose (recommended):**
 ```bash
-docker compose --profile admin up admin_frontend
+docker compose --profile admin up admin-web
 # Access: http://localhost:3001
 ```
 
@@ -385,7 +418,7 @@ ENABLE_ADMIN_SSH=true
 ADMIN_SSH_PORT=2222                             # Default: 2222
 ADMIN_SSH_HOST=127.0.0.1                        # Bind address (0.0.0.0 for network access)
 ADMIN_SSH_PASSWORD=your-strong-password         # For password auth (leave empty to disable)
-ADMIN_SSH_AUTHORIZED_KEYS=./admin-cli/ssh-keys/authorized_keys  # For key-based auth
+ADMIN_SSH_AUTHORIZED_KEYS=./admin/ssh/ssh-keys/authorized_keys  # For key-based auth
 ADMIN_SSH_MAX_SESSIONS=5                        # Max concurrent sessions
 ADMIN_SSH_IDLE_TIMEOUT=300                      # Idle timeout in seconds
 ADMIN_ALLOWED_IPS=127.0.0.1,::1                 # IP allowlist (comma-separated)
@@ -409,10 +442,10 @@ ENABLE_ADMIN_SSH=true ADMIN_SSH_PASSWORD=mysecret node admin-cli/ssh-admin-serve
 **With public-key authentication:**
 ```bash
 # Add your public key to the authorized_keys file
-echo "ssh-rsa AAAA..." >> admin-cli/ssh-keys/authorized_keys
+echo "ssh-rsa AAAA..." >> admin/ssh/ssh-keys/authorized_keys
 
 # Start server without password (key-only)
-ENABLE_ADMIN_SSH=true ADMIN_SSH_AUTHORIZED_KEYS=./admin-cli/ssh-keys/authorized_keys \
+ENABLE_ADMIN_SSH=true ADMIN_SSH_AUTHORIZED_KEYS=./admin/ssh/ssh-keys/authorized_keys \
   node admin-cli/ssh-admin-server.js
 ```
 
@@ -439,9 +472,9 @@ The server auto-generates an RSA host key on first start and saves it to `.admin
 
 ```bash
 # Generate a key manually
-ssh-keygen -t rsa -b 2048 -f ./admin-cli/ssh-keys/host_rsa -N ""
+ssh-keygen -t rsa -b 2048 -f ./admin/ssh/ssh-keys/host_rsa -N ""
 # Start with it
-ADMIN_SSH_HOST_KEY_PATH=./admin-cli/ssh-keys/host_rsa ENABLE_ADMIN_SSH=true \
+ADMIN_SSH_HOST_KEY_PATH=./admin/ssh/ssh-keys/host_rsa ENABLE_ADMIN_SSH=true \
   ADMIN_SSH_PASSWORD=secret node admin-cli/ssh-admin-server.js
 ```
 
@@ -518,7 +551,7 @@ ssh admin@localhost -p 2222 "metrics record cpu 78.5 api-gateway"
 
 ```env
 # Example production admin panel configuration
-ENABLE_ADMIN_FRONTEND=true
+ENABLE_ADMIN_WEB=true
 ENABLE_ADMIN_REST_API=true
 ENABLE_ADMIN_SSH=true
 
@@ -556,10 +589,10 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" http://localhost:8888/api/v1/dash
 docker compose ps admin_frontend
 
 # Check logs
-docker compose logs admin_frontend
+docker compose logs admin-web
 
 # Verify environment variables
-echo $ENABLE_ADMIN_FRONTEND
+echo $ENABLE_ADMIN_WEB
 echo $REACT_APP_ADMIN_SECRET
 ```
 
@@ -595,7 +628,7 @@ echo $ADMIN_ALLOWED_IPS
 echo $ADMIN_SSH_PASSWORD
 
 # For key auth: verify your public key is in authorized_keys
-cat admin-cli/ssh-keys/authorized_keys
+cat admin/ssh/ssh-keys/authorized_keys
 
 # Test with verbose SSH output
 ssh -v -p 2222 admin@localhost
@@ -605,13 +638,13 @@ ssh -v -p 2222 admin@localhost
 
 ```bash
 # Check role
-node admin-cli/index.js role
+node admin/cli/index.js role
 
 # Set required role
 export ADMIN_CLI_ROLE=admin
 
 # Run doctor
-node admin-cli/index.js doctor
+node admin/cli/index.js doctor
 ```
 
 ---
@@ -622,7 +655,7 @@ node admin-cli/index.js doctor
 
 ```bash
 # 1. Set env vars
-export ENABLE_ADMIN_FRONTEND=true
+export ENABLE_ADMIN_WEB=true
 export ENABLE_ADMIN_REST_API=true
 export ENABLE_ADMIN_SSH=true
 export ADMIN_API_KEY=$(openssl rand -hex 32)
@@ -635,7 +668,7 @@ docker compose --profile admin --profile admin-api --profile admin-ssh up -d
 # Web UI:    http://localhost:3001
 # REST API:  http://localhost:8888/api/v1/dashboard (with ADMIN_API_KEY)
 # SSH:       ssh admin@localhost -p 2222
-# CLI:       node admin-cli/index.js --help
+# CLI:       node admin/cli/index.js --help
 ```
 
 ### Stop All Admin Panels
@@ -654,3 +687,215 @@ ENABLE_ADMIN_REST_API=false docker compose --profile admin-api restart admin-res
 # Disable SSH
 ENABLE_ADMIN_SSH=false docker compose --profile admin-ssh restart admin-ssh
 ```
+
+---
+
+## 5) Webhook Server
+
+The Admin Webhook Server is a standalone HTTP API for managing and firing outbound webhook notifications to Slack, Teams, PagerDuty, Discord, and generic endpoints.
+
+### Enable
+
+```env
+ENABLE_ADMIN_WEBHOOK=true
+ADMIN_WEBHOOK_PORT=8889
+ADMIN_WEBHOOK_SECRET=replace-with-strong-random-key
+```
+
+```bash
+docker compose --profile admin-webhook up admin-webhook
+```
+
+### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check (no auth) |
+| GET | `/api/v1/webhooks` | List webhooks |
+| POST | `/api/v1/webhooks` | Add webhook |
+| GET/PUT/DELETE | `/api/v1/webhooks/:id` | Get/update/delete webhook |
+| POST | `/api/v1/fire` | Fire an event |
+| GET | `/api/v1/history` | Delivery history |
+| GET | `/api/v1/stats` | Delivery statistics |
+| POST | `/api/v1/retry/:id` | Retry failed delivery |
+
+### Usage
+
+```bash
+# Add a Slack webhook
+curl -X POST http://localhost:8889/api/v1/webhooks \
+  -H "Authorization: Bearer $ADMIN_WEBHOOK_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"slack","url":"https://hooks.slack.com/...","name":"ops-channel","events":["alert","deploy"]}'
+
+# Fire an alert
+curl -X POST http://localhost:8889/api/v1/fire \
+  -H "Authorization: Bearer $ADMIN_WEBHOOK_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"event":"alert","title":"CPU High","message":"CPU at 95%","severity":"critical","targets":"all"}'
+```
+
+---
+
+## 6) Telegram Bot
+
+The Admin Telegram Bot allows you to run admin commands directly from Telegram.
+
+### Setup
+
+1. Create a bot via [@BotFather](https://t.me/BotFather) and copy the token
+2. Get your Telegram user ID (use [@userinfobot](https://t.me/userinfobot))
+
+### Enable
+
+```env
+ENABLE_ADMIN_BOT_TELEGRAM=true
+TELEGRAM_BOT_TOKEN=<your-bot-token>
+TELEGRAM_ADMIN_USER_IDS=123456789,987654321
+TELEGRAM_ADMIN_CHAT_IDS=-100xxxxxxxxx
+```
+
+```bash
+docker compose --profile admin-bot-telegram up admin-bot-telegram
+```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome message + menu |
+| `/help` | Show all commands |
+| `/status` | Platform status |
+| `/metrics` | Metrics summary |
+| `/alerts` | Active alerts |
+| `/sla` | SLA status |
+| `/costs` | Cost summary |
+| `/compliance` | Compliance status |
+| `/recommendations` | Top recommendations |
+| `/audit [n]` | Last n audit entries |
+| `/health` | Health check |
+| `/logs [service] [lines]` | Service logs |
+| `/restart [service]` | Restart service (requires confirmation) |
+| `/backup` | Trigger backup (requires confirmation) |
+| `/remediate` | AI remediation analysis |
+| `/trends` | Trend analysis |
+
+### Security
+
+- Only users in `TELEGRAM_ADMIN_USER_IDS` can execute commands
+- Destructive commands require inline button confirmation
+- Rate limited: 10 commands/minute/user
+- All commands logged to `.admin-cli/audit.log`
+
+---
+
+## 7) Slack Bot
+
+The Admin Slack Bot allows you to run admin commands from Slack using slash commands.
+
+### Setup
+
+1. Create a Slack app at https://api.slack.com/apps
+2. Enable Socket Mode and create an App-Level Token
+3. Add slash commands: `/admin-status`, `/admin-metrics`, etc.
+4. Install to your workspace
+
+### Enable
+
+```env
+ENABLE_ADMIN_BOT_SLACK=true
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_APP_TOKEN=xapp-...
+SLACK_SIGNING_SECRET=...
+SLACK_ADMIN_CHANNELS=C01234567,C07654321
+SLACK_ADMIN_USER_IDS=U01234567,U07654321
+```
+
+```bash
+docker compose --profile admin-bot-slack up admin-bot-slack
+```
+
+### Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| `/admin-status` | Platform status |
+| `/admin-metrics` | Metrics summary |
+| `/admin-alerts` | Active alerts |
+| `/admin-sla` | SLA status |
+| `/admin-costs` | Cost summary |
+| `/admin-compliance` | Compliance status |
+| `/admin-recs` | Top recommendations |
+| `/admin-audit [n]` | Last n audit entries |
+| `/admin-health` | Health check |
+| `/admin-logs [service] [lines]` | Service logs |
+| `/admin-restart [service]` | Restart with confirmation modal |
+| `/admin-backup` | Backup with confirmation modal |
+| `/admin-remediate` | AI remediation |
+| `/admin-trends` | Trend analysis |
+
+### Security
+
+- Only users in `SLACK_ADMIN_USER_IDS` OR channels in `SLACK_ADMIN_CHANNELS`
+- Destructive actions require modal confirmation
+- All actions logged to `.admin-cli/audit.log`
+
+---
+
+## 8) Email Command Interface
+
+The Email Command Interface accepts admin commands via email. Send a command email to your admin inbox and receive the output as a reply.
+
+### Enable
+
+```env
+ENABLE_ADMIN_EMAIL=true
+ADMIN_EMAIL_USER=admin@yourdomain.com
+ADMIN_EMAIL_PASSWORD=your-email-password
+ADMIN_EMAIL_IMAP_HOST=imap.yourdomain.com
+ADMIN_EMAIL_IMAP_PORT=993
+ADMIN_EMAIL_SMTP_HOST=smtp.yourdomain.com
+ADMIN_EMAIL_FROM=admin-bot@yourdomain.com
+ADMIN_EMAIL_ALLOWED_SENDERS=owner@yourdomain.com,cto@yourdomain.com
+ADMIN_EMAIL_SUBJECT_PREFIX=[ADMIN-CMD]
+# Optional extra security: email body must contain this string
+ADMIN_EMAIL_SIGNATURE=my-secret-token
+```
+
+```bash
+docker compose --profile admin-email up admin-email
+```
+
+### How to Send Commands
+
+**Subject format:**
+```
+[ADMIN-CMD] <command and arguments>
+```
+
+**Examples:**
+```
+Subject: [ADMIN-CMD] status
+Subject: [ADMIN-CMD] metrics status
+Subject: [ADMIN-CMD] alerts list
+Subject: [ADMIN-CMD] audit --tail 20
+Subject: [ADMIN-CMD] sla predict
+Subject: [ADMIN-CMD] help
+```
+
+**If ADMIN_EMAIL_SIGNATURE is set**, include it in the email body:
+```
+Body: my-secret-token
+```
+
+### Supported Commands
+
+All read-only CLI commands are supported. **Destructive commands (restart, stop, backup) are blocked** for security.
+
+### Security
+
+- Only emails from `ADMIN_EMAIL_ALLOWED_SENDERS` are processed
+- Optional body signature verification via `ADMIN_EMAIL_SIGNATURE`
+- Rate limited: 5 commands/hour/sender
+- All commands logged to `.admin-cli/audit.log`
+- Responses sent back via SMTP to the original sender
