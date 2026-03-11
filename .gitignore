@@ -74,6 +74,9 @@ pids
 *.seed
 *.pid.lock
 
+# Admin CLI runtime state (generated locally)
+.admin-cli/
+
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov

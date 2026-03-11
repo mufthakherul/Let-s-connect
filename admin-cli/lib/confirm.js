@@ -13,7 +13,18 @@
 const readline = require('readline');
 
 /** Commands that only read/inspect — never require confirmation regardless of scope. */
-const READ_ONLY_COMMANDS = new Set(['doctor', 'status', 'logs', 'health', 'run', 'audit', 'role', 'set-role']);
+const READ_ONLY_COMMANDS = new Set([
+  'doctor',
+  'status',
+  'logs',
+  'health',
+  'run',
+  'audit',
+  'role',
+  'set-role',
+  'check',
+  'incident',
+]);
 
 /**
  * Determine whether the CLI should prompt for confirmation before running.
