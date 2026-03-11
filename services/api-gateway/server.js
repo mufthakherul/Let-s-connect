@@ -983,6 +983,21 @@ app.get('/', (req, res) => {
   });
 });
 
+// Phase 19: Web Vitals analytics ingestion endpoint
+app.post('/api/analytics/vitals', (req, res) => {
+  const metric = req.body;
+  if (metric && metric.name) {
+    // Store in Redis with short TTL for real-time dashboards; log for aggregation
+    if (redisClient && redisClient.status === 'ready') {
+      const key = `vitals:${metric.name}:${Date.now()}`;
+      redisClient.setEx(key, 86400, JSON.stringify(metric)).catch(() => {});
+    }
+    console.info('[Vitals]', metric.name, metric.value, metric.rating || '', metric.url || '');
+  }
+  res.status(204).end();
+});
+
+
 // Standard route fallback
 app.use((req, res) => {
   res.status(404).json({

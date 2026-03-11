@@ -791,6 +791,264 @@ app.get('/', (req, res) => {
   });
 });
 
+// ============================================================================
+// Phase 18: AI & Intelligence
+// ============================================================================
+
+// 18.1 Auto-tagging: extract relevant tags from text
+app.post('/tag', async (req, res) => {
+  try {
+    const { text, maxTags = 8 } = req.body;
+    if (!text) return res.status(400).json({ error: 'text is required' });
+
+    const cacheKey = buildHashedAiKey('tag', `${text}:${maxTags}`);
+    const cached = await redis.get(cacheKey);
+    if (cached) return res.json({ tags: JSON.parse(cached), cached: true });
+
+    const raw = await generateTextFromPrompt({
+      system: 'You are a content tagging assistant. Extract concise topic tags from text. Return JSON only: { "tags": ["tag1", "tag2", ...] }. Tags should be lowercase, single-word or short phrases, relevant to the content.',
+      prompt: `Extract up to ${maxTags} tags from:\n${text.slice(0, 1000)}`,
+      maxOutputTokens: 200
+    });
+
+    let tags = [];
+    try {
+      const parsed = parseJsonFromText(raw);
+      tags = Array.isArray(parsed?.tags) ? parsed.tags.slice(0, maxTags) : [];
+    } catch {
+      tags = raw.split(/[\n,]+/).map(t => t.trim().toLowerCase().replace(/^[#\-\s]+/, '')).filter(Boolean).slice(0, maxTags);
+    }
+
+    await redis.setex(cacheKey, CacheTTL.MEDIUM, JSON.stringify(tags));
+    res.json({ tags, cached: false });
+  } catch (error) {
+    console.error('[ai/tag]', error);
+    res.status(500).json({ error: 'Auto-tagging failed' });
+  }
+});
+
+// 18.1 Sentiment analysis on text content
+app.post('/sentiment', async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'text is required' });
+
+    const cacheKey = buildHashedAiKey('sentiment', text);
+    const cached = await redis.get(cacheKey);
+    if (cached) return res.json({ ...JSON.parse(cached), cached: true });
+
+    const raw = await generateTextFromPrompt({
+      system: 'You are a sentiment analysis model. Analyze the sentiment of the given text. Return JSON only with keys: sentiment ("positive"|"neutral"|"negative"), score (number -1 to 1), confidence (number 0 to 1), emotions (string[]).',
+      prompt: `Analyze sentiment:\n${text.slice(0, 800)}`,
+      maxOutputTokens: 200
+    });
+
+    let result = { sentiment: 'neutral', score: 0, confidence: 0.5, emotions: [] };
+    try {
+      const parsed = parseJsonFromText(raw);
+      if (parsed?.sentiment) result = { ...result, ...parsed };
+    } catch { /* use defaults */ }
+
+    await redis.setex(cacheKey, CacheTTL.MEDIUM, JSON.stringify(result));
+    res.json({ ...result, cached: false });
+  } catch (error) {
+    console.error('[ai/sentiment]', error);
+    res.status(500).json({ error: 'Sentiment analysis failed' });
+  }
+});
+
+// 18.1 Meeting transcript summarization
+app.post('/meeting/summarize', async (req, res) => {
+  try {
+    const { transcript, title = 'Meeting', participants = [] } = req.body;
+    if (!transcript) return res.status(400).json({ error: 'transcript is required' });
+
+    const cacheKey = buildHashedAiKey('meeting-summary', transcript);
+    const cached = await redis.get(cacheKey);
+    if (cached) return res.json({ ...JSON.parse(cached), cached: true });
+
+    const raw = await generateTextFromPrompt({
+      system: 'You are a meeting summarization assistant. Create structured meeting summaries. Return JSON only with keys: summary (string), keyPoints (string[]), actionItems ({ owner: string, task: string, deadline?: string }[]), decisions (string[]).',
+      prompt: `Summarize this meeting "${title}" with participants: ${participants.join(', ') || 'unknown'}.\n\nTranscript:\n${transcript.slice(0, 4000)}`,
+      maxOutputTokens: 800
+    });
+
+    let result = { summary: '', keyPoints: [], actionItems: [], decisions: [] };
+    try {
+      const parsed = parseJsonFromText(raw);
+      if (parsed?.summary) result = { ...result, ...parsed };
+      else result.summary = raw.trim();
+    } catch { result.summary = raw.trim(); }
+
+    await redis.setex(cacheKey, LONG_TERM_CACHE_TTL, JSON.stringify(result));
+    res.json({ ...result, cached: false });
+  } catch (error) {
+    console.error('[ai/meeting/summarize]', error);
+    res.status(500).json({ error: 'Meeting summarization failed' });
+  }
+});
+
+// 18.2 Language translation
+app.post('/translate', async (req, res) => {
+  try {
+    const { text, targetLanguage = 'English', sourceLanguage = 'auto' } = req.body;
+    if (!text) return res.status(400).json({ error: 'text is required' });
+
+    const cacheKey = buildHashedAiKey('translate', `${text}:${targetLanguage}`);
+    const cached = await redis.get(cacheKey);
+    if (cached) return res.json({ ...JSON.parse(cached), cached: true });
+
+    const raw = await generateTextFromPrompt({
+      system: `You are a professional translator. Translate text to ${targetLanguage}. Return JSON only with keys: translation (string), detectedLanguage (string), confidence (number 0-1).`,
+      prompt: `Translate${sourceLanguage !== 'auto' ? ` from ${sourceLanguage}` : ''} to ${targetLanguage}:\n${text.slice(0, 2000)}`,
+      maxOutputTokens: Math.min(text.length * 2 + 200, 2000)
+    });
+
+    let result = { translation: text, detectedLanguage: 'unknown', confidence: 0 };
+    try {
+      const parsed = parseJsonFromText(raw);
+      if (parsed?.translation) result = { ...result, ...parsed };
+      else result.translation = raw.trim();
+    } catch { result.translation = raw.trim(); }
+
+    await redis.setex(cacheKey, CacheTTL.LONG, JSON.stringify(result));
+    res.json({ ...result, cached: false });
+  } catch (error) {
+    console.error('[ai/translate]', error);
+    res.status(500).json({ error: 'Translation failed' });
+  }
+});
+
+// 18.2 Smart digest: surface important content for a user
+app.post('/digest', async (req, res) => {
+  try {
+    const { userId, recentPosts = [], userInterests = [], limit = 10 } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    const cacheKey = CacheKeyBuilder.custom('ai', 'digest', userId);
+    const cached = await redis.get(cacheKey);
+    if (cached) return res.json({ digest: JSON.parse(cached), cached: true });
+
+    const postsPreview = recentPosts.slice(0, 20).map((p, i) =>
+      `${i + 1}. [${p.type || 'post'}] ${p.title || p.content?.slice(0, 100) || ''} (likes:${p.likes || 0})`
+    ).join('\n');
+
+    const raw = await generateTextFromPrompt({
+      system: 'You are a smart content digest assistant. Select the most important and relevant content items. Return JSON only: { "digest": [{ "index": number, "reason": string, "priority": "high"|"medium"|"low" }] }',
+      prompt: `User interests: ${userInterests.join(', ') || 'general'}\nSelect top ${limit} most important items:\n${postsPreview}`,
+      maxOutputTokens: 500
+    });
+
+    let digest = [];
+    try {
+      const parsed = parseJsonFromText(raw);
+      digest = Array.isArray(parsed?.digest) ? parsed.digest.slice(0, limit) : [];
+    } catch { digest = []; }
+
+    // Map indexes back to posts
+    const enriched = digest
+      .map(d => ({ ...recentPosts[d.index - 1], reason: d.reason, priority: d.priority }))
+      .filter(Boolean);
+
+    await redis.setex(cacheKey, TRENDING_CACHE_TTL, JSON.stringify(enriched));
+    res.json({ digest: enriched, cached: false });
+  } catch (error) {
+    console.error('[ai/digest]', error);
+    res.status(500).json({ error: 'Digest generation failed' });
+  }
+});
+
+// 18.2 AI writing assistant: improve/complete text
+app.post('/writing/assist', async (req, res) => {
+  try {
+    const { text, action = 'improve', context = '' } = req.body;
+    if (!text) return res.status(400).json({ error: 'text is required' });
+
+    const ACTION_PROMPTS = {
+      improve: 'Improve this text for clarity, tone, and engagement. Return JSON only: { "result": string, "changes": string[] }',
+      expand: 'Expand this text with more detail and context. Return JSON only: { "result": string }',
+      shorten: 'Shorten this text while preserving the key message. Return JSON only: { "result": string }',
+      rephrase: 'Rephrase this text in a different way. Return JSON only: { "result": string }',
+      fixgrammar: 'Fix grammar and spelling in this text. Return JSON only: { "result": string, "corrections": string[] }',
+    };
+
+    const systemPrompt = ACTION_PROMPTS[action] || ACTION_PROMPTS.improve;
+    const raw = await generateTextFromPrompt({
+      system: `You are an AI writing assistant. ${systemPrompt}`,
+      prompt: `${context ? `Context: ${context}\n\n` : ''}Text:\n${text.slice(0, 2000)}`,
+      maxOutputTokens: 600
+    });
+
+    let result = { result: text };
+    try {
+      const parsed = parseJsonFromText(raw);
+      if (parsed?.result) result = { ...result, ...parsed };
+      else result.result = raw.trim();
+    } catch { result.result = raw.trim(); }
+
+    res.json(result);
+  } catch (error) {
+    console.error('[ai/writing/assist]', error);
+    res.status(500).json({ error: 'Writing assistance failed' });
+  }
+});
+
+// 18.3 AI chat suggestions (opt-in, real-time)
+app.post('/suggest/chat', async (req, res) => {
+  try {
+    const { conversationHistory = [], currentInput = '', limit = 3 } = req.body;
+
+    const cacheKey = buildHashedAiKey('chat-suggest', `${currentInput}:${conversationHistory.length}`);
+    const cached = await redis.get(cacheKey);
+    if (cached) return res.json({ suggestions: JSON.parse(cached), cached: true });
+
+    const historyText = conversationHistory.slice(-5)
+      .map(m => `${m.role === 'user' ? 'User' : 'Other'}: ${m.content}`)
+      .join('\n');
+
+    const raw = await generateTextFromPrompt({
+      system: `You are a chat suggestion assistant. Given the conversation context and what the user is typing, suggest ${limit} ways to complete or continue their message. Return JSON only: { "suggestions": string[] }`,
+      prompt: `Conversation:\n${historyText}\n\nUser is typing: "${currentInput}"`,
+      maxOutputTokens: 200
+    });
+
+    let suggestions = [];
+    try {
+      const parsed = parseJsonFromText(raw);
+      suggestions = Array.isArray(parsed?.suggestions) ? parsed.suggestions.slice(0, limit) : [];
+    } catch { suggestions = []; }
+
+    await redis.setex(cacheKey, 30, JSON.stringify(suggestions)); // short TTL for chat
+    res.json({ suggestions, cached: false });
+  } catch (error) {
+    console.error('[ai/suggest/chat]', error);
+    res.status(500).json({ error: 'Chat suggestion failed' });
+  }
+});
+
+// 18.3 Vector embeddings (deterministic hash-based, no external vector DB required)
+app.post('/embed', async (req, res) => {
+  try {
+    const { texts, dims = 128 } = req.body;
+    if (!Array.isArray(texts) || texts.length === 0) {
+      return res.status(400).json({ error: 'texts array is required' });
+    }
+
+    const cacheKey = buildHashedAiKey('embed', `${JSON.stringify(texts)}:${dims}`);
+    const cached = await redis.get(cacheKey);
+    if (cached) return res.json({ embeddings: JSON.parse(cached), cached: true });
+
+    // Use the existing deterministicEmbedding utility from the server
+    const embeddings = texts.map(text => deterministicEmbedding(String(text || ''), dims));
+
+    await redis.setex(cacheKey, CacheTTL.LONG, JSON.stringify(embeddings));
+    res.json({ embeddings, dims, cached: false });
+  } catch (error) {
+    console.error('[ai/embed]', error);
+    res.status(500).json({ error: 'Embedding generation failed' });
+  }
+});
+
 // Standard route fallback
 app.use((req, res) => {
   res.status(404).json({

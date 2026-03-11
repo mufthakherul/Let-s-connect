@@ -20,6 +20,9 @@ import {
   MenuItem,
   Tooltip,
   Divider,
+  CircularProgress,
+  FormControlLabel,
+  Switch,
   ToggleButtonGroup,
   ToggleButton
 } from '@mui/material';
@@ -34,7 +37,8 @@ import {
   Person,
   Groups,
   DoneAll,
-  Done
+  Done,
+  AutoAwesome as SmartToyIcon
 } from '@mui/icons-material';
 import io from 'socket.io-client';
 import toast from 'react-hot-toast';
@@ -79,6 +83,12 @@ function Chat({ user }) {
   const [readMessages, setReadMessages] = useState(new Set());
   const typingTimerRef = useRef(null);
   const presenceHeartbeatRef = useRef(null);
+
+  // Phase 18: AI chat suggestions
+  const [aiSuggestEnabled, setAiSuggestEnabled] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
+  const aiDebounceRef = useRef(null);
 
   useEffect(() => {
     fetchConversations();
@@ -182,6 +192,34 @@ function Chat({ user }) {
 
     setNewMessage('');
     setReplyingTo(null);
+    setAiSuggestions([]);
+  };
+
+  // Phase 18: debounce AI suggestion fetch when user is typing
+  const handleMessageChange = (e) => {
+    const value = e.target.value;
+    setNewMessage(value);
+    emitTyping();
+    if (!aiSuggestEnabled || !value.trim() || value.length < 5) {
+      setAiSuggestions([]);
+      return;
+    }
+    clearTimeout(aiDebounceRef.current);
+    aiDebounceRef.current = setTimeout(async () => {
+      try {
+        setAiSuggestLoading(true);
+        const history = messages.slice(-10).map((m) => ({
+          role: m.senderId === user?.id ? 'user' : 'assistant',
+          content: m.content
+        }));
+        const res = await api.post('/ai-service/suggest/chat', { history, partialInput: value });
+        setAiSuggestions(res.data?.suggestions || []);
+      } catch {
+        setAiSuggestions([]);
+      } finally {
+        setAiSuggestLoading(false);
+      }
+    }, 700);
   };
 
   const fetchDiscovery = async () => {
@@ -628,13 +666,46 @@ function Chat({ user }) {
                 </Box>
               )}
 
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              {/* Phase 18: AI suggestion chips */}
+              {aiSuggestEnabled && (
+                <Box sx={{ mb: 0.5, px: 0.5, display: 'flex', gap: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {aiSuggestLoading && <CircularProgress size={14} />}
+                  {aiSuggestions.map((s, i) => (
+                    <Chip
+                      key={i}
+                      label={s}
+                      size="small"
+                      icon={<SmartToyIcon fontSize="small" />}
+                      onClick={() => { setNewMessage(s); setAiSuggestions([]); }}
+                      variant="outlined"
+                      color="secondary"
+                      sx={{ cursor: 'pointer' }}
+                    />
+                  ))}
+                </Box>
+              )}
+
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Tooltip title="Toggle AI suggestions">
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        size="small"
+                        checked={aiSuggestEnabled}
+                        onChange={(e) => { setAiSuggestEnabled(e.target.checked); setAiSuggestions([]); }}
+                        color="secondary"
+                      />
+                    }
+                    label={<SmartToyIcon fontSize="small" color={aiSuggestEnabled ? 'secondary' : 'disabled'} />}
+                    sx={{ mr: 0 }}
+                  />
+                </Tooltip>
                 <TextField
                   fullWidth
                   size="small"
                   placeholder={selectedConversation ? `Message in ${getConversationType(selectedConversation) === 'u2g' ? 'group/channel' : 'direct chat'}...` : 'Select a conversation first...'}
                   value={newMessage}
-                  onChange={(e) => { setNewMessage(e.target.value); emitTyping(); }}
+                  onChange={handleMessageChange}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                   disabled={!selectedConversation}
                 />

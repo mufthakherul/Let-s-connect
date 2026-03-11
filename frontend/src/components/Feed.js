@@ -12,6 +12,7 @@ import {
   CardActions,
   Divider,
   Skeleton,
+  CircularProgress,
   MenuItem,
   Select,
   FormControl,
@@ -24,6 +25,7 @@ import {
   Stack,
   Switch,
   FormControlLabel,
+  Tooltip,
   Link as MuiLink
 } from '@mui/material';
 import {
@@ -43,7 +45,12 @@ import {
   AutoAwesome,
   Forum,
   Tag,
-  MailOutline
+  MailOutline,
+  SmartToy as SmartToyIcon,
+  Translate as TranslateIcon,
+  Psychology as DigestIcon,
+  AutoFixHigh as AIFixIcon,
+  NotificationsActive as DigestBellIcon,
 } from '@mui/icons-material';
 import { useInView } from 'react-intersection-observer';
 import { useNavigate } from 'react-router-dom';
@@ -54,7 +61,6 @@ import api from '../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { designTokens, getGlassyStyle } from '../theme/designSystem';
 import { useTheme } from '@mui/material/styles';
-import { Tooltip } from '@mui/material';
 import PullToRefresh from './common/PullToRefresh';
 import { triggerHapticFeedback } from '../utils/mobile';
 
@@ -142,6 +148,17 @@ function Feed({ user }) {
   const swipeDeltaRef = useRef({ x: 0, y: 0 });
   const { ref, inView } = useInView();
 
+  // AI features state
+  const [aiWriting, setAiWriting] = useState(false);
+  const [aiTags, setAiTags] = useState([]);
+  const [aiTagsLoading, setAiTagsLoading] = useState(false);
+  const [digestOpen, setDigestOpen] = useState(false);
+  const [digest, setDigest] = useState([]);
+  const [digestLoading, setDigestLoading] = useState(false);
+  const [translateTarget, setTranslateTarget] = useState(null); // { postId, text }
+  const [translateResult, setTranslateResult] = useState({}); // { [postId]: translatedText }
+  const [translateLoading, setTranslateLoading] = useState({});
+
   useEffect(() => {
     fetchPosts(1);
   }, []);
@@ -192,16 +209,29 @@ function Feed({ user }) {
       return;
     }
 
+    // Spam/moderation check before submitting
+    try {
+      const modRes = await api.post('/ai-service/moderate', { text: newPost });
+      if (modRes.data?.flagged) {
+        toast.error('Your post was flagged for potentially harmful content. Please review it before posting.');
+        return;
+      }
+    } catch {
+      // Non-blocking: if moderation fails, proceed
+    }
+
     try {
       const response = await api.post('/content/posts', {
         content: newPost,
         visibility,
         type: 'text',
-        anonymous: postAnonymous
+        anonymous: postAnonymous,
+        tags: aiTags.length > 0 ? aiTags : undefined,
       });
 
       if (response.data?.queued) {
         resetComposer();
+        setAiTags([]);
         triggerHapticFeedback('light');
         toast.success('You are offline. Post queued and will sync automatically.');
         return;
@@ -209,12 +239,87 @@ function Feed({ user }) {
 
       setPosts((prev) => [response.data, ...prev]);
       resetComposer();
+      setAiTags([]);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       triggerHapticFeedback('success');
       toast.success('Post created successfully!');
     } catch (err) {
       console.error('Failed to create post:', err);
       toast.error(err.response?.data?.error || 'Failed to create post');
+    }
+  };
+
+  // AI: Improve post text with writing assistant
+  const handleAiImprove = async () => {
+    if (!newPost.trim()) return;
+    setAiWriting(true);
+    try {
+      const res = await api.post('/ai-service/writing/assist', { text: newPost, action: 'improve' });
+      if (res.data?.result) {
+        setNewPost(res.data.result);
+        toast.success('AI improved your post!');
+      }
+    } catch {
+      toast.error('AI writing assist unavailable');
+    } finally {
+      setAiWriting(false);
+    }
+  };
+
+  // AI: Auto-tag post content
+  const handleAutoTag = async () => {
+    if (!newPost.trim()) return;
+    setAiTagsLoading(true);
+    try {
+      const res = await api.post('/ai-service/tag', { text: newPost });
+      if (res.data?.tags?.length > 0) {
+        setAiTags(res.data.tags);
+        toast.success(`${res.data.tags.length} tags suggested`);
+      }
+    } catch {
+      toast.error('Auto-tagging unavailable');
+    } finally {
+      setAiTagsLoading(false);
+    }
+  };
+
+  // AI: Translate a post
+  const handleTranslate = async (postId, text) => {
+    setTranslateLoading((prev) => ({ ...prev, [postId]: true }));
+    try {
+      const res = await api.post('/ai-service/translate', { text, targetLanguage: 'English' });
+      setTranslateResult((prev) => ({ ...prev, [postId]: res.data?.translation || text }));
+    } catch {
+      toast.error('Translation unavailable');
+    } finally {
+      setTranslateLoading((prev) => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  // AI: Smart digest
+  const handleOpenDigest = async () => {
+    setDigestOpen(true);
+    if (digest.length > 0) return; // cached
+    setDigestLoading(true);
+    try {
+      const recentPosts = posts.slice(0, 20).map((p) => ({
+        id: p.id,
+        type: 'post',
+        content: p.content,
+        likes: p.likes || 0,
+        comments: p.comments || 0,
+      }));
+      const res = await api.post('/ai-service/digest', {
+        userId: user?.id,
+        recentPosts,
+        userInterests: [],
+        limit: 8,
+      });
+      setDigest(res.data?.digest || []);
+    } catch {
+      setDigest([]);
+    } finally {
+      setDigestLoading(false);
     }
   };
 
@@ -583,9 +688,22 @@ function Feed({ user }) {
         onTouchEnd={handleFeedTouchEnd}
         sx={{ maxWidth: 720, mx: 'auto', py: 2 }}
       >
-      <Typography variant="h4" fontWeight="bold" sx={{ mb: 3 }}>
-        Feed
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Typography variant="h4" fontWeight="bold">
+          Feed
+        </Typography>
+        <Tooltip title="Smart Digest — top content while you were away">
+          <Button
+            size="small"
+            startIcon={<DigestBellIcon />}
+            onClick={handleOpenDigest}
+            variant="outlined"
+            color="secondary"
+          >
+            Smart Digest
+          </Button>
+        </Tooltip>
+      </Box>
 
       <Card component={motion.div} variants={cardVariants} sx={{ mb: 3, ...hoverCardSx(mode) }}>
         <CardContent>
@@ -647,6 +765,25 @@ function Feed({ user }) {
 
           <Divider sx={{ my: 2 }} />
 
+          {/* AI Tags preview */}
+          {aiTags.length > 0 && (
+            <Box sx={{ mb: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ mr: 1, alignSelf: 'center' }}>
+                Tags:
+              </Typography>
+              {aiTags.map((tag, i) => (
+                <Chip
+                  key={i}
+                  label={`#${tag}`}
+                  size="small"
+                  onDelete={() => setAiTags((prev) => prev.filter((_, idx) => idx !== i))}
+                  color="primary"
+                  variant="outlined"
+                />
+              ))}
+            </Box>
+          )}
+
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <IconButton size="small" color="primary" title="Add emoji">
@@ -658,6 +795,28 @@ function Feed({ user }) {
               <IconButton size="small" color="primary" title="Add video">
                 <VideoLibrary />
               </IconButton>
+              <Tooltip title="AI: Improve writing">
+                <IconButton
+                  size="small"
+                  color="secondary"
+                  onClick={handleAiImprove}
+                  disabled={aiWriting || !newPost.trim()}
+                  aria-label="AI writing assistant"
+                >
+                  {aiWriting ? <CircularProgress size={16} /> : <AIFixIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="AI: Auto-tag">
+                <IconButton
+                  size="small"
+                  color="secondary"
+                  onClick={handleAutoTag}
+                  disabled={aiTagsLoading || !newPost.trim()}
+                  aria-label="Auto-tag post"
+                >
+                  {aiTagsLoading ? <CircularProgress size={16} /> : <SmartToyIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
             </Box>
 
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
@@ -699,6 +858,42 @@ function Feed({ user }) {
           </Box>
         </CardContent>
       </Card>
+
+      {/* Smart Digest Dialog */}
+      <Dialog open={digestOpen} onClose={() => setDigestOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DigestBellIcon color="primary" />
+          Your Smart Digest
+        </DialogTitle>
+        <DialogContent>
+          {digestLoading ? (
+            <Stack spacing={1}>
+              {[...Array(4)].map((_, i) => <Skeleton key={i} variant="rounded" height={60} />)}
+            </Stack>
+          ) : digest.length === 0 ? (
+            <Typography color="text.secondary">No digest available. Check back after more activity.</Typography>
+          ) : (
+            <Stack spacing={1.5}>
+              {digest.map((item, i) => (
+                <Card key={i} variant="outlined" sx={{ borderRadius: 2 }}>
+                  <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="body2" sx={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 3, overflow: 'hidden' }}>
+                      {item.content || item.title || '(no content)'}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                      <Chip label={item.priority || 'medium'} size="small" color={item.priority === 'high' ? 'error' : 'default'} />
+                      <Typography variant="caption" color="primary">{item.reason}</Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDigestOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
       {loading && posts.length === 0 ? (
         [...Array(3)].map((_, i) => (
@@ -761,7 +956,9 @@ function Feed({ user }) {
 
             <CardContent>
               <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
-                {renderContentWithHashtags(post.content)}
+                {translateResult[post.id]
+                  ? translateResult[post.id]
+                  : renderContentWithHashtags(post.content)}
               </Typography>
 
               {post.mediaUrls && post.mediaUrls.length > 0 && (
@@ -805,6 +1002,22 @@ function Feed({ user }) {
               <IconButton size="small" onClick={() => toggleBookmark(post)}>
                 {bookmarks[post.id] ? <Bookmark /> : <BookmarkBorder />}
               </IconButton>
+              <Tooltip title={translateResult[post.id] ? 'Show original' : 'Translate to English'}>
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    if (translateResult[post.id]) {
+                      setTranslateResult((prev) => { const n = { ...prev }; delete n[post.id]; return n; });
+                    } else {
+                      handleTranslate(post.id, post.content || '');
+                    }
+                  }}
+                  color={translateResult[post.id] ? 'primary' : 'default'}
+                  disabled={translateLoading[post.id]}
+                >
+                  {translateLoading[post.id] ? <CircularProgress size={16} /> : <TranslateIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
               <Button size="small" startIcon={<Share />}>
                 Share
               </Button>
