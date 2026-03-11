@@ -3,6 +3,9 @@ const { test, expect } = require('@playwright/test');
 
 const apiBase = process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8000/api';
 
+/**
+ * @param {import('@playwright/test').APIRequestContext} request
+ */
 async function loginAsTestUser(request) {
   const runId = Date.now().toString(36);
   const email = `msg+${runId}@milonexa.test`;

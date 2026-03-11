@@ -23,8 +23,7 @@
       "@utils/*": ["./utils/*"],
       "@hooks/*": ["./hooks/*"],
       "@stores/*": ["./stores/*"]
-    },
-    "types": ["react", "react-dom", "node", "jest"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "build", "coverage"]
