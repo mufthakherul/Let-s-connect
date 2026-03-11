@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
     Paper,
     Typography,
@@ -24,6 +24,16 @@ import {
     Avatar,
     ListItemAvatar,
     Stack,
+    Collapse,
+    IconButton,
+    Tooltip,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Accordion,
+    AccordionSummary,
+    AccordionDetails,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -33,6 +43,15 @@ import {
     Pages as PagesIcon,
     Tune,
     TravelExplore,
+    Bookmark as BookmarkIcon,
+    BookmarkBorder as BookmarkBorderIcon,
+    AutoAwesome as AiIcon,
+    ExpandMore as ExpandMoreIcon,
+    Delete as DeleteIcon,
+    FilterList as FilterListIcon,
+    SmartToy as SmartToyIcon,
+    PlayArrow as RunIcon,
+    Close as CloseIcon,
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
@@ -67,6 +86,39 @@ const RESULT_CATEGORIES = [
     { key: 'hashtagPosts', label: 'Hashtags' },
 ];
 
+/**
+ * Renders backend snippet text that uses [[term]] highlight markers.
+ */
+const SnippetHighlight = ({ text, sx }) => {
+    if (!text) return null;
+    const parts = text.split(/(\[\[.*?\]\])/g);
+    return (
+        <Typography variant="body2" color="text.secondary" component="span" sx={sx}>
+            {parts.map((part, i) => {
+                const match = part.match(/^\[\[(.*?)\]\]$/);
+                if (match) {
+                    return (
+                        <Box
+                            key={i}
+                            component="mark"
+                            sx={{
+                                bgcolor: 'warning.light',
+                                color: 'warning.contrastText',
+                                borderRadius: 0.5,
+                                px: 0.25,
+                                fontWeight: 600,
+                            }}
+                        >
+                            {match[1]}
+                        </Box>
+                    );
+                }
+                return <React.Fragment key={i}>{part}</React.Fragment>;
+            })}
+        </Typography>
+    );
+};
+
 const Search = () => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -79,8 +131,26 @@ const Search = () => {
     const [searchHistory, setSearchHistory] = useState([]);
     const [error, setError] = useState('');
 
+    // Date range filter
+    const [showFilters, setShowFilters] = useState(false);
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+
+    // Saved searches
+    const [savedSearches, setSavedSearches] = useState([]);
+    const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+    const [saveName, setSaveName] = useState('');
+    const [savedSearchesOpen, setSavedSearchesOpen] = useState(false);
+
+    // AI features
+    const [aiSummary, setAiSummary] = useState(null);
+    const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+    const [aiExpanded, setAiExpanded] = useState(null);
+    const [aiExpandLoading, setAiExpandLoading] = useState(false);
+
     useEffect(() => {
         fetchSearchHistory();
+        fetchSavedSearches();
     }, []);
 
     useEffect(() => {
@@ -132,9 +202,20 @@ const Search = () => {
             return;
         }
 
+        setAiSummary(null);
+        setAiExpanded(null);
+
         try {
             setLoading(true);
             setError('');
+
+            const contentParams = {
+                query: searchQuery,
+                type: searchType === 'all' ? 'all' : searchType,
+                sortBy,
+                ...(dateFrom ? { dateFrom } : {}),
+                ...(dateTo ? { dateTo } : {}),
+            };
 
             // Search content-service for posts/comments/blogs/hashtags
             let contentResults = {
@@ -146,16 +227,12 @@ const Search = () => {
 
             if (searchType === 'all' || ['posts', 'comments', 'blogs'].includes(searchType)) {
                 const contentResponse = await api.get('/content-service/search', {
-                    params: {
-                        query: searchQuery,
-                        type: searchType === 'all' ? 'all' : searchType,
-                        sortBy
-                    }
+                    params: contentParams
                 });
                 contentResults = contentResponse.data.results || contentResults;
             }
 
-            // Search users (friends) if type is all or users
+            // Search users if type is all or users
             let users = { items: [], count: 0 };
             if (searchType === 'all' || searchType === 'users') {
                 try {
@@ -194,19 +271,8 @@ const Search = () => {
                 }
             }
 
-            setResults({
-                ...contentResults,
-                users,
-                groups,
-                pages
-            });
-
-            const resultSet = {
-                ...contentResults,
-                users,
-                groups,
-                pages,
-            };
+            const resultSet = { ...contentResults, users, groups, pages };
+            setResults(resultSet);
 
             const firstNonEmptyCategory = RESULT_CATEGORIES.find(
                 (category) => (resultSet[category.key]?.count || 0) > 0
@@ -236,6 +302,88 @@ const Search = () => {
         setQuery(historyItem.query);
         setSearchType(historyItem.type || 'all');
         handleSearch(historyItem.query);
+    };
+
+    const fetchSavedSearches = async () => {
+        try {
+            const response = await api.get('/content-service/search/saved');
+            setSavedSearches(response.data.searches || []);
+        } catch (err) {
+            console.error('Failed to fetch saved searches:', err);
+        }
+    };
+
+    const handleSaveSearch = async () => {
+        if (!saveName.trim() || !query.trim()) return;
+        try {
+            await api.post('/content-service/search/saved', {
+                name: saveName.trim(),
+                query: query.trim(),
+                type: searchType,
+                filters: { sortBy, dateFrom, dateTo },
+            });
+            setSaveDialogOpen(false);
+            setSaveName('');
+            fetchSavedSearches();
+        } catch (err) {
+            console.error('Failed to save search:', err);
+        }
+    };
+
+    const handleDeleteSavedSearch = async (id) => {
+        try {
+            await api.delete(`/content-service/search/saved/${id}`);
+            fetchSavedSearches();
+        } catch (err) {
+            console.error('Failed to delete saved search:', err);
+        }
+    };
+
+    const handleRunSavedSearch = async (saved) => {
+        setQuery(saved.query);
+        setSearchType(saved.type || 'all');
+        if (saved.filters?.sortBy) setSortBy(saved.filters.sortBy);
+        if (saved.filters?.dateFrom) setDateFrom(saved.filters.dateFrom);
+        if (saved.filters?.dateTo) setDateTo(saved.filters.dateTo);
+        setSavedSearchesOpen(false);
+        handleSearch(saved.query);
+    };
+
+    const handleAiSummary = async () => {
+        if (!results || !query) return;
+        setAiSummaryLoading(true);
+        try {
+            const flatResults = RESULT_CATEGORIES.flatMap(
+                (cat) => (normalizedResults?.[cat.key]?.items || []).slice(0, 3)
+            );
+            const response = await api.post('/ai-service/search/summary', {
+                query,
+                results: flatResults.slice(0, 10),
+            });
+            setAiSummary(response.data);
+        } catch (err) {
+            console.error('AI summary failed:', err);
+            setAiSummary({ summary: 'AI summary is currently unavailable.', themes: [], nextQueries: [] });
+        } finally {
+            setAiSummaryLoading(false);
+        }
+    };
+
+    const handleSemanticExpand = async () => {
+        if (!query) return;
+        setAiExpandLoading(true);
+        try {
+            const response = await api.post('/ai-service/search/semantic-expand', {
+                query,
+                limit: 6,
+            });
+            setAiExpanded(response.data);
+        } catch (err) {
+            console.error('Semantic expand failed:', err);
+            setAiExpanded(null);
+        } finally {
+            setAiExpandLoading(false);
+        }
     };
 
     const renderResults = (items, type) => {
@@ -290,6 +438,12 @@ const Search = () => {
                                 }
                                 secondary={
                                     <Box sx={{ mt: 1 }}>
+                                        {/* Snippet with highlights */}
+                                        {item.snippet && (
+                                            <Box sx={{ mb: 1 }}>
+                                                <SnippetHighlight text={item.snippet} />
+                                            </Box>
+                                        )}
                                         <Typography variant="caption" color="text.secondary">
                                             {item.createdAt ? new Date(item.createdAt).toLocaleString() : 'Unknown date'}
                                         </Typography>
@@ -390,6 +544,167 @@ const Search = () => {
                     </Grid>
                 </Grid>
 
+                {/* Advanced filters toggle */}
+                <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Button
+                        size="small"
+                        startIcon={<FilterListIcon />}
+                        onClick={() => setShowFilters((v) => !v)}
+                        variant="text"
+                        color="inherit"
+                    >
+                        {showFilters ? 'Hide Filters' : 'Date Filter'}
+                    </Button>
+                    {results && query && (
+                        <>
+                            <Tooltip title="Save this search">
+                                <Button
+                                    size="small"
+                                    startIcon={<BookmarkBorderIcon />}
+                                    onClick={() => { setSaveName(query); setSaveDialogOpen(true); }}
+                                    variant="text"
+                                >
+                                    Save Search
+                                </Button>
+                            </Tooltip>
+                            <Tooltip title="AI search summary">
+                                <Button
+                                    size="small"
+                                    startIcon={aiSummaryLoading ? <CircularProgress size={14} /> : <AiIcon />}
+                                    onClick={handleAiSummary}
+                                    variant="text"
+                                    color="secondary"
+                                    disabled={aiSummaryLoading}
+                                >
+                                    AI Summary
+                                </Button>
+                            </Tooltip>
+                        </>
+                    )}
+                    {savedSearches.length > 0 && (
+                        <Button
+                            size="small"
+                            startIcon={<BookmarkIcon />}
+                            onClick={() => setSavedSearchesOpen((v) => !v)}
+                            variant="text"
+                        >
+                            Saved ({savedSearches.length})
+                        </Button>
+                    )}
+                    {query && (
+                        <Tooltip title="Expand with semantic terms">
+                            <Button
+                                size="small"
+                                startIcon={aiExpandLoading ? <CircularProgress size={14} /> : <SmartToyIcon />}
+                                onClick={handleSemanticExpand}
+                                variant="text"
+                                color="info"
+                                disabled={aiExpandLoading}
+                            >
+                                Expand
+                            </Button>
+                        </Tooltip>
+                    )}
+                </Box>
+
+                {/* Date range filter */}
+                <Collapse in={showFilters}>
+                    <Grid container spacing={2} sx={{ mt: 1 }}>
+                        <Grid item xs={12} sm={6}>
+                            <TextField
+                                fullWidth
+                                label="From date"
+                                type="date"
+                                size="small"
+                                value={dateFrom}
+                                onChange={(e) => setDateFrom(e.target.value)}
+                                InputLabelProps={{ shrink: true }}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField
+                                fullWidth
+                                label="To date"
+                                type="date"
+                                size="small"
+                                value={dateTo}
+                                onChange={(e) => setDateTo(e.target.value)}
+                                InputLabelProps={{ shrink: true }}
+                            />
+                        </Grid>
+                        {(dateFrom || dateTo) && (
+                            <Grid item xs={12}>
+                                <Button
+                                    size="small"
+                                    onClick={() => { setDateFrom(''); setDateTo(''); }}
+                                    color="inherit"
+                                >
+                                    Clear dates
+                                </Button>
+                            </Grid>
+                        )}
+                    </Grid>
+                </Collapse>
+
+                {/* Saved searches panel */}
+                <Collapse in={savedSearchesOpen && savedSearches.length > 0}>
+                    <Box sx={{ mt: 2, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom>Saved Searches</Typography>
+                        <Stack spacing={0.5}>
+                            {savedSearches.map((saved) => (
+                                <Box key={saved.id} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <Typography variant="body2" sx={{ flex: 1 }}>{saved.name}</Typography>
+                                    <Stack direction="row" spacing={0.5}>
+                                        <Tooltip title="Run this search">
+                                            <IconButton size="small" onClick={() => handleRunSavedSearch(saved)}>
+                                                <RunIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title="Delete">
+                                            <IconButton size="small" onClick={() => handleDeleteSavedSearch(saved.id)}>
+                                                <DeleteIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </Stack>
+                                </Box>
+                            ))}
+                        </Stack>
+                    </Box>
+                </Collapse>
+
+                {/* Semantic expand suggestions */}
+                {aiExpanded && (
+                    <Box sx={{ mt: 2, p: 2, bgcolor: 'info.50', border: '1px solid', borderColor: 'info.light', borderRadius: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography variant="subtitle2" color="info.main">
+                                <SmartToyIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'middle' }} />
+                                Related search terms
+                            </Typography>
+                            <IconButton size="small" onClick={() => setAiExpanded(null)}>
+                                <CloseIcon fontSize="small" />
+                            </IconButton>
+                        </Box>
+                        {aiExpanded.intent && (
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                                Intent: {aiExpanded.intent}
+                            </Typography>
+                        )}
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                            {(aiExpanded.relatedTerms || []).map((term, i) => (
+                                <Chip
+                                    key={i}
+                                    label={term}
+                                    size="small"
+                                    clickable
+                                    onClick={() => { setQuery(term); handleSearch(term); setAiExpanded(null); }}
+                                    color="info"
+                                    variant="outlined"
+                                />
+                            ))}
+                        </Box>
+                    </Box>
+                )}
+
                 <Button
                     fullWidth
                     variant="contained"
@@ -402,10 +717,77 @@ const Search = () => {
                 </Button>
             </Paper>
 
+            {/* Save search dialog */}
+            <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} maxWidth="xs" fullWidth>
+                <DialogTitle>Save Search</DialogTitle>
+                <DialogContent>
+                    <TextField
+                        autoFocus
+                        fullWidth
+                        label="Search name"
+                        value={saveName}
+                        onChange={(e) => setSaveName(e.target.value)}
+                        sx={{ mt: 1 }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveSearch(); }}
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSaveSearch} variant="contained" disabled={!saveName.trim()}>
+                        Save
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
             {error && (
                 <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
                     {error}
                 </Alert>
+            )}
+
+            {/* AI Summary Panel */}
+            {aiSummary && (
+                <Card sx={{ mb: 3, border: '1px solid', borderColor: 'secondary.light', borderRadius: 3 }}>
+                    <CardContent>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography variant="subtitle1" fontWeight={600}>
+                                <AiIcon sx={{ fontSize: 18, mr: 0.5, verticalAlign: 'middle', color: 'secondary.main' }} />
+                                AI Search Summary
+                            </Typography>
+                            <IconButton size="small" onClick={() => setAiSummary(null)}>
+                                <CloseIcon fontSize="small" />
+                            </IconButton>
+                        </Box>
+                        <Typography variant="body2" sx={{ mb: 1.5 }}>{aiSummary.summary}</Typography>
+                        {(aiSummary.themes || []).length > 0 && (
+                            <Box sx={{ mb: 1 }}>
+                                <Typography variant="caption" color="text.secondary">Themes: </Typography>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                                    {aiSummary.themes.map((t, i) => (
+                                        <Chip key={i} label={t} size="small" variant="outlined" color="secondary" />
+                                    ))}
+                                </Box>
+                            </Box>
+                        )}
+                        {(aiSummary.nextQueries || []).length > 0 && (
+                            <Box>
+                                <Typography variant="caption" color="text.secondary">Try also: </Typography>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                                    {aiSummary.nextQueries.map((q, i) => (
+                                        <Chip
+                                            key={i}
+                                            label={q}
+                                            size="small"
+                                            clickable
+                                            onClick={() => { setQuery(q); handleSearch(q); setAiSummary(null); }}
+                                            color="secondary"
+                                        />
+                                    ))}
+                                </Box>
+                            </Box>
+                        )}
+                    </CardContent>
+                </Card>
             )}
 
             {/* Search History */}

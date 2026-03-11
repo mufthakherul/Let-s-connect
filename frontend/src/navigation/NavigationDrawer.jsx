@@ -13,6 +13,7 @@ import {
   Settings as SettingsIcon, Apps as AppsIcon, PeopleAlt as PeopleIcon,
   AccessibilityNew, ExpandLess, ExpandMore, Radio as RadioIcon,
   Tv as TvIcon, Security, VerifiedUser, Palette as PaletteIcon,
+  Explore as ExploreIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
@@ -38,6 +39,7 @@ export default function NavigationDrawer({ open, onClose, isMobile, isTablet, us
   const navigationItems = [
     { label: 'Home', path: '/', icon: <HomeIcon />, public: true },
     { label: 'Search', path: '/search', icon: <SearchIcon />, public: true },
+    { label: 'Discover', path: '/discover', icon: <ExploreIcon />, public: true },
     { label: 'Community Hubs', path: '/hubs', icon: <AppsIcon />, public: true },
     { label: 'Videos', path: '/videos', icon: <VideoLibrary />, public: true },
     { label: 'Shop', path: '/shop', icon: <ShoppingCart />, public: true },
