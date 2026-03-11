@@ -10,21 +10,25 @@ Technical guides and references for platform administrators.
 | [USER_MANAGEMENT.md](USER_MANAGEMENT.md) | Detailed guide for managing users, roles, and permissions |
 | [CONTENT_MODERATION.md](CONTENT_MODERATION.md) | Comprehensive content moderation guide and best practices |
 | [HELPCENTER_SETUP.md](HELPCENTER_SETUP.md) | Help center configuration and management |
-| [CLI_ADMIN_PANEL.md](CLI_ADMIN_PANEL.md) | CLI-first admin control panel — Phase 1+2: lifecycle ops, RBAC, audit log, production safety |
+| [CLI_ADMIN_PANEL.md](CLI_ADMIN_PANEL.md) | CLI-first admin control panel — Phase 3+: lifecycle ops, RBAC, audit, scale/rollout, validation checks, incident summarization |
 
-## CLI Admin Panel (Phase 1+2)
+## CLI Admin Panel (Phase 3+)
 
 All admin CLI code lives in `admin-cli/` at the repository root.
 
 ```bash
 node admin-cli/index.js --help          # full command reference
 node admin-cli/index.js doctor          # toolchain + role + audit status
-node admin-cli/index.js set-role --show # inspect active role
+node admin-cli/index.js role            # inspect active role
 node admin-cli/index.js audit           # view recent audit log entries
+node admin-cli/index.js check all       # run release validation checks
+node admin-cli/index.js scale --runtime k8s --service api-gateway --replicas 3 --wait
+node admin-cli/index.js rollout --runtime k8s --strategy canary --service api-gateway
 ```
 
 The CLI supports build/start/stop/status/logs across `direct`, `docker`, and `k8s` runtimes,
-with role-based authorization and an immutable audit trail for production operations.
+with role-based authorization, immutable audit trails, progressive delivery controls,
+and operational validation gates for production workflows.
 
 ## Admin Frontend
 

@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Milonexa Omni Admin CLI (Phase 1+2)
+ * Milonexa Omni Admin CLI (Phase 3+)
  *
  * CLI-first operational control plane for direct, Docker Compose, and Kubernetes runtimes.
- * Phase 2 adds: role-based access control, immutable audit logging, and production safety.
+ * Includes:
+ *   - Phase 1: Multi-runtime lifecycle operations
+ *   - Phase 2: RBAC, immutable audit logging, production safety gates
+ *   - Phase 3: Scale, rollout strategies, and release validation checks
+ *   - Phase 4 starter: incident log summarization
  *
  * Usage:
  *   node admin-cli/index.js doctor
@@ -374,6 +378,54 @@ function runCommand(cmd, args, opts = {}) {
   return result;
 }
 
+/**
+ * Execute a command and capture stdout/stderr for post-processing.
+ * Useful for incident summaries and machine-readable output paths.
+ */
+function runCommandCapture(cmd, args, opts = {}) {
+  const {
+    cwd = ROOT_DIR,
+    env = {},
+    dryRun = false,
+    allowFailure = false,
+  } = opts;
+
+  const rendered = [cmd, ...args].map(quoteArg).join(' ');
+  const relativeCwd = path.relative(ROOT_DIR, cwd) || '.';
+
+  if (dryRun) {
+    console.log(`${c('blue', '[dry-run]')} (${relativeCwd}) ${rendered}`);
+    return { status: 0, stdout: '', stderr: '' };
+  }
+
+  const result = spawnSync(cmd, args, {
+    cwd,
+    env: { ...process.env, ...env },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    encoding: 'utf8',
+  });
+
+  if (result.error) {
+    if (allowFailure) {
+      warn(`Command failed to execute: ${rendered} (${result.error.message})`);
+      return { status: 1, stdout: '', stderr: result.error.message };
+    }
+    fatal(`Failed to execute command: ${rendered}\n${result.error.message}`);
+  }
+
+  const status = result.status || 0;
+  if (status !== 0 && !allowFailure) {
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(status);
+  }
+
+  return {
+    status,
+    stdout: result.stdout || '',
+    stderr: result.stderr || '',
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Argument parser
 // ---------------------------------------------------------------------------
@@ -482,6 +534,26 @@ function resolveEnvFile(profile) {
     return null;
   }
   return fullPath;
+}
+
+function emitJSON(payload) {
+  process.stdout.write(JSON.stringify(payload, null, 2) + os.EOL);
+}
+
+/** Parse simple durations like 30m, 2h, 1d into seconds. */
+function parseDurationToSeconds(input, fallbackSeconds = 3600) {
+  if (!input) return fallbackSeconds;
+  const raw = String(input).trim().toLowerCase();
+  const match = raw.match(/^(\d+)(s|m|h|d)?$/);
+  if (!match) return fallbackSeconds;
+  const value = Number(match[1]);
+  const unit = match[2] || 's';
+  if (!Number.isFinite(value)) return fallbackSeconds;
+  if (unit === 's') return value;
+  if (unit === 'm') return value * 60;
+  if (unit === 'h') return value * 3600;
+  if (unit === 'd') return value * 86400;
+  return fallbackSeconds;
 }
 
 function getComposeBaseArgs(options = {}) {
@@ -601,18 +673,42 @@ function cmdDoctor(options) {
     ['bash', 'Shell runtime'],
   ];
 
-  const rows = [['Tool', 'Purpose', 'Status']];
-  checks.forEach(([tool, purpose]) => {
-    rows.push([tool, purpose, commandExists(tool) ? c('green', 'available') : c('red', 'missing')]);
-  });
-
-  printTable(rows);
+  const toolResults = checks.map(([tool, purpose]) => ({
+    tool,
+    purpose,
+    available: commandExists(tool),
+  }));
 
   // Phase 2: show active role and audit log location
   const role = resolveRole();
+  const roleSource = process.env.ADMIN_CLI_ROLE
+    ? 'ADMIN_CLI_ROLE env'
+    : fs.existsSync(ROLE_FILE) ? '.admin-cli/role.json' : 'default';
+
+  if (toBool(options.json, false)) {
+    emitJSON({
+      command: 'doctor',
+      checkedAt: new Date().toISOString(),
+      tools: toolResults,
+      role,
+      roleSource,
+      paths: {
+        auditLog: path.relative(ROOT_DIR, AUDIT_LOG_FILE),
+        adminStateDir: path.relative(ROOT_DIR, ADMIN_HOME),
+      },
+    });
+    return;
+  }
+
+  const rows = [['Tool', 'Purpose', 'Status']];
+  toolResults.forEach(({ tool, purpose, available }) => {
+    rows.push([tool, purpose, available ? c('green', 'available') : c('red', 'missing')]);
+  });
+
+  printTable(rows);
   console.log('');
   info(`Active role: ${c('bold', role)}`);
-  info(`Role source: ${process.env.ADMIN_CLI_ROLE ? 'ADMIN_CLI_ROLE env' : fs.existsSync(ROLE_FILE) ? '.admin-cli/role.json' : 'default'}`);
+  info(`Role source: ${roleSource}`);
   info(`Audit log: ${path.relative(ROOT_DIR, AUDIT_LOG_FILE)}`);
   info(`State dir:  ${path.relative(ROOT_DIR, ADMIN_HOME)}`);
 
@@ -1109,14 +1205,502 @@ function cmdRun(rawArgs) {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 3: scale
+// ---------------------------------------------------------------------------
+
+function cmdScale(rawArgs) {
+  const { options, positionals } = parseArgs(rawArgs);
+  const runtime = String(options.runtime || 'k8s').toLowerCase();
+  const services = parseServiceSelection(positionals, options);
+  const replicasRaw = options.replicas ?? options.r;
+  const replicas = Number(replicasRaw);
+
+  if (!Number.isInteger(replicas) || replicas < 0) {
+    fatal('scale requires --replicas <non-negative-integer>. Example: scale --runtime k8s --service api-gateway --replicas 3');
+  }
+
+  if (runtime === 'docker') return scaleDocker(services, replicas, options);
+  if (runtime === 'k8s' || runtime === 'kubernetes') return scaleK8s(services, replicas, options);
+
+  fatal(`Unsupported runtime for scale: ${runtime}. Use docker or k8s.`);
+}
+
+function scaleDocker(services, replicas, options) {
+  if (!commandExists('docker')) fatal('Docker is required for docker runtime scale.');
+
+  const dryRun = toBool(options['dry-run'], false);
+  const selected = services.filter((name) => DOCKER_SERVICE_SET.has(name));
+
+  if (selected.length === 0) {
+    fatal('Docker scale requires at least one valid service. Example: --service api-gateway');
+  }
+
+  const args = getComposeBaseArgs(options);
+  args.push('up', '-d');
+  selected.forEach((service) => {
+    args.push('--scale', `${service}=${replicas}`);
+  });
+  args.push(...selected);
+
+  info(`Docker scale: ${selected.join(', ')} => ${replicas} replica(s)`);
+  runCommand('docker', args, { dryRun });
+  success('Docker scale operation completed.');
+}
+
+function scaleK8s(services, replicas, options) {
+  if (!commandExists('kubectl')) fatal('kubectl is required for k8s runtime scale.');
+
+  const dryRun = toBool(options['dry-run'], false);
+  const waitReady = toBool(options.wait, false);
+  const namespace = String(options.namespace || 'milonexa');
+
+  let selected = services.map(normalizeServiceName);
+  if (selected.length === 0) {
+    if (toBool(options.all, false)) {
+      selected = [...new Set([...K8S_DEPLOYMENTS, ...K8S_STATEFULSETS])];
+    } else {
+      fatal('Kubernetes scale requires --service <name> (or --all for all workloads).');
+    }
+  }
+
+  const summaryRows = [['Workload', 'Type', 'Replicas']];
+
+  selected.forEach((name) => {
+    if (K8S_DEPLOYMENTS.has(name)) {
+      runCommand('kubectl', ['-n', namespace, 'scale', 'deployment', name, `--replicas=${replicas}`], { dryRun });
+      summaryRows.push([name, 'deployment', replicas]);
+      if (waitReady) {
+        runCommand('kubectl', ['-n', namespace, 'rollout', 'status', `deployment/${name}`, '--timeout=180s'], {
+          dryRun,
+          allowFailure: true,
+        });
+      }
+      return;
+    }
+
+    if (K8S_STATEFULSETS.has(name)) {
+      runCommand('kubectl', ['-n', namespace, 'scale', 'statefulset', name, `--replicas=${replicas}`], { dryRun });
+      summaryRows.push([name, 'statefulset', replicas]);
+      return;
+    }
+
+    warn(`Unknown k8s workload mapping skipped: ${name}`);
+  });
+
+  printTable(summaryRows);
+  success('Kubernetes scale operation completed.');
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3: rollout
+// ---------------------------------------------------------------------------
+
+function cmdRollout(rawArgs) {
+  const { options, positionals } = parseArgs(rawArgs);
+  const runtime = String(options.runtime || 'k8s').toLowerCase();
+  const strategy = String(options.strategy || 'rolling').toLowerCase();
+  const dryRun = toBool(options['dry-run'], false);
+
+  if (runtime === 'docker') {
+    const services = parseServiceSelection(positionals, options).filter((name) => DOCKER_SERVICE_SET.has(name));
+    const args = getComposeBaseArgs(options);
+    args.push('restart');
+    if (services.length > 0) args.push(...services);
+    info(`Docker rollout (${strategy}) mapped to restart for: ${services.length ? services.join(', ') : 'all services'}`);
+    runCommand('docker', args, { dryRun });
+    success('Docker rollout operation completed.');
+    return;
+  }
+
+  if (!(runtime === 'k8s' || runtime === 'kubernetes')) {
+    fatal(`Unsupported runtime for rollout: ${runtime}. Use k8s or docker.`);
+  }
+
+  if (!commandExists('kubectl')) fatal('kubectl is required for k8s rollout operations.');
+
+  const namespace = String(options.namespace || 'milonexa');
+  const waitReady = toBool(options.wait, true);
+  let services = parseServiceSelection(positionals, options).map(normalizeServiceName);
+
+  if (services.length === 0 && toBool(options.all, false)) {
+    services = [...K8S_DEPLOYMENTS].filter((name) => !['redis', 'minio', 'prometheus', 'alertmanager', 'grafana'].includes(name));
+  }
+
+  if (['rolling', 'restart', 'canary', 'status', 'undo'].includes(strategy) && services.length === 0) {
+    fatal(`rollout --strategy ${strategy} requires --service <name> (or --all).`);
+  }
+
+  if (strategy === 'rolling' || strategy === 'restart') {
+    services.forEach((name) => {
+      runCommand('kubectl', ['-n', namespace, 'rollout', 'restart', `deployment/${name}`], { dryRun });
+      if (waitReady) {
+        runCommand('kubectl', ['-n', namespace, 'rollout', 'status', `deployment/${name}`, '--timeout=300s'], {
+          dryRun,
+          allowFailure: true,
+        });
+      }
+    });
+    success(`Kubernetes ${strategy} rollout completed.`);
+    return;
+  }
+
+  if (strategy === 'status') {
+    services.forEach((name) => {
+      runCommand('kubectl', ['-n', namespace, 'rollout', 'status', `deployment/${name}`, '--timeout=300s'], {
+        dryRun,
+        allowFailure: true,
+      });
+    });
+    return;
+  }
+
+  if (strategy === 'undo' || strategy === 'rollback') {
+    services.forEach((name) => {
+      runCommand('kubectl', ['-n', namespace, 'rollout', 'undo', `deployment/${name}`], { dryRun });
+    });
+    success('Kubernetes rollback completed.');
+    return;
+  }
+
+  if (strategy === 'bluegreen') {
+    const target = String(options.target || 'green').toLowerCase();
+    const scriptArgs = ['--target', target, '--namespace', namespace];
+    if (toBool(options['skip-migrations'], false)) scriptArgs.push('--skip-migrations');
+    runBashScript('validate-bluegreen-config.sh', scriptArgs, {
+      dryRun,
+    });
+
+    if (toBool(options.switch, false)) {
+      warn('Blue/green slot switching is environment-specific; validation passed, perform switch in your ingress/service routing layer.');
+    }
+    success('Blue/green validation rollout completed.');
+    return;
+  }
+
+  if (strategy === 'canary') {
+    const image = options.image ? String(options.image) : '';
+    const container = options.container ? String(options.container) : '';
+    const runGate = options.gate === undefined ? true : toBool(options.gate, true);
+    const autoRollback = toBool(options['auto-rollback'], true);
+
+    services.forEach((name) => {
+      if (image) {
+        const containerName = container || name;
+        runCommand('kubectl', ['-n', namespace, 'set', 'image', `deployment/${name}`, `${containerName}=${image}`], { dryRun });
+      } else {
+        runCommand('kubectl', ['-n', namespace, 'rollout', 'restart', `deployment/${name}`], { dryRun });
+      }
+
+      if (waitReady) {
+        runCommand('kubectl', ['-n', namespace, 'rollout', 'status', `deployment/${name}`, '--timeout=300s'], {
+          dryRun,
+          allowFailure: true,
+        });
+      }
+    });
+
+    if (runGate) {
+      const gateResult = runBashScript('release-health-check.sh', [], {
+        dryRun,
+        allowFailure: true,
+        env: {
+          API_GATEWAY_URL: options.gateway || process.env.API_GATEWAY_URL || 'http://localhost:8000',
+          PROMETHEUS_URL: options.prometheus || process.env.PROMETHEUS_URL || 'http://localhost:9090',
+          TIMEOUT: String(options.timeout || process.env.TIMEOUT || '5'),
+        },
+      });
+
+      if ((gateResult.status || 0) !== 0) {
+        warn('Canary health gate failed.');
+        if (autoRollback) {
+          warn('Auto-rollback enabled. Reverting updated deployments...');
+          services.forEach((name) => {
+            runCommand('kubectl', ['-n', namespace, 'rollout', 'undo', `deployment/${name}`], {
+              dryRun,
+              allowFailure: true,
+            });
+          });
+        }
+        fatal('Canary rollout failed health gate.');
+      }
+    }
+
+    success('Canary rollout completed successfully.');
+    return;
+  }
+
+  fatal(`Unknown rollout strategy: ${strategy}. Use rolling|canary|bluegreen|status|undo`);
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3: check
+// ---------------------------------------------------------------------------
+
+function cmdCheck(rawArgs) {
+  const { options, positionals } = parseArgs(rawArgs);
+  const dryRun = toBool(options['dry-run'], false);
+  const action = String(positionals[0] || 'all').toLowerCase();
+
+  const validActions = new Set(['all', 'drift', 'release-gate', 'image-tags', 'bluegreen']);
+  if (!validActions.has(action)) {
+    fatal(`Unknown check action: ${action}. Use all|drift|release-gate|image-tags|bluegreen`);
+  }
+
+  const actions = action === 'all' ? ['drift', 'release-gate', 'image-tags', 'bluegreen'] : [action];
+  const results = [];
+
+  actions.forEach((item) => {
+    if (item === 'drift') {
+      const scriptArgs = [];
+      if (options.env) scriptArgs.push('--env', String(options.env));
+      if (options.namespace) scriptArgs.push('--namespace', String(options.namespace));
+      const result = runBashScript('config-drift-detect.sh', scriptArgs, {
+        dryRun,
+        allowFailure: true,
+      });
+      results.push({ check: item, status: (result.status || 0) === 0 ? 'pass' : 'fail' });
+      return;
+    }
+
+    if (item === 'release-gate') {
+      const result = runBashScript('release-health-check.sh', [], {
+        dryRun,
+        allowFailure: true,
+        env: {
+          API_GATEWAY_URL: options.gateway || process.env.API_GATEWAY_URL || 'http://localhost:8000',
+          PROMETHEUS_URL: options.prometheus || process.env.PROMETHEUS_URL || 'http://localhost:9090',
+          TIMEOUT: String(options.timeout || process.env.TIMEOUT || '5'),
+        },
+      });
+      results.push({ check: item, status: (result.status || 0) === 0 ? 'pass' : 'fail' });
+      return;
+    }
+
+    if (item === 'image-tags') {
+      const scriptArgs = [];
+      if (options.namespace) scriptArgs.push('--namespace', String(options.namespace));
+      if (options.generate) {
+        scriptArgs.push('--generate', String(options.generate));
+      } else if (options.service && options.tag) {
+        scriptArgs.push('--service', String(options.service), '--tag', String(options.tag));
+      } else {
+        scriptArgs.push('--all');
+      }
+      const result = runBashScript('validate-image-tags.sh', scriptArgs, {
+        dryRun,
+        allowFailure: true,
+      });
+      results.push({ check: item, status: (result.status || 0) === 0 ? 'pass' : 'fail' });
+      return;
+    }
+
+    if (item === 'bluegreen') {
+      const target = String(options.target || 'green');
+      const scriptArgs = ['--target', target];
+      if (options.namespace) scriptArgs.push('--namespace', String(options.namespace));
+      if (toBool(options['skip-migrations'], false)) scriptArgs.push('--skip-migrations');
+
+      const result = runBashScript('validate-bluegreen-config.sh', scriptArgs, {
+        dryRun,
+        allowFailure: true,
+      });
+      results.push({ check: item, status: (result.status || 0) === 0 ? 'pass' : 'fail' });
+    }
+  });
+
+  if (toBool(options.json, false)) {
+    emitJSON({
+      command: 'check',
+      action,
+      checkedAt: new Date().toISOString(),
+      results,
+    });
+  } else {
+    const rows = [['Check', 'Result']];
+    results.forEach((r) => rows.push([r.check, r.status === 'pass' ? c('green', 'pass') : c('red', 'fail')]));
+    printTable(rows);
+  }
+
+  const failed = results.filter((r) => r.status !== 'pass').length;
+  if (failed > 0) {
+    fatal(`check detected ${failed} failing validation(s).`);
+  }
+
+  success('All selected checks passed.');
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4 (initial): incident summarize
+// ---------------------------------------------------------------------------
+
+function cmdIncident(rawArgs) {
+  const { options, positionals } = parseArgs(rawArgs);
+  const action = String(positionals[0] || 'summarize').toLowerCase();
+
+  if (action !== 'summarize') {
+    fatal(`Unknown incident action: ${action}. Supported: summarize`);
+  }
+
+  const runtime = String(options.runtime || 'docker').toLowerCase();
+  const service = normalizeServiceName(options.service || positionals[1]);
+  const tail = Number(options.tail || 800);
+  const since = String(options.since || '1h');
+  const dryRun = toBool(options['dry-run'], false);
+
+  if (!service) {
+    fatal('incident summarize requires --service <name>.');
+  }
+
+  let logsText = '';
+
+  if (runtime === 'docker') {
+    if (!commandExists('docker')) fatal('Docker is required for docker runtime incident summaries.');
+    const args = getComposeBaseArgs(options);
+    args.push('logs', '--no-color', '--tail', String(Number.isFinite(tail) ? tail : 800), '--since', since, service);
+    const result = runCommandCapture('docker', args, { dryRun, allowFailure: true });
+    if ((result.status || 0) !== 0) fatal(`Could not read docker logs for ${service}.`);
+    logsText = result.stdout;
+  } else if (runtime === 'k8s' || runtime === 'kubernetes') {
+    if (!commandExists('kubectl')) fatal('kubectl is required for k8s runtime incident summaries.');
+    const namespace = String(options.namespace || 'milonexa');
+    const sinceSeconds = parseDurationToSeconds(since, 3600);
+    const args = ['-n', namespace, 'logs', `deployment/${service}`, '--tail', String(Number.isFinite(tail) ? tail : 800), '--since', `${sinceSeconds}s`];
+    const result = runCommandCapture('kubectl', args, { dryRun, allowFailure: true });
+    if ((result.status || 0) !== 0) fatal(`Could not read k8s logs for deployment/${service}.`);
+    logsText = result.stdout;
+  } else if (runtime === 'direct') {
+    const state = refreshDirectState();
+    const entry = state.processes[service];
+    const logPath = entry?.logPath || path.join(DIRECT_LOG_DIR, `${service}.log`);
+    if (!fs.existsSync(logPath)) fatal(`Log file not found for ${service}: ${path.relative(ROOT_DIR, logPath)}`);
+    const content = fs.readFileSync(logPath, 'utf8');
+    const lines = content.split(/\r?\n/);
+    logsText = lines.slice(Math.max(0, lines.length - (Number.isFinite(tail) ? tail : 800))).join(os.EOL);
+  } else {
+    fatal(`Unsupported runtime for incident summarize: ${runtime}`);
+  }
+
+  if (dryRun) {
+    success('Incident summarize dry-run completed.');
+    return;
+  }
+
+  const lines = logsText.split(/\r?\n/).filter(Boolean);
+  const errorRe = /(error|exception|fatal|panic|unhandled|timeout|failed|refused|unavailable)/i;
+  const warnRe = /\bwarn(ing)?\b/i;
+  const latencyRe = /(slow|latency|timeout|timed out|deadline exceeded)/i;
+
+  let errorCount = 0;
+  let warnCount = 0;
+  let latencyCount = 0;
+
+  const signatures = new Map();
+  lines.forEach((line) => {
+    if (errorRe.test(line)) errorCount += 1;
+    if (warnRe.test(line)) warnCount += 1;
+    if (latencyRe.test(line)) latencyCount += 1;
+
+    if (errorRe.test(line) || warnRe.test(line)) {
+      const sig = line
+        .replace(/\d{4}-\d{2}-\d{2}[^\s]*/g, '<ts>')
+        .replace(/[0-9a-f]{8,}/gi, '<id>')
+        .replace(/\b\d+\b/g, '#')
+        .trim()
+        .slice(0, 160);
+      signatures.set(sig, (signatures.get(sig) || 0) + 1);
+    }
+  });
+
+  const topSignatures = [...signatures.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([signature, count]) => ({ signature, count }));
+
+  const summary = {
+    command: 'incident summarize',
+    service,
+    runtime,
+    since,
+    tail,
+    analyzedAt: new Date().toISOString(),
+    totals: {
+      lines: lines.length,
+      errors: errorCount,
+      warnings: warnCount,
+      latencySignals: latencyCount,
+    },
+    topSignatures,
+    recommendations: [
+      errorCount > 0 ? 'Inspect top error signatures and correlate with recent deploys.' : 'No high-severity error surge detected in sampled logs.',
+      latencyCount > 0 ? 'Run `check release-gate` and verify upstream dependencies/DB latency.' : 'No dominant latency signature in sampled logs.',
+      'If issue persists, run `rollout --strategy undo --service <name>` for fast rollback.',
+    ],
+  };
+
+  if (options.export) {
+    const exportPath = path.isAbsolute(String(options.export))
+      ? String(options.export)
+      : path.join(ROOT_DIR, String(options.export));
+    fs.writeFileSync(exportPath, JSON.stringify(summary, null, 2));
+    info(`Incident summary exported to: ${path.relative(ROOT_DIR, exportPath)}`);
+  }
+
+  if (toBool(options.json, false)) {
+    emitJSON(summary);
+    return;
+  }
+
+  console.log(`${c('bold', 'Incident Summary')}`);
+  console.log(`Service: ${service}`);
+  console.log(`Runtime: ${runtime}`);
+  console.log(`Window:  ${since} (tail=${tail})`);
+  console.log('');
+  printTable([
+    ['Metric', 'Value'],
+    ['Lines analyzed', summary.totals.lines],
+    ['Error signals', summary.totals.errors],
+    ['Warning signals', summary.totals.warnings],
+    ['Latency signals', summary.totals.latencySignals],
+  ]);
+
+  if (topSignatures.length > 0) {
+    console.log('');
+    console.log(c('bold', 'Top signatures'));
+    topSignatures.forEach((entry, idx) => {
+      console.log(`${idx + 1}. [${entry.count}] ${entry.signature}`);
+    });
+  }
+
+  console.log('');
+  console.log(c('bold', 'Recommendations'));
+  summary.recommendations.forEach((rec, idx) => {
+    console.log(`${idx + 1}. ${rec}`);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Phase 2: role viewer (viewer-accessible, read-only)
 // ---------------------------------------------------------------------------
 
-function cmdRole() {
+function cmdRole(rawArgs = []) {
+  const { options } = parseArgs(rawArgs);
   const current = resolveRole();
   const source = process.env.ADMIN_CLI_ROLE
     ? 'ADMIN_CLI_ROLE env'
     : fs.existsSync(ROLE_FILE) ? '.admin-cli/role.json' : 'default';
+
+  if (toBool(options.json, false)) {
+    emitJSON({
+      command: 'role',
+      role: current,
+      source,
+      roleFile: path.relative(ROOT_DIR, ROLE_FILE),
+      validRoles: ROLES,
+      checkedAt: new Date().toISOString(),
+    });
+    return;
+  }
+
   console.log(`${c('bold', 'Active role:')} ${current}  (source: ${source})`);
   console.log(`${c('bold', 'Valid roles:')} ${ROLES.join(', ')}`);
   console.log(`${c('bold', 'Role file:  ')} ${path.relative(ROOT_DIR, ROLE_FILE)}`);
@@ -1144,7 +1728,7 @@ function cmdSetRole(rawArgs) {
 
   if (toBool(options.show, false) || positionals.length === 0) {
     // Redirect to the viewer-accessible `role` command output
-    cmdRole();
+    cmdRole(rawArgs);
     return;
   }
 
@@ -1166,7 +1750,7 @@ function cmdSetRole(rawArgs) {
 
 function printHelp() {
   const helpText = `
-${c('bold', 'Milonexa Omni Admin CLI')} ${c('cyan', 'Phase 1+2')}
+${c('bold', 'Milonexa Omni Admin CLI')} ${c('cyan', 'Phase 3+ (with Phase 4 starter)')}
 
 Usage:
   node admin-cli/index.js <command> [options] [services]
@@ -1191,10 +1775,18 @@ Phase 2 — Authorization & Audit:
   audit    [--tail 50] [--json] [--actor <name>]   View audit log
   set-role <viewer|operator|admin|break-glass>      Change active role (requires admin)
 
+Phase 3 — Progressive Delivery & Validation:
+  scale    --runtime k8s|docker --service <name> --replicas <n> [--wait]
+  rollout  --runtime k8s --strategy rolling|canary|bluegreen|status|undo [--service]
+  check    all|drift|release-gate|image-tags|bluegreen [--json]
+
+Phase 4 (starter) — Incident Intelligence:
+  incident summarize --runtime docker|k8s|direct --service <name> [--since 1h] [--tail 800]
+
 Roles (ascending privilege):
-  viewer       Read-only (doctor, status, logs, health, audit, monitor, run)
-  operator     + build, start/restart (non-prod)
-  admin        + stop, backup, start/restart (prod/k8s)
+  viewer       Read-only (doctor, role, status, logs, health, check, audit, monitor, run, incident)
+  operator     + build, start/restart, scale/rollout (non-prod)
+  admin        + stop, backup, scale/rollout/start/restart in prod/k8s
   break-glass  Emergency override — skips prompts, always flagged in audit
 
 Set role via env:  ADMIN_CLI_ROLE=admin node admin-cli/index.js start ...
@@ -1209,10 +1801,18 @@ Key flags:
   --confirm               Skip interactive confirmation prompt (CI/pipeline mode)
   --namespace <name>       Kubernetes namespace (default: milonexa)
   --force                 Force SIGKILL for stubborn direct-mode processes
+  --json                  Emit machine-readable JSON output where supported
 
 Examples:
   node admin-cli/index.js doctor
+  node admin-cli/index.js doctor --json
+  node admin-cli/index.js role --json
   node admin-cli/index.js build --runtime docker --env dev --admin
+  node admin-cli/index.js scale --runtime k8s --service api-gateway --replicas 3 --wait
+  node admin-cli/index.js rollout --runtime k8s --strategy canary --service api-gateway --wait
+  node admin-cli/index.js check all --env staging --namespace milonexa
+  node admin-cli/index.js check image-tags --service user-service --tag v1.2.3
+  node admin-cli/index.js incident summarize --runtime docker --service api-gateway --since 2h --tail 1200
   node admin-cli/index.js start --runtime docker --env dev
   node admin-cli/index.js start --runtime direct --install --admin
   node admin-cli/index.js start --runtime k8s --env prod --confirm
@@ -1242,11 +1842,17 @@ async function main() {
   }
 
   // Pre-parse options early for auth/audit — cmd* functions re-parse internally
-  const { options } = parseArgs(rawArgs);
+  const { options, positionals } = parseArgs(rawArgs);
+
+  // Treat `set-role --show` (or `set-role` with no args) as read-only `role` for authorization.
+  let commandForAuth = command;
+  if (command === 'set-role' && (toBool(options.show, false) || positionals.length === 0)) {
+    commandForAuth = 'role';
+  }
 
   // ---- Phase 2: Resolve role and check authorization -----------------------
   const role = resolveRole();
-  const authResult = checkAuthorization(command, options, role);
+  const authResult = checkAuthorization(commandForAuth, options, role);
 
   if (!authResult.allowed) {
     console.error(
@@ -1277,8 +1883,12 @@ async function main() {
   try {
     switch (command) {
       case 'doctor':   cmdDoctor(options); break;
-      case 'role':     cmdRole(); break;
+      case 'role':     cmdRole(rawArgs); break;
+      case 'check':    cmdCheck(rawArgs); break;
       case 'build':    cmdBuild(rawArgs); break;
+      case 'scale':    cmdScale(rawArgs); break;
+      case 'rollout':  cmdRollout(rawArgs); break;
+      case 'incident': cmdIncident(rawArgs); break;
       case 'start':    cmdStart(rawArgs); break;
       case 'stop':     cmdStop(rawArgs); break;
       case 'restart':  cmdRestart(rawArgs); break;

@@ -1,22 +1,26 @@
 {
-  "name": "milonexa-admin-cli",
-  "version": "2.0.0",
-  "description": "Milonexa Omni Admin CLI — unified operational control plane (Phase 1+2)",
-  "main": "index.js",
-  "bin": {
-    "admin-cli": "./index.js"
-  },
-  "scripts": {
-    "help": "node index.js --help",
-    "doctor": "node index.js doctor",
-    "start": "node index.js start --runtime docker --env dev",
-    "stop": "node index.js stop --runtime docker",
-    "status": "node index.js status --runtime docker",
-    "audit": "node index.js audit"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "license": "UNLICENSED",
-  "private": true
+    "name": "milonexa-admin-cli",
+    "version": "3.0.0",
+    "description": "Milonexa Omni Admin CLI — advanced multi-runtime control plane (Phase 3+)",
+    "main": "index.js",
+    "bin": {
+        "admin-cli": "./index.js"
+    },
+    "scripts": {
+        "help": "node index.js --help",
+        "doctor": "node index.js doctor",
+        "start": "node index.js start --runtime docker --env dev",
+        "stop": "node index.js stop --runtime docker",
+        "status": "node index.js status --runtime docker",
+        "audit": "node index.js audit",
+        "check": "node index.js check all --dry-run",
+        "scale": "node index.js scale --runtime k8s --service api-gateway --replicas 2 --dry-run",
+        "rollout": "node index.js rollout --runtime k8s --strategy rolling --service api-gateway --dry-run",
+        "incident": "node index.js incident summarize --runtime docker --service api-gateway --dry-run"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "license": "UNLICENSED",
+    "private": true
 }

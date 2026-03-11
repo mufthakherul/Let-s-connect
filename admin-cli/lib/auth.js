@@ -28,6 +28,8 @@ const ROLES = ['viewer', 'operator', 'admin', 'break-glass'];
  */
 const COMMAND_POLICY = {
   doctor:     'viewer',
+  check:      'viewer',
+  incident:   'viewer',
   status:     'viewer',
   logs:       'viewer',
   health:     'viewer',
@@ -37,6 +39,8 @@ const COMMAND_POLICY = {
   'set-role': 'admin',
   role:       'viewer',   // read-only: show current role
   build:      'operator',
+  scale:      'operator',
+  rollout:    'operator',
   start:      'operator',
   restart:    'operator',
   stop:       'admin',
@@ -50,6 +54,8 @@ const COMMAND_POLICY = {
  */
 const PROD_COMMAND_POLICY = {
   build:   'operator',
+  scale:   'admin',
+  rollout: 'admin',
   start:   'admin',
   restart: 'admin',
   stop:    'admin',
