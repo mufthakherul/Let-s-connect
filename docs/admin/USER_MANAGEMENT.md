@@ -1,687 +1,556 @@
-# User Management Guide for Administrators
+# User Management Guide
 
-> **Detailed guide for managing users, roles, and access control on the Milonexa platform**
+Complete guide for managing Milonexa users including viewing, searching, filtering, changing roles, banning, suspending, GDPR operations, and bulk actions.
 
-## Table of Contents
+## Viewing All Users
 
-1. [Overview](#overview)
-2. [User Roles](#user-roles)
-3. [User Lifecycle Management](#user-lifecycle-management)
-4. [Role Management](#role-management)
-5. [User Banning & Suspension](#user-banning--suspension)
-6. [User Search & Filtering](#user-search--filtering)
-7. [Bulk Operations](#bulk-operations)
-8. [User Analytics](#user-analytics)
-9. [Best Practices](#best-practices)
+### Web Dashboard
+Navigate to **User Management → Users** tab. Shows table with:
+- Username
+- Email  
+- Display Name
+- Role (User, Moderator, Admin)
+- Status (Active, Suspended, Deleted)
+- Created date
+- Last login date
+- Email verified status
+- Two-factor authentication enabled
 
----
-
-## Overview
-
-The User Management system allows administrators to:
-- View and search all platform users
-- Manage user roles and permissions
-- Ban or suspend problematic users
-- Monitor user activity and engagement
-- Create admin and moderator accounts
-- Track user growth and metrics
-
-**Access:** Admin Dashboard → Users Tab
-
----
-
-## User Roles
-
-### Role Hierarchy
-
-```
-Admin
-  ├─ Full platform control
-  ├─ User management
-  ├─ System configuration
-  └─ All moderator permissions
-  
-Moderator
-  ├─ Content moderation
-  ├─ Flag review
-  ├─ Limited user management
-  └─ No system configuration
-  
-User (Default)
-  ├─ Standard platform access
-  ├─ Create and share content
-  ├─ Message and collaborate
-  └─ No admin capabilities
-```
-
-### Permission Matrix
-
-| Permission | User | Moderator | Admin |
-|-----------|------|-----------|-------|
-| Create content | ✅ | ✅ | ✅ |
-| View Dashboard | ❌ | ✅ | ✅ |
-| Moderate content | ❌ | ✅ | ✅ |
-| Ban users | ❌ | ⚠️ Limited | ✅ |
-| Change roles | ❌ | ❌ | ✅ |
-| System settings | ❌ | ❌ | ✅ |
-| View audit logs | ❌ | ⚠️ Own | ✅ |
-| Manage admins | ❌ | ❌ | ✅ |
-
----
-
-## User Lifecycle Management
-
-### New User Registration
-
-**Automatic Process:**
-1. User visits registration page
-2. Fills in required fields:
-   - Username (unique)
-   - Email (unique, validated)
-   - Password (min 8 characters)
-3. Email verification sent (if enabled)
-4. User receives "user" role by default
-5. Welcome email sent (if configured)
-
-**Admin Review (Optional):**
-- Enable manual approval in settings
-- New users pending admin approval
-- Admin reviews and approves/rejects
-
-### User Onboarding
-
-**Default Experience:**
-- Welcome message
-- Profile completion prompt
-- Feature tour
-- Suggested connections
-
-**Admin Customization:**
-```javascript
-// Configure in user-service
-WELCOME_MESSAGE="Welcome to Milonexa!"
-ONBOARDING_ENABLED=true
-REQUIRE_EMAIL_VERIFICATION=true
-```
-
-### Account Deactivation
-
-Users can deactivate their own accounts:
-- Account hidden from searches
-- Content remains visible
-- Can reactivate within 30 days
-- Permanent deletion after 30 days
-
-**Admin Override:**
-- Immediately delete account
-- Export user data before deletion
-- Preserve audit trail
-
----
-
-## Role Management
-
-### Viewing User Roles
-
-1. Navigate to **Admin Dashboard → Users**
-2. See role badge next to each user:
-   - 🔵 User
-   - 🟡 Moderator  
-   - 🔴 Admin
-
-3. Filter by role using dropdown
-
-### Promoting Users
-
-**To Moderator:**
-
-**When to Promote:**
-- Trusted community member
-- Demonstrates good judgment
-- Active on platform
-- Understands community guidelines
-
-**Steps:**
-1. Find user in Users tab
-2. Click **Edit** button
-3. Select "Moderator" from role dropdown
-4. Add notes explaining promotion
-5. Click **Save**
-6. User notified via email and in-app
-
-**What Changes:**
-- User gains access to Moderation dashboard
-- Can review content flags
-- Can issue warnings
-- Limited ban capabilities
-
-**To Admin:**
-
-**When to Promote:**
-- Internal team member
-- Technical knowledge
-- Trusted with system access
-- Business need for admin access
-
-**Steps:**
-1. Find user in Users tab
-2. Click **Edit** button
-3. Select "Admin" from role dropdown
-4. **Confirm** (requires additional confirmation)
-5. Add detailed notes
-6. Click **Save**
-7. User notified
-
-**Security Considerations:**
+### CLI
 ```bash
-# Enable 2FA requirement for admins
-REQUIRE_2FA_FOR_ADMIN=true
-
-# Notify all admins of new admin
-NOTIFY_ADMINS_ON_PROMOTION=true
-
-# Log to audit
-Action: ROLE_CHANGE
-From: user
-To: admin
-By: super_admin
-Reason: New team member
+milonexa> users list
+milonexa> users list --page 2 --limit 50 --format table
 ```
 
-### Demoting Users
-
-**When to Demote:**
-- No longer needs elevated access
-- Leaving team/organization
-- Inactive for extended period
-- Misuse of privileges
-
-**Steps:**
-1. Review user's access needs
-2. Document reason for demotion
-3. Click **Edit** on user
-4. Select lower role
-5. Click **Save**
-6. Remove from any admin channels
-7. Notif user (optional)
-
----
-
-## User Banning & Suspension
-
-### When to Ban
-
-**Immediate Ban:**
-- Illegal content
-- Severe harassment or threats
-- Coordinated spam attack
-- Hacking or security violations
-- Terms of service violations (egregious)
-
-**Warning First:**
-- Minor policy violations
-- Inappropriate language
-- Off-topic content
-- First-time offenses
-
-### Ban Process
-
-**Standard Ban:**
-1. Review user's violations
-2. Document reason
-3. Click **Ban** button on user
-4. Confirm action
-5. Add ban reason and duration
-6. Click **Confirm Ban**
-
-**What Happens:**
-```
-✅ User logged out immediately
-✅ All active sessions terminated
-✅ Cannot log in
-✅ Content remains visible
-✅ Audit log entry created
-✅ Can be unbanned by admin
+### REST API
+```bash
+GET /api/admin/users
+GET /api/admin/users?page=2&limit=50&role=admin&status=active
+Authorization: Bearer <admin_token>
 ```
 
-**What Doesn't Happen:**
+## User Record Fields
+
+Each user record contains:
+- **id**: UUID unique identifier
+- **username**: Unique username (3-32 alphanumeric characters + underscores)
+- **email**: Valid email address
+- **displayName**: Public display name (can be different from username)
+- **role**: User, Moderator, Admin, Super Admin
+- **status**: Active, Suspended, Deleted, Banned
+- **createdAt**: Account creation timestamp
+- **lastLogin**: Most recent login timestamp (null if never logged in)
+- **emailVerified**: Boolean, true if email address verified
+- **twoFactorEnabled**: Boolean, true if 2FA enabled
+- **profilePictureUrl**: Avatar URL
+- **bio**: User biography text
+- **followers**: Count of followers
+- **following**: Count of following
+- **posts**: Count of published posts
+- **bannedUntil**: Timestamp when ban expires (null if not banned)
+- **bannedReason**: Text reason for ban (if banned)
+
+## Searching Users
+
+### Web Dashboard
+Click search box at top of Users table:
+- Search by username, email, or display name
+- Real-time results as you type
+- Case-insensitive matching
+- Supports partial matches
+
+Example:
 ```
-❌ Content NOT deleted automatically
-❌ Data NOT removed
-❌ Email NOT blocked
-❌ IP NOT blacklisted
-```
-
-### Temporary vs Permanent Bans
-
-**Temporary Ban:**
-```javascript
-Ban Duration: 7 days
-Reason: Spam posting
-Auto-Unban: Yes
-Notification: "Your account has been temporarily suspended for 7 days"
-```
-
-**Permanent Ban:**
-```javascript
-Ban Duration: Permanent
-Reason: Repeated harassment
-Auto-Unban: No
-Notification: "Your account has been permanently banned"
-```
-
-### Unbanning Users
-
-**When to Unban:**
-- Ban duration expired
-- User appeals successfully
-- Ban issued in error
-- Changed circumstances
-
-**Steps:**
-1. Filter users by status: "Banned"
-2. Review ban reason and history
-3. Click **Unban** button
-4. Add unban notes
-5. Click **Confirm**
-6. User can immediately log in
-
-### Ban Appeals
-
-**Appeal Process:**
-1. User submits appeal (if appeal system enabled)
-2. Admin reviews:
-   - Original ban reason
-   - User history
-   - Appeal message
-   - Time since ban
-3. Decision: Uphold or overturn
-4. Document decision
-5. Notify user
-
----
-
-## User Search & Filtering
-
-### Search Methods
-
-**By Username:**
-```
-Search: "john"
-Results: john123, johnny, john_doe
+Search: "john" → Results: johndoe, johndoe2, admin.john (3 results)
 ```
 
-**By Email:**
-```
-Search: "gmail.com"
-Results: All users with Gmail addresses
-```
-
-**By ID:**
-```
-Search: "123"
-Results: User with ID 123
+### CLI
+```bash
+milonexa> users list --search "john"
+milonexa> users list --search "john@example.com"
 ```
 
-### Advanced Filtering
+### REST API
+```bash
+GET /api/admin/users?search=john
+GET /api/admin/users?search=john@example.com
+```
 
-**Filter Options:**
+## Filtering Users
 
-1. **Role Filter:**
-   - All
-   - User
-   - Moderator
-   - Admin
+### By Role
+**Web Dashboard**: Role dropdown
+- User
+- Moderator  
+- Admin
 
-2. **Status Filter:**
-   - All
-   - Active
-   - Banned
-   - Inactive (no activity 30+ days)
+**CLI**:
+```bash
+milonexa> users list --role admin
+milonexa> users list --role moderator --role admin  # Multiple roles
+```
 
-3. **Registration Date:**
-   - Today
-   - This week
-   - This month
-   - Custom range
+**REST API**:
+```bash
+GET /api/admin/users?role=admin
+GET /api/admin/users?role=moderator&role=admin
+```
 
-4. **Activity Level:**
-   - Very active (daily)
-   - Active (weekly)
-   - Occasional (monthly)
-   - Inactive (30+ days)
+### By Status
+**Web Dashboard**: Status dropdown
+- Active
+- Suspended
+- Deleted
 
-### Sorting Users
+**CLI**:
+```bash
+milonexa> users list --status suspended
+milonexa> users list --status active --status suspended
+```
 
-**Sort Options:**
-- Newest first
-- Oldest first
-- Most active
-- Most content
-- Alphabetical
+**REST API**:
+```bash
+GET /api/admin/users?status=active
+```
 
-### Bulk Selection
+### By Creation Date
+**Web Dashboard**: Date range picker
+- Select from/to dates
+- Predefined: Last 7 days, Last 30 days, Last 3 months
 
-1. Use checkboxes to select multiple users
-2. Apply bulk actions:
-   - Export data
-   - Send message
-   - Change role (same role only)
-   - Add to group
+**CLI**:
+```bash
+milonexa> users list --created-after "2024-12-01" --created-before "2024-12-15"
+```
 
----
+**REST API**:
+```bash
+GET /api/admin/users?createdAfter=2024-12-01&createdBefore=2024-12-15
+```
+
+## Viewing User Details
+
+### Web Dashboard
+1. Click username in Users table
+2. Opens user profile page showing:
+   - Profile information (name, email, bio)
+   - Posts list (paginated)
+   - Followers and following
+   - Login sessions
+   - Moderation history
+   - Account activity log
+
+### CLI
+```bash
+milonexa> users get f47ac10b-58cc-4372-a567-0e02b2c3d479
+
+Output:
+{
+  "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "username": "johndoe",
+  "email": "john@example.com",
+  "displayName": "John Doe",
+  "role": "user",
+  "status": "active",
+  "createdAt": "2024-01-15T10:30:00Z",
+  "lastLogin": "2024-12-15T14:22:00Z",
+  "emailVerified": true,
+  "twoFactorEnabled": false,
+  "followers": 1245,
+  "following": 567,
+  "posts": 89,
+  "bio": "Software developer and technology enthusiast"
+}
+```
+
+### REST API
+```bash
+GET /api/admin/users/f47ac10b-58cc-4372-a567-0e02b2c3d479
+Authorization: Bearer <admin_token>
+```
+
+## Changing User Role
+
+### Web Dashboard
+1. Open user profile
+2. Click "Edit" button
+3. Change "Role" dropdown
+4. Click "Save"
+5. Confirmation: "Role updated from user to moderator"
+
+### CLI
+```bash
+milonexa> users promote f47ac10b --role moderator
+
+Output:
+✓ User role updated
+  User: johndoe
+  Previous role: user
+  New role: moderator
+```
+
+### REST API
+```bash
+PUT /api/admin/users/f47ac10b
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "role": "moderator"
+}
+
+Response:
+{
+  "id": "f47ac10b",
+  "role": "moderator",
+  "updatedAt": "2024-12-15T15:45:00Z"
+}
+```
+
+## Banning/Suspending Users
+
+### Web Dashboard
+1. Open user profile
+2. Click "Ban User" button
+3. Select ban duration:
+   - 1 hour
+   - 24 hours
+   - 7 days
+   - 30 days
+   - Permanent
+4. Enter ban reason (required)
+5. Click "Confirm Ban"
+6. User receives notification email
+
+### CLI
+```bash
+milonexa> users ban f47ac10b --reason "spam" --duration 7d
+milonexa> users ban f47ac10b --reason "harassment" --duration permanent
+```
+
+### REST API
+```bash
+POST /api/admin/users/f47ac10b/ban
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "reason": "spam",
+  "duration": "7d"
+}
+
+Response:
+{
+  "status": "success",
+  "user": "johndoe",
+  "bannedUntil": "2024-12-22T15:45:00Z"
+}
+```
+
+### User Experience When Banned
+- Login attempt shows: "Your account has been suspended"
+- Cannot post, comment, or message
+- Cannot access any services
+- Can appeal ban (if configured)
+- Ban duration displayed to user
+
+## Unbanning Users
+
+### Web Dashboard
+1. Open user profile
+2. Click "Unban" button
+3. Confirmation: "Ban lifted"
+
+### CLI
+```bash
+milonexa> users unban f47ac10b
+
+Output:
+✓ User suspension lifted
+  User: johndoe
+  Ban ended: 2024-12-15T15:45:00Z
+```
+
+### REST API
+```bash
+POST /api/admin/users/f47ac10b/unban
+Authorization: Bearer <admin_token>
+```
+
+## Forcing Password Reset
+
+### Web Dashboard
+1. Open user profile
+2. Click "Force Password Reset"
+3. Confirmation: "User must change password on next login"
+
+### CLI
+```bash
+milonexa> users force-reset-password f47ac10b
+```
+
+### REST API
+```bash
+POST /api/admin/users/f47ac10b/force-password-reset
+Authorization: Bearer <admin_token>
+```
+
+User will see "Password reset required" on next login and must set new password before continuing.
+
+## Revoking All Sessions
+
+### Web Dashboard
+1. Open user profile
+2. Click "Revoke All Sessions"
+3. Confirmation modal
+4. User logged out from all devices
+
+### CLI
+```bash
+milonexa> users revoke-sessions f47ac10b
+
+Output:
+✓ All sessions revoked
+  User: johndoe
+  Sessions terminated: 3
+  User will need to login again
+```
+
+### REST API
+```bash
+POST /api/admin/users/f47ac10b/revoke-sessions
+Authorization: Bearer <admin_token>
+```
+
+## GDPR Data Export
+
+User data archive includes:
+- Profile information and settings
+- All posts and comments
+- All messages and conversations
+- All reactions and bookmarks
+- Login history
+- Account activity log
+- Media files (photos, videos)
+
+### Web Dashboard
+1. Open user profile
+2. Click "Export Data" (GDPR)
+3. Export starts (background job)
+4. Notification when ready
+5. Download link provided
+6. Expires after 24 hours
+
+### CLI
+```bash
+milonexa> gdpr export f47ac10b
+
+Output:
+✓ Export scheduled
+  User: johndoe
+  Job ID: gdpr-exp-20241215-001
+  Estimated time: 5 minutes
+  Download URL: https://admin.local/exports/gdpr-exp-20241215-001.zip
+  Expires: 2024-12-22 15:45:00
+```
+
+### REST API
+```bash
+POST /api/admin/users/f47ac10b/export
+Authorization: Bearer <admin_token>
+
+Response:
+{
+  "jobId": "gdpr-exp-20241215-001",
+  "status": "processing",
+  "downloadUrl": "https://admin.local/exports/...",
+  "expiresAt": "2024-12-22T15:45:00Z"
+}
+```
+
+## GDPR Data Deletion
+
+**WARNING**: Irreversible operation. All user data permanently deleted.
+
+Deleted:
+- User account
+- All posts and comments
+- All messages
+- All profile data
+- All personal information
+
+NOT deleted (for compliance):
+- Audit trail of deletion
+- Transaction history (for financial records)
+- Anonymized usage statistics
+
+### Web Dashboard
+1. Open user profile
+2. Click "Delete User" 
+3. Confirmation modal lists what will be deleted
+4. Must confirm twice
+5. Deletion starts
+
+### CLI
+```bash
+milonexa> users delete f47ac10b --gdpr
+
+! WARNING: Irreversible operation
+  User: johndoe (john@example.com)
+  
+Continue? (y/n): y
+
+Output:
+✓ User deletion scheduled
+  Job ID: gdpr-del-20241215-001
+  Will complete in: 10 minutes
+  User will be notified
+```
+
+### REST API
+```bash
+DELETE /api/admin/users/f47ac10b?gdpr=true
+Authorization: Bearer <admin_token>
+```
 
 ## Bulk Operations
 
-### Export User Data
+### Web Dashboard
+1. Select multiple users (checkboxes)
+2. Bulk action dropdown appears
+3. Select action:
+   - Ban Selected
+   - Unban Selected
+   - Promote (change role)
+   - Export Data
+   - Delete
+   - Send Message
+   - Add to Group
+   - Remove from Group
 
-**Single User:**
+### CLI
 ```bash
-# From Admin Dashboard
-User Actions → Export User Data → Download JSON
-
-# Includes:
-- Profile information
-- Posts and comments
-- Messages (sent only)
-- Files uploaded
-- Activity log
+# No built-in bulk command; use scripting
+milonexa> users list --status inactive --format json | \
+  jq '.users[].id' | \
+  while read uid; do
+    milonexa> users ban "$uid" --reason "inactive"
+  done
 ```
 
-**Multiple Users:**
+### REST API
 ```bash
-# Select users
-# Click "Export Selected"
-# Choose format: CSV, JSON, Excel
-# Download file
+POST /api/admin/users/bulk-action
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "userIds": ["f47ac10b", "a1b2c3d4", "e5f6g7h8"],
+  "action": "ban",
+  "reason": "spam",
+  "duration": "7d"
+}
 ```
 
-**All Users:**
+## User Moderation History
+
+View all moderation actions on a user:
+
+### Web Dashboard
+1. Open user profile
+2. Click "Moderation History" tab
+3. Shows all actions:
+   - Date
+   - Action (ban, warn, content deleted)
+   - Admin who took action
+   - Reason
+   - Details
+
+### CLI
 ```bash
-# Export → All Users
-# Warning: Large file
-# Background process
-# Download link via email
+milonexa> users moderation-history f47ac10b
+
+Output:
+Moderation History: johndoe
+═════════════════════════════════════════
+
+2024-12-15 15:42:00 | BANNED                    | administrator
+  Reason: spam
+  Duration: 7 days
+  
+2024-12-10 09:30:00 | WARNED                    | moderator1
+  Reason: harassment
+  Message: Be respectful to others
+  
+2024-12-05 14:15:00 | CONTENT DELETED (Post)    | moderator1
+  Post ID: c1b2a3d4
+  Reason: misinformation
 ```
 
-### Bulk Messaging
-
-Send announcement to multiple users:
+### REST API
 ```bash
-1. Select users
-2. Click "Message Selected"
-3. Compose message
-4. Choose delivery:
-   - In-app notification
-   - Email
-   - Both
-5. Send
+GET /api/admin/users/f47ac10b/moderation-history
+Authorization: Bearer <admin_token>
 ```
 
-### Bulk Role Changes
+## IP Address Management
 
-**Use Cases:**
-- Promote multiple moderators
-- Demote inactive moderators
-- Reset test accounts
-
-**Process:**
-1. Select users with same target role
-2. Click "Change Role"
-3. Select new role
-4. Add reason
-5. Confirm (requires admin password)
-
----
-
-## User Analytics
-
-### User Growth Metrics
-
-**Dashboard View:**
-```
-Total Users: 10,234
-New This Week: 245
-New This Month: 1,234
-Growth Rate: +12.5%
-```
-
-**Detailed Analytics:**
-- Daily sign-ups graph
-- Weekly active users (WAU)
-- Monthly active users (MAU)
-- Retention rate
-- Churn rate
-
-### Engagement Metrics
-
-**Per User:**
-- Total posts created
-- Total comments
-- Total messages sent
-- Total likes given
-- Last active date
-- Average session duration
-
-**Platform-Wide:**
-- Posts per user average
-- Messages per user average
-- Daily active users (DAU)
-- Weekly active users (WAU)
-- Engagement rate
-
-### User Segments
-
-**Segment by Activity:**
-- Power users (top 10% most active)
-- Regular users (weekly activity)
-- Casual users (monthly activity)
-- Dormant users (no activity 30+ days)
-
-**Segment by Content:**
-- Content creators (regular posters)
-- Consumers (mostly browsing)
-- Social (mostly messaging)
-- Shoppers (e-commerce focus)
-
-### Retention Analysis
-
-**Cohort Analysis:**
-```
-Week 0: 100% (sign-up week)
-Week 1: 60% returned
-Week 2: 45% returned
-Week 4: 35% returned
-Week 8: 28% retained
-```
-
-**Churn Prevention:**
-- Identify at-risk users
-- Re-engagement campaigns
-- Feature reminders
-- Personal outreach
-
----
-
-## Best Practices
-
-### Security Best Practices
-
-1. **Verify Before Promoting:**
-   - Check user history
-   - Review content quality
-   - Verify identity if possible
-   - Start with moderator, not admin
-
-2. **Document Everything:**
-   - Always add notes when changing roles
-   - Document ban reasons
-   - Track appeal decisions
-   - Maintain paper trail
-
-3. **Regular Audits:**
-   - Review admin list monthly
-   - Check moderator activity
-   - Remove inactive admin accounts
-   - Verify permissions are appropriate
-
-4. **Protect Admin Accounts:**
-   - Require strong passwords
-   - Enable 2FA
-   - Monitor for unusual activity
-   - Rotate credentials regularly
-
-### Moderation Best Practices
-
-1. **Consistent Enforcement:**
-   - Apply rules equally
-   - Don't play favorites
-   - Document exceptions
-   - Be transparent
-
-2. **Progressive Discipline:**
-   - Warning → Temporary ban → Permanent ban
-   - Give users chance to improve
-   - Document each step
-   - Allow appeals
-
-3. **Communication:**
-   - Explain bans clearly
-   - Provide ban duration
-   - Outline what user did wrong
-   - Explain how to appeal
-
-4. **Context Matters:**
-   - Consider user history
-   - Review full conversation
-   - Understand intent
-   - Cultural differences
-
-### User Management Best Practices
-
-1. **Regular Review:**
-   - Weekly: Review new admin/moderator activity
-   - Monthly: Audit all elevated accounts
-   - Quarterly: Full user permissions review
-   - Annually: Comprehensive security audit
-
-2. **Communication:**
-   - Notify users of role changes
-   - Explain bans clearly
-   - Respond to appeals promptly
-   - Be professional
-
-3. **Data Protection:**
-   - Export user data on request
-   - Delete data when required
-   - Comply with privacy laws (GDPR, CCPA)
-   - Secure admin access
-
-4. **Automation:**
-   - Auto-flag suspicious accounts
-   - Auto-ban obvious spam
-   - Auto-demote inactive moderators
-   - Auto-backup user data
-
-### Common Mistakes to Avoid
-
-❌ **Don't:**
-- Promote users to admin hastily
-- Ban without documentation
-- Ignore appeals
-- Share admin credentials
-- Make decisions when emotional
-- Delete users without backup
-
-✅ **Do:**
-- Follow established procedures
-- Document all actions
-- Review before acting
-- Consult other admins
-- Be consistent and fair
-- Maintain audit trail
-
----
-
-## Troubleshooting
-
-### User Can't Log In
-
-**Checklist:**
-1. Verify user exists
-2. Check if banned
-3. Verify email is confirmed (if required)
-4. Check password reset options
-5. Review recent login attempts
-6. Check for IP blocks
-
-**Solution:**
+### View User's IP Addresses
 ```bash
-# Unban if needed
-# Reset password
-# Resend verification email
-# Remove IP block
+milonexa> users ips f47ac10b
+
+Output:
+IP Addresses Used by User
+═════════════════════════
+
+192.168.1.100      Used 45 times      Last login: 2024-12-15 14:30
+203.0.113.50       Used 12 times      Last login: 2024-12-14 09:15
+198.51.100.200     Used 3 times       Last login: 2024-12-10 16:45
 ```
 
-### Role Change Not Working
-
-**Checklist:**
-1. Verify you have admin role
-2. Check target user exists
-3. Ensure not blocked by policy
-4. Clear cache
-5. Try different browser
-
-### Missing Users
-
-**Checklist:**
-1. Check filters are not applied
-2. Verify search query
-3. Check if user deleted account
-4. Review database for data
-
----
-
-## Appendix
-
-### Useful Admin Commands
-
+### Block IP Address
 ```bash
-# Count total users
-curl http://localhost:8000/api/admin/stats | jq '.totalUsers'
+milonexa> security block-ip 192.168.1.100 --reason "spammer account used from this IP"
 
-# Get user details
-curl http://localhost:8000/api/admin/users?search=username
-
-# Ban user
-curl -X POST http://localhost:8000/api/admin/users/123/ban \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d '{"reason":"spam"}'
-
-# Change role
-curl -X PUT http://localhost:8000/api/admin/users/123/role \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d '{"role":"moderator"}'
+Output:
+✓ IP address blocked
+  IP: 192.168.1.100
+  Blocked accounts from this IP: 3
 ```
 
-### User Lifecycle Flowchart
-
+### Unblock IP Address
+```bash
+milonexa> security unblock-ip 192.168.1.100
 ```
-User Registration
-    ↓
-Email Verification (optional)
-    ↓
-Account Active (User role)
-    ↓
-    ├─ Regular Use
-    ├─ Promoted to Moderator
-    ├─ Promoted to Admin
-    ├─ Banned (temporary/permanent)
-    ├─ Deactivated (self)
-    └─ Deleted (self or admin)
+
+## User Sessions Management
+
+### View Active Sessions
+```bash
+milonexa> users sessions f47ac10b
+
+Output:
+Active Sessions: johndoe
+═════════════════════════
+
+Session ID              IP Address        Device                  Created
+──────────────────────  ─────────────────  ──────────────────────  ──────────────
+a1b2c3d4e5f6...         192.168.1.100     Chrome/Mac (v131)       2024-12-15 10:30
+b2c3d4e5f6a1...         203.0.113.50      iPhone Safari (v18)     2024-12-14 15:42
+c3d4e5f6a1b2...         198.51.100.200    Firefox/Linux (v123)    2024-12-10 08:20
+```
+
+### Terminate Specific Session
+```bash
+milonexa> users session-terminate a1b2c3d4e5f6
+
+Output:
+✓ Session terminated
+  User: johndoe
+  Device: Chrome/Mac
+  Logged out from that device
 ```
 
 ---
 
-**Last Updated:** March 9, 2026
-**Version:** 2.5.0
+Last Updated: 2024 | Milonexa Platform Documentation
