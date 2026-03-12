@@ -129,7 +129,7 @@ function createWikisRouter({ models }) {
       }
 
       const revision = await WikiHistory.findByPk(req.params.historyId);
-      if (!revision || revision.wikiId !== req.params.id) {
+      if (!revision || revision.wikiId.toString() !== req.params.id.toString()) {
         return res.status(404).json({ error: 'Revision not found' });
       }
 
@@ -158,7 +158,7 @@ function createWikisRouter({ models }) {
       }
 
       const revision = await WikiHistory.findByPk(req.params.historyId);
-      if (!revision || revision.wikiId !== req.params.id) {
+      if (!revision || revision.wikiId.toString() !== req.params.id.toString()) {
         return res.status(404).json({ error: 'Revision not found' });
       }
 

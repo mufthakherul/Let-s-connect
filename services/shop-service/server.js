@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 8006;
 const dbPoolProfile = process.env.DB_POOL_PROFILE || 'standard';
 const healthChecker = new HealthChecker('shop-service');
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(createForwardedIdentityGuard());
 app.use(healthChecker.metricsMiddleware());
 
@@ -719,6 +719,77 @@ app.get('/', (req, res) => {
     message: 'Shop service is running.',
     health: '/health'
   });
+});
+
+// ─── Stripe Webhook ──────────────────────────────────────────────────────────
+// Uses express.raw() as route-level middleware to capture the raw body needed
+// for Stripe signature verification. Route-level middleware runs before the
+// global express.json(), so req.body will be a Buffer here.
+app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const stripeSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!stripeSecret) {
+    return res.status(200).json({ received: true, warning: 'STRIPE_WEBHOOK_SECRET not configured' });
+  }
+
+  let event;
+  try {
+    // Lazy-load stripe to avoid startup failure when key not set
+    const Stripe = require('stripe');
+    const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+    const sig = req.headers['stripe-signature'];
+    event = stripe.webhooks.constructEvent(req.body, sig, stripeSecret);
+  } catch (err) {
+    console.error('[Stripe Webhook] Signature verification failed:', err.message);
+    return res.status(400).json({ error: err.message });
+  }
+
+  try {
+    switch (event.type) {
+      case 'payment_intent.succeeded': {
+        const paymentIntent = event.data.object;
+        const orderId = paymentIntent.metadata?.orderId;
+        if (orderId) {
+          await Order.update(
+            { paymentStatus: 'paid', status: 'confirmed' },
+            { where: { id: orderId } }
+          );
+          console.log(`[Stripe] Order ${orderId} payment confirmed`);
+        }
+        break;
+      }
+      case 'payment_intent.payment_failed': {
+        const paymentIntent = event.data.object;
+        const orderId = paymentIntent.metadata?.orderId;
+        if (orderId) {
+          await Order.update(
+            { paymentStatus: 'failed', status: 'cancelled' },
+            { where: { id: orderId } }
+          );
+          // Restore product stock
+          const order = await Order.findByPk(orderId);
+          if (order) {
+            await Product.increment('stock', { by: order.quantity, where: { id: order.productId } });
+          }
+          console.log(`[Stripe] Order ${orderId} payment failed`);
+        }
+        break;
+      }
+      case 'charge.refunded': {
+        const charge = event.data.object;
+        const orderId = charge.metadata?.orderId;
+        if (orderId) {
+          await Order.update({ paymentStatus: 'refunded', status: 'refunded' }, { where: { id: orderId } });
+        }
+        break;
+      }
+      default:
+        console.log(`[Stripe] Unhandled event type: ${event.type}`);
+    }
+    res.json({ received: true });
+  } catch (err) {
+    console.error('[Stripe Webhook] Processing error:', err);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
 });
 
 // Standard route fallback

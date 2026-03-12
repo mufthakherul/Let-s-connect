@@ -32,7 +32,7 @@ const TELEGRAM_BOT_WEBHOOK_TOKEN = process.env.TELEGRAM_BOT_WEBHOOK_TOKEN || '';
 const dbPoolProfile = process.env.DB_POOL_PROFILE || 'heavy';
 
 const healthChecker = new HealthChecker('messaging-service');
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(createForwardedIdentityGuard());
 app.use(healthChecker.metricsMiddleware());
 

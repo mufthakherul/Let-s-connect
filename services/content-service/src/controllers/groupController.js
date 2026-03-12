@@ -214,3 +214,121 @@ exports.createGroupPost = catchAsync(async (req, res, next) => {
 
     return response.success(req, res, post, {}, 201);
 });
+
+// ─── Moderation Queue ─────────────────────────────────────────────────────────
+
+exports.getModerationQueue = catchAsync(async (req, res, next) => {
+    const { id: groupId } = req.params;
+    const requesterId = req.header('x-user-id');
+
+    const adminCheck = await GroupMember.findOne({ where: { groupId, userId: requesterId, role: { [Op.in]: ['admin', 'moderator'] }, status: 'active' } });
+    if (!adminCheck) return next(new AppError('Not authorized', 403));
+
+    const { Post } = require('../models');
+    const flagged = await Post.findAll({
+        where: { groupId, isFlagged: true },
+        order: [['createdAt', 'DESC']]
+    });
+
+    response.success(req, res, { flaggedPosts: flagged, count: flagged.length });
+});
+
+exports.moderatePost = catchAsync(async (req, res, next) => {
+    const { id: groupId, postId } = req.params;
+    const { action } = req.body; // 'approve' | 'remove'
+    const requesterId = req.header('x-user-id');
+
+    const adminCheck = await GroupMember.findOne({ where: { groupId, userId: requesterId, role: { [Op.in]: ['admin', 'moderator'] }, status: 'active' } });
+    if (!adminCheck) return next(new AppError('Not authorized', 403));
+
+    const { Post } = require('../models');
+    const post = await Post.findOne({ where: { id: postId, groupId } });
+    if (!post) return next(new AppError('Post not found', 404));
+
+    if (action === 'approve') {
+        await post.update({ isFlagged: false });
+    } else if (action === 'remove') {
+        await post.destroy();
+    } else {
+        return next(new AppError('Action must be "approve" or "remove"', 400));
+    }
+
+    response.success(req, res, null, `Post ${action}d`);
+});
+
+// ─── Group Analytics ──────────────────────────────────────────────────────────
+
+exports.getGroupAnalytics = catchAsync(async (req, res, next) => {
+    const { id: groupId } = req.params;
+    const requesterId = req.header('x-user-id');
+
+    const adminCheck = await GroupMember.findOne({ where: { groupId, userId: requesterId, role: { [Op.in]: ['admin', 'moderator'] }, status: 'active' } });
+    if (!adminCheck) return next(new AppError('Not authorized', 403));
+
+    const group = await Group.findByPk(groupId);
+    if (!group) return next(new AppError('Group not found', 404));
+
+    const { Post } = require('../models');
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+
+    const [totalMembers, newMembersThisWeek, totalPosts, postsThisMonth, pendingMembers] = await Promise.all([
+        GroupMember.count({ where: { groupId, status: 'active' } }),
+        GroupMember.count({ where: { groupId, status: 'active', createdAt: { [Op.gte]: sevenDaysAgo } } }),
+        Post.count({ where: { groupId } }),
+        Post.count({ where: { groupId, createdAt: { [Op.gte]: thirtyDaysAgo } } }),
+        GroupMember.count({ where: { groupId, status: 'pending' } })
+    ]);
+
+    response.success(req, res, {
+        groupId,
+        memberCount: totalMembers,
+        newMembersThisWeek,
+        pendingRequests: pendingMembers,
+        totalPosts,
+        postsLast30Days: postsThisMonth,
+        engagementRate: totalMembers > 0 ? Math.round((postsThisMonth / totalMembers) * 100) / 100 : 0
+    });
+});
+
+// ─── Join Request Management ──────────────────────────────────────────────────
+
+exports.getJoinRequests = catchAsync(async (req, res, next) => {
+    const { id: groupId } = req.params;
+    const requesterId = req.header('x-user-id');
+
+    const adminCheck = await GroupMember.findOne({ where: { groupId, userId: requesterId, role: { [Op.in]: ['admin', 'moderator'] }, status: 'active' } });
+    if (!adminCheck) return next(new AppError('Not authorized', 403));
+
+    const requests = await GroupMember.findAll({
+        where: { groupId, status: 'pending' },
+        order: [['createdAt', 'ASC']]
+    });
+
+    response.success(req, res, requests);
+});
+
+exports.resolveJoinRequest = catchAsync(async (req, res, next) => {
+    const { id: groupId, userId: targetId } = req.params;
+    const { action } = req.body; // 'approve' | 'reject'
+    const requesterId = req.header('x-user-id');
+
+    const adminCheck = await GroupMember.findOne({ where: { groupId, userId: requesterId, role: { [Op.in]: ['admin', 'moderator'] }, status: 'active' } });
+    if (!adminCheck) return next(new AppError('Not authorized', 403));
+
+    const membership = await GroupMember.findOne({ where: { groupId, userId: targetId, status: 'pending' } });
+    if (!membership) return next(new AppError('Join request not found', 404));
+
+    if (action === 'approve') {
+        await membership.update({ status: 'active' });
+        const group = await Group.findByPk(groupId);
+        if (group) await group.increment('memberCount');
+    } else if (action === 'reject') {
+        await membership.destroy();
+    } else {
+        return next(new AppError('Action must be "approve" or "reject"', 400));
+    }
+
+    response.success(req, res, null, `Join request ${action}d`);
+});

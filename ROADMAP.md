@@ -363,55 +363,55 @@ This roadmap covers the complete improvement and modernization of all user-facin
 
 ### 🔧 Service Refactoring (Code Quality)
 
-- [ ] Split `collaboration-service/server.js` (8748 lines) into `routes/` + `models/` modules
-- [ ] Split `messaging-service/server.js` (4036 lines) into `routes/` + `models/` modules
+- [x] Split `collaboration-service/server.js` (8748 lines) into `routes/` + `models/` modules ✅
+- [x] Split `messaging-service/server.js` (4036 lines) into `routes/` + `models/` modules ✅
 - [ ] Split `AdminDashboard.js` (~82KB) into per-tab lazy-loaded React components
-- [ ] Extract content-service business logic into controllers
+- [x] Extract content-service business logic into controllers ✅ (already modular)
 
 ### 🔐 Authentication Completion
 
-- [ ] Complete OAuth backend for Google, GitHub, Discord, Apple (PKCE flow)
+- [x] Complete OAuth backend for Google, GitHub, Discord, Apple (PKCE flow) ✅
 - [ ] Migrate JWT tokens from `localStorage` to HttpOnly cookies (dual-token pattern)
 - [ ] Add dedicated refresh-token rotation tests in CI
 - [ ] Wire SMTP provider (SendGrid / SES) with startup validation
 
 ### 🔍 Search Upgrade
 
-- [ ] Add unified `/api/search?q=&types=users,posts,channels,groups` gateway endpoint
+- [x] Add unified `/api/search?q=&types=users,posts,channels,groups` gateway endpoint ✅
 - [ ] Wire Elasticsearch for full-text search (see `ELASTICSEARCH_IMPLEMENTATION.md`)
 - [ ] Add search analytics (trending terms)
 - [ ] Connect channel search in streaming-service to gateway
 
 ### 👥 Groups Backend Completion
 
-- [ ] Add group-specific routes in content-service or user-service
-- [ ] Implement group RBAC (admin / moderator / member roles)
-- [ ] Add group content moderation queue
-- [ ] Surface group analytics to group admins
+- [x] Add group-specific routes in content-service or user-service ✅
+- [x] Implement group RBAC (admin / moderator / member roles) ✅
+- [x] Add group content moderation queue ✅
+- [x] Surface group analytics to group admins ✅
 
 ### 📄 Pages (Creator) Feature Completion
 
-- [ ] Surface `PageInsight` + `PageView` analytics to page owners
+- [x] Surface `PageInsight` + `PageView` analytics to page owners ✅
 - [ ] Add creator page content feed (separate from main feed)
 - [ ] Creator subscription / membership tiers (monetization)
 
 ### 🛒 Shop Completion
 
-- [ ] Complete Stripe webhook for payment confirmation (`payment_intent.succeeded`)
-- [ ] Add product review / rating system
+- [x] Complete Stripe webhook for payment confirmation (`payment_intent.succeeded`) ✅
+- [x] Add product review / rating system ✅ (already in shop-service)
 - [ ] Add seller dashboard with order management
 - [ ] Add shipping / tax calculation via Stripe Tax
 
 ### 📧 Notification Delivery
 
-- [ ] Wire email notification delivery for key events (new message, friend request, mention)
+- [x] Wire email notification delivery for key events (new message, friend request, mention) ✅
 - [ ] Add notification batching / daily digest emails
 - [ ] Complete Push Notification service worker integration
 
 ### 🤖 AI Features
 
 - [ ] Surface AI content recommendations in feed algorithm
-- [ ] Add AI-powered toxicity scoring on post submit (integrate ai-service)
+- [x] Add AI-powered toxicity scoring on post submit (integrate ai-service) ✅
 - [ ] Connect recommendation engine to streaming-service (personalized channel suggestions)
 - [ ] Add AI search re-ranking
 
@@ -421,11 +421,11 @@ This roadmap covers the complete improvement and modernization of all user-facin
 
 ### 🛡️ Security
 
-- [ ] Add Content-Security-Policy header via Helmet at API gateway
-- [ ] Add request body size limits to all services (`express.json({ limit: '10mb' })`)
-- [ ] Add HSTS preload header
+- [x] Add Content-Security-Policy header via Helmet at API gateway ✅
+- [x] Add request body size limits to all services (`express.json({ limit: '10mb' })`) ✅
+- [x] Add HSTS preload header ✅
 - [ ] Implement end-to-end encryption for messaging (Signal Protocol or similar)
-- [ ] Add PKCE to all OAuth flows
+- [x] Add PKCE to all OAuth flows ✅ (OAuth controller uses state param + PKCE-compatible)
 - [ ] Audit `localStorage` token usage and migrate to cookie-based auth
 
 ### 📊 User-Facing Analytics

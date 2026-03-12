@@ -42,7 +42,7 @@ const sequelize = new Sequelize(
 healthChecker.registerCheck('database', () => checkDatabase(sequelize));
 healthChecker.registerCheck('redis', () => checkRedis(redis));
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(createForwardedIdentityGuard());
 app.use(healthChecker.metricsMiddleware());
 

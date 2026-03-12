@@ -71,6 +71,19 @@ const User = sequelize.define('User', {
     deletionPendingAt: {
         type: DataTypes.DATE,
         allowNull: true
+    },
+    // OAuth provider fields
+    oauthProvider: {
+        type: DataTypes.ENUM('local', 'google', 'github', 'discord', 'apple'),
+        defaultValue: 'local'
+    },
+    oauthProviderId: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
+    oauthAccessToken: {
+        type: DataTypes.TEXT,
+        allowNull: true
     }
 }, {
     timestamps: true,
