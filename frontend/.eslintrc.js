@@ -11,6 +11,7 @@ module.exports = {
     'react-app',
     'react-app/jest',
   ],
+  plugins: ['react-hooks'],
   rules: {
     // React hooks
     'react-hooks/rules-of-hooks': 'error',
