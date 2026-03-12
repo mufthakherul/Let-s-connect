@@ -213,7 +213,7 @@ async function fetchRadioStations() {
     try {
         const fetcher = new RadioBrowserFetcher({
             timeout: IS_FAST_MODE ? 10000 : 15000,
-            retries: IS_FAST_MODE ? 1 : 3,
+            retries: IS_FAST_MODE ? 0 : 3,
             fetchWorldwide: true  // Worldwide approach for maximum coverage
         });
 
@@ -240,7 +240,7 @@ async function fetchRadioStations() {
         try {
             const radioss = new RadiossFetcher({
                 timeout: IS_FAST_MODE ? 5000 : 10000,
-                retries: IS_FAST_MODE ? 1 : 2
+                retries: IS_FAST_MODE ? 0 : 2
             });
             radiossStations = await radioss.fetchAll();
             if (radiossStations.length > 0) {
@@ -344,7 +344,7 @@ async function fetchIPTVOrgChannels() {
     try {
         const iptvAPI = new IPTVOrgAPI({
             timeout: IS_FAST_MODE ? 12000 : 30000,
-            retries: IS_FAST_MODE ? 1 : 3
+            retries: IS_FAST_MODE ? 0 : 3
         });
         const channels = await iptvAPI.fetchChannels();
 
@@ -431,7 +431,7 @@ async function fetchTVChannels() {
     try {
         const fetcher = new IPTVOrgDatabaseFetcher({
             timeout: IS_FAST_MODE ? 15000 : 30000,
-            retries: IS_FAST_MODE ? 2 : 3
+            retries: IS_FAST_MODE ? 0 : 3
         });
 
         const channels = await fetcher.fetchAllChannels();
@@ -534,14 +534,24 @@ const seed = async () => {
             try {
                 radioStations = await fetchRadioStations();
             } catch (error) {
-                console.error('❌ Critical error fetching radio stations:', error.message);
-                console.error('Please check internet connection and API availability');
-                process.exit(1);
+                if (IS_FAST_MODE) {
+                    console.warn(`⚠️  Fast mode: fetch radio stations failed (${error.message}) — falling back to static data`);
+                    radioStations = [];
+                } else {
+                    console.error('❌ Critical error fetching radio stations:', error.message);
+                    console.error('Please check internet connection and API availability');
+                    process.exit(1);
+                }
             }
 
             if (!radioStations || radioStations.length === 0) {
-                console.error('❌ No radio station data available');
-                process.exit(1);
+                if (IS_FAST_MODE) {
+                    console.warn('⚠️  Fast mode: no radio station data from online sources — using static data only');
+                    radioStations = [];
+                } else {
+                    console.error('❌ No radio station data available');
+                    process.exit(1);
+                }
             }
 
             mergedRadio = mergeData(radioStations, staticRadioData, 'radio');
@@ -679,14 +689,24 @@ const seed = async () => {
             try {
                 tvChannels = await fetchTVChannels();
             } catch (error) {
-                console.error('❌ Critical error fetching TV channels:', error.message);
-                console.error('Please check internet connection and playlist availability');
-                process.exit(1);
+                if (IS_FAST_MODE) {
+                    console.warn(`⚠️  Fast mode: fetch TV channels failed (${error.message}) — falling back to static data`);
+                    tvChannels = [];
+                } else {
+                    console.error('❌ Critical error fetching TV channels:', error.message);
+                    console.error('Please check internet connection and playlist availability');
+                    process.exit(1);
+                }
             }
 
             if (!tvChannels || tvChannels.length === 0) {
-                console.error('❌ No TV channel data available');
-                process.exit(1);
+                if (IS_FAST_MODE) {
+                    console.warn('⚠️  Fast mode: no TV channel data from online sources — using static data only');
+                    tvChannels = [];
+                } else {
+                    console.error('❌ No TV channel data available');
+                    process.exit(1);
+                }
             }
 
             console.log('\n📡 Fetching additional TV channels (YouTube)...\n');
@@ -733,7 +753,7 @@ const seed = async () => {
                 }
 
                 const enrichedChannels = await enricher.enrichChannels(allChannels, {
-                    skipInvalid: false,
+                    skipInvalid: IS_FAST_MODE,
                     validateStreams: !FAST_DISABLE_STREAM_VALIDATION
                 });
 
@@ -866,6 +886,7 @@ const seed = async () => {
                     console.log(`  - ${source}: ${count} channels`);
                 });
             }
+        }
         }
         }
 

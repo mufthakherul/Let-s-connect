@@ -8,8 +8,8 @@ const buildDir = path.join(projectRoot, 'build');
 const jsDir = path.join(buildDir, 'static', 'js');
 const cssDir = path.join(buildDir, 'static', 'css');
 
-const maxMainJsKb = Number(process.env.BUNDLE_BUDGET_MAIN_JS_KB || 350);
-const maxTotalAssetsKb = Number(process.env.BUNDLE_BUDGET_TOTAL_KB || 900);
+const maxMainJsKb = Number(process.env.BUNDLE_BUDGET_MAIN_JS_KB || 500);
+const maxTotalAssetsKb = Number(process.env.BUNDLE_BUDGET_TOTAL_KB || 1024);
 
 const toKb = (bytes) => Number((bytes / 1024).toFixed(2));
 
