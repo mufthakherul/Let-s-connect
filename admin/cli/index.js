@@ -3002,7 +3002,7 @@ function cmdCompletion(rawArgs) {
         'remediate', 'cluster', 'trends',
         // Phase F
         'batch', 'diff', 'completion', 'tail-logs', 'snapshot', 'compare',
-        'plugins', 'plugin-run',
+        'plugins', 'plugin-run', 'interactive',
     ];
     const pluginCmds = [..._plugins.values()].map(p => p.command || p.name);
     const allCmds = [...new Set([...builtinCmds, ...pluginCmds])];
@@ -3530,8 +3530,56 @@ async function cmdAI(rawArgs) {
             console.log(c('yellow', `  ✓ Workflow ${id} denied`));
             break;
         }
+        case 'monitor':
+        case 'dashboard': {
+            const { options } = parseArgs(rawArgs);
+            const interval = Math.max(2, parseInt(options.interval) || 5);
+            if (!process.stdout.isTTY) {
+                // Non-TTY: print once and exit
+                const channels = bridge.getChannelStatus();
+                const stats = bridge.getStats();
+                const workflows = bridge.listWorkflows({ status: 'pending_approval' });
+                console.log(JSON.stringify({ channels, stats, pendingWorkflows: workflows }, null, 2));
+                return;
+            }
+            const A = { clear: '\x1b[2J\x1b[H', bold: '\x1b[1m', reset: '\x1b[0m', green: '\x1b[32m', red: '\x1b[31m', yellow: '\x1b[33m', cyan: '\x1b[36m', dim: '\x1b[2m' };
+            const render = () => {
+                process.stdout.write(A.clear);
+                const now = new Date().toLocaleString();
+                const channels = bridge.getChannelStatus();
+                const stats = bridge.getStats();
+                const workflows = bridge.listWorkflows({ status: 'pending_approval' });
+                console.log(`\n${A.bold}${A.cyan}  ╔══════════════════════════════════════════════╗${A.reset}`);
+                console.log(`${A.bold}${A.cyan}  ║       AI Admin Terminal Dashboard            ║${A.reset}`);
+                console.log(`${A.bold}${A.cyan}  ╚══════════════════════════════════════════════╝${A.reset}`);
+                console.log(`  ${A.dim}Updated: ${now}  |  Refresh: ${interval}s  |  Ctrl+C to exit${A.reset}\n`);
+                console.log(`${A.bold}  AI Integration Channels${A.reset}`);
+                console.log('  ' + '─'.repeat(50));
+                for (const [name, status] of Object.entries(channels)) {
+                    const icon = status.enabled ? `${A.green}✓${A.reset}` : `${A.red}✗${A.reset}`;
+                    const lbl = status.enabled ? `${A.green}enabled${A.reset}` : `${A.dim}disabled${A.reset}`;
+                    console.log(`  ${icon}  ${name.padEnd(14)} ${lbl}`);
+                }
+                console.log(`\n${A.bold}  Workflow Summary${A.reset}`);
+                console.log('  ' + '─'.repeat(50));
+                console.log(`  Total workflows    : ${stats.totalWorkflows}`);
+                console.log(`  Pending approval   : ${A.yellow}${stats.pendingApprovals}${A.reset}`);
+                if (workflows.length > 0) {
+                    console.log(`\n${A.bold}  Pending Workflows${A.reset}`);
+                    console.log('  ' + '─'.repeat(80));
+                    for (const wf of workflows.slice(0, 10)) {
+                        console.log(`  ${A.yellow}${wf.workflowId.padEnd(24)}${A.reset}  ${(wf.name || '').padEnd(30)}  channel=${wf.channel || 'api'}`);
+                    }
+                }
+                console.log(`\n  ${A.dim}Commands: ai approve <id>  |  ai deny <id>  |  ai workflows${A.reset}`);
+            };
+            render();
+            const timer = setInterval(render, interval * 1000);
+            process.on('SIGINT', () => { clearInterval(timer); process.stdout.write('\n'); process.exit(0); });
+            break;
+        }
         default:
-            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: status|workflows|approve|deny`));
+            console.error(c('red', `  Unknown subcommand: ${subCmd}. Use: status|workflows|approve|deny|monitor|dashboard`));
     }
 }
 
@@ -3706,11 +3754,16 @@ Phase D — Advanced Intelligence & Governance:
 
 Phase E — TUI · Webhooks · AI Remediation · Multi-Cluster · SLA · Trends:
   tui          [--interval 3]                        Interactive full-screen TUI dashboard
+  ai           status|workflows|approve|deny|monitor  AI integration channels & workflow control
   webhooks     list|add|remove|enable|disable|fire|history|stats [--type slack|teams|pagerduty|github]
   sla          status|predict|add|record|simulate|list [--id] [--value] [--json]
   remediate    analyze|rules|history|config [--json] [--llm-enable true]
   cluster      list|register|deregister|contexts|status|exec|switch|diff [--name] [--context]
   trends       report|chart|anomalies|forecast [--category] [--steps N] [--json]
+
+Interactive mode (no command):
+  node admin/cli/index.js                            Start interactive REPL shell
+  interactive                                        Same as above (explicit command)
 
 Phase F (Q2 2026) — Plugins · Batch · Diff · Completion · Logs · Snapshots · Compare:
   plugins                                            List installed plugins
@@ -3806,6 +3859,76 @@ Learn more: Review docs/admin/CLI_ADMIN_PANEL.md for detailed documentation
 }
 
 // ---------------------------------------------------------------------------
+// Interactive REPL Mode
+// ---------------------------------------------------------------------------
+
+async function cmdInteractive() {
+    const readline = require('readline');
+    const role = resolveRole();
+
+    console.log('');
+    console.log(c('bold', c('cyan', '  Milonexa Admin CLI — Interactive Mode')));
+    console.log(`  Role: ${c('yellow', role)}  |  Type ${c('green', 'help')} for commands, ${c('red', 'exit')} to quit`);
+    console.log('');
+
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+        prompt: c('cyan', '  admin> '),
+        completer: (line) => {
+            const completions = [
+                'doctor', 'role', 'status', 'health', 'logs', 'audit',
+                'tui', 'ai', 'ai status', 'ai workflows',
+                'metrics status', 'alerts list', 'costs summary',
+                'monitor cache', 'monitor error-budget',
+                'recommendations list', 'compliance status',
+                'webhooks list', 'sla status', 'trends',
+                'feature-flags list', 'tenant list', 'runbook list',
+                'change-log list', 'check all', 'plugins list',
+                'help', 'exit', 'quit',
+            ];
+            const hits = completions.filter(c => c.startsWith(line));
+            return [hits.length ? hits : completions, line];
+        },
+        terminal: true,
+    });
+
+    rl.prompt();
+
+    rl.on('line', async (input) => {
+        const trimmed = input.trim();
+        if (!trimmed) { rl.prompt(); return; }
+        if (trimmed === 'exit' || trimmed === 'quit') {
+            console.log(c('dim', '  Goodbye.'));
+            rl.close();
+            process.exit(0);
+        }
+        if (trimmed === 'help' || trimmed === '--help') {
+            printHelp();
+            rl.prompt();
+            return;
+        }
+
+        // Re-invoke main() for each line input
+        const parts = trimmed.split(/\s+/);
+        process.argv = [process.argv[0], process.argv[1], ...parts];
+        try {
+            await main();
+        } catch (err) {
+            console.error(c('red', `  [error] ${err.message}`));
+        }
+        // Restore argv to interactive baseline
+        process.argv = [process.argv[0], process.argv[1]];
+        rl.prompt();
+    });
+
+    rl.on('close', () => {
+        console.log('');
+        process.exit(0);
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Main — Phase 2 dispatch with auth → confirm → audit → command → finish
 // ---------------------------------------------------------------------------
 
@@ -3813,6 +3936,11 @@ async function main() {
     const [, , command, ...rawArgs] = process.argv;
 
     if (!command || ['help', '--help', '-h'].includes(command)) {
+        // If stdin is a TTY and no command given, start interactive mode
+        if (!command && process.stdin.isTTY) {
+            await cmdInteractive();
+            return;
+        }
         printHelp();
         return;
     }
@@ -3906,6 +4034,7 @@ async function main() {
             case 'ai': await cmdAI(rawArgs); break;
             case 'change-log': cmdChangeLog(rawArgs); break;
             case 'config': cmdConfig(rawArgs); break;
+            case 'interactive': await cmdInteractive(); break;
             default:
                 fatal(`Unknown command: ${command}\nUse: node admin-cli/index.js --help`);
         }

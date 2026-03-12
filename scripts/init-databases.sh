@@ -19,8 +19,9 @@ END
 EOSQL
 
 # Create multiple databases in PostgreSQL (idempotent)
-# Create multiple databases in PostgreSQL (idempotent)
-for db in users content messages collaboration media shop webhooks streaming; do
+# admin: used via ADMIN_DB_URL (see .env.example).
+# milonexa_admin: fallback default in security-service when ADMIN_DB_URL is not set.
+for db in users content messages collaboration media shop webhooks streaming admin milonexa_admin; do
   echo "[Init] Ensuring database exists: ${db}"
   if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${db}'" | grep -q 1; then
     echo "[Init] Creating database: ${db}"
