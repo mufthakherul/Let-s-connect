@@ -1,848 +1,431 @@
 # Content Moderation Guide
 
-> **Comprehensive guide for moderating content and maintaining a healthy platform community**
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Moderation Philosophy](#moderation-philosophy)
-3. [Content Policies](#content-policies)
-4. [Flag Review System](#flag-review-system)
-5. [Moderation Actions](#moderation-actions)
-6. [Automated Moderation](#automated-moderation)
-7. [Appeal Process](#appeal-process)
-8. [Best Practices](#best-practices)
-9. [Common Scenarios](#common-scenarios)
-
----
-
-## Overview
-
-Content moderation ensures the platform remains safe, respectful, and valuable for all users.
-
-### Moderation Goals
-
-1. **Safety:** Protect users from harmful content
-2. **Quality:** Maintain high-quality discussions
-3. **Compliance:** Follow legal requirements
-4. **Growth:** Foster healthy community
-5. **Balance:** Allow free expression within rules
-
-### Who Can Moderate
-
-| Role | Capabilities |
-|------|-------------|
-| **Admin** | Full moderation powers, policy changes, appeals |
-| **Moderator** | Review flags, remove content, issue warnings |
-| **User** | Report content (flag system) |
-
----
-
-## Moderation Philosophy
-
-### Core Principles
-
-1. **Context Matters**
-   - Consider full conversation
-   - Review user history
-   - Understand cultural differences
-   - Intent vs impact
-
-2. **Transparency**
-   - Clear communication
-   - Explain decisions
-   - Consistent application
-   - Public guidelines
-
-3. **Proportional Response**
-   - Warning → Removal → Suspension → Ban
-   - Match action to severity
-   - Allow for improvement
-   - Document escalation
-
-4. **Fairness**
-   - Apply rules equally
-   - No favoritism
-   - Review appeals fairly
-   - Admit mistakes
-
-### Moderation Spectrum
-
-```
-Allow Freely ←―――――――――――――――――――――――――→ Remove Immediately
-    
-    ↑              ↑           ↑               ↑
-  Healthy      Gray Zone    Violates      Illegal/
-  Content                   Policy        Harmful
-```
-
----
-
-## Content Policies
-
-### Prohibited Content
-
-#### 1. ❌ Illegal Content
-**Remove immediately, report to authorities**
-
-- Child exploitation material
-- Terrorism promotion
-- Illegal drugs sales
-- Stolen goods sales
-- Fraud and scams
-- Copyright infringement (with valid DMCA)
-
-**Action:** Immediate removal + ban + legal report
-
-#### 2. ❌ Violence & Threats
-**Remove and review for ban**
-
-- Direct threats to individuals
-- Incitement to violence
-- Graphic violence (no educational context)
-- Self-harm promotion
-- Detailed harm instructions
-
-**Action:** Remove + warning/ban based on severity
-
-#### 3. ❌ Harassment & Bullying
-**Remove, warn, or ban based on severity**
-
-- Targeted harassment
-- Doxxing (sharing private info)
-- Hate speech
-- Sustained bullying campaigns
-- Brigading coordination
-
-**Action:** Remove + warning or ban
-
-#### 4. ❌ Spam & Manipulation
-**Remove and monitor for patterns**
-
-- Repetitive commercial posts
-- Bot-like behavior
-- Vote manipulation
-- Fake engagement
-- Misleading links
-
-**Action:** Remove + warning/ban
-
-#### 5. ❌ Sexual Content
-**Remove if explicit or non-consensual**
-
-- Pornographic content
-- Sexual solicitation
-- Non-consensual intimate images
-- Sexual content involving minors
-
-**Action:** Immediate removal + ban
-
-#### 6. ⚠️ Misinformation
-**Context-dependent**
-
-- Dangerous false health claims
-- Election misinformation
-- Deepfakes without disclosure
-- Conspiracy theories (case by case)
-
-**Action:** Label, remove if dangerous, or allow with context
-
-### Allowed Content (Even If Controversial)
-
-✅ **Generally Allowed:**
-- Political opinions and debate
-- Religious discussions
-- Satire and parody
-- News and current events
-- Scientific discussions
-- Artistic expression
-- Criticism of public figures
-- Unpopular opinions
-
-**Guidelines:**
-- Must follow community standards
-- No personal attacks
-- No calls for violence
-- No harassment
-- Factual accuracy appreciated
-
----
-
-## Flag Review System
-
-### Understanding Flags
-
-**Flag (Report):** User-submitted report of problematic content
-
-**Flag Structure:**
-```javascript
-{
-  id: 12345,
-  contentType: "post",      // post, comment, message
-  contentId: 67890,
-  reporterId: 111,
-  reason: "harassment",
-  description: "User is repeatedly attacking me",
-  status: "pending",        // pending, reviewed, resolved
-  createdAt: "2026-03-09T10:00:00Z"
-}
-```
-
-### Flag Categories
-
-1. **Spam or Scam**
-   - Commercial spam
-   - Phishing attemptss
-   - Repetitive content
-   
-2. **Harassment or Hate**
-   - Personal attacks
-   - Hate speech
-   - Bullying
-
-3. **Violence or Threats**
-   - Threats to harm
-   - Graphic violence
-   - Incitement
-
-4. **Illegal Content**
-   - Child exploitation
-   - Drug sales
-   - Stolen goods
-
-5. **Misinformation**
-   - False health claims
-   - Election misinformation
-   - Deepfakes
-
-6. **Sexual Content**
-   - Pornography
-   - Sexual solicitation
-   - NCII (non-consensual intimate images)
-
-7. **Other**
-   - Copyright
-   - Privacy violation
-   - Off-topic
-
-### Flag Review Process
-
-**Step-by-Step:**
-
-1. **Navigate to Moderation Tab**
-   ```
-   Admin Dashboard → Moderation → Pending Flags
-   ```
-
-2. **Select Flag to Review**
-   - View flagged content
-   - Read reporter's reason
-   - Check context (surrounding comments, post history)
-
-3. **Gather Context**
-   ```
-   - View user's post history
-   - Check for previous violations
-   - Review full conversation thread
-   - Consider cultural context
-   ```
-
-4. **Make Decision**
-   - **Approve:** Content is fine, dismiss flag
-   - **Remove:** Content violates policy
-   - **Remove + Warn:** Remove and warn user
-   - **Remove + Ban:** Remove and ban user
-
-5. **Take Action**
-   - Execute decision
-   - Add moderation note
-   - Notify user (optional)
-   - Update flag status to "resolved"
-
-6. **Document**
-   ```javascript
-   {
-     action: "removed",
-     reason: "Violated harassment policy",
-     moderator: "mod_jane",
-     notes: "Repeated personal attacks after warning"
-   }
-   ```
-
-### Flag Priority Levels
-
-**Critical (Review Immediately):**
-- Illegal content
-- Direct threats
-- Child safety
-- Ongoing harassment
-
-**High (Review within 2 hours):**
-- Hate speech
-- Graphic violence
-- Sexual content
-- Doxxing
-
-**Medium (Review within 24 hours):**
-- Spam
-- Misinformation
-- General harassment
-- Off-topic content
-
-**Low (Review within 72 hours):**
-- Minor rule violations
-- Duplicate flags
-- Unclear violations
-
----
+Complete guide for content moderation including the moderation queue, AI moderation, manual review, content actions, and bulk operations.
+
+## Moderation Queue Overview
+
+The moderation queue displays all content that needs human review. Content enters the queue by:
+1. User reports (other users flag content as inappropriate)
+2. AI auto-flagging (AI-service detects potentially problematic content)
+3. Keyword filters (matches banned phrases)
+4. Moderator escalation
+
+### Web Dashboard
+Navigate to **Content & Moderation → Moderation** tab.
+
+**Queue statistics** (right sidebar):
+- Total items pending: 247
+- Average review time: 8 minutes
+- Moderator workload this week: ~2400 items
+- Most common flag reasons: Spam (45%), Hate Speech (25%), NSFW (20%)
+
+**Queue filters**:
+- Flagged (user reports)
+- Reported (multiple users reported same item)
+- Auto-flagged (AI detection)
+- Status: Pending, Approved, Removed
+- Content type: Post, Comment, Blog, Video
+- Severity: Low, Medium, High
+- Time period: Today, This week, This month
+
+## Content Flagging
+
+### User Reporting
+When a user reports content:
+1. They select reason from dropdown
+2. Optional additional comment
+3. Reason stored with report
+4. Multiple reports on same content increase priority
+
+### AI Moderation System
+AI-service automatically analyzes new content for:
+- **Hate speech**: Racist, sexist, religious intolerance
+- **Spam**: Repetitive low-value content, advertising
+- **NSFW**: Explicit sexual content, nudity, graphic violence
+- **Misinformation**: False medical claims, election manipulation claims
+- **Personal attacks**: Targeted harassment, doxxing
+- **Copyright**: Potential copyright infringement
+
+### Confidence Scores
+Each AI flag has confidence score (0-100%):
+- **90-100%**: Auto-removed immediately (can be appealed)
+- **75-89%**: Automatically removed but notifies user
+- **50-74%**: Added to moderation queue for human review
+- **Below 50%**: Ignored, content not flagged
+
+### Keyword Filters
+Admins create banned word/phrase list. Any post containing banned keywords:
+- Automatically flagged
+- Added to moderation queue
+- Can be auto-removed (if configured)
+
+Example filters:
+- "hate speech phrases" (list of slurs)
+- "spam keywords" (pump-and-dump schemes, weight loss scams)
+- "misinformation patterns" (COVID false claims, election fraud claims)
+
+## Manual Content Review
+
+### Moderation Queue Interface
+Content cards display:
+- Thumbnail/preview
+- Content type and author
+- Flag reason(s) and count
+- Submission date
+- AI confidence score (if auto-flagged)
+- Reporter usernames (for user reports)
+
+### Reviewing Content
+1. Click content card to expand
+2. View full content with context:
+   - Original post + comments (for comments)
+   - Profile information
+   - User's moderation history
+   - Similar reports from other users
+3. Take action (below)
 
 ## Moderation Actions
 
-### Available Actions
+### Approve
+Keep content, remove from queue. User sees no notification.
 
-#### 1. Dismiss Flag
-**When:** Content doesn't violate policies
+**When to use**:
+- Content is not actually violating policy
+- False report
+- Content was borderline but acceptable
 
-**Process:**
-```
-Flag → Review → Approve → Dismiss
-```
-
-**Notify:** (Optional) Reporter that content doesn't violate rules
-
-#### 2. Remove Content
-**When:** Content violates policies but user may not know
-
-**Process:**
-```
-Flag → Review → Remove Content → Notify User
+**CLI**:
+```bash
+milonexa> content approve c1b2a3d4
+✓ Content approved
+  Removed from moderation queue
 ```
 
-**Template:**
-```
-Your [post/comment] was removed because it violated our policy on [reason].
-Please review our Community Guidelines.
-You can edit and repost if you remove the violating content.
-```
+**Web Dashboard**: "Approve" button
 
-#### 3. Remove Content + Warning
-**When:** Clear violation, first offense
+### Remove
+Delete content entirely. User receives notification with reason.
 
-**Process:**
-```
-Flag → Review → Remove + Warning → Log
-```
+**When to use**:
+- Clear policy violation
+- Hate speech, harassment, spam
+- Explicit content
 
-**Template:**
-```
-Your content was removed for [reason].
-This is a formal warning. Future violations may result in suspension or ban.
-Please review Community Guidelines: [link]
-```
+**Steps**:
+1. Click "Remove" button
+2. Select reason:
+   - Hate Speech
+   - Harassment
+   - Spam
+   - NSFW/Explicit
+   - Misinformation
+   - Copyright Violation
+   - Violence/Threats
+   - Other
+3. Optional comment to explain
+4. Confirm
 
-**Consequences:**
-- Content removed
-- User notified
-- Warning logged
-- Affects future moderation decisions
-
-#### 4. Remove Content + Temporary Ban
-**When:** Serious violation or repeated offenses
-
-**Process:**
-```
-Flag → Review → Remove + Ban (7 days) → Notify
+**CLI**:
+```bash
+milonexa> content delete c1b2a3d4 --reason "hate speech"
+✓ Content deleted
+  User notified of removal reason
+  Reason: Hate Speech
 ```
 
-**Template:**
-```
-Your account has been temporarily suspended for 7 days.
-Reason: [detailed explanation]
-Your content was removed for violating [policy].
-You can access your account again on [date].
-If you believe this was in error, you may appeal.
-```
-
-**Consequences:**
-- Content removed
-- Cannot log in for duration
-- All sessions terminated
-- Can appeal
-
-#### 5. Remove Content + Permanent Ban
-**When:** Severe violation, illegal content, or repeated serious offenses
-
-**Process:**
-```
-Flag → Review → Remove + Permanent Ban → Notify → Log → (Report to Authorities if needed)
-```
-
-**Template:**
-```
-Your account has been permanently banned.
-Reason: [detailed explanation]
-This decision is final but you may appeal within 30 days.
-All your content has been [retained/removed].
-```
-
-**Consequences:**
-- Account permanently disabled
-- Content removed (or retained for evidence)
-- Cannot create new account (IP/device ban possible)
-- May be reported to authorities
-
-#### 6. Label Content  
-**When:** Misinformation or sensitive content
-
-**Process:**
-```
-Flag → Review → Add Warning Label → Allow to Remain
-```
-
-**Label Examples:**
-```
-⚠️ This content contains unverified health claims
-⚠️ This content is disputed by fact-checkers
-⚠️ Graphic content - viewer discretion advised
-⚠️ Satirical content
-```
-
-### Moderation Decision Tree
-
-```
-Flagged Content
-    ↓
-Is it illegal?
-    Yes → Remove + Ban + Report to authorities
-    No → Continue
-    ↓
-Does it violate policy?
-    No → Dismiss flag
-    Yes → Continue
-    ↓
-Is it first offense?
-    Yes → Remove + Warning
-    No → Continue
-    ↓
-Is it severe violation?
-    Yes → Remove + Ban (temp or permanent)
-    No → Remove + Warning
-    ↓
-Document and notify user
-```
-
----
-
-## Automated Moderation
-
-### AI-Assisted Moderation
-
-The platform uses AI to assist (not replace) human moderators:
-
-**AI Capabilities:**
-1. **Auto-Flag:** Automatically flag potentially violating content
-2. **Priority:** Prioritize flags by severity
-3. **Suggest:** Suggest moderation actions
-4. **Detect:** Detect spam, bots, coordinated campaigns
-
-**AI Features:**
-
-```javascript
-// Spam Detection
-- URL spam patterns
-- Repetitive text
-- Bot-like posting patterns
-- Fake engagement
-
-// Hate Speech Detection
-- Slurs and offensive language
-- Targeted harassment patterns
-- Hate symbols and dog whistles
-
-// NSFW Detection
-- Explicit images
-- Suggestive content
-- Age-inappropriate material
-```
-
-**Human Review Required:**
-- AI suggestions are not final
-- Moderator must review and make decision
-- AI helps scale, humans ensure accuracy
-- Context requires human judgment
-
-### Auto-Actions
-
-**Automatic Removal:**
-- Known spam URLs (blacklist)
-- Previously banned content hashes
-- Illegal content (CSAM hash matching)
-
-**Automatic Flag:**
-- Detected slurs or offensive language
-- High similarity to removed content
-- Bot-like behavior patterns
-- Mass reporting from multiple users
-
-**Automatic Shadow-Ban:**
-- Obvious bot accounts
-- Spam accounts (temporary, pending review)
-
-### Rate Limiting
-
-**Prevents Spam:**
-```javascript
-// Posting Limits
-- Max 10 posts per hour
-- Max 50 comments per hour
-- Max 100 messages per hour
-
-// Flagging Limits
-- Max 20 flags per day (prevents abuse)
-
-// Account Creation
-- Max 5 accounts per IP per day
-```
-
----
-
-## Appeal Process
-
-### When Users Can Appeal
-
-- Content removal
-- Account suspension
-- Permanent ban
-- Warning issued
-
-### Appeal Submission
-
-**User Process:**
-1. Receives moderation action
-2. Clicks "Appeal" button
-3. Fills appeal form:
-   - Why they disagree
-   - Additional context
-   - Evidence if applicable
-4. Submits appeal
-
-**Appeal Structure:**
-```javascript
+**REST API**:
+```bash
+DELETE /api/admin/content/c1b2a3d4
 {
-  id: 789,
-  userId: 123,
-  moderationActionId: 456,
-  reason: "I believe this was taken out of context...",
-  evidence: "Screenshot of full conversation",
-  status: "pending",
-  submittedAt: "2026-03-09T12:00:00Z"
+  "reason": "hate speech"
 }
 ```
 
-### Appeal Review
+### Warn User
+Send warning email to user without removing content.
 
-**Admin/Senior Moderator Process:**
+**When to use**:
+- First offense of user
+- Minor policy violation
+- Borderline content
+- Want to give user chance to self-correct
 
-1. **Review Appeal:**
-   - Read user's explanation
-   - Review original content and context
-   - Check moderation notes
-   - Consider additional evidence
-
-2. **Investigate:**
-   - Was policy applied correctly?
-   - Was context considered?
-   - Is there new information?
-   - Was action proportional?
-
-3. **Make Decision:**
-   - **Uphold:** Original decision stands
-   - **Partially Uphold:** Reduce penalty
-   - **Overturn:** Restore content/account
-
-4. **Communicate:**
-   ```
-   Appeal Decision: [Uphold/Overturn/Partial]
-   
-   Explanation: [Detailed reasoning]
-   
-   Next Steps: [What happens now]
-   
-   Further Appeals: [If available]
-   ```
-
-5. **Log Decision:**
-   - Update audit log
-   - Document reasoning
-   - Mark appeal as resolved
-
-### Appeal Timeline
-
+**Email template**:
 ```
-Appeal Submitted → Review (2-5 business days) → Decision → Notification
+Subject: Warning - Policy Violation
+
+Your post [title] was found to violate our community guidelines.
+
+Reason: [Selected reason]
+
+Please review our policies at [link]. Further violations may result in account suspension.
+
+You can appeal this warning by replying to this email.
 ```
 
-**Expedited Review:**
-- Account bans (review within 24 hours)
-- Business accounts (review within 24 hours)
-- Legal concerns (immediate review)
+### Ban User
+Immediately suspend user account.
 
----
+**When to use**:
+- Severe policy violation (hate speech, threats)
+- Repeated violations
+- Spam bot account
+- Evidence of harassment campaign
+
+**Steps**:
+1. Click "Ban User"
+2. Select duration (1h, 24h, 7d, 30d, permanent)
+3. Enter reason
+4. Confirm
+5. User receives suspension notification
+6. All their content remains (can be removed separately)
+
+## Content Types in Moderation
+
+### Posts
+Main user-created content. Can contain text, images, videos, links.
+
+**Common issues**:
+- Promotional content / spam
+- Misinformation
+- Hate speech
+- Threats / harassment
+
+### Comments
+Replies to posts. Smaller but often problematic.
+
+**Common issues**:
+- Harassment of post author
+- Spam / promotional
+- Reply with misinformation
+
+### Blog Posts
+Longer-form user content.
+
+**Common issues**:
+- Misinformation (medical claims, conspiracy)
+- Copyright violation
+- Spam
+
+### Videos
+User-uploaded or linked videos.
+
+**Common issues**:
+- Copyright infringement
+- NSFW content
+- Violent content
+- Misleading thumbnails
+
+### Profile Information
+Usernames, bios, profile pictures.
+
+**Common issues**:
+- Offensive usernames
+- NSFW profile pictures
+- Impersonation
+
+## Keyword/Phrase Filters
+
+### Managing Filters
+**Web Dashboard**: Settings → Filters
+
+Create keyword filter:
+1. Click "Add Filter"
+2. Enter term/phrase
+3. Select action:
+   - Flag for review
+   - Auto-remove
+4. Severity level
+5. Save
+
+### Filter Examples
+```
+Filter: "hate slur 1"
+Action: Auto-remove
+Severity: High
+Auto-notifies user: "Your post violates community standards"
+
+Filter: "buy viagra online"
+Action: Flag for review
+Severity: Medium
+Review before deletion to avoid false positives
+
+Filter: "crypto scam phrase"
+Action: Auto-remove
+Severity: High
+```
+
+### Best Practices
+- Start with "flag for review" not auto-remove
+- Monitor false positives and adjust
+- Regularly audit filter effectiveness
+- Document reason for each filter
+- Have policy discussion with team
+
+## Image Moderation
+
+### NSFW Detection
+AI-service analyzes images for:
+- Nudity (partial or full)
+- Explicit sexual acts
+- Graphic violence
+- Gore
+
+Confidence scores:
+- **90-100%**: Auto-removed
+- **70-89%**: Manual review
+- **Below 70%**: Ignored
+
+### Image Recognition
+Identify objects in images:
+- Weapons/violence
+- Drugs/drug paraphernalia
+- Certain animals (for animal cruelty detection)
+
+### QR Code Detection
+Automatically scans images for QR codes that might lead to:
+- Malware
+- Phishing sites
+- Spam links
+
+## Appeal System
+
+Users can appeal moderation decisions:
+1. User receives removal notification
+2. Email contains "Appeal" link
+3. User submits appeal with explanation
+4. Appeals stored in database
+5. Moderator reviews appeal
+6. Can override decision or uphold removal
+
+**Web Dashboard**: Appeals section shows pending user appeals
+
+### Reviewing Appeals
+1. Click appeal
+2. View original content (even if deleted)
+3. Review user's appeal explanation
+4. Accept appeal (restore content) or Deny (uphold removal)
+5. Send response to user
+
+## Moderation Log
+
+Every action logged immutably:
+- Timestamp
+- Moderator ID
+- Action (approve, remove, warn, ban)
+- Content ID
+- Reason
+- User notified? (yes/no)
+
+**Web Dashboard**: Audit Log tab → Filter by action type
+
+**CLI**:
+```bash
+milonexa> system audit --search "content remove" --format table
+
+Output:
+2024-12-15 15:42:00 | moderator1 | content remove | Post c1b2a3d4
+  Reason: hate speech
+  User notified: yes
+  
+2024-12-15 14:30:00 | administrator | content remove | Comment d4e5f6a7
+  Reason: harassment
+  User notified: yes
+```
+
+## Statistics and Reporting
+
+### Moderation Dashboard
+**Web Dashboard**: Analytics → Moderation Report
+
+Shows:
+- Daily moderation volume (items reviewed per day)
+- AI accuracy metrics
+  - Precision: % of auto-flags that were correct
+  - Recall: % of violating content caught by AI
+- Moderator performance
+  - Average review time per moderator
+  - Items processed per moderator
+  - Appeal rate (% of actions appealed)
+- Violation breakdown by type
+- Trend over time (decreasing violations = good policy enforcement)
+
+### Reports
+Generate moderation reports:
+- Weekly: Violations found this week, action taken
+- Monthly: Trend analysis, top violators, content type breakdown
+- Custom: Any date range, any content type
+
+Export formats: PDF, CSV, JSON
 
 ## Best Practices
 
-### For Effective Moderation
+### Decision Quality
+- Review context: Author's history, type of content, clear violation vs borderline
+- Consistency: Apply policies consistently across users and content types
+- Proportionality: Punishment matches severity (warn for minor, ban for severe)
+- Transparency: Provide clear reason to user
 
-1. **Read Full Context**
-   - Don't judge by snippet alone
-   - Review conversation history
-   - Check user's track record
-   - Consider tone and intent
+### User Communication
+- Always explain why content removed
+- Link to relevant policy
+- Provide appeal mechanism
+- Be respectful and non-judgmental
 
-2. **Document Everything**
-   - Add detailed notes
-   - Explain reasoning
-   - Include evidence
-   - Update audit log
+### Handling False Positives
+- AI flags: Review before removing to catch false positives
+- Keyword filters: Monitor for overly broad matches
+- User reports: Consider context before accepting report
 
-3. **Communicate Clearly**
-   - Explain specific violation
-   - Reference policy
-   - Provide way to improve
-   - Offer appeal process
+### Escalation
+If unsure, don't remove content. Instead:
+- Warn user
+- Flag for senior moderator review
+- Document concerns
+- Discuss in team meeting
 
-4. **Be Consistent**
-   - Apply rules equally
-   - Use precedent
-   - Don't play favorites
-   - Document exceptions
+## Bulk Moderation
 
-5. **Stay Professional**
-   - Don't take it personally
-   - Remain calm
-   - Be respectful
-   - Focus on behavior, not person
+### Select Multiple Items
+1. Click checkboxes on content cards
+2. "Bulk Action" dropdown appears
+3. Select action:
+   - Approve Selected
+   - Remove Selected
+   - Warn Users
+   - Ban Users
 
-### For Handling Difficult Cases
+### Example: Remove Spam Campaign
+1. Identify spam bot account creating dozens of posts
+2. Select all their posts (can filter by author)
+3. Click "Remove Selected"
+4. Select reason: "Spam"
+5. Confirm
+6. All posts deleted
+7. Can optionally ban user in separate action
 
-**Controversial Content:**
-- Consult with other moderators
-- Review policy carefully
-- Consider community impact
-- Document decision thoroughly
+## Content Policy
 
-**Gray Areas:**
-- Err on side of allowing (unless harmful)
-- Add context labels
-- Monitor for escalation
-- Establish clear precedent
+Create content policy that defines violations:
 
-**High-Profile Users:**
-- No special treatment
-- Apply same rules
-- Document extra carefully
-- Expect more scrutiny
+### Prohibited Content Examples
+- Hate speech / discrimination
+- Harassment and bullying
+- Threats and violence
+- Sexual exploitation
+- Spam and scams
+- Misinformation (health, election, etc.)
+- Copyright and IP infringement
+- Impersonation
+- Doxing / privacy violation
+- Illegal activity promotion
 
-**Coordinated Attacks:**
-- Identify patterns
-- Act on  most severe first
-- Document connections
-- Consider mass action
-
-### Common Mistakes to Avoid
-
-❌ **Don't:**
-- Act on emotion
-- Remove content you simply disagree with
-- Ban without warning (except severe cases)
-- Ignore context
-- Make decisions while angry
-- Respond to abusive users
-- Engage in arguments
-
-✅ **Do:**
-- Take breaks if needed
-- Consult other moderators
-- Follow established procedures
-- Document thoroughly
-- Allow appeals
-- Learn from mistakes
-- Maintain professionalism
+### Policy Communication
+- Published policy on website
+- Shown during signup
+- Accessible in app settings
+- Enforcement is transparent
 
 ---
 
-## Common Scenarios
-
-### Scenario 1: Political Debate Gone Wrong
-
-**Situation:** Two users arguing about politics, insults being thrown
-
-**Assessment:**
-- Is it debate or harassment?
-- Are attacks personal or ideological?
-- Is one user piling on?
-- History of interactions?
-
-**Action:**
-```
-If heated but not personal:
-→ Monitor, post warning comment
-
-If personal attacks:
-→ Remove violating comments
-→ Warn both users
-→ Temporary mute if continues
-
-If one-sided harassment:
-→ Remove harasser's comments
-→ Warn or ban harasser
-→ Notify victim
-```
-
-### Scenario 2: Satire vs Misinformation
-
-**Situation:** "News" article that's actually satire
-
-**Assessment:**
-- Is it clearly labeled as satire?
-- Could it mislead readers?
-- Is topic sensitive (health, elections)?
-- User's intent?
-
-**Action:**
-```
-If clearly satire and labeled:
-→ Allow
-
-If could mislead:
-→ Add "Satirical Content" label
-→ Ask user to clarify in post
-
-If dangerous misinformation:
-→ Remove + message user about clarity
-```
-
-### Scenario 3: Product Reviews (Real vs Spam)
-
-**Situation:** Multiple similar negative reviews for product
-
-**Assessment:**
-- Are accounts new or established?
-- Similar wording across reviews?
-- Legitimate criticism or competitor attack?
-- Any evidence of coordination?
-
-**Action:**
-```
-If genuine reviews:
-→ Allow all
-
-If unclear:
-→ Flag for investigation
-→ Require "Verified Purchase" for new accounts
-
-If coordinated spam:
-→ Remove spam reviews
-→ Ban involved accounts
-→ Notify seller
-```
-
-### Scenario 4: Art vs Adult Content
-
-**Situation:** Artistic nude photo posted
-
-**Assessment:**
-- Is it artistic or pornographic?
-- Context of posting?
-- Community standards?
-- Age-appropriate?
-
-**Action:**
-```
-If artistic merit and tasteful:
-→ Allow with age-gate or warning label
-→ "Artistic Nudity - 18+"
-
-If pornographic intent:
-→ Remove
-→ Warn user about adult content policy
-
-If unclear:
-→ Consult with senior mod
-→ Consider community standards
-```
-
-### Scenario 5: Dox Threat
-
-**Situation:** User threatens to share another user's private info
-
-**Assessment:**
-- Is threat credible?
-- Has info been shared yet?
-- Is victim at risk?
-- User's history?
-
-**Action:**
-```
-Immediate:
-→ Remove threat immediately
-→ Ban user making threat
-→ Notify victim
-→ Document everything
-
-Follow-up:
-→ Monitor for circumvention (alt accounts)
-→ Offer victim support resources
-→ Consider reporting to authorities if credible danger
-→ IP ban if necessary
-```
-
----
-
-## Appendix
-
-### Moderation Checklist
-
-Before taking action:
-
-- [ ] Read full context
-- [ ] Review user history
-- [ ] Check for previous violations
-- [ ] Consider intent vs impact
-- [ ] Verify policy violation
-- [ ] Choose proportional action
-- [ ] Document reasoning
-- [ ] Notify user (if appropriate)
-- [ ] Update flag status
-- [ ] Log audit trail
-
-### Resources
-
-- [Community Guidelines](./COMMUNITY_GUIDELINES.md)
-- [Admin Guide](./ADMIN_GUIDE.md)
-- [User Management](./USER_MANAGEMENT.md)
-- [API Reference](../development/API.md)
-
-### Quick Reference
-
-```bash
-# View pending flags
-Admin Dashboard → Moderation Tab → Filter: Pending
-
-# Review flag
-Click flag → View content → Review context → Make decision
-
-# Remove content
-Flag Actions → Remove Content → Add reason → Confirm
-
-# Ban user
-User Actions → Ban User → Duration → Reason → Confirm
-
-# Review appeals
-Admin Dashboard → Moderation Tab → Appeals Queue
-```
-
----
-
-**Last Updated:** March 9, 2026
-**Version:** 2.5.0
+Last Updated: 2024 | Milonexa Platform Documentation

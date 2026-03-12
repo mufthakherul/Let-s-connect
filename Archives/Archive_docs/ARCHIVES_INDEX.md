@@ -65,3 +65,10 @@ For up-to-date documentation, please refer to:
 - **Quick Start**: `/QUICK_START.md`
 - **Features**: `/FEATURES.md`
 - **Roadmap**: `/ROADMAP.md`
+
+## 2026-03-12: Full Documentation Overhaul
+
+- **Location**: `archived-docs-2026-03-12/`
+- **Reason**: All existing documentation was outdated and incomplete. Replaced with comprehensive professional wiki covering all platform features, services, admin panels, and deployment.
+- **Contents**: Previous admin/, deployment/, development/, user/ docs and misc files.
+- **Date**: 2026-03-12
