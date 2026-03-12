@@ -66,7 +66,7 @@ exports.sendFriendRequest = catchAsync(async (req, res, next) => {
     const declined = await FriendRequest.findOne({ where: { senderId, receiverId, status: 'declined' } });
     if (declined) {
         await declined.update({ status: 'pending' });
-        return response.success(req, res, declined, 'Friend request sent', 200);
+        return response.success(req, res, declined, { message: 'Friend request sent' }, 200);
     }
 
     const request = await FriendRequest.create({ senderId, receiverId });
@@ -80,7 +80,7 @@ exports.sendFriendRequest = catchAsync(async (req, res, next) => {
         data: { requestId: request.id, senderId }
     }).catch(() => {});
 
-    return response.success(req, res, request, 'Friend request sent', 201);
+    return response.success(req, res, request, { message: 'Friend request sent' }, 201);
 });
 
 exports.acceptFriendRequest = catchAsync(async (req, res, next) => {
@@ -97,7 +97,7 @@ exports.acceptFriendRequest = catchAsync(async (req, res, next) => {
         { userId: request.receiverId, friendId: request.senderId, type: 'friend' }
     ], { ignoreDuplicates: true });
 
-    return response.success(req, res, null, 'Friend request accepted');
+    return response.success(req, res, null, { message: 'Friend request accepted' });
 });
 
 exports.declineFriendRequest = catchAsync(async (req, res, next) => {
@@ -108,7 +108,7 @@ exports.declineFriendRequest = catchAsync(async (req, res, next) => {
     if (!request) return next(new AppError('Friend request not found', 404));
 
     await request.update({ status: 'declined' });
-    return response.success(req, res, null, 'Friend request declined');
+    return response.success(req, res, null, { message: 'Friend request declined' });
 });
 
 exports.getFriends = catchAsync(async (req, res, next) => {
@@ -206,7 +206,7 @@ exports.unfriend = catchAsync(async (req, res, next) => {
         }
     });
 
-    return response.success(req, res, null, 'Unfriended successfully');
+    return response.success(req, res, null, { message: 'Unfriended successfully' });
 });
 
 exports.getMutualFriends = catchAsync(async (req, res, next) => {
@@ -312,7 +312,7 @@ exports.followUser = catchAsync(async (req, res, next) => {
     if (existing) return next(new AppError('Already following', 400));
 
     await Friend.create({ userId, friendId: targetId, type: 'follow' });
-    return response.success(req, res, null, 'Followed successfully');
+    return response.success(req, res, null, { message: 'Followed successfully' });
 });
 
 exports.unfollowUser = catchAsync(async (req, res, next) => {
@@ -321,6 +321,6 @@ exports.unfollowUser = catchAsync(async (req, res, next) => {
     if (!userId) return next(new AppError('Authentication required', 401, 'UNAUTHENTICATED'));
 
     await Friend.destroy({ where: { userId, friendId: targetId, type: 'follow' } });
-    return response.success(req, res, null, 'Unfollowed successfully');
+    return response.success(req, res, null, { message: 'Unfollowed successfully' });
 });
 

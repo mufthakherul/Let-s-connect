@@ -7,7 +7,7 @@ const express = require('express');
  * Workshop, Town Hall, Virtual Conference, Quiz.
  * @param {object} deps - { models, redis }
  */
-function createMeetingModesRouter({ models, redis }) {
+function createMeetingModesRouter({ models, redis, helpers }) {
   const {
     Meeting, MeetingParticipant,
     DebateEvidence, DebateArgument, DebateVote,
@@ -21,17 +21,16 @@ function createMeetingModesRouter({ models, redis }) {
 
   const router = express.Router();
 
-  const requireMeetingAccess = require('../lib/helpers').requireMeetingAccess;
-  const getRequireMeetingAccessFn = (MeetingModel, ParticipantModel) => async (meetingId, userId) => {
-    return requireMeetingAccess(meetingId, userId, MeetingModel, ParticipantModel);
-  };
-  const getMeetingAccess = getRequireMeetingAccessFn(Meeting, MeetingParticipant);
+  // requireMeetingAccess is provided via deps.helpers (createHelpers factory)
+  const { requireMeetingAccess } = helpers;
+  const getMeetingAccess = (meetingId, userId) => requireMeetingAccess(meetingId, userId);
 
   // ==================== DEBATE MODE ====================
 
   router.post('/:id/debate/evidence', async (req, res) => {
     try {
-      const { userId, content, evidenceType, source } = req.body;
+      const userId = req.header("x-user-id");
+      const { content, evidenceType, source } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       const evidence = await DebateEvidence.create({
@@ -50,7 +49,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/debate/evidence', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const evidence = await DebateEvidence.findAll({
@@ -66,7 +65,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/debate/arguments', async (req, res) => {
     try {
-      const { userId, content, position, evidenceIds } = req.body;
+      const userId = req.header("x-user-id");
+      const { content, position, evidenceIds } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       const argument = await DebateArgument.create({
@@ -85,7 +85,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/debate/arguments', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const args = await DebateArgument.findAll({
@@ -101,7 +101,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/debate/vote', async (req, res) => {
     try {
-      const { userId, position } = req.body;
+      const userId = req.header("x-user-id");
+      const { position } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       const existing = await DebateVote.findOne({
@@ -129,7 +130,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/debate/votes', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const votes = await DebateVote.findAll({
@@ -151,7 +152,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/roundtable/topics', async (req, res) => {
     try {
-      const { userId, title, description, timeLimit } = req.body;
+      const userId = req.header("x-user-id");
+      const { title, description, timeLimit } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       const topic = await RoundTableTopic.create({
@@ -170,7 +172,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/roundtable/topics', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const topics = await RoundTableTopic.findAll({
@@ -186,7 +188,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.put('/:id/roundtable/topics/:topicId', async (req, res) => {
     try {
-      const { userId, status } = req.body;
+      const userId = req.header("x-user-id");
+      const { status } = req.body;
       await getMeetingAccess(req.params.id, userId);
 
       const topic = await RoundTableTopic.findByPk(req.params.topicId);
@@ -203,7 +206,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/roundtable/turns', async (req, res) => {
     try {
-      const { userId, speakerId, topicId, duration } = req.body;
+      const userId = req.header("x-user-id");
+      const { speakerId, topicId, duration } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       if (meeting.hostId !== userId) {
@@ -226,7 +230,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.put('/:id/roundtable/turns/:turnId', async (req, res) => {
     try {
-      const { userId, status } = req.body;
+      const userId = req.header("x-user-id");
+      const { status } = req.body;
       await getMeetingAccess(req.params.id, userId);
 
       const turn = await SpeakerTurn.findByPk(req.params.turnId);
@@ -244,7 +249,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/roundtable/turns', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const turns = await SpeakerTurn.findAll({
@@ -262,7 +267,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/court/evidence', async (req, res) => {
     try {
-      const { userId, title, description, evidenceType, submittedBy } = req.body;
+      const userId = req.header("x-user-id");
+      const { title, description, evidenceType, submittedBy } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       const evidence = await CourtEvidence.create({
@@ -282,7 +288,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/court/evidence', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const evidence = await CourtEvidence.findAll({
@@ -298,7 +304,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.put('/:id/court/evidence/:evidenceId/admissibility', async (req, res) => {
     try {
-      const { userId, admissibility, reason } = req.body;
+      const userId = req.header("x-user-id");
+      const { admissibility, reason } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       if (meeting.hostId !== userId) {
@@ -320,7 +327,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/court/motions', async (req, res) => {
     try {
-      const { userId, title, description, motionType } = req.body;
+      const userId = req.header("x-user-id");
+      const { title, description, motionType } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       const motion = await CourtMotion.create({
@@ -340,7 +348,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/court/motions', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const motions = await CourtMotion.findAll({
@@ -356,7 +364,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.put('/:id/court/motions/:motionId/ruling', async (req, res) => {
     try {
-      const { userId, ruling, reason } = req.body;
+      const userId = req.header("x-user-id");
+      const { ruling, reason } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       if (meeting.hostId !== userId) {
@@ -379,7 +388,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/court/verdict', async (req, res) => {
     try {
-      const { userId, verdict, reasoning, sentence } = req.body;
+      const userId = req.header("x-user-id");
+      const { verdict, reasoning, sentence } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       if (meeting.hostId !== userId) {
@@ -405,7 +415,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/court/verdict', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const verdict = await CourtVerdict.findOne({ where: { meetingId: req.params.id } });
@@ -421,7 +431,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/workshop/ideas', async (req, res) => {
     try {
-      const { userId, title, description, category } = req.body;
+      const userId = req.header("x-user-id");
+      const { title, description, category } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       const idea = await WorkshopIdea.create({
@@ -441,7 +452,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/workshop/ideas', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const ideas = await WorkshopIdea.findAll({
@@ -457,7 +468,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/workshop/ideas/:ideaId/vote', async (req, res) => {
     try {
-      const { userId } = req.body;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const idea = await WorkshopIdea.findByPk(req.params.ideaId);
@@ -483,7 +494,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.put('/:id/workshop/ideas/:ideaId', async (req, res) => {
     try {
-      const { userId, status, priority } = req.body;
+      const userId = req.header("x-user-id");
+      const { status, priority } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       if (meeting.hostId !== userId) {
@@ -507,7 +519,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/townhall/questions', async (req, res) => {
     try {
-      const { userId, question, anonymous } = req.body;
+      const userId = req.header("x-user-id");
+      const { question, anonymous } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       const q = await TownHallQuestion.create({
@@ -527,7 +540,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/townhall/questions', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const questions = await TownHallQuestion.findAll({
@@ -543,7 +556,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/townhall/questions/:questionId/upvote', async (req, res) => {
     try {
-      const { userId } = req.body;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const question = await TownHallQuestion.findByPk(req.params.questionId);
@@ -560,7 +573,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.put('/:id/townhall/questions/:questionId/answer', async (req, res) => {
     try {
-      const { userId, answer } = req.body;
+      const userId = req.header("x-user-id");
+      const { answer } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       if (meeting.hostId !== userId) {
@@ -584,7 +598,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/townhall/polls', async (req, res) => {
     try {
-      const { userId, question, options, duration } = req.body;
+      const userId = req.header("x-user-id");
+      const { question, options, duration } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       if (meeting.hostId !== userId) {
@@ -608,7 +623,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/townhall/polls', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const polls = await TownHallPoll.findAll({
@@ -626,7 +641,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/conference/breakout-rooms', async (req, res) => {
     try {
-      const { userId, name, capacity, topic } = req.body;
+      const userId = req.header("x-user-id");
+      const { name, capacity, topic } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       if (meeting.hostId !== userId) {
@@ -649,7 +665,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/conference/breakout-rooms', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const rooms = await ConferenceBreakoutRoom.findAll({
@@ -664,7 +680,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/conference/exhibitors', async (req, res) => {
     try {
-      const { userId, name, description, boothUrl, contactEmail } = req.body;
+      const userId = req.header("x-user-id");
+      const { name, description, boothUrl, contactEmail } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       const booth = await ConferenceExhibitorBooth.create({
@@ -684,7 +701,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/conference/exhibitors', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const booths = await ConferenceExhibitorBooth.findAll({
@@ -701,7 +718,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/quiz/questions', async (req, res) => {
     try {
-      const { userId, question, options, correctAnswer, points, timeLimit } = req.body;
+      const userId = req.header("x-user-id");
+      const { question, options, correctAnswer, points, timeLimit } = req.body;
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       if (meeting.hostId !== userId) {
@@ -725,7 +743,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/quiz/questions', async (req, res) => {
     try {
-      const { userId } = req.query;
+      const userId = req.header("x-user-id");
       await getMeetingAccess(req.params.id, userId);
 
       const questions = await QuizQuestion.findAll({
@@ -741,7 +759,7 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/quiz/start', async (req, res) => {
     try {
-      const { userId } = req.body;
+      const userId = req.header("x-user-id");
       const meeting = await getMeetingAccess(req.params.id, userId);
 
       if (meeting.hostId !== userId) {
@@ -763,7 +781,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.post('/:id/quiz/answer', async (req, res) => {
     try {
-      const { userId, questionId, answer, sessionId } = req.body;
+      const userId = req.header("x-user-id");
+      const { questionId, answer, sessionId } = req.body;
       await getMeetingAccess(req.params.id, userId);
 
       const question = await QuizQuestion.findByPk(questionId);
@@ -789,7 +808,8 @@ function createMeetingModesRouter({ models, redis }) {
 
   router.get('/:id/quiz/leaderboard', async (req, res) => {
     try {
-      const { userId, sessionId } = req.query;
+      const userId = req.header("x-user-id");
+      const { sessionId } = req.query;
       await getMeetingAccess(req.params.id, userId);
 
       const responses = await QuizResponse.findAll({
@@ -809,3 +829,4 @@ function createMeetingModesRouter({ models, redis }) {
 }
 
 module.exports = { createMeetingModesRouter };
+___BEGIN___COMMAND_DONE_MARKER___0

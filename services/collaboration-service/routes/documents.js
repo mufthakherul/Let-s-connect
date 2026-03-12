@@ -300,8 +300,10 @@ function createDocumentsRouter({ models, redis }) {
       const { folderId } = req.params;
       const userId = req.header('x-user-id');
 
-      const folder = await DocumentFolder.findByPk(folderId, {
+      // findByPk ignores the where clause — use findOne with explicit access conditions
+      const folder = await DocumentFolder.findOne({
         where: {
+          id: folderId,
           [Op.or]: [
             { ownerId: userId },
             { isPublic: true }
@@ -310,7 +312,7 @@ function createDocumentsRouter({ models, redis }) {
       });
 
       if (!folder) {
-        return res.status(404).json({ error: 'Folder not found' });
+        return res.status(404).json({ error: 'Folder not found or access denied' });
       }
 
       const subfolders = await DocumentFolder.findAll({

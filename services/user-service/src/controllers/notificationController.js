@@ -75,13 +75,13 @@ exports.markAsRead = catchAsync(async (req, res, next) => {
     if (!notification) return next(new AppError('Notification not found', 404));
 
     await notification.update({ isRead: true });
-    response.success(req, res, null, 'Notification marked as read');
+    response.success(req, res, null, { message: 'Notification marked as read' });
 });
 
 exports.markAllRead = catchAsync(async (req, res, next) => {
     const userId = req.header('x-user-id');
     await Notification.update({ isRead: true }, { where: { userId, isRead: false } });
-    response.success(req, res, null, 'All notifications marked as read');
+    response.success(req, res, null, { message: 'All notifications marked as read' });
 });
 
 exports.deleteNotification = catchAsync(async (req, res, next) => {
@@ -92,7 +92,7 @@ exports.deleteNotification = catchAsync(async (req, res, next) => {
     if (!notification) return next(new AppError('Notification not found', 404));
 
     await notification.destroy();
-    response.success(req, res, null, 'Notification deleted');
+    response.success(req, res, null, { message: 'Notification deleted' });
 });
 
 exports.getPreferences = catchAsync(async (req, res, next) => {

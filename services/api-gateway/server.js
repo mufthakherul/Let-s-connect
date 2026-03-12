@@ -113,14 +113,19 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https://accounts.google.com'],
-      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      // Remove unsafe-inline; use nonces in production for inline scripts if needed
+      scriptSrc: ["'self'", 'https://accounts.google.com'],
+      scriptSrcAttr: ["'none'"],
+      styleSrc: ["'self'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com'],
       imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
       mediaSrc: ["'self'", 'https:', 'blob:'],
       connectSrc: ["'self'", 'wss:', 'https:'],
       frameSrc: ["'none'"],
+      frameAncestors: ["'none'"],
       objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
       upgradeInsecureRequests: []
     }
   },
@@ -181,8 +186,20 @@ app.use(cors(corsOptions));
 // Express 5 + path-to-regexp is stricter with string wildcards.
 // Use a RegExp matcher for global preflight handling.
 app.options(/.*/, cors(corsOptions));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Skip JSON body parsing for Stripe webhook routes so the raw body is preserved
+// for signature verification in the downstream shop-service.
+const jsonParser = express.json({ limit: '10mb' });
+const urlencodedParser = express.urlencoded({ extended: true, limit: '10mb' });
+app.use((req, res, next) => {
+  if (req.path === '/api/shop/webhooks/stripe') {
+    return next(); // forward raw body untouched
+  }
+  jsonParser(req, res, (err) => {
+    if (err) return next(err);
+    urlencodedParser(req, res, next);
+  });
+});
 
 // --------- ADMIN ROUTING REDIRECT ----------
 // forward any /admin traffic to the dedicated security service
@@ -856,8 +873,14 @@ app.get('/api/search', authMiddleware, applyUserLimiter, async (req, res) => {
 
   const fanOut = async (type) => {
     try {
-      if (type === 'users' || type === 'pages') {
-        const resp = await axios.get(`${services.user}/search?q=${encodeURIComponent(query)}&type=${type}&limit=${limit}&page=${page}`, { headers, timeout: 3000 });
+      if (type === 'users') {
+        // user-service /search uses query= param
+        const resp = await axios.get(`${services.user}/search?query=${encodeURIComponent(query)}&type=users&limit=${limit}&page=${page}`, { headers, timeout: 3000 });
+        return { type, items: resp.data?.data || resp.data?.results || [] };
+      }
+      if (type === 'pages') {
+        // pages search is a dedicated endpoint
+        const resp = await axios.get(`${services.user}/pages/search?query=${encodeURIComponent(query)}&limit=${limit}&page=${page}`, { headers, timeout: 3000 });
         return { type, items: resp.data?.data || resp.data?.results || [] };
       }
       if (type === 'posts' || type === 'groups') {
