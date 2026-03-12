@@ -32,7 +32,7 @@ const dbPoolProfile = process.env.DB_POOL_PROFILE || 'standard';
 
 // Middleware
 app.use(cors(buildCorsOptions()));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(createForwardedIdentityGuard());
 
 // If requests are proxied through the API Gateway the gateway will

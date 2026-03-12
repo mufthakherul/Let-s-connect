@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
+const axios = require('axios');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger-config');
 const webhookRoutes = require('./webhook-routes');
@@ -108,7 +109,34 @@ app.set('trust proxy', 1);
 
 // Standard Optimizations for both gateways
 app.use(compression());
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      // Remove unsafe-inline; use nonces in production for inline scripts if needed
+      scriptSrc: ["'self'", 'https://accounts.google.com'],
+      scriptSrcAttr: ["'none'"],
+      styleSrc: ["'self'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+      mediaSrc: ["'self'", 'https:', 'blob:'],
+      connectSrc: ["'self'", 'wss:', 'https:'],
+      frameSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      upgradeInsecureRequests: []
+    }
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  crossOriginEmbedderPolicy: false
+}));
 
 // helper used by admin-only instance
 function requireAdminSecret(req, res, next) {
@@ -158,7 +186,23 @@ app.use(cors(corsOptions));
 // Express 5 + path-to-regexp is stricter with string wildcards.
 // Use a RegExp matcher for global preflight handling.
 app.options(/.*/, cors(corsOptions));
-app.use(express.json());
+
+// Skip JSON body parsing for Stripe webhook routes so the raw body is preserved
+// for signature verification in the downstream shop-service.
+const jsonParser = express.json({ limit: '10mb' });
+const urlencodedParser = express.urlencoded({ extended: true, limit: '10mb' });
+app.use((req, res, next) => {
+  if (req.path === '/api/shop/webhooks/stripe') {
+    return next(); // forward raw body untouched for Stripe signature verification
+  }
+  jsonParser(req, res, (err) => {
+    if (err) return next(err);
+    urlencodedParser(req, res, (err2) => {
+      if (err2) return next(err2);
+      next();
+    });
+  });
+});
 
 // --------- ADMIN ROUTING REDIRECT ----------
 // forward any /admin traffic to the dedicated security service
@@ -704,6 +748,7 @@ const publicRoutes = [
   '/api/content/videos/public',
   '/api/media/public',
   '/api/shop/public',
+  '/api/shop/webhooks/stripe',
   '/api/collaboration/public',
   '/api/collaboration/meetings/public',
   '/api/user/search',
@@ -804,6 +849,80 @@ app.get('/api/public/stats', (req, res) => {
       userCount: 52000
     }
   });
+});
+
+// ─── Unified Search Endpoint ────────────────────────────────────────────────
+// Fans out to user-service (users/pages), content-service (posts/groups),
+// and streaming-service (channels) in parallel and merges results.
+app.get('/api/search', authMiddleware, applyUserLimiter, async (req, res) => {
+  const { q, types, limit: limitStr, page: pageStr } = req.query;
+  if (!q || String(q).trim().length === 0) {
+    return res.status(400).json({ error: 'Query parameter "q" is required', code: 'MISSING_QUERY' });
+  }
+
+  const query = String(q).trim();
+  const limit = Math.min(20, Math.max(1, parseInt(limitStr) || 10));
+  const page = Math.max(1, parseInt(pageStr) || 1);
+  const requestedTypes = types ? String(types).split(',').map((t) => t.trim()) : ['users', 'posts', 'groups', 'channels'];
+
+  const gatewayToken = INTERNAL_GATEWAY_TOKEN;
+  const userId = req.userId;
+
+  const headers = {
+    'x-internal-gateway-token': gatewayToken,
+    'x-user-id': userId || '',
+    'x-request-id': req.id || ''
+  };
+
+  const fanOut = async (type) => {
+    try {
+      if (type === 'users') {
+        // user-service /search uses query= param
+        const resp = await axios.get(`${services.user}/search?query=${encodeURIComponent(query)}&type=users&limit=${limit}&page=${page}`, { headers, timeout: 3000 });
+        return { type, items: resp.data?.data || resp.data?.results || [] };
+      }
+      if (type === 'pages') {
+        // pages search is a dedicated endpoint
+        const resp = await axios.get(`${services.user}/pages/search?query=${encodeURIComponent(query)}&limit=${limit}&page=${page}`, { headers, timeout: 3000 });
+        return { type, items: resp.data?.data || resp.data?.results || [] };
+      }
+      if (type === 'posts' || type === 'groups') {
+        // content-service /search uses query= param
+        const resp = await axios.get(`${services.content}/search?query=${encodeURIComponent(query)}&type=${type}&limit=${limit}&page=${page}`, { headers, timeout: 3000 });
+        return { type, items: resp.data?.data || resp.data?.results || [] };
+      }
+      if (type === 'channels') {
+        const resp = await axios.get(`${services.streaming}/channels/search?q=${encodeURIComponent(query)}&limit=${limit}&page=${page}`, { headers, timeout: 3000 });
+        return { type, items: resp.data?.data || resp.data?.results || resp.data?.channels || [] };
+      }
+      return { type, items: [] };
+    } catch (err) {
+      logger.warn(`[search] fan-out failed for type=${type}: ${err.message}`);
+      return { type, items: [], error: err.message };
+    }
+  };
+
+  try {
+    const results = await Promise.all(requestedTypes.map(fanOut));
+    const resultMap = {};
+    results.forEach(({ type, items, error }) => {
+      resultMap[type] = { items, count: items.length, ...(error ? { error } : {}) };
+    });
+    const totalCount = results.reduce((sum, { items }) => sum + items.length, 0);
+
+    res.json({
+      success: true,
+      data: {
+        query,
+        totalCount,
+        results: resultMap,
+        meta: { page, limit, types: requestedTypes }
+      }
+    });
+  } catch (err) {
+    logger.error('[search] unified search error:', err);
+    res.status(500).json({ error: 'Search failed', code: 'SEARCH_ERROR' });
+  }
 });
 
 // Expose username availability (rate limiting has been removed)

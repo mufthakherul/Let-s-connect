@@ -50,7 +50,21 @@ module.exports = (sequelize) => {
             defaultValue: true
         },
         flairId: DataTypes.UUID,
-        repostOf: DataTypes.UUID
+        repostOf: DataTypes.UUID,
+        toxicityScore: {
+            type: DataTypes.FLOAT,
+            allowNull: true,
+            comment: 'AI-generated toxicity score 0.0–1.0'
+        },
+        isFlagged: {
+            type: DataTypes.BOOLEAN,
+            defaultValue: false,
+            comment: 'Flagged by AI moderation or manual report'
+        },
+        flagReason: {
+            type: DataTypes.STRING,
+            allowNull: true
+        }
     }, {
         indexes: [
             { fields: ['userId'] },

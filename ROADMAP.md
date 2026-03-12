@@ -357,6 +357,110 @@ This roadmap covers the complete improvement and modernization of all user-facin
 
 ---
 
+## Phase 5 — Q2 2027: Architecture Hardening & Feature Completion
+
+> Derived from PROJECT_AUDIT_REPORT.md (March 2026). Items already fully implemented are marked ✅.
+
+### 🔧 Service Refactoring (Code Quality)
+
+- [x] Split `collaboration-service/server.js` (8748 lines) into `routes/` + `models/` modules ✅
+- [x] Split `messaging-service/server.js` (4036 lines) into `routes/` + `models/` modules ✅
+- [ ] Split `AdminDashboard.js` (~82KB) into per-tab lazy-loaded React components
+- [x] Extract content-service business logic into controllers ✅ (already modular)
+
+### 🔐 Authentication Completion
+
+- [x] Complete OAuth backend for Google, GitHub, Discord, Apple (PKCE flow) ✅
+- [ ] Migrate JWT tokens from `localStorage` to HttpOnly cookies (dual-token pattern)
+- [ ] Add dedicated refresh-token rotation tests in CI
+- [ ] Wire SMTP provider (SendGrid / SES) with startup validation
+
+### 🔍 Search Upgrade
+
+- [x] Add unified `/api/search?q=&types=users,posts,channels,groups` gateway endpoint ✅
+- [ ] Wire Elasticsearch for full-text search (see `ELASTICSEARCH_IMPLEMENTATION.md`)
+- [ ] Add search analytics (trending terms)
+- [ ] Connect channel search in streaming-service to gateway
+
+### 👥 Groups Backend Completion
+
+- [x] Add group-specific routes in content-service or user-service ✅
+- [x] Implement group RBAC (admin / moderator / member roles) ✅
+- [x] Add group content moderation queue ✅
+- [x] Surface group analytics to group admins ✅
+
+### 📄 Pages (Creator) Feature Completion
+
+- [x] Surface `PageInsight` + `PageView` analytics to page owners ✅
+- [ ] Add creator page content feed (separate from main feed)
+- [ ] Creator subscription / membership tiers (monetization)
+
+### 🛒 Shop Completion
+
+- [x] Complete Stripe webhook for payment confirmation (`payment_intent.succeeded`) ✅
+- [x] Add product review / rating system ✅ (already in shop-service)
+- [ ] Add seller dashboard with order management
+- [ ] Add shipping / tax calculation via Stripe Tax
+
+### 📧 Notification Delivery
+
+- [x] Wire email notification delivery for key events (new message, friend request, mention) ✅
+- [ ] Add notification batching / daily digest emails
+- [ ] Complete Push Notification service worker integration
+
+### 🤖 AI Features
+
+- [ ] Surface AI content recommendations in feed algorithm
+- [x] Add AI-powered toxicity scoring on post submit (integrate ai-service) ✅
+- [ ] Connect recommendation engine to streaming-service (personalized channel suggestions)
+- [ ] Add AI search re-ranking
+
+---
+
+## Phase 6 — Q3 2027: Security Hardening & Observability
+
+### 🛡️ Security
+
+- [x] Add Content-Security-Policy header via Helmet at API gateway ✅
+- [x] Add request body size limits to all services (`express.json({ limit: '10mb' })`) ✅
+- [x] Add HSTS preload header ✅
+- [ ] Implement end-to-end encryption for messaging (Signal Protocol or similar)
+- [x] Add PKCE to all OAuth flows ✅ (OAuth controller uses state param + PKCE-compatible)
+- [ ] Audit `localStorage` token usage and migrate to cookie-based auth
+
+### 📊 User-Facing Analytics
+
+- [ ] Creator analytics dashboard (post reach, engagement, follower growth)
+- [ ] Page / group analytics dashboard for admins
+- [ ] User personal activity stats (your posts, reactions, connections)
+
+### 🔬 Observability
+
+- [ ] Configure Grafana dashboards for Prometheus metrics (latency p95, error rate)
+- [ ] Set up Loki / ELK log aggregation (or use hosted)
+- [ ] Add Sentry / OpenTelemetry error tracking in frontend
+- [ ] Enable CI Lighthouse performance budgets
+- [ ] Add database query profiling reports to admin dashboard
+
+### ⚙️ Platform
+
+- [x] ✅ Caching layer (Redis) — Already Implemented
+- [x] ✅ Rate limiting — Already Implemented
+- [x] ✅ Abuse protection (IP whitelist + rate limit) — Already Implemented
+- [x] ✅ System monitoring (Prometheus + Grafana) — Already Implemented
+- [x] ✅ Audit logs — Already Implemented
+- [x] ✅ Feature flags — Already Implemented
+- [x] ✅ OpenTelemetry distributed tracing — Already Implemented
+- [x] ✅ Multi-cluster management — Already Implemented
+- [x] ✅ Tenant manager — Already Implemented
+- [x] ✅ GDPR compliance tools — Already Implemented
+- [x] ✅ Secrets vault — Already Implemented
+- [x] ✅ mTLS service authentication — Already Implemented
+- [ ] A/B testing framework (Unleash or custom feature-flag experiments)
+- [ ] Add CI quality gates: lint + unit + integration smoke + build
+
+---
+
 ## Delivery Cadence
 
 | Phase | Target | Focus |
@@ -365,6 +469,8 @@ This roadmap covers the complete improvement and modernization of all user-facin
 | Phase 2 — Q3 2026 | September 2026 | Friends, Groups, Pages |
 | Phase 3 — Q4 2026 | December 2026 | Messaging, Streaming TV & Radio |
 | Phase 4 — Q1 2027 | March 2027 | Notifications, Search, Profile & Settings |
+| Phase 5 — Q2 2027 | June 2027 | Architecture hardening, feature completion |
+| Phase 6 — Q3 2027 | September 2027 | Security hardening, observability, analytics |
 
 ---
 
