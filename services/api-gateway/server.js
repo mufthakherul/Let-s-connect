@@ -203,7 +203,8 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'X-User-Id'],
+  allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'X-User-Id', 'X-API-Version'],
+  exposedHeaders: ['X-API-Version', 'X-API-Latest-Version', 'X-Response-Time', 'X-Request-Id', 'X-Correlation-Id', 'Deprecation'],
   optionsSuccessStatus: 204
 };
 
@@ -661,13 +662,18 @@ app.get('/api/data-mode/info', (req, res) => {
 // Phase 7: Webhooks System
 app.use('/api/webhooks', authMiddleware, webhookRoutes);
 
-// Phase 6: API Versioning System
-const API_VERSION = process.env.API_VERSION || 'v1';
+// API Versioning System
+// v2 is the current production version. v1 is legacy-supported but deprecated.
+const CURRENT_API_VERSION = 'v2';
+const API_VERSION = process.env.API_VERSION || CURRENT_API_VERSION;
 const SUPPORTED_VERSIONS = ['v1', 'v2'];
+const DEPRECATED_VERSIONS = ['v1'];
+const V1_SUNSET_DATE = '2027-06-30';
 
-// API version middleware
+// API version middleware — resolves version from path prefix (/v1/api/ or /v2/api/)
+// or from the X-API-Version request header; falls back to CURRENT_API_VERSION.
 const versionMiddleware = (req, res, next) => {
-  // Extract version from URL path (/v1/api/..., /v2/api/...)
+  // 1. Path-based versioning (/v2/api/...)
   const versionMatch = req.path.match(/^\/(v\d+)\//);
 
   if (versionMatch) {
@@ -678,27 +684,40 @@ const versionMiddleware = (req, res, next) => {
         error: 'Unsupported API version',
         requestedVersion,
         supportedVersions: SUPPORTED_VERSIONS,
-        message: `API version ${requestedVersion} is not supported. Please use one of: ${SUPPORTED_VERSIONS.join(', ')}`
+        currentVersion: CURRENT_API_VERSION,
+        message: `API version ${requestedVersion} is not supported. Use one of: ${SUPPORTED_VERSIONS.join(', ')}`
       });
     }
 
     req.apiVersion = requestedVersion;
-
-    // Strip version segment from URL so existing /api/* proxy mounts work
-    // for both /api/* and /vN/api/* forms.
+    // Strip version prefix so downstream /api/* proxy mounts work transparently.
     req.url = req.url.replace(/^\/v\d+(?=\/)/, '');
-
-    // Add deprecation warning for old versions
-    if (requestedVersion === 'v1') {
-      res.setHeader('X-API-Deprecation', 'v1 API will be deprecated on 2026-12-31. Please migrate to v2.');
-      res.setHeader('X-API-Migration-Guide', 'https://docs.milonexa.com/api/migration/v1-to-v2');
-    }
   } else {
-    // Default to v1 if no version specified
-    req.apiVersion = 'v1';
+    // 2. Header-based versioning (X-API-Version: v2)
+    const headerVersion = req.headers['x-api-version'];
+    if (headerVersion && SUPPORTED_VERSIONS.includes(headerVersion)) {
+      req.apiVersion = headerVersion;
+    } else {
+      // 3. Default to current production version
+      req.apiVersion = CURRENT_API_VERSION;
+    }
   }
 
+  // Inform clients which version is being served and what the latest is
   res.setHeader('X-API-Version', req.apiVersion);
+  res.setHeader('X-API-Latest-Version', CURRENT_API_VERSION);
+
+  // Deprecation warning for legacy callers
+  if (DEPRECATED_VERSIONS.includes(req.apiVersion)) {
+    res.setHeader(
+      'Deprecation',
+      `version="${req.apiVersion}", sunset="${V1_SUNSET_DATE}"`
+    );
+    res.setHeader('X-API-Deprecation', `v1 is deprecated. Sunset: ${V1_SUNSET_DATE}. Migrate to v2.`);
+    res.setHeader('X-API-Migration-Guide', 'https://docs.milonexa.com/api/migration/v1-to-v2');
+    res.setHeader('Link', `<https://docs.milonexa.com/api/migration/v1-to-v2>; rel="successor-version"`);
+  }
+
   next();
 };
 
@@ -715,34 +734,53 @@ app.get('/api/internal/route-ownership', requireAdminSecret, routeOwnershipHandl
 // API version info endpoint
 app.get('/api/version', (req, res) => {
   res.json({
-    currentVersion: API_VERSION,
+    platform: 'Milonexa',
+    currentVersion: CURRENT_API_VERSION,
+    defaultVersion: CURRENT_API_VERSION,
     requestedVersion: req.apiVersion,
     supportedVersions: SUPPORTED_VERSIONS,
+    deprecatedVersions: DEPRECATED_VERSIONS,
     deprecations: {
       v1: {
-        sunsetDate: '2026-12-31',
+        sunsetDate: V1_SUNSET_DATE,
+        status: 'deprecated',
         migrationGuide: 'https://docs.milonexa.com/api/migration/v1-to-v2',
-        changes: [
-          'Authentication: JWT tokens now require refresh tokens',
-          'Pagination: Changed from offset-based to cursor-based',
-          'Response format: All timestamps now in ISO 8601 format',
-          'Error codes: Standardized error response structure'
+        breakingChanges: [
+          'Pagination changed from offset-based to cursor-based',
+          'All timestamps return ISO 8601 format',
+          'Standardized error response envelope (code, message, details)',
+          'GraphQL endpoint available at /graphql'
         ]
       }
     },
-    changelog: {
+    releases: {
       v2: {
-        releaseDate: '2026-06-01',
+        releaseDate: '2026-03-12',
+        status: 'current',
+        maturity: 'production',
         features: [
-          'GraphQL API support',
-          'WebSocket subscriptions for real-time updates',
-          'Improved rate limiting with per-endpoint policies',
-          'Enhanced filtering and search capabilities'
+          'GraphQL API (graphql-http, graphql@16)',
+          'X-Response-Time header on every response',
+          'Smart compression (threshold 1 KB, Brotli-compatible)',
+          'Redis-backed tiered rate limiting (global / user / strict / AI)',
+          'W3C traceparent distributed tracing',
+          'Prometheus metrics at /metrics',
+          'Per-route circuit breakers with automatic retry',
+          'Deep readiness probe (/health/ready)',
+          'Redis pub/sub event bus (shared/event-bus.js)',
+          'Route governance with classification (PUBLIC / PRIVATE / ADMIN)',
+          'Unified search fan-out across user, content, streaming',
+          'Reduced data mode for mobile clients',
+          'Webhooks system for external integrations',
+          'API key header versioning (X-API-Version)',
+          'RFC 8594 Deprecation/Sunset headers for v1 callers'
         ]
       },
       v1: {
         releaseDate: '2025-01-01',
         status: 'deprecated',
+        maturity: 'legacy',
+        sunsetDate: V1_SUNSET_DATE,
         features: [
           'RESTful API',
           'JWT authentication',
@@ -759,21 +797,36 @@ app.get('/api/changelog', (req, res) => {
     versions: [
       {
         version: 'v2',
-        releaseDate: '2026-06-01',
+        releaseDate: '2026-03-12',
         status: 'current',
+        maturity: 'production',
         changes: [
-          { type: 'feature', description: 'Added GraphQL API gateway' },
-          { type: 'feature', description: 'Implemented WebSocket subscriptions' },
-          { type: 'improvement', description: 'Enhanced rate limiting with Redis' },
-          { type: 'breaking', description: 'Changed pagination to cursor-based' },
-          { type: 'breaking', description: 'Standardized timestamp format to ISO 8601' }
+          { type: 'feature', description: 'GraphQL API endpoint (/graphql) using graphql-http + graphql@16' },
+          { type: 'feature', description: 'X-Response-Time response header for all requests' },
+          { type: 'feature', description: 'Smart compression (1 KB threshold, level 6)' },
+          { type: 'feature', description: 'Redis pub/sub event bus for async service communication' },
+          { type: 'feature', description: 'Prometheus metrics endpoint (/metrics)' },
+          { type: 'feature', description: 'JSON performance summary (/api/metrics/summary)' },
+          { type: 'feature', description: 'Route governance with classification and per-route rate limiting' },
+          { type: 'feature', description: 'W3C traceparent distributed tracing propagation' },
+          { type: 'feature', description: 'Unified search across users, posts, groups, channels' },
+          { type: 'feature', description: 'Reduced data mode for mobile bandwidth savings' },
+          { type: 'feature', description: 'Kubernetes startup probe, PodDisruptionBudget, HPA 2-10 replicas' },
+          { type: 'improvement', description: 'Deep readiness probe (/health/ready) with dependency checks' },
+          { type: 'improvement', description: 'Per-service circuit breakers with configurable thresholds' },
+          { type: 'improvement', description: 'X-API-Version header-based versioning supported' },
+          { type: 'improvement', description: 'RFC 8594 Deprecation + Sunset headers for v1 callers' },
+          { type: 'security', description: 'app.disable(x-powered-by) to remove server fingerprint' },
+          { type: 'security', description: 'Helmet CSP, HSTS preload, Referrer-Policy hardened' },
+          { type: 'security', description: 'All rate-limit events emit structured pino log entries' }
         ]
       },
       {
         version: 'v1',
         releaseDate: '2025-01-01',
         status: 'deprecated',
-        sunsetDate: '2026-12-31',
+        maturity: 'legacy',
+        sunsetDate: V1_SUNSET_DATE,
         changes: [
           { type: 'feature', description: 'Initial API release' },
           { type: 'feature', description: 'RESTful endpoints for all services' },
