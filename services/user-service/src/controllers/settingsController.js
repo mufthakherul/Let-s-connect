@@ -1,7 +1,6 @@
 const { User, Profile } = require('../models');
-const response = require('../../../../shared/response-wrapper');
-const catchAsync = require('../../../../shared/catchAsync');
-const AppError = require('../../../../shared/AppError');
+const { AppError, catchAsync } = require('../../../shared/errorHandling');
+const response = require('../../../shared/response-wrapper');
 
 // In-memory fallback store (real app would use DB)
 const settingsStore = new Map();
@@ -112,8 +111,11 @@ exports.deleteAccount = catchAsync(async (req, res, next) => {
         return next(new AppError('Must confirm with "DELETE" to initiate account deletion', 400));
     }
 
-    // Soft-delete: mark account as pending deletion (real implementation would schedule a job)
-    await User.update({ deletedAt: new Date() }, { where: { id: userId } }).catch(() => {});
+    // Schedule soft-delete: mark with deletionPendingAt timestamp
+    const [affected] = await User.update({ deletionPendingAt: new Date() }, { where: { id: userId } });
+    if (!affected) {
+        return next(new AppError('User not found', 404, 'NOT_FOUND'));
+    }
 
     return response.success(req, res, {
         message: 'Account deletion scheduled. Your account will be permanently deleted in 30 days. Check your email for confirmation.',

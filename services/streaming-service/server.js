@@ -4,11 +4,16 @@ const { Sequelize, DataTypes, Op } = require('sequelize');
 const axios = require('axios');
 const net = require('net');
 const NodeCache = require('node-cache');
+const EventEmitter = require('events');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { syncWithPolicy } = require('../shared/db-sync-policy');
 const { buildCorsOptions } = require('../shared/cors-config');
 const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
 const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
+
+// Dedicated EventEmitter for live chat SSE — avoids process event-bus pollution and max-listeners warnings
+const liveChatBus = new EventEmitter();
+liveChatBus.setMaxListeners(1000);
 require('dotenv').config({ quiet: true });
 
 // Advanced TV services (search, health, recommendations)
@@ -1869,9 +1874,9 @@ app.get('/tv/channels/:id/chat', (req, res) => {
             res.write(`data: ${JSON.stringify(msg)}\n\n`);
         }
     };
-    // Use process event bus for cross-request SSE
-    process.on(`live-chat:${channelId}`, listener);
-    req.on('close', () => process.off(`live-chat:${channelId}`, listener));
+    // Use dedicated EventEmitter for cross-request SSE (avoids process event-bus pollution)
+    liveChatBus.on(`live-chat:${channelId}`, listener);
+    req.on('close', () => liveChatBus.off(`live-chat:${channelId}`, listener));
 });
 
 app.post('/tv/channels/:id/chat', async (req, res) => {
@@ -1883,7 +1888,7 @@ app.post('/tv/channels/:id/chat', async (req, res) => {
         if (!content) return res.status(400).json({ error: 'content is required' });
 
         const msg = await LiveChatMessage.create({ channelId: req.params.id, userId, username: username || 'Anonymous', content });
-        process.emit(`live-chat:${req.params.id}`, msg.toJSON());
+        liveChatBus.emit(`live-chat:${req.params.id}`, msg.toJSON());
         return res.status(201).json(msg);
     } catch (err) {
         console.error('[POST /tv/channels/:id/chat]', err);

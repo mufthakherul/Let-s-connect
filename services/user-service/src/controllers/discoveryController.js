@@ -172,7 +172,7 @@ exports.searchSuggestions = async (req, res) => {
         const [users, pages] = await Promise.all([
             User.findAll({
                 where: { username: { [Op.iLike]: `${term}%` } },
-                attributes: ['id', 'username', 'email'],
+                attributes: ['id', 'username'],
                 limit: Math.ceil(limit / 2)
             }),
             Page ? Page.findAll({

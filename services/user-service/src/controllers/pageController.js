@@ -9,7 +9,7 @@ exports.createPage = catchAsync(async (req, res, next) => {
     const page = await Page.create({ name, description, category, userId });
     await PageAdmin.create({ pageId: page.id, userId, role: 'owner' });
 
-    response.success(res, page, 'Page created successfully', 201);
+    response.success(req, res, page, { message: 'Page created successfully' }, 201);
 });
 
 exports.getPage = catchAsync(async (req, res, next) => {
@@ -19,7 +19,7 @@ exports.getPage = catchAsync(async (req, res, next) => {
     // Log a view (simplified)
     await PageView.create({ pageId: page.id, userId: req.header('x-user-id') || null });
 
-    response.success(res, page);
+    response.success(req, res, page);
 });
 
 exports.followPage = catchAsync(async (req, res, next) => {
@@ -32,7 +32,7 @@ exports.followPage = catchAsync(async (req, res, next) => {
     await PageFollower.create({ pageId, userId });
     await Page.increment('followers', { where: { id: pageId } });
 
-    response.success(res, null, 'Page followed successfully');
+    response.success(req, res, null, { message: 'Page followed successfully' });
 });
 
 const { Op } = require('sequelize');
@@ -145,7 +145,7 @@ exports.schedulePost = catchAsync(async (req, res, next) => {
         metadata: JSON.stringify({ type: 'scheduled_post', content, scheduledAt, createdBy: userId })
     });
 
-    response.success(req, res, { id: insight.id, scheduledAt, content }, 'Post scheduled', 201);
+    response.success(req, res, { id: insight.id, scheduledAt, content }, { message: 'Post scheduled' }, 201);
 });
 
 exports.createPagePost = catchAsync(async (req, res, next) => {

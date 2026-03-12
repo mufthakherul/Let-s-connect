@@ -3947,7 +3947,10 @@ app.get('/messages/unread-count', async (req, res) => {
 
     // Count conversations where user is a participant with unread messages
     const conversations = await Conversation.findAll({
-      where: sequelize.literal(`participants @> '["${userId}"]'::jsonb OR participants::text LIKE '%${userId}%'`),
+      where: Sequelize.where(
+        Sequelize.cast(Sequelize.col('participants'), 'text'),
+        { [Op.like]: `%${userId.replace(/[%_\\]/g, '\\$&')}%` }
+      ),
       attributes: ['id']
     });
     const convIds = conversations.map(c => c.id);
