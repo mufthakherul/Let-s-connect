@@ -17,6 +17,7 @@ router.delete('/:id/members/:userId', groupController.removeMember);
 
 // ─── Feed & Events ────────────────────────────────────────────────────────────
 router.get('/:id/feed', groupController.getGroupFeed);
+router.post('/:id/post', groupController.createGroupPost);
 router.post('/:id/events', groupController.createEvent);
 
 module.exports = router;

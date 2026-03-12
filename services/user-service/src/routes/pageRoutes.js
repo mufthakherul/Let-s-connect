@@ -14,6 +14,7 @@ router.post('/:id/unfollow', pageController.unfollowPage);
 
 // Feed, insights, scheduling
 router.get('/:id/feed', pageController.getPageFeed);
+router.post('/:id/post', pageController.createPagePost);
 router.get('/:id/insights', pageController.getPageInsights);
 router.post('/:id/schedule', pageController.schedulePost);
 

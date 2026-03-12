@@ -147,3 +147,31 @@ exports.schedulePost = catchAsync(async (req, res, next) => {
 
     response.success(req, res, { id: insight.id, scheduledAt, content }, 'Post scheduled', 201);
 });
+
+exports.createPagePost = catchAsync(async (req, res, next) => {
+    const { id: pageId } = req.params;
+    const userId = req.header('x-user-id');
+    if (!userId) return next(new AppError('Authentication required', 401, 'UNAUTHENTICATED'));
+
+    const page = await Page.findByPk(pageId);
+    if (!page) return next(new AppError('Page not found', 404));
+
+    const isAdmin = await PageAdmin.findOne({ where: { pageId, userId } });
+    if (!isAdmin) return next(new AppError('Not authorized to post on this page', 403));
+
+    const { content, mediaUrl, visibility = 'public' } = req.body;
+    if (!content) return next(new AppError('content is required', 400));
+
+    // Record page insight for engagement
+    await PageInsight.create({
+        pageId,
+        date: new Date(),
+        reach: 1,
+        impressions: 1,
+        engagements: 0,
+        followers: await PageFollower.count({ where: { pageId } }),
+        metadata: JSON.stringify({ type: 'page_post', content: content.substring(0, 200), createdBy: userId })
+    }).catch(() => {});
+
+    return response.success(req, res, { pageId, content, mediaUrl, visibility, createdBy: userId }, {}, 201);
+});
