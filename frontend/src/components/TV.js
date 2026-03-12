@@ -521,7 +521,7 @@ const TV = () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ message: liveChatInput.trim() })
+                body: JSON.stringify({ content: liveChatInput.trim() })
             });
             setLiveChatInput('');
         } catch (err) {
@@ -885,7 +885,7 @@ const TV = () => {
                             <Typography variant="caption" color="primary" sx={{ fontWeight: 600 }}>
                                 {msg.username || 'User'}:{' '}
                             </Typography>
-                            <Typography variant="caption">{msg.content || msg.message}</Typography>
+                            <Typography variant="caption">{msg.content}</Typography>
                             {msg.timestamp && (
                                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                     {new Date(msg.timestamp).toLocaleTimeString()}

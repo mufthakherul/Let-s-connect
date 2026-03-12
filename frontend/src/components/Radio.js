@@ -121,7 +121,7 @@ const Radio = () => {
                     if (audioRef.current) audioRef.current.pause();
                     setIsPlaying(false);
                     setSleepTimerMinutes(0);
-                    toast('Sleep timer ended', { icon: '\u23F2' });
+                    toast('Sleep timer ended', { icon: '\u23F0' });
                     return 0;
                 }
                 return prev - 1;
@@ -141,10 +141,14 @@ const Radio = () => {
             const nextTime = next.startTime ? new Date(next.startTime) : null;
             if (nextTime) {
                 const diffMs = nextTime - Date.now();
-                const diffH = Math.floor(diffMs / 3600000);
-                const diffM = Math.floor((diffMs % 3600000) / 60000);
-                const timeStr = diffH > 0 ? `${diffH}h ${diffM}m` : `${diffM}m`;
-                display += ` \u00B7 Next: ${next.title || next.show || 'Unknown'} in ${timeStr}`;
+                if (diffMs > 0) {
+                    const diffH = Math.floor(diffMs / 3600000);
+                    const diffM = Math.floor((diffMs % 3600000) / 60000);
+                    const timeStr = diffH > 0 ? `${diffH}h ${diffM}m` : `${diffM}m`;
+                    display += ` \u00B7 Next: ${next.title || next.show || 'Unknown'} in ${timeStr}`;
+                } else {
+                    display += ` \u00B7 Next: ${next.title || next.show || 'Unknown'} (starting soon)`;
+                }
             } else {
                 display += ` \u00B7 Next: ${next.title || next.show || 'Unknown'}`;
             }
@@ -720,9 +724,9 @@ const Radio = () => {
                 open={Boolean(sleepTimerAnchor)}
                 onClose={() => setSleepTimerAnchor(null)}
             >
-                <MenuItem onClick={() => handleSleepTimer(15)}>\u23F2 15 min</MenuItem>
-                <MenuItem onClick={() => handleSleepTimer(30)}>\u23F2 30 min</MenuItem>
-                <MenuItem onClick={() => handleSleepTimer(60)}>\u23F2 1 hour</MenuItem>
+                <MenuItem onClick={() => handleSleepTimer(15)}>\u23F0 15 min</MenuItem>
+                <MenuItem onClick={() => handleSleepTimer(30)}>\u23F0 30 min</MenuItem>
+                <MenuItem onClick={() => handleSleepTimer(60)}>\u23F0 1 hour</MenuItem>
                 <Divider />
                 <MenuItem onClick={() => handleSleepTimer(0)}>Off</MenuItem>
             </Menu>

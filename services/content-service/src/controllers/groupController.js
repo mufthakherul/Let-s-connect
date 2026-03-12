@@ -193,3 +193,24 @@ exports.getGroupFeed = catchAsync(async (req, res, next) => {
 
     response.success(req, res, { posts: items, nextCursor, hasMore });
 });
+
+exports.createGroupPost = catchAsync(async (req, res, next) => {
+    const { id: groupId } = req.params;
+    const userId = req.header('x-user-id');
+    if (!userId) return next(new AppError('Authentication required', 401, 'UNAUTHENTICATED'));
+
+    const group = await Group.findByPk(groupId);
+    if (!group) return next(new AppError('Group not found', 404));
+
+    const membership = await GroupMember.findOne({ where: { groupId, userId, status: 'active' } });
+    if (!membership) return next(new AppError('Must be a group member to post', 403));
+
+    const { Post } = require('../models');
+    const { content, mediaUrl, visibility = 'friends' } = req.body;
+    if (!content) return next(new AppError('content is required', 400));
+
+    const post = await Post.create({ userId, content, mediaUrl, visibility, groupId });
+    await group.increment('postCount').catch(() => {});
+
+    return response.success(req, res, post, {}, 201);
+});

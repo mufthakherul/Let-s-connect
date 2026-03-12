@@ -109,7 +109,7 @@ function Chat({ user }) {
     fetchConversations();
     // Phase 3: Fetch unread message count on mount
     api.get('/messaging/messages/unread-count')
-      .then((res) => { const d = extractApiData(res); setUnreadCount(d?.count || 0); })
+      .then((res) => { const d = extractApiData(res); setUnreadCount(d?.unreadCount || 0); })
       .catch(() => {});
     const newSocket = io(config.MESSAGING_SERVICE_URL, {
       transports: ['websocket', 'polling'],
