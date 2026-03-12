@@ -58,11 +58,19 @@ if (process.env.NODE_ENV === 'development') {
   }
 }
 
+// Current production API version — bump this when migrating to a new major version
+const API_VERSION_HEADER = 'v2';
+
 const api = axios.create({
   baseURL: API_BASE_PATH,
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
+    // Tell the gateway which API version this client expects.
+    // The gateway defaults to v2 for unversioned requests; this header makes the
+    // intent explicit and allows the server to return version-aware deprecation
+    // headers if the client ever falls behind.
+    'X-API-Version': API_VERSION_HEADER,
   },
 });
 
@@ -86,7 +94,18 @@ api.interceptors.request.use(
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Surface API deprecation notices to the developer console so teams know
+    // when to upgrade their client version.
+    if (process.env.NODE_ENV === 'development') {
+      const deprecation = response.headers['x-api-deprecation'];
+      if (deprecation) {
+        // eslint-disable-next-line no-console
+        console.warn(`[API v${API_VERSION_HEADER}] deprecation notice:`, deprecation);
+      }
+    }
+    return response;
+  },
   (error) => {
     const status = error.response?.status;
     const reqId = `${error.config?.method || 'UNKNOWN'} ${error.config?.url || ''}`;
@@ -139,5 +158,8 @@ export const getApiUrl = (path = '') => {
 };
 
 export const getApiBaseUrl = () => NORMALIZED_API_BASE_URL;
+
+// Exported so other modules can reference the current API version
+export { API_VERSION_HEADER as API_VERSION };
 
 export default api;
