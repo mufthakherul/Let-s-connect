@@ -98,62 +98,58 @@ export default function SettingsHub({ user: userProp }) {
 
     // Init from localStorage on mount
     useEffect(() => {
-        try {
-            const privacy = JSON.parse(localStorage.getItem('lc_privacy_settings'));
-            if (privacy) {
-                if (privacy.seePosts !== undefined) setSeePosts(privacy.seePosts);
-                if (privacy.seeFriends !== undefined) setSeeFriends(privacy.seeFriends);
-                if (privacy.discoverable !== undefined) setDiscoverable(privacy.discoverable);
-                if (privacy.indexable !== undefined) setIndexable(privacy.indexable);
+        const safeRead = (key, parse = true) => {
+            try {
+                const raw = localStorage.getItem(key);
+                return raw === null ? null : parse ? JSON.parse(raw) : raw;
+            } catch (e) {
+                console.warn(`[SettingsHub] Failed to read localStorage key "${key}":`, e);
+                return null;
             }
-        } catch (_) {}
+        };
 
-        try {
-            const storedTheme = JSON.parse(localStorage.getItem('lc_theme_preference'));
-            if (storedTheme) setThemePreference(storedTheme);
-        } catch (_) {}
+        const privacy = safeRead('lc_privacy_settings');
+        if (privacy) {
+            if (privacy.seePosts !== undefined) setSeePosts(privacy.seePosts);
+            if (privacy.seeFriends !== undefined) setSeeFriends(privacy.seeFriends);
+            if (privacy.discoverable !== undefined) setDiscoverable(privacy.discoverable);
+            if (privacy.indexable !== undefined) setIndexable(privacy.indexable);
+        }
 
-        try {
-            const storedFontSize = localStorage.getItem('lc_font_size');
-            if (storedFontSize) setFontSize(storedFontSize);
-        } catch (_) {}
+        const storedTheme = safeRead('lc_theme_preference');
+        if (storedTheme) setThemePreference(storedTheme);
 
-        try {
-            const storedCompact = localStorage.getItem('lc_compact_mode');
-            if (storedCompact !== null) setCompactMode(storedCompact === 'true');
-        } catch (_) {}
+        const storedFontSize = safeRead('lc_font_size', false);
+        if (storedFontSize) setFontSize(storedFontSize);
 
-        try {
-            const notifPrefs = JSON.parse(localStorage.getItem('lc_notification_prefs'));
-            if (notifPrefs) {
-                if (notifPrefs.friendRequests !== undefined) setNotifFriendRequests(notifPrefs.friendRequests);
-                if (notifPrefs.messages !== undefined) setNotifMessages(notifPrefs.messages);
-                if (notifPrefs.groups !== undefined) setNotifGroups(notifPrefs.groups);
-                if (notifPrefs.pages !== undefined) setNotifPages(notifPrefs.pages);
-                if (notifPrefs.streaming !== undefined) setNotifStreaming(notifPrefs.streaming);
-                if (notifPrefs.system !== undefined) setNotifSystem(notifPrefs.system);
-                if (notifPrefs.emailDigest !== undefined) setEmailDigest(notifPrefs.emailDigest);
-            }
-        } catch (_) {}
+        const storedCompact = safeRead('lc_compact_mode', false);
+        if (storedCompact !== null) setCompactMode(storedCompact === 'true');
 
-        try {
-            const localePrefs = JSON.parse(localStorage.getItem('lc_locale_prefs'));
-            if (localePrefs) {
-                if (localePrefs.language !== undefined) setLanguage(localePrefs.language);
-                if (localePrefs.timezone !== undefined) setTimezone(localePrefs.timezone);
-                if (localePrefs.dateFormat !== undefined) setDateFormat(localePrefs.dateFormat);
-            }
-        } catch (_) {}
+        const notifPrefs = safeRead('lc_notification_prefs');
+        if (notifPrefs) {
+            if (notifPrefs.friendRequests !== undefined) setNotifFriendRequests(notifPrefs.friendRequests);
+            if (notifPrefs.messages !== undefined) setNotifMessages(notifPrefs.messages);
+            if (notifPrefs.groups !== undefined) setNotifGroups(notifPrefs.groups);
+            if (notifPrefs.pages !== undefined) setNotifPages(notifPrefs.pages);
+            if (notifPrefs.streaming !== undefined) setNotifStreaming(notifPrefs.streaming);
+            if (notifPrefs.system !== undefined) setNotifSystem(notifPrefs.system);
+            if (notifPrefs.emailDigest !== undefined) setEmailDigest(notifPrefs.emailDigest);
+        }
 
-        try {
-            const a11y = JSON.parse(localStorage.getItem('lc_accessibility'));
-            if (a11y) {
-                if (a11y.highContrast !== undefined) setHighContrast(a11y.highContrast);
-                if (a11y.reducedMotion !== undefined) setReducedMotion(a11y.reducedMotion);
-                if (a11y.screenReaderHints !== undefined) setScreenReaderHints(a11y.screenReaderHints);
-                if (a11y.largeTargets !== undefined) setLargeTargets(a11y.largeTargets);
-            }
-        } catch (_) {}
+        const localePrefs = safeRead('lc_locale_prefs');
+        if (localePrefs) {
+            if (localePrefs.language !== undefined) setLanguage(localePrefs.language);
+            if (localePrefs.timezone !== undefined) setTimezone(localePrefs.timezone);
+            if (localePrefs.dateFormat !== undefined) setDateFormat(localePrefs.dateFormat);
+        }
+
+        const a11y = safeRead('lc_accessibility');
+        if (a11y) {
+            if (a11y.highContrast !== undefined) setHighContrast(a11y.highContrast);
+            if (a11y.reducedMotion !== undefined) setReducedMotion(a11y.reducedMotion);
+            if (a11y.screenReaderHints !== undefined) setScreenReaderHints(a11y.screenReaderHints);
+            if (a11y.largeTargets !== undefined) setLargeTargets(a11y.largeTargets);
+        }
     }, []);
 
     const handleSavePrivacy = useCallback(() => {
@@ -188,6 +184,7 @@ export default function SettingsHub({ user: userProp }) {
         localStorage.setItem('lc_theme_preference', JSON.stringify(themePreference));
         localStorage.setItem('lc_font_size', fontSize);
         localStorage.setItem('lc_compact_mode', String(compactMode));
+        // Consumers of 'theme-change' should read event.detail.theme ('light'|'dark'|'system')
         window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme: themePreference } }));
         toast.success('Appearance settings saved');
     }, [themePreference, fontSize, compactMode]);
@@ -522,7 +519,7 @@ export default function SettingsHub({ user: userProp }) {
                                 border: '1px solid',
                                 borderColor: 'error.light',
                                 borderRadius: 2,
-                                bgcolor: 'error.50',
+                                bgcolor: (t) => `${t.palette.error.light}22`,
                                 p: 2,
                                 display: 'flex',
                                 flexDirection: 'column',
