@@ -107,8 +107,32 @@ const proxy = (target, options = {}) => {
 // Trust proxy headers in containerized environments
 app.set('trust proxy', 1);
 
-// Standard Optimizations for both gateways
-app.use(compression());
+// Phase 3 — Performance: response-time tracking (set before all other middleware)
+app.use((req, res, next) => {
+  const start = process.hrtime.bigint();
+  // Override res.end to inject the header before the response is finalized
+  const origEnd = res.end.bind(res);
+  res.end = function responseTimeEnd(...args) {
+    const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+    if (!res.headersSent) {
+      res.setHeader('X-Response-Time', `${durationMs.toFixed(2)}ms`);
+    }
+    return origEnd(...args);
+  };
+  next();
+});
+
+// Phase 3 — Performance: smart compression (skip small responses and already-compressed content)
+app.use(compression({
+  level: 6,
+  threshold: 1024, // only compress responses > 1 KB
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  }
+}));
+
+// Phase 4 — Security: hardened helmet configuration
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -137,6 +161,9 @@ app.use(helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   crossOriginEmbedderPolicy: false
 }));
+
+// Phase 4 — Security: strip server identification headers
+app.disable('x-powered-by');
 
 // helper used by admin-only instance
 function requireAdminSecret(req, res, next) {
@@ -178,7 +205,19 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'X-User-Id'],
+  allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'X-User-Id', 'X-API-Version'],
+  exposedHeaders: [
+    'X-API-Version',
+    'X-API-Latest-Version',
+    'X-Response-Time',
+    'X-Request-Id',
+    'X-Correlation-Id',
+    'Deprecation',
+    'Sunset',
+    'X-API-Deprecation',
+    'X-API-Migration-Guide',
+    'Link'
+  ],
   optionsSuccessStatus: 204
 };
 
@@ -229,6 +268,62 @@ app.use(requestLoggingMiddleware('api-gateway'));
 // Phase 7: Reduced Data Mode for mobile optimization
 app.use(addDataModeHeaders);
 app.use(reducedDataMode);
+
+// API Versioning System — registered early so ALL routes (including /api/metrics,
+// /health/*, webhooks, etc.) consistently receive X-API-Version + X-API-Latest-Version headers.
+// v2 is the current production version. v1 is legacy-supported but deprecated.
+const CURRENT_API_VERSION = 'v2';
+const SUPPORTED_VERSIONS = ['v1', 'v2'];
+const DEPRECATED_VERSIONS = ['v1'];
+const V1_SUNSET_DATE = '2027-06-30';
+
+// Version resolution order:
+//  1. URL path prefix  — /v2/api/... or /v1/api/...
+//  2. Request header   — X-API-Version: v2
+//  3. Default          — CURRENT_API_VERSION ('v2')
+const versionMiddleware = (req, res, next) => {
+  const versionMatch = req.path.match(/^\/(v\d+)\//);
+
+  if (versionMatch) {
+    const requestedVersion = versionMatch[1];
+    if (!SUPPORTED_VERSIONS.includes(requestedVersion)) {
+      return res.status(400).json({
+        error: 'Unsupported API version',
+        requestedVersion,
+        supportedVersions: SUPPORTED_VERSIONS,
+        currentVersion: CURRENT_API_VERSION,
+        message: `API version ${requestedVersion} is not supported. Use one of: ${SUPPORTED_VERSIONS.join(', ')}`
+      });
+    }
+    req.apiVersion = requestedVersion;
+    // Strip version prefix so downstream /api/* proxy mounts work transparently.
+    req.url = req.url.replace(/^\/v\d+(?=\/)/, '');
+  } else {
+    const headerVersion = req.headers['x-api-version'];
+    req.apiVersion = (headerVersion && SUPPORTED_VERSIONS.includes(headerVersion))
+      ? headerVersion
+      : CURRENT_API_VERSION;
+  }
+
+  // Version + latest-version headers on every response
+  res.setHeader('X-API-Version', req.apiVersion);
+  res.setHeader('X-API-Latest-Version', CURRENT_API_VERSION);
+
+  // RFC 8594 deprecation headers for v1 callers
+  if (DEPRECATED_VERSIONS.includes(req.apiVersion)) {
+    // Deprecation: true (RFC 8594 §2.2 boolean form)
+    res.setHeader('Deprecation', 'true');
+    // Sunset: HTTP-date (RFC 7231) format required by RFC 8594 §3
+    res.setHeader('Sunset', new Date(V1_SUNSET_DATE + 'T23:59:59Z').toUTCString());
+    res.setHeader('X-API-Deprecation', `v1 is deprecated. Sunset: ${V1_SUNSET_DATE}. Migrate to v2.`);
+    res.setHeader('X-API-Migration-Guide', 'https://docs.milonexa.com/api/migration/v1-to-v2');
+    res.setHeader('Link', `<https://docs.milonexa.com/api/migration/v1-to-v2>; rel="successor-version"`);
+  }
+
+  next();
+};
+
+app.use(versionMiddleware);
 
 // feature toggle for rate limiting
 const RATE_LIMITING_ENABLED = process.env.RATE_LIMITING_ENABLED !== 'false';
@@ -323,7 +418,7 @@ if (RATE_LIMITING_ENABLED) {
     store: new RedisStore({ sendCommand: sendRedisCommand, prefix: 'rl:username-soft:' }),
     keyGenerator: (req) => getIpRateLimitKey(req),
     handler: (req, res) => {
-      console.warn(`[rate-limit] username soft-threshold reached for ip=${req.ip} url=${req.originalUrl}`);
+      logger.warn({ ip: req.ip, url: req.originalUrl }, '[rate-limit] username soft-threshold reached — captcha required');
       res.set('X-Captcha-Required', '1');
       res.set('Retry-After', String(Math.ceil(60 * 60)));
       return res.status(429).json({ error: 'captcha_required', message: 'CAPTCHA required for further username checks' });
@@ -341,7 +436,7 @@ if (RATE_LIMITING_ENABLED) {
     }),
     keyGenerator: (req) => getIpRateLimitKey(req),
     handler: (req, res) => {
-      console.warn(`[rate-limit] username check throttled for ip=${req.ip} url=${req.originalUrl}`);
+      logger.warn({ ip: req.ip, url: req.originalUrl }, '[rate-limit] username check throttled');
       res.set('Retry-After', String(Math.ceil(60 * 60)));
       return res.status(429).json({ error: 'Too many username checks. Please try again later.' });
     }
@@ -353,7 +448,7 @@ if (RATE_LIMITING_ENABLED) {
   if (process.env.NODE_ENV !== 'development') {
     app.use(globalLimiter);
   } else {
-    console.info('[API Gateway] skipping global rate limiter (development mode)');
+    logger.info('[API Gateway] skipping global rate limiter (development mode)');
   }
 }
 
@@ -423,27 +518,29 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// Phase 6: GraphQL API Integration
-const { graphqlHTTP } = require('express-graphql');
+// Phase 6: GraphQL API Integration (graphql-http — supports graphql@16)
+const { createHandler } = require('graphql-http/lib/use/express');
 const { schema, root } = require('./graphql-schema');
 
 // GraphQL endpoint
-app.use('/graphql', authMiddleware, graphqlHTTP((req) => ({
-  schema: schema,
+// graphql-http wraps the Express request; req.raw is the original Express request.
+// authMiddleware sets req.user before this handler runs, so req.raw.user is the decoded JWT.
+app.use('/graphql', authMiddleware, createHandler({
+  schema,
   rootValue: root,
-  graphiql: process.env.NODE_ENV !== 'production', // Enable GraphiQL in development
-  context: {
-    userId: req.user?.id,
-    user: req.user
-  },
-  customFormatErrorFn: (error) => ({
+  context: (req) => ({
+    userId: req.raw.user?.id,
+    user: req.raw.user
+  }),
+  formatError: (error) => ({
     message: error.message,
     locations: error.locations,
     path: error.path
   })
-})));
+}));
 
-// GraphQL playground (development only)
+// GraphQL playground (development only) — served as a standalone HTML page
+// pointing at the /graphql endpoint which graphql-http handles.
 if (process.env.NODE_ENV !== 'production') {
   app.get('/graphql/playground', (req, res) => {
     res.send(`
@@ -466,8 +563,8 @@ if (process.env.NODE_ENV !== 'production') {
             <h1>GraphQL API - Milonexa</h1>
             <div class="info">
               <p><strong>Endpoint:</strong> <code>/graphql</code></p>
-              <p><strong>GraphiQL Interface:</strong> <a href="/graphql">Open GraphiQL</a></p>
-              <p><strong>Authentication:</strong> Required (Bearer token)</p>
+              <p><strong>Authentication:</strong> Required (Bearer token in Authorization header)</p>
+              <p><strong>Tool:</strong> Use <a href="https://studio.apollographql.com/sandbox/explorer" target="_blank">Apollo Sandbox</a> or any GraphQL client pointed at <code>/graphql</code>.</p>
             </div>
             
             <h2>Example Queries</h2>
@@ -560,6 +657,37 @@ app.get('/metrics', (req, res) => {
   res.send(healthChecker.getPrometheusMetrics());
 });
 
+// Phase 7 — Observability: human-readable API performance summary (JSON)
+app.get('/api/metrics/summary', requireAdminSecret, (req, res) => {
+  const { requests, errors, totalResponseTime, inflightRequests } = healthChecker.metrics;
+  const uptime = Math.floor((Date.now() - healthChecker.startTime) / 1000);
+  const avgResponseTimeMs = requests > 0
+    ? (totalResponseTime / requests).toFixed(2)
+    : 0;
+  const errorRate = requests > 0
+    ? ((errors / requests) * 100).toFixed(2)
+    : 0;
+  const mem = process.memoryUsage();
+
+  res.json({
+    service: 'api-gateway',
+    timestamp: new Date().toISOString(),
+    uptime,
+    requests: {
+      total: requests,
+      errors,
+      inflight: inflightRequests,
+      errorRate: `${errorRate}%`,
+      avgResponseTimeMs: Number(avgResponseTimeMs)
+    },
+    memory: {
+      heapUsedMB: Number((mem.heapUsed / 1024 / 1024).toFixed(1)),
+      rssUsedMB: Number((mem.rss / 1024 / 1024).toFixed(1))
+    },
+    circuits: getCircuitBreakerStates()
+  });
+});
+
 // Metrics tracking middleware
 app.use(healthChecker.metricsMiddleware());
 
@@ -600,55 +728,11 @@ app.get('/api/data-mode/info', (req, res) => {
 
 // Rate limiting has been removed; the rate-limit-status endpoint is no longer needed and has been deleted.
 
-// Phase 7: Webhooks System
-app.use('/api/webhooks', authMiddleware, webhookRoutes);
-
-// Phase 6: API Versioning System
-const API_VERSION = process.env.API_VERSION || 'v1';
-const SUPPORTED_VERSIONS = ['v1', 'v2'];
-
-// API version middleware
-const versionMiddleware = (req, res, next) => {
-  // Extract version from URL path (/v1/api/..., /v2/api/...)
-  const versionMatch = req.path.match(/^\/(v\d+)\//);
-
-  if (versionMatch) {
-    const requestedVersion = versionMatch[1];
-
-    if (!SUPPORTED_VERSIONS.includes(requestedVersion)) {
-      return res.status(400).json({
-        error: 'Unsupported API version',
-        requestedVersion,
-        supportedVersions: SUPPORTED_VERSIONS,
-        message: `API version ${requestedVersion} is not supported. Please use one of: ${SUPPORTED_VERSIONS.join(', ')}`
-      });
-    }
-
-    req.apiVersion = requestedVersion;
-
-    // Strip version segment from URL so existing /api/* proxy mounts work
-    // for both /api/* and /vN/api/* forms.
-    req.url = req.url.replace(/^\/v\d+(?=\/)/, '');
-
-    // Add deprecation warning for old versions
-    if (requestedVersion === 'v1') {
-      res.setHeader('X-API-Deprecation', 'v1 API will be deprecated on 2026-12-31. Please migrate to v2.');
-      res.setHeader('X-API-Migration-Guide', 'https://docs.milonexa.com/api/migration/v1-to-v2');
-    }
-  } else {
-    // Default to v1 if no version specified
-    req.apiVersion = 'v1';
-  }
-
-  res.setHeader('X-API-Version', req.apiVersion);
-  next();
-};
-
-// Apply version middleware globally
-app.use(versionMiddleware);
-
 // Apply route governance on all API routes
 app.use('/api', routeGovernanceMiddleware, governanceRateLimiter, classificationAuthMiddleware);
+
+// Phase 7: Webhooks System (registered after governance so it is subject to governance + version headers)
+app.use('/api/webhooks', authMiddleware, webhookRoutes);
 
 // Governance introspection endpoints (admin secret required)
 app.get('/api/internal/routes', requireAdminSecret, routeRegistryHandler);
@@ -657,34 +741,53 @@ app.get('/api/internal/route-ownership', requireAdminSecret, routeOwnershipHandl
 // API version info endpoint
 app.get('/api/version', (req, res) => {
   res.json({
-    currentVersion: API_VERSION,
+    platform: 'Milonexa',
+    currentVersion: CURRENT_API_VERSION,
+    defaultVersion: CURRENT_API_VERSION,
     requestedVersion: req.apiVersion,
     supportedVersions: SUPPORTED_VERSIONS,
+    deprecatedVersions: DEPRECATED_VERSIONS,
     deprecations: {
       v1: {
-        sunsetDate: '2026-12-31',
+        sunsetDate: V1_SUNSET_DATE,
+        status: 'deprecated',
         migrationGuide: 'https://docs.milonexa.com/api/migration/v1-to-v2',
-        changes: [
-          'Authentication: JWT tokens now require refresh tokens',
-          'Pagination: Changed from offset-based to cursor-based',
-          'Response format: All timestamps now in ISO 8601 format',
-          'Error codes: Standardized error response structure'
+        breakingChanges: [
+          'Pagination changed from offset-based to cursor-based',
+          'All timestamps return ISO 8601 format',
+          'Standardized error response envelope (code, message, details)',
+          'GraphQL endpoint available at /graphql'
         ]
       }
     },
-    changelog: {
+    releases: {
       v2: {
-        releaseDate: '2026-06-01',
+        releaseDate: '2026-03-12',
+        status: 'current',
+        maturity: 'production',
         features: [
-          'GraphQL API support',
-          'WebSocket subscriptions for real-time updates',
-          'Improved rate limiting with per-endpoint policies',
-          'Enhanced filtering and search capabilities'
+          'GraphQL API (graphql-http, graphql@16)',
+          'X-Response-Time header on every response',
+          'Smart compression (threshold 1 KB, Brotli-compatible)',
+          'Redis-backed tiered rate limiting (global / user / strict / AI)',
+          'W3C traceparent distributed tracing',
+          'Prometheus metrics at /metrics',
+          'Per-route circuit breakers with automatic retry',
+          'Deep readiness probe (/health/ready)',
+          'Redis pub/sub event bus (shared/event-bus.js)',
+          'Route governance with classification (PUBLIC / PRIVATE / ADMIN)',
+          'Unified search fan-out across user, content, streaming',
+          'Reduced data mode for mobile clients',
+          'Webhooks system for external integrations',
+          'API key header versioning (X-API-Version)',
+          'RFC 8594 Deprecation/Sunset headers for v1 callers'
         ]
       },
       v1: {
         releaseDate: '2025-01-01',
         status: 'deprecated',
+        maturity: 'legacy',
+        sunsetDate: V1_SUNSET_DATE,
         features: [
           'RESTful API',
           'JWT authentication',
@@ -701,21 +804,36 @@ app.get('/api/changelog', (req, res) => {
     versions: [
       {
         version: 'v2',
-        releaseDate: '2026-06-01',
+        releaseDate: '2026-03-12',
         status: 'current',
+        maturity: 'production',
         changes: [
-          { type: 'feature', description: 'Added GraphQL API gateway' },
-          { type: 'feature', description: 'Implemented WebSocket subscriptions' },
-          { type: 'improvement', description: 'Enhanced rate limiting with Redis' },
-          { type: 'breaking', description: 'Changed pagination to cursor-based' },
-          { type: 'breaking', description: 'Standardized timestamp format to ISO 8601' }
+          { type: 'feature', description: 'GraphQL API endpoint (/graphql) using graphql-http + graphql@16' },
+          { type: 'feature', description: 'X-Response-Time response header for all requests' },
+          { type: 'feature', description: 'Smart compression (1 KB threshold, level 6)' },
+          { type: 'feature', description: 'Redis pub/sub event bus for async service communication' },
+          { type: 'feature', description: 'Prometheus metrics endpoint (/metrics)' },
+          { type: 'feature', description: 'JSON performance summary (/api/metrics/summary)' },
+          { type: 'feature', description: 'Route governance with classification and per-route rate limiting' },
+          { type: 'feature', description: 'W3C traceparent distributed tracing propagation' },
+          { type: 'feature', description: 'Unified search across users, posts, groups, channels' },
+          { type: 'feature', description: 'Reduced data mode for mobile bandwidth savings' },
+          { type: 'feature', description: 'Kubernetes startup probe, PodDisruptionBudget, HPA 2-10 replicas' },
+          { type: 'improvement', description: 'Deep readiness probe (/health/ready) with dependency checks' },
+          { type: 'improvement', description: 'Per-service circuit breakers with configurable thresholds' },
+          { type: 'improvement', description: 'X-API-Version header-based versioning supported' },
+          { type: 'improvement', description: 'RFC 8594 Deprecation + Sunset headers for v1 callers' },
+          { type: 'security', description: 'app.disable(x-powered-by) to remove server fingerprint' },
+          { type: 'security', description: 'Helmet CSP, HSTS preload, Referrer-Policy hardened' },
+          { type: 'security', description: 'All rate-limit events emit structured pino log entries' }
         ]
       },
       {
         version: 'v1',
         releaseDate: '2025-01-01',
         status: 'deprecated',
-        sunsetDate: '2026-12-31',
+        maturity: 'legacy',
+        sunsetDate: V1_SUNSET_DATE,
         changes: [
           { type: 'feature', description: 'Initial API release' },
           { type: 'feature', description: 'RESTful endpoints for all services' },
@@ -1156,7 +1274,7 @@ app.post('/api/analytics/vitals', (req, res) => {
       const key = `vitals:${metric.name}:${Date.now()}`;
       redisClient.setEx(key, 86400, JSON.stringify(metric)).catch(() => {});
     }
-    console.info('[Vitals]', metric.name, metric.value, metric.rating || '', metric.url || '');
+    logger.info({ name: metric.name, value: metric.value, rating: metric.rating, url: metric.url }, '[Vitals]');
   }
   res.status(204).end();
 });
@@ -1177,11 +1295,8 @@ app.use((req, res) => {
 app.use(globalErrorHandler);
 
 app.listen(PORT, () => {
-  console.log(`API Gateway running on port ${PORT}`);
-  console.log('Service routes configured:');
-  Object.entries(services).forEach(([name, url]) => {
-    console.log(`  - ${name}: ${url}`);
-  });
+  logger.info({ port: PORT, env: process.env.NODE_ENV }, 'API Gateway running');
+  logger.info({ services: Object.keys(services) }, 'Service routes configured');
 });
 
 // ----------------------------------------------------------
