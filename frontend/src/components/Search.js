@@ -66,6 +66,8 @@ import PageShell from './common/PageShell';
 import { EmptySearch } from './common/EmptyState';
 import { ContentSkeleton } from './common/EnhancedSkeleton';
 
+const LOCAL_HISTORY_KEY = 'lc_search_history';
+
 const SEARCH_TYPES = [
     { value: 'all', label: 'All' },
     { value: 'posts', label: 'Posts' },
@@ -176,7 +178,7 @@ const Search = () => {
         fetchSearchHistory();
         fetchSavedSearches();
         try {
-            const stored = JSON.parse(localStorage.getItem('lc_search_history') || '[]');
+            const stored = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
             setLocalHistory(Array.isArray(stored) ? stored : []);
         } catch (err) {
             console.warn('Failed to load local search history:', err);
@@ -271,7 +273,7 @@ const Search = () => {
                 ...(dateFrom ? { dateFrom } : {}),
                 ...(dateTo ? { dateTo } : {}),
                 ...(filterLanguage !== 'any' ? { language: filterLanguage } : {}),
-                ...((!mediaTypeText || !mediaTypeImages || !mediaTypeVideo)
+                ...((!mediaTypeText || !mediaTypeImages || !mediaTypeVideo) && (mediaTypeText || mediaTypeImages || mediaTypeVideo)
                     ? { mediaTypes: [mediaTypeText && 'text', mediaTypeImages && 'images', mediaTypeVideo && 'video'].filter(Boolean) }
                     : {}),
             };
@@ -335,9 +337,9 @@ const Search = () => {
 
             // Feature 1: Save to localStorage history (deduplicated, max 10)
             try {
-                const stored = JSON.parse(localStorage.getItem('lc_search_history') || '[]');
+                const stored = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
                 const deduped = [searchQuery, ...stored.filter((q) => q !== searchQuery)].slice(0, 10);
-                localStorage.setItem('lc_search_history', JSON.stringify(deduped));
+                localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(deduped));
                 setLocalHistory(deduped);
             } catch (err) {
                 console.warn('Failed to save local search history:', err);
@@ -606,17 +608,18 @@ const Search = () => {
                     </Grid>
                     {/* Feature 1: History Popper */}
                     <ClickAwayListener onClickAway={() => setHistoryPopperOpen(false)}>
-                        <div style={{ position: 'absolute' }}>
+                        <Box component="span">
                             <Popper
                                 open={historyPopperOpen && !query && localHistory.length > 0}
                                 anchorEl={searchInputRef.current}
                                 placement="bottom-start"
-                                style={{ zIndex: 1300, width: searchInputRef.current?.offsetWidth }}
+                                disablePortal
+                                sx={{ zIndex: 'tooltip', width: searchInputRef.current?.offsetWidth }}
                             >
                                 <Paper elevation={4} sx={{ p: 1 }}>
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
                                         <Typography variant="caption" color="text.secondary">Recent searches</Typography>
-                                        <Button size="small" onClick={() => { localStorage.removeItem('lc_search_history'); setLocalHistory([]); setHistoryPopperOpen(false); }}>
+                                        <Button size="small" onClick={() => { localStorage.removeItem(LOCAL_HISTORY_KEY); setLocalHistory([]); setHistoryPopperOpen(false); }}>
                                             Clear all
                                         </Button>
                                     </Box>
@@ -639,7 +642,7 @@ const Search = () => {
                                                     e.stopPropagation();
                                                     const updated = localHistory.filter((_, i) => i !== idx);
                                                     setLocalHistory(updated);
-                                                    localStorage.setItem('lc_search_history', JSON.stringify(updated));
+                                                    localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(updated));
                                                 }}
                                                 aria-label="Remove from history"
                                             >
@@ -649,16 +652,17 @@ const Search = () => {
                                     ))}
                                 </Paper>
                             </Popper>
-                        </div>
+                        </Box>
                     </ClickAwayListener>
                     {/* Feature 2: Suggestions Popper */}
                     <ClickAwayListener onClickAway={() => { setSuggestionsOpen(false); setHighlightedIndex(-1); }}>
-                        <div style={{ position: 'absolute' }}>
+                        <Box component="span">
                             <Popper
                                 open={query.length >= 2 && suggestionsOpen && suggestions.length > 0}
                                 anchorEl={searchInputRef.current}
                                 placement="bottom-start"
-                                style={{ zIndex: 1301, width: searchInputRef.current?.offsetWidth }}
+                                disablePortal
+                                sx={{ zIndex: 'tooltip', width: searchInputRef.current?.offsetWidth }}
                             >
                                 <Paper elevation={4}>
                                     <List dense disablePadding>
@@ -693,7 +697,7 @@ const Search = () => {
                                     </List>
                                 </Paper>
                             </Popper>
-                        </div>
+                        </Box>
                     </ClickAwayListener>
                     <Grid item xs={12} md={3}>
                         <FormControl fullWidth>
