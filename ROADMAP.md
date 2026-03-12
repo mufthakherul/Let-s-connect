@@ -254,7 +254,7 @@ This roadmap covers the complete improvement and modernization of all user-facin
 
 ---
 
-## Phase 4 — Q1 2027: Notifications, Search & Personalization 🚧 IN PROGRESS
+## Phase 4 — Q1 2027: Notifications, Search & Personalization ✅ COMPLETED
 
 ### 🔔 Notifications
 
@@ -280,14 +280,14 @@ This roadmap covers the complete improvement and modernization of all user-facin
 
 **Frontend:**
 - [x] Global search bar in navbar (keyboard shortcut: `/`)
-- [ ] Autocomplete suggestions: people, groups, pages, posts, hashtags
+- [x] Autocomplete suggestions: people, groups, pages, posts, hashtags
 - [x] Search results page with tab filters: All / People / Groups / Pages / Posts / Media
-- [ ] Advanced filters: date range, location, language, media type
-- [ ] Search history with clear option
+- [x] Advanced filters: date range, location, language, media type
+- [x] Search history with clear option
 
 **Backend/Routes:**
 - [x] `GET /api/search?q=…` — global search (paginated by type)
-- [ ] `GET /api/search/suggestions?q=…` — autocomplete (debounced, max 8 results)
+- [x] `GET /api/search/suggestions?q=…` — autocomplete (debounced, max 8 results)
 - [x] `GET /api/search/people?q=…` — people search with filters
 - [x] `GET /api/search/groups?q=…` — group search
 - [x] `GET /api/search/pages?q=…` — page search
@@ -313,11 +313,11 @@ This roadmap covers the complete improvement and modernization of all user-facin
 - [x] `PUT /api/profile/me/avatar` — upload/update avatar
 - [x] `PUT /api/profile/me/cover` — upload/update cover photo
 - [x] `GET /api/settings` — get all settings
-- [ ] `PUT /api/settings/privacy` — update privacy settings
-- [ ] `PUT /api/settings/security` — update security settings
-- [ ] `PUT /api/settings/appearance` — update appearance preferences
-- [ ] `POST /api/settings/data/export` — trigger GDPR data export
-- [ ] `POST /api/settings/account/delete` — initiate account deletion (2-step confirmation)
+- [x] `PUT /api/settings/privacy` — update privacy settings
+- [x] `PUT /api/settings/security` — update security settings
+- [x] `PUT /api/settings/appearance` — update appearance preferences
+- [x] `POST /api/settings/data/export` — trigger GDPR data export
+- [x] `POST /api/settings/account/delete` — initiate account deletion (2-step confirmation)
 
 ---
 
@@ -368,4 +368,4 @@ This roadmap covers the complete improvement and modernization of all user-facin
 
 ---
 
-*Last updated: March 11, 2026*
+*Last updated: March 12, 2026*
