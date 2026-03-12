@@ -107,8 +107,30 @@ const proxy = (target, options = {}) => {
 // Trust proxy headers in containerized environments
 app.set('trust proxy', 1);
 
-// Standard Optimizations for both gateways
-app.use(compression());
+// Phase 3 — Performance: response-time tracking (set before all other middleware)
+app.use((req, res, next) => {
+  const start = process.hrtime.bigint();
+  // Override res.end to inject the header before the response is finalized
+  const origEnd = res.end.bind(res);
+  res.end = function responseTimeEnd(...args) {
+    const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+    res.setHeader('X-Response-Time', `${durationMs.toFixed(2)}ms`);
+    return origEnd(...args);
+  };
+  next();
+});
+
+// Phase 3 — Performance: smart compression (skip small responses and already-compressed content)
+app.use(compression({
+  level: 6,
+  threshold: 1024, // only compress responses > 1 KB
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  }
+}));
+
+// Phase 4 — Security: hardened helmet configuration
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -137,6 +159,9 @@ app.use(helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   crossOriginEmbedderPolicy: false
 }));
+
+// Phase 4 — Security: strip server identification headers
+app.disable('x-powered-by');
 
 // helper used by admin-only instance
 function requireAdminSecret(req, res, next) {
@@ -323,7 +348,7 @@ if (RATE_LIMITING_ENABLED) {
     store: new RedisStore({ sendCommand: sendRedisCommand, prefix: 'rl:username-soft:' }),
     keyGenerator: (req) => getIpRateLimitKey(req),
     handler: (req, res) => {
-      console.warn(`[rate-limit] username soft-threshold reached for ip=${req.ip} url=${req.originalUrl}`);
+      logger.warn({ ip: req.ip, url: req.originalUrl }, '[rate-limit] username soft-threshold reached — captcha required');
       res.set('X-Captcha-Required', '1');
       res.set('Retry-After', String(Math.ceil(60 * 60)));
       return res.status(429).json({ error: 'captcha_required', message: 'CAPTCHA required for further username checks' });
@@ -341,7 +366,7 @@ if (RATE_LIMITING_ENABLED) {
     }),
     keyGenerator: (req) => getIpRateLimitKey(req),
     handler: (req, res) => {
-      console.warn(`[rate-limit] username check throttled for ip=${req.ip} url=${req.originalUrl}`);
+      logger.warn({ ip: req.ip, url: req.originalUrl }, '[rate-limit] username check throttled');
       res.set('Retry-After', String(Math.ceil(60 * 60)));
       return res.status(429).json({ error: 'Too many username checks. Please try again later.' });
     }
@@ -353,7 +378,7 @@ if (RATE_LIMITING_ENABLED) {
   if (process.env.NODE_ENV !== 'development') {
     app.use(globalLimiter);
   } else {
-    console.info('[API Gateway] skipping global rate limiter (development mode)');
+    logger.info('[API Gateway] skipping global rate limiter (development mode)');
   }
 }
 
@@ -423,27 +448,29 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// Phase 6: GraphQL API Integration
-const { graphqlHTTP } = require('express-graphql');
+// Phase 6: GraphQL API Integration (graphql-http — supports graphql@16)
+const { createHandler } = require('graphql-http/lib/use/express');
 const { schema, root } = require('./graphql-schema');
 
 // GraphQL endpoint
-app.use('/graphql', authMiddleware, graphqlHTTP((req) => ({
-  schema: schema,
+// graphql-http wraps the Express request; req.raw is the original Express request.
+// authMiddleware sets req.user before this handler runs, so req.raw.user is the decoded JWT.
+app.use('/graphql', authMiddleware, createHandler({
+  schema,
   rootValue: root,
-  graphiql: process.env.NODE_ENV !== 'production', // Enable GraphiQL in development
-  context: {
-    userId: req.user?.id,
-    user: req.user
-  },
-  customFormatErrorFn: (error) => ({
+  context: (req) => ({
+    userId: req.raw.user?.id,
+    user: req.raw.user
+  }),
+  formatError: (error) => ({
     message: error.message,
     locations: error.locations,
     path: error.path
   })
-})));
+}));
 
-// GraphQL playground (development only)
+// GraphQL playground (development only) — served as a standalone HTML page
+// pointing at the /graphql endpoint which graphql-http handles.
 if (process.env.NODE_ENV !== 'production') {
   app.get('/graphql/playground', (req, res) => {
     res.send(`
@@ -466,8 +493,8 @@ if (process.env.NODE_ENV !== 'production') {
             <h1>GraphQL API - Milonexa</h1>
             <div class="info">
               <p><strong>Endpoint:</strong> <code>/graphql</code></p>
-              <p><strong>GraphiQL Interface:</strong> <a href="/graphql">Open GraphiQL</a></p>
-              <p><strong>Authentication:</strong> Required (Bearer token)</p>
+              <p><strong>Authentication:</strong> Required (Bearer token in Authorization header)</p>
+              <p><strong>Tool:</strong> Use <a href="https://studio.apollographql.com/sandbox/explorer" target="_blank">Apollo Sandbox</a> or any GraphQL client pointed at <code>/graphql</code>.</p>
             </div>
             
             <h2>Example Queries</h2>
@@ -558,6 +585,37 @@ app.get('/health/ready', async (req, res) => {
 app.get('/metrics', (req, res) => {
   res.set('Content-Type', 'text/plain');
   res.send(healthChecker.getPrometheusMetrics());
+});
+
+// Phase 7 — Observability: human-readable API performance summary (JSON)
+app.get('/api/metrics/summary', requireAdminSecret, (req, res) => {
+  const { requests, errors, totalResponseTime, inflightRequests } = healthChecker.metrics;
+  const uptime = Math.floor((Date.now() - healthChecker.startTime) / 1000);
+  const avgResponseTimeMs = requests > 0
+    ? (totalResponseTime / requests).toFixed(2)
+    : 0;
+  const errorRate = requests > 0
+    ? ((errors / requests) * 100).toFixed(2)
+    : 0;
+  const mem = process.memoryUsage();
+
+  res.json({
+    service: 'api-gateway',
+    timestamp: new Date().toISOString(),
+    uptime,
+    requests: {
+      total: requests,
+      errors,
+      inflight: inflightRequests,
+      errorRate: `${errorRate}%`,
+      avgResponseTimeMs: Number(avgResponseTimeMs)
+    },
+    memory: {
+      heapUsedMB: (mem.heapUsed / 1024 / 1024).toFixed(1),
+      rssUsedMB: (mem.rss / 1024 / 1024).toFixed(1)
+    },
+    circuits: getCircuitBreakerStates()
+  });
 });
 
 // Metrics tracking middleware
@@ -1156,7 +1214,7 @@ app.post('/api/analytics/vitals', (req, res) => {
       const key = `vitals:${metric.name}:${Date.now()}`;
       redisClient.setEx(key, 86400, JSON.stringify(metric)).catch(() => {});
     }
-    console.info('[Vitals]', metric.name, metric.value, metric.rating || '', metric.url || '');
+    logger.info({ name: metric.name, value: metric.value, rating: metric.rating, url: metric.url }, '[Vitals]');
   }
   res.status(204).end();
 });
@@ -1177,11 +1235,8 @@ app.use((req, res) => {
 app.use(globalErrorHandler);
 
 app.listen(PORT, () => {
-  console.log(`API Gateway running on port ${PORT}`);
-  console.log('Service routes configured:');
-  Object.entries(services).forEach(([name, url]) => {
-    console.log(`  - ${name}: ${url}`);
-  });
+  logger.info({ port: PORT, env: process.env.NODE_ENV }, 'API Gateway running');
+  logger.info({ services: Object.keys(services) }, 'Service routes configured');
 });
 
 // ----------------------------------------------------------
