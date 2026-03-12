@@ -17,7 +17,7 @@ Documentation for developing Milonexa platform locally.
 2. Clone repo: `git clone https://github.com/milonexa/platform.git`
 3. Start infrastructure: `docker compose up postgres redis minio elasticsearch -d`
 4. Initialize DB: `bash scripts/init-databases.sh`
-5. Install frontend: `cd frontend && npm install && npm start`
+5. Install frontend: `cd frontend && npm install --legacy-peer-deps && npm start`
 6. Install services: `cd services/api-gateway && npm install && npm start`
 
 ## Documentation
