@@ -4,8 +4,8 @@ Complete REST and GraphQL API documentation for all Milonexa services.
 
 ## Base URL
 ```
-Development: http://localhost:8000/api
-Production: https://api.milonexa.com/api
+Development: http://localhost:8000
+Production: https://api.milonexa.com
 ```
 
 ## Authentication

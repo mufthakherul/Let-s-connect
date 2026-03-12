@@ -1,13 +1,13 @@
 # Quick Start Guide
 
-Get Milonexa running in 10 minutes with Docker Compose.
+Get Milonexa running in under 10 minutes with Docker Compose.
 
 ## Prerequisites
 - Docker 24+ and Docker Compose 2.20+
 - 4 CPU cores, 8GB RAM, 50GB disk
 - Git
 
-## 5-Minute Setup
+## 10-Minute Setup
 
 ```bash
 # 1. Clone
@@ -42,13 +42,12 @@ DB_PASSWORD=$(openssl rand -base64 32)
 REDIS_PASSWORD=$(openssl rand -base64 32)
 MINIO_ROOT_PASSWORD=$(openssl rand -base64 32)
 
-# Add to .env
-cat >> .env << EOL
-JWT_SECRET=$JWT_SECRET
-DB_PASSWORD=$DB_PASSWORD
-REDIS_PASSWORD=$REDIS_PASSWORD
-MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
-EOL
+# Edit these values into your .env file (replace any existing entries for these keys)
+echo "Add/replace these in your .env:"
+echo "JWT_SECRET=$JWT_SECRET"
+echo "DB_PASSWORD=$DB_PASSWORD"
+echo "REDIS_PASSWORD=$REDIS_PASSWORD"
+echo "MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD"
 ```
 
 ## Troubleshooting

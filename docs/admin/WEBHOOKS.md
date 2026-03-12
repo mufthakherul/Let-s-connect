@@ -16,10 +16,10 @@ The webhook system allows external services to receive real-time notifications a
 
 ### Via CLI
 ```bash
-node admin-cli/index.js webhooks list
-node admin-cli/index.js webhooks add --url https://example.com/hook --events user.registered,post.created --secret mysecret
-node admin-cli/index.js webhooks remove --id <webhook-id>
-node admin-cli/index.js webhooks fire --event test.ping --payload '{"test":true}'
+node admin/cli/index.js webhooks list
+node admin/cli/index.js webhooks add --url https://example.com/hook --events user.registered,post.created --secret mysecret
+node admin/cli/index.js webhooks remove --id <webhook-id>
+node admin/cli/index.js webhooks fire --event test.ping --payload '{"test":true}'
 ```
 
 ### Via REST API
@@ -66,13 +66,27 @@ Use the **WebhookPanel** tab in the admin web dashboard.
 
 ## Signature Verification
 
-Each webhook request includes an `X-Milonexa-Signature` header (HMAC-SHA256):
+Each webhook request includes an `X-Milonexa-Signature` header (HMAC-SHA256).
+`rawBody` **must** be the exact bytes of the HTTP request body as received — not the parsed JSON object.
 
 ```js
 const crypto = require('crypto');
-const sig = req.headers['x-milonexa-signature'];
-const expected = crypto.createHmac('sha256', SECRET).update(rawBody).digest('hex');
-if (sig !== `sha256=${expected}`) { throw new Error('Invalid signature'); }
+
+const signatureHeader = req.headers['x-milonexa-signature'] || '';
+const [scheme, signatureHex] = signatureHeader.split('=');
+
+if (scheme !== 'sha256' || !signatureHex) {
+  throw new Error('Invalid signature format');
+}
+
+const hmac = crypto.createHmac('sha256', SECRET);
+hmac.update(rawBody);
+const expected = Buffer.from(hmac.digest('hex'), 'hex');
+const provided = Buffer.from(signatureHex, 'hex');
+
+if (expected.length !== provided.length || !crypto.timingSafeEqual(expected, provided)) {
+  throw new Error('Invalid signature');
+}
 ```
 
 ---

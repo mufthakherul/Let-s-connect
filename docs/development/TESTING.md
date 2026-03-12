@@ -84,4 +84,4 @@ View: `npm test -- --coverage` → `coverage/lcov-report/index.html`
 6. **Use test data factories**: Consistent test data
 
 ---
-Last Updated: 2024
+Last updated: March 12, 2026
