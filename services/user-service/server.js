@@ -76,6 +76,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// Simple health endpoint (liveness probe) - always returns 200
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'running', service: 'user-service' });
+});
+
 // App Routes
 app.use('/', routes);
 

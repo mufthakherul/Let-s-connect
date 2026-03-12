@@ -2,14 +2,20 @@ FROM node:18-alpine
 
 ENV PORT=8007
 
-WORKDIR /app
+# Build context is ./services/
+# This allows access to shared utilities via COPY
+
+WORKDIR /services/ai-service
 
 # Install dependencies
-COPY package*.json ./
+COPY ai-service/package*.json ./
 RUN npm install --production --legacy-peer-deps
 
+# Copy shared utilities (needed by this service)
+COPY shared/ /services/shared/
+
 # Copy source and set ownership for non-root user
-COPY --chown=node:node . .
+COPY --chown=node:node ai-service/ ./
 
 # Use non-root user
 USER node
