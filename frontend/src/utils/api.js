@@ -101,7 +101,7 @@ api.interceptors.response.use(
       const deprecation = response.headers['x-api-deprecation'];
       if (deprecation) {
         // eslint-disable-next-line no-console
-        console.warn(`[API v${API_VERSION_HEADER}] deprecation notice:`, deprecation);
+        console.warn(`[API ${API_VERSION_HEADER}] deprecation notice:`, deprecation);
       }
     }
     return response;
