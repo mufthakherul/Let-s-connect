@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Card,
@@ -22,17 +22,25 @@ import {
   Divider,
   Tabs,
   Tab,
-  Tooltip
+  Tooltip,
+  RadioGroup,
+  Radio,
+  FormControlLabel,
+  FormLabel,
+  Stack,
+  LinearProgress
 } from '@mui/material';
-import { Add, Delete, ThumbUp } from '@mui/icons-material';
+import { Add, Delete, ThumbUp, PhotoCamera, PeopleAlt } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import { useAuthStore } from '../store/authStore';
 
 const emptyProfile = {
   firstName: '',
   lastName: '',
   bio: '',
   avatar: '',
+  coverUrl: '',
   headline: '',
   pronouns: '',
   location: '',
@@ -123,6 +131,25 @@ const softActionSx = {
   }
 };
 
+function AnimatedCount({ value }) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const end = Number(value) || 0;
+    if (end === 0) { setCount(0); return; }
+    let frame = 0;
+    const steps = 40;
+    const inc = end / steps;
+    const id = setInterval(() => {
+      frame++;
+      const next = Math.round(inc * frame);
+      if (next >= end || frame >= steps) { setCount(end); clearInterval(id); }
+      else setCount(next);
+    }, 1000 / steps);
+    return () => clearInterval(id);
+  }, [value]);
+  return <>{count.toLocaleString()}</>;
+}
+
 function Profile({ user }) {
   const [profile, setProfile] = useState({
     ...emptyProfile,
@@ -139,13 +166,23 @@ function Profile({ user }) {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const { user: currentUser } = useAuthStore();
+  const [privacySettings, setPrivacySettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('privacy_settings');
+      return saved ? JSON.parse(saved) : { postVisibility: 'everyone', friendListVisibility: 'friends' };
+    } catch { return { postVisibility: 'everyone', friendListVisibility: 'friends' }; }
+  });
+  const [mutualFriends, setMutualFriends] = useState([]);
+
   const token = localStorage.getItem('token');
   const headers = useMemo(() => (token ? { Authorization: `Bearer ${token}` } : {}), [token]);
 
   useEffect(() => {
     fetchProfile();
     fetchSkills();
-  }, []);
+    fetchMutualFriends();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchProfile = async () => {
     try {
@@ -159,6 +196,7 @@ function Profile({ user }) {
         lastName: userData.lastName || prev.lastName,
         bio: userData.bio || prev.bio,
         avatar: userData.avatar || prev.avatar,
+        coverUrl: serverProfile.coverUrl || prev.coverUrl,
         interests: serverProfile.interests || [],
         languages: serverProfile.languages || [],
         certifications: serverProfile.certifications || [],
@@ -182,6 +220,23 @@ function Profile({ user }) {
     } catch (err) {
       console.error('Failed to fetch skills:', err);
     }
+  };
+
+  const fetchMutualFriends = async () => {
+    if (!currentUser || user.id === currentUser.id) return;
+    try {
+      const resp = await axios.get(`/api/user/social/friends/${user.id}/mutual`, { headers });
+      const mutual = resp?.data?.data?.mutual || resp?.data?.friends || [];
+      setMutualFriends(mutual);
+    } catch (err) {
+      console.error('Failed to fetch mutual friends:', err);
+    }
+  };
+
+  const savePrivacySettings = (settings) => {
+    localStorage.setItem('privacy_settings', JSON.stringify(settings));
+    setSuccess('Privacy settings saved.');
+    setTimeout(() => setSuccess(''), 3000);
   };
 
   const handleChange = (e) => {
@@ -237,7 +292,8 @@ function Profile({ user }) {
         languages: profile.languages,
         certifications: profile.certifications,
         education: profile.education,
-        socialLinks: profile.socialLinks
+        socialLinks: profile.socialLinks,
+        coverUrl: profile.coverUrl || ''
       };
 
       const response = await axios.put(
@@ -366,6 +422,43 @@ function Profile({ user }) {
 
       <Card component={motion.div} variants={sectionVariants} sx={hoverCardSx}>
         <CardContent>
+          {/* Cover Photo */}
+          <Box
+            sx={{
+              position: 'relative',
+              mx: -2,
+              mt: -2,
+              mb: 2,
+              height: 180,
+              borderRadius: '12px 12px 0 0',
+              overflow: 'hidden',
+              background: profile.coverUrl
+                ? `url(${profile.coverUrl}) center/cover no-repeat`
+                : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            }}
+          >
+            <Tooltip title="Change cover photo" arrow>
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={<PhotoCamera />}
+                onClick={() => {
+                  const url = window.prompt('Enter cover photo URL:', profile.coverUrl || '');
+                  if (url !== null) setProfile((p) => ({ ...p, coverUrl: url }));
+                }}
+                sx={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  bgcolor: 'rgba(0,0,0,0.5)',
+                  '&:hover': { bgcolor: 'rgba(0,0,0,0.72)' },
+                }}
+              >
+                Change Cover
+              </Button>
+            </Tooltip>
+          </Box>
+
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
             <Tooltip title="Profile photo" arrow>
               <Avatar sx={{ width: 88, height: 88 }} src={profile.avatar || undefined}>
@@ -415,6 +508,23 @@ function Profile({ user }) {
             </Box>
           </Box>
 
+          {/* Activity Stats */}
+          <Stack direction="row" spacing={3} sx={{ mb: 2, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Posts', value: profile.postCount || 0 },
+              { label: 'Friends', value: profile.friendCount || 0 },
+              { label: 'Following', value: profile.followingCount || 0 },
+              { label: 'Followers', value: profile.followerCount || 0 },
+            ].map(({ label, value }) => (
+              <Box key={label} sx={{ textAlign: 'center', minWidth: 64 }}>
+                <Typography variant="h6" fontWeight={700} color="primary.main">
+                  <AnimatedCount value={value} />
+                </Typography>
+                <Typography variant="caption" color="text.secondary">{label}</Typography>
+              </Box>
+            ))}
+          </Stack>
+
           <Tabs value={tabValue} onChange={(e, val) => setTabValue(val)} sx={{ mb: 2 }}>
             <Tab label={(
               <Tooltip title="Bio, location, languages, and personal details" arrow>
@@ -434,6 +544,11 @@ function Profile({ user }) {
             <Tab label={(
               <Tooltip title="Skills, levels, and endorsements" arrow>
                 <span>Skills</span>
+              </Tooltip>
+            )} />
+            <Tab label={(
+              <Tooltip title="Post and profile privacy settings" arrow>
+                <span>Privacy</span>
               </Tooltip>
             )} />
           </Tabs>
@@ -901,8 +1016,87 @@ function Profile({ user }) {
               )}
             </Box>
           )}
+          {tabValue === 4 && (
+            <Box component={motion.div} variants={sectionVariants}>
+              <Typography variant="h6" gutterBottom>Privacy Settings</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Control who can see your content and information.
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <FormControl component="fieldset">
+                    <FormLabel component="legend">Who can see my posts?</FormLabel>
+                    <RadioGroup
+                      value={privacySettings.postVisibility}
+                      onChange={(e) => {
+                        const updated = { ...privacySettings, postVisibility: e.target.value };
+                        setPrivacySettings(updated);
+                        savePrivacySettings(updated);
+                      }}
+                    >
+                      <FormControlLabel value="everyone" control={<Radio />} label="Everyone" />
+                      <FormControlLabel value="friends" control={<Radio />} label="Friends" />
+                      <FormControlLabel value="only_me" control={<Radio />} label="Only Me" />
+                    </RadioGroup>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <FormControl component="fieldset">
+                    <FormLabel component="legend">Who can see my friend list?</FormLabel>
+                    <RadioGroup
+                      value={privacySettings.friendListVisibility}
+                      onChange={(e) => {
+                        const updated = { ...privacySettings, friendListVisibility: e.target.value };
+                        setPrivacySettings(updated);
+                        savePrivacySettings(updated);
+                      }}
+                    >
+                      <FormControlLabel value="everyone" control={<Radio />} label="Everyone" />
+                      <FormControlLabel value="friends" control={<Radio />} label="Friends" />
+                      <FormControlLabel value="only_me" control={<Radio />} label="Only Me" />
+                    </RadioGroup>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
         </CardContent>
       </Card>
+
+      {/* Mutual Friends */}
+      {currentUser && user.id !== currentUser.id && mutualFriends.length > 0 && (
+        <Card component={motion.div} variants={sectionVariants} sx={{ mt: 2, ...hoverCardSx }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+              <PeopleAlt color="action" />
+              <Typography variant="h6">
+                {mutualFriends.length} Mutual Friend{mutualFriends.length !== 1 ? 's' : ''}
+              </Typography>
+            </Box>
+            <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+              {mutualFriends.slice(0, 8).map((friend) => (
+                <Tooltip
+                  key={friend.id}
+                  title={`${friend.firstName || ''} ${friend.lastName || ''}`.trim() || friend.username || ''}
+                  arrow
+                >
+                  <Avatar
+                    src={friend.avatar || undefined}
+                    sx={{ width: 36, height: 36, border: '2px solid', borderColor: 'background.paper' }}
+                  >
+                    {friend.firstName?.[0]}{friend.lastName?.[0]}
+                  </Avatar>
+                </Tooltip>
+              ))}
+              {mutualFriends.length > 8 && (
+                <Avatar sx={{ width: 36, height: 36, bgcolor: 'action.selected' }}>
+                  <Typography variant="caption">+{mutualFriends.length - 8}</Typography>
+                </Avatar>
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Add Skill Dialog */}
       <Dialog open={skillDialogOpen} onClose={() => setSkillDialogOpen(false)} maxWidth="sm" fullWidth>

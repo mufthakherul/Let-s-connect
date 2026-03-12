@@ -5,8 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // Eager load critical components (needed for initial render)
 import Home from '../components/Home';
-import Login from '../components/Login';
-import Register from '../components/Register';
+import AuthHub from '../components/AuthHub';
 
 // Error pages
 import Error404 from '../components/errors/Error404';
@@ -158,9 +157,10 @@ export default function AppRoutes({ user, setUser }) {
             <Route path="/hubs/accessibility" element={<AccessibilityHub />} />
             <Route path="/hubs/donation" element={<DonationHub />} />
 
-            {/* Auth routes */}
-            <Route path="/login" element={<Login setUser={setUser} />} />
-            <Route path="/register" element={<Register setUser={setUser} />} />
+            {/* Auth routes — unified AuthHub handles login + register + forgot-password */}
+            <Route path="/auth" element={<AuthHub setUser={setUser} />} />
+            <Route path="/login" element={<AuthHub setUser={setUser} />} />
+            <Route path="/register" element={<Navigate to="/auth?tab=register" replace />} />
             <Route path="/reset-password" element={<ResetRequest />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/login/oauth" element={<OAuthLogin />} />

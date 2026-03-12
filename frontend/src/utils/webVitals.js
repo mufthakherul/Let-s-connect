@@ -71,7 +71,7 @@ const observeEntryType = (entryType, onEntries) => {
 
     observer.observe({ type: entryType, buffered: true });
     return () => observer.disconnect();
-  } catch {
+  } catch (_e) {
     return () => { };
   }
 };
@@ -104,7 +104,7 @@ export const startWebVitalsCollection = (onMetric = defaultReporter) => {
     if (nav?.responseStart != null) {
       send('TTFB', nav.responseStart);
     }
-  } catch {
+  } catch (_e) {
     // noop
   }
 
@@ -178,7 +178,7 @@ export const startWebVitalsCollection = (onMetric = defaultReporter) => {
     // Store in sessionStorage for debugging/testing
     try {
       sessionStorage.setItem('webVitalsReport', JSON.stringify(summary));
-    } catch {
+    } catch (_e) {
       // Storage quota exceeded or disabled
     }
   };
@@ -194,7 +194,7 @@ export const getWebVitalsReport = () => {
   try {
     const report = sessionStorage.getItem('webVitalsReport');
     return report ? JSON.parse(report) : null;
-  } catch {
+  } catch (_e) {
     return null;
   }
 };

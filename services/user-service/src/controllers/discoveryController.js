@@ -160,3 +160,36 @@ exports.discoverPeople = async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch people recommendations' });
     }
 };
+
+// GET /discovery/search/suggestions?q=...&limit=8 — autocomplete suggestions for global search bar
+exports.searchSuggestions = async (req, res) => {
+    try {
+        const { q = '', limit: limitStr = '8' } = req.query;
+        const limit = Math.min(20, parseInt(limitStr, 10) || 8);
+        const term = q.trim();
+        if (!term || term.length < 2) return res.json({ suggestions: [] });
+
+        const [users, pages] = await Promise.all([
+            User.findAll({
+                where: { username: { [Op.iLike]: `${term}%` } },
+                attributes: ['id', 'username'],
+                limit: Math.ceil(limit / 2)
+            }),
+            Page ? Page.findAll({
+                where: { name: { [Op.iLike]: `${term}%` } },
+                attributes: ['id', 'name', 'category'],
+                limit: Math.ceil(limit / 2)
+            }).catch(() => []) : Promise.resolve([])
+        ]);
+
+        const suggestions = [
+            ...users.map(u => ({ type: 'user', id: u.id, label: u.username })),
+            ...pages.map(p => ({ type: 'page', id: p.id, label: p.name, category: p.category }))
+        ].slice(0, limit);
+
+        res.json({ suggestions });
+    } catch (error) {
+        console.error('[search suggestions] failed:', error);
+        res.status(500).json({ error: 'Failed to fetch suggestions' });
+    }
+};
