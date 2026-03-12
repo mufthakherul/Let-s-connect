@@ -1,157 +1,258 @@
-# Milonexa
+<div align="center">
 
-<!-- markdownlint-disable MD022 MD032 MD047 MD060 -->
+# 🌐 Milonexa
 
-A modular, self-hostable social collaboration platform built with a microservices backend, React frontends, and Docker/Kubernetes deployment support.
+### *Connect. Create. Collaborate.*
 
-This repository contains:
-- A **user-facing frontend** (`frontend/`)
-- An **admin frontend** (`admin_frontend/`, opt-in)
-- An **API gateway** plus domain microservices (`services/`)
-- **Deployment assets** for Docker and Kubernetes (`docker-compose.yml`, `k8s/`)
-- Structured documentation under `docs/`
+A full-featured social platform with real-time messaging, collaborative tools, an AI-powered feed, and a built-in marketplace — all in one open platform.
 
 ---
 
-## Platform Overview
+![Node.js](https://img.shields.io/badge/Node.js-20.x-339933?style=flat-square&logo=node.js&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
+![CI](https://img.shields.io/github/actions/workflow/status/milonexa/platform/ci.yml?branch=main&style=flat-square&label=CI)
 
-Milonexa combines social, communication, collaboration, commerce, media, and AI capabilities in one platform:
-
-- Social feed, profiles, friends, groups, pages, bookmarks
-- Real-time messaging and notifications
-- Documents/wiki/collaboration workflows
-- Video/media management + streaming (radio/TV)
-- E-commerce (products and orders)
-- AI-assisted features
-- Admin/security service for operations and moderation
+</div>
 
 ---
 
-## Architecture at a Glance
+## ✨ Features
 
-### Runtime topology
-- **Frontend clients** talk to the **API Gateway**
-- **API Gateway** routes requests to domain services
-- Services use **PostgreSQL**, **Redis**, and **MinIO** (plus Elasticsearch for search workloads)
-
-### Core services
-
-| Service | Responsibility | Internal Port |
-|---|---|---:|
-| `api-gateway` | Routing, auth boundary, docs, proxy orchestration | `8000` |
-| `user-service` | Authentication, users, profiles | `8001` |
-| `content-service` | Posts, feed, engagement, content entities | `8002` |
-| `messaging-service` | Chat/realtime messaging | `8003` |
-| `collaboration-service` | Docs/wiki/task collaboration | `8004` |
-| `media-service` | Uploads and media metadata/storage plumbing | `8005` |
-| `shop-service` | Product and order workflows | `8006` |
-| `ai-service` | AI endpoints and assistant features | `8007` |
-| `streaming-service` | Radio/TV/streaming experiences | `8009` |
-| `security-service` | Admin security and protected admin proxying | `9102` (default) |
+| Category | Feature |
+|---|---|
+| 👤 **Social** | User profiles, friend connections, pages, follow system |
+| 📝 **Content** | Posts, comments, reactions, groups, communities, blogs |
+| 💬 **Messaging** | Real-time DMs, group chats, Discord-style servers & channels |
+| 🎥 **Media** | Photo/video uploads, MinIO S3 storage, thumbnails |
+| 🤝 **Collaboration** | Google Docs-style editors, wikis, tasks, issues, projects |
+| 🛍️ **Marketplace** | Product catalog, shopping cart, Stripe payments |
+| 🤖 **AI** | Smart feed, content recommendations, toxicity detection (Gemini/Ollama) |
+| 📡 **Streaming** | Radio & TV catalog with live stream playback |
+| 🔍 **Search** | Full-text Elasticsearch search across all content types |
+| 🛡️ **Admin** | Full admin panel, moderation queue, audit trail, CLI |
+| 🔒 **Security** | JWT auth, 2FA/TOTP, OAuth (Google/GitHub/Discord/Apple), RBAC |
+| 📱 **PWA** | Web push notifications, offline support, installable |
+| 🌐 **API** | REST v2, GraphQL, Swagger UI, rate limiting, circuit breakers |
 
 ---
 
-## Repository Structure
+## 🏛️ Architecture
 
-```text
-frontend/                 User web app (React)
-admin_frontend/           Admin web app (React, optional profile)
-services/                 API gateway + backend microservices + shared modules
-docs/                     Admin/user/deployment/development documentation
-k8s/                      Kubernetes manifests
-deploy/                   Reverse proxy and deployment helpers
-scripts/                  Utility and operational scripts
-Archives/                 Historical archived code/docs
+```
+┌─────────────────────────────────────────────────────┐
+│                    Internet                          │
+└──────────────────────┬──────────────────────────────┘
+                       │
+              ┌────────▼────────┐
+              │  Nginx / Caddy  │  TLS termination
+              └────────┬────────┘
+                       │
+         ┌─────────────┼──────────────┐
+         │             │              │
+    ┌────▼───┐   ┌─────▼────┐  ┌─────▼─────┐
+    │Frontend│   │API Gateway│  │   Admin   │
+    │  :3000 │   │   :8000   │  │   :3001   │
+    └────────┘   └─────┬─────┘  └───────────┘
+                       │ JWT Auth, Rate Limiting,
+                       │ Circuit Breakers, GraphQL
+         ┌─────────────┼───────────────────────┐
+         │             │                       │
+    ┌────▼───┐   ┌─────▼───┐           ┌──────▼─────┐
+    │  User  │   │Content  │  ...10x   │Collaboration│
+    │  :8001 │   │  :8002  │ services  │   :8004    │
+    └────┬───┘   └─────┬───┘           └────────────┘
+         │             │
+    ┌────▼─────────────▼──────────────────────┐
+    │           Infrastructure                │
+    │  PostgreSQL:5432  Redis:6379            │
+    │  MinIO:9000       Elasticsearch:9200    │
+    └─────────────────────────────────────────┘
 ```
 
 ---
 
-## Quick Start (Docker)
+## 🚀 Quick Start
 
-1. Create local environment file:
-   - Copy `.env.example` to `.env`
-   - Fill required secrets and runtime values
-2. Start the platform:
-   - Run Docker Compose build/up for services
-3. Open:
-   - User frontend: `http://localhost:3000`
-   - API gateway: `http://localhost:8000`
+### Prerequisites
 
-### Enable admin frontend (optional)
-Run compose with the `admin` profile to include `admin_frontend`.
+- [Node.js 20+](https://nodejs.org)
+- [Docker Desktop](https://docker.com/get-docker)
+- [Git](https://git-scm.com)
 
----
+### Run in 3 commands
 
-## Local Development
+```bash
+# 1. Clone
+git clone https://github.com/your-org/Let-s-connect.git && cd Let-s-connect
 
-Typical flow:
-- Start infra dependencies (Postgres + Redis)
-- Run `frontend/` in dev mode
-- Run one or more services from `services/<service-name>/`
+# 2. Configure
+cp .env.example .env
+# Edit .env — set JWT_SECRET to a random 64-char string
 
-For detailed commands and variants, use:
-- `docs/deployment/QUICK_START.md`
-- `docs/development/DEVELOPER_GUIDE.md`
+# 3. Start
+docker compose up --build -d
+```
 
----
+The platform will be available at **http://localhost:3000**
 
-## Testing & Health
+### With Admin Panel
 
-Current test and health entry points include:
-- Frontend unit/integration: `frontend` npm test scripts
-- Frontend E2E: Playwright specs in `frontend/tests/`
-- Admin E2E: Playwright specs in `admin_frontend/tests/`
-- Service health endpoints: `GET /health` on each service
-
-For operational checklists:
-- `docs/development/FULL_FEATURE_TEST_PLAN_2026-03-02.md`
-- `docs/deployment/DEPLOYMENT_GUIDE.md`
+```bash
+docker compose --profile admin up --build -d
+# Admin panel: http://localhost:3001
+```
 
 ---
 
-## Documentation Map
+## 🌐 Service Ports
 
-- **Main docs index:** `docs/README.md`
-- **Admin:** `docs/admin/`
-- **User:** `docs/user/`
-- **Deployment:** `docs/deployment/`
-- **Development:** `docs/development/`
-
-### Strategic planning
-- Product roadmap (legacy feature planning context): `docs/development/ROADMAP.md`
-- Platform modernization roadmap (current execution plan): `ROADMAP.md`
-
----
-
-## Security & Configuration Notes
-
-- Do **not** commit real secrets.
-- Keep `JWT_SECRET`, `INTERNAL_GATEWAY_TOKEN`, admin secrets, and DB credentials strong and unique.
-- Use `services/shared/db-sync-policy.js` migration mode intentionally in production-like environments.
-- Validate CORS and proxy settings for containerized development (`frontend/src/setupProxy.js`).
-
----
-
-## Current Priorities (Engineering)
-
-1. Raise quality gates (tests + CI)
-2. Improve UX consistency and frontend maintainability
-3. Strengthen API and service reliability/security posture
-4. Modernize observability and production readiness
-
-See the full implementation plan in:
-`ROADMAP.md`
+| Service | Port | URL |
+|---|---|---|
+| **Frontend** | 3000 | http://localhost:3000 |
+| **Admin Frontend** | 3001 | http://localhost:3001 (profile: admin) |
+| **API Gateway** | 8000 | http://localhost:8000 |
+| **Swagger UI** | 8000 | http://localhost:8000/api-docs |
+| **GraphQL** | 8000 | http://localhost:8000/graphql |
+| **User Service** | 8001 | http://localhost:8001/health |
+| **Content Service** | 8002 | http://localhost:8002/health |
+| **Messaging Service** | 8003 | http://localhost:8003/health |
+| **Collaboration Service** | 8004 | http://localhost:8004/health |
+| **Media Service** | 8005 | http://localhost:8005/health |
+| **Shop Service** | 8006 | http://localhost:8006/health |
+| **AI Service** | 8007 | http://localhost:8007/health |
+| **Streaming Service** | 8009 | http://localhost:8009/health |
+| **Security Service** | 9102 | http://localhost:9102/health |
+| **MinIO Console** | 9001 | http://localhost:9001 |
+| **PostgreSQL** | 5432 | `postgresql://milonexa:…@localhost:5432/milonexa` |
+| **Redis** | 6379 | `redis://localhost:6379` |
 
 ---
 
-## Contributing
+## 📚 Documentation
 
-When contributing:
-- Follow conventions in `.github/copilot-instructions.md`
-- Keep docs updated with code changes
-- Archive deprecated code/docs under `Archives/`
-- Prefer incremental, testable changes
+### Deployment
+
+| Document | Description |
+|---|---|
+| [ENVIRONMENT.md](docs/deployment/ENVIRONMENT.md) | Full environment variable reference |
+| [DOCKER.md](docs/deployment/DOCKER.md) | Docker Compose deployment guide |
+| [KUBERNETES.md](docs/deployment/KUBERNETES.md) | Kubernetes deployment guide |
+| [CI_CD.md](docs/deployment/CI_CD.md) | GitHub Actions CI/CD pipeline |
+| [PRODUCTION.md](docs/deployment/PRODUCTION.md) | Production hardening checklist |
+| [REVERSE_PROXY.md](docs/deployment/REVERSE_PROXY.md) | Nginx/Caddy reverse proxy setup |
+
+### Development
+
+| Document | Description |
+|---|---|
+| [SETUP.md](docs/development/SETUP.md) | Local development setup guide |
+| [MICROSERVICES.md](docs/development/MICROSERVICES.md) | Microservices architecture guide |
+| [DATABASE.md](docs/development/DATABASE.md) | Database & Sequelize documentation |
+| [AUTHENTICATION.md](docs/development/AUTHENTICATION.md) | Auth, JWT, OAuth, 2FA documentation |
+| [WEBSOCKETS.md](docs/development/WEBSOCKETS.md) | Socket.io real-time guide |
+| [EVENT_BUS.md](docs/development/EVENT_BUS.md) | Redis pub/sub event bus |
+| [CACHING.md](docs/development/CACHING.md) | Caching strategy & Redis usage |
+| [GRAPHQL.md](docs/development/GRAPHQL.md) | GraphQL API documentation |
+| [SECURITY.md](docs/development/SECURITY.md) | Security best practices |
+| [CONTRIBUTING.md](docs/development/CONTRIBUTING.md) | Contribution guide |
+
+### Admin
+
+| Document | Description |
+|---|---|
+| [Admin README](admin/README.md) | Admin panel documentation |
 
 ---
 
-Built for extensibility, reliability, and long-term maintainability.
+## 🛠️ Tech Stack
+
+### Frontend
+- **React 18** with Create React App (react-scripts 5)
+- **Material-UI v5** component library
+- **Zustand** state management
+- **React Query** server state & caching
+- **React Router v7** routing
+- **Socket.io-client** real-time
+- **DOMPurify** XSS sanitization
+
+### Backend
+- **Node.js 20** runtime
+- **Express.js** web framework
+- **Sequelize** ORM (PostgreSQL)
+- **Socket.io** WebSocket server
+- **ioredis** Redis client
+- **graphql-http** GraphQL server
+- **jsonwebtoken** JWT authentication
+- **bcrypt** password hashing
+- **Winston** structured logging
+- **Helmet.js** security headers
+
+### Infrastructure
+- **PostgreSQL 15** — Primary database
+- **Redis 7** — Cache, pub/sub, sessions, rate limiting
+- **MinIO** — S3-compatible object storage
+- **Elasticsearch 8** — Full-text search
+- **Docker Compose** — Local orchestration
+- **Kubernetes** — Production orchestration
+- **Nginx/Caddy** — Reverse proxy & TLS
+
+### AI / Integrations
+- **Google Gemini API** — AI completions and recommendations
+- **Ollama** (llama3.2) — Local AI model fallback
+- **Stripe** — Payment processing
+- **OAuth** — Google, GitHub, Discord, Apple
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](docs/development/CONTRIBUTING.md) for:
+- Branch naming conventions
+- Commit message format (Conventional Commits)
+- Code style guidelines
+- Testing requirements
+- PR review process
+
+### Development Setup
+
+```bash
+# Install frontend dependencies
+cd frontend && npm install --legacy-peer-deps && npm start
+
+# Start a backend service
+cd services/user-service && npm install && npm start
+
+# Run frontend tests
+cd frontend && npm test -- --watchAll=false
+
+# Build frontend
+DISABLE_ESLINT_PLUGIN=true npx react-scripts build
+```
+
+---
+
+## 🔐 Security
+
+For security vulnerabilities, **do not open a public issue**. Email security@milonexa.com.
+
+See [SECURITY.md](docs/development/SECURITY.md) for the full security documentation.
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+<div align="center">
+
+**Milonexa** — Built with ❤️ for the open web
+
+[🌐 Website](https://milonexa.com) · [📖 Docs](docs/) · [🐛 Issues](../../issues) · [💬 Discord](#)
+
+</div>
