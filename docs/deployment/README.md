@@ -1,51 +1,63 @@
-# Deployment & Operations Documentation
+# Deployment Guide
 
-Guides for deploying, configuring, and operating the Milonexa platform.
+Complete deployment documentation for Milonexa platform across different environments.
 
-## Contents
+## Deployment Options
 
-| Document | Description |
-|----------|-------------|
-| [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) | Complete step-by-step Docker Compose & Kubernetes deployment |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Quick deployment reference |
-| [DEV_PROD_MODE_GUIDE.md](DEV_PROD_MODE_GUIDE.md) | Development vs production mode differences |
-| [OAUTH_MAILGUN_SETUP.md](OAUTH_MAILGUN_SETUP.md) | OAuth (Google/GitHub) and Mailgun email setup |
-| [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) | Deploy to Render.com |
-| [GITLAB_HOSTING.md](GITLAB_HOSTING.md) | Self-host on GitLab |
-| [HOME_SERVER_SUBDOMAIN_STAGING_GUIDE.md](HOME_SERVER_SUBDOMAIN_STAGING_GUIDE.md) | Staging on home server with subdomain |
-| [REVERSE_PROXY_STAGING_SETUP.md](REVERSE_PROXY_STAGING_SETUP.md) | Nginx/Caddy reverse proxy setup |
-| [V2_QUICK_DEPLOYMENT.md](V2_QUICK_DEPLOYMENT.md) | Quick deployment for v2 |
+| Option | Best For | Effort | Scalability |
+|--------|----------|--------|-------------|
+| [Docker Compose](./DOCKER.md) | Development, small production | Low | Limited |
+| [Kubernetes](./KUBERNETES.md) | Production, high availability | High | Excellent |
+| [Quick Start](./QUICK_START.md) | 10-minute setup | Minimal | N/A |
 
-## Quick Start
+## Minimum System Requirements
+
+### Docker Compose
+- 4 CPU cores
+- 8GB RAM
+- 50GB SSD storage
+- Docker 24+, Docker Compose 2.20+
+
+### Kubernetes
+- 8+ CPU cores
+- 16GB+ RAM
+- 100GB+ storage
+- Kubernetes 1.24+, kubectl 1.24+
+
+## Quick Start Commands
 
 ```bash
-# Development (docker-compose)
-docker compose up postgres redis -d
-cd frontend && npm install --legacy-peer-deps && npm start
+# Clone repository
+git clone https://github.com/milonexa/platform.git
+cd milonexa
 
-# Production (docker-compose)
-cp .env.example .env  # configure secrets
-docker compose up --build -d
+# Copy and configure environment
+cp .env.example .env
+# Edit .env with your settings
 
-# With admin frontend
-docker compose --profile admin up --build -d
+# Start with Docker Compose
+docker compose up -d
+
+# Or use quick start script
+bash scripts/quick-start.sh
 ```
 
-## Infrastructure Overview
+Access platform:
+- Frontend: http://localhost:3000
+- Admin (optional): http://localhost:3001 (with `--profile admin`)
+- API: http://localhost:8000
+- GraphQL: http://localhost:8000/graphql
 
-| Component | Port | Purpose |
-|-----------|------|---------|
-| Frontend | 3000 | React user interface |
-| Admin Frontend | 3001 | Admin panel (opt-in via `admin` profile) |
-| API Gateway | 8000 | Request routing, auth, rate limiting |
-| User Service | 8001 | Authentication & profiles |
-| Content Service | 8002 | Posts, feeds, groups |
-| Messaging Service | 8003 | Chat, WebRTC, notifications |
-| Collaboration Service | 8004 | Docs, wikis, tasks |
-| Media Service | 8005 | File uploads, storage |
-| Shop Service | 8006 | E-commerce |
-| AI Service | 8007 | AI features |
-| Streaming Service | 8008 | Radio, TV, live streaming |
-| PostgreSQL | 5432 | Primary database |
-| Redis | 6379 | Cache & session store |
-| MinIO | 9000 | Object storage |
+## Documentation
+
+- [Quick Start](./QUICK_START.md) — 10-minute setup guide
+- [Docker Compose](./DOCKER.md) — Full Docker deployment
+- [Kubernetes](./KUBERNETES.md) — Production K8s setup
+- [Environment Variables](./ENVIRONMENT.md) — Complete reference
+- [CI/CD Pipeline](./CI_CD.md) — GitHub Actions setup
+- [Production Hardening](./PRODUCTION.md) — Security setup
+- [Reverse Proxy](./REVERSE_PROXY.md) — Nginx/Caddy config
+
+---
+
+Last updated: March 12, 2026

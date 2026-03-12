@@ -1,99 +1,80 @@
-# Admin Documentation
+# 🛠️ Admin Guide
 
-Technical guides and references for platform administrators.
+Complete documentation for all Milonexa admin interfaces. This guide covers everything you need to administer the Milonexa platform, manage users, moderate content, monitor system health, and configure platform-wide settings.
 
-## Contents
+## The 8 Admin Interfaces
+
+| Interface | Access | Description |
+|-----------|--------|-------------|
+| [Web Dashboard](./WEB_DASHBOARD.md) | Browser :3001 | React admin panel with 30+ tabs |
+| [CLI](./CLI_GUIDE.md) | Terminal | Node.js omni admin CLI tool |
+| [SSH TUI](./SSH_TUI.md) | ssh admin@host -p 2222 | Terminal UI dashboard over SSH |
+| [REST API](./REST_API.md) | HTTP :8888 | Programmatic admin REST API |
+| [AI Agent](./AI_AGENT.md) | Autonomous | AI-driven admin automation |
+| [Bots](./BOTS.md) | Slack/Telegram/Teams | Chat-based admin commands |
+| [Webhooks](./WEBHOOKS.md) | HTTP callbacks | Event-driven notifications |
+| [Email](./EMAIL_ADMIN.md) | Email | Admin commands via email |
+
+## Overview Sections
 
 | Document | Description |
 |----------|-------------|
-| [ADMIN_GUIDE.md](ADMIN_GUIDE.md) | Complete administrator guide for platform management |
-| [ADMIN_PANELS.md](ADMIN_PANELS.md) | **All four admin interfaces**: CLI, Frontend, REST API, SSH Dashboard — env vars, setup, usage |
-| [USER_MANAGEMENT.md](USER_MANAGEMENT.md) | Detailed guide for managing users, roles, and permissions |
-| [CONTENT_MODERATION.md](CONTENT_MODERATION.md) | Comprehensive content moderation guide and best practices |
-| [HELPCENTER_SETUP.md](HELPCENTER_SETUP.md) | Help center configuration and management |
-| [CLI_ADMIN_PANEL.md](CLI_ADMIN_PANEL.md) | CLI-first admin control panel — Phase E: TUI, webhooks, SLA, AI remediation, multi-cluster, trends |
-| [AI_ADMIN_ROADMAP.md](AI_ADMIN_ROADMAP.md) | **AI Admin Agent v2.0 roadmap** — code analysis, feedback, docs, tests, LLM features |
-| [ADMIN_PANEL_ROADMAP.md](ADMIN_PANEL_ROADMAP.md) | **Admin panel (non-AI) roadmap** — CLI, web dashboard, REST API, security, compliance |
+| [OVERVIEW.md](./OVERVIEW.md) | Admin system overview and setup |
+| [USER_MANAGEMENT.md](./USER_MANAGEMENT.md) | Managing users, roles, banning |
+| [CONTENT_MODERATION.md](./CONTENT_MODERATION.md) | Content moderation tools |
+| [SECURITY_OPERATIONS.md](./SECURITY_OPERATIONS.md) | Security and compliance |
+| [MONITORING.md](./MONITORING.md) | Metrics and observability |
+| [FEATURE_FLAGS.md](./FEATURE_FLAGS.md) | Feature flag management |
 
-## Admin Interface Methods (Phase E — 4 methods)
+## Quick Start — Admin Access
 
-Milonexa provides **four admin interfaces** controlled via environment variables:
+1. Start with admin profile: `docker compose --profile admin up -d`
+2. Web dashboard: http://localhost:3001
+3. CLI: `cd admin/cli && node index.js`
+4. SSH TUI: `ssh admin@localhost -p 2222`
+5. REST API: http://localhost:8888/api/v1 (see [REST API docs](./REST_API.md))
 
-| Interface | Env Toggle | Port | Start Command |
-|-----------|-----------|------|---------------|
-| CLI Admin Panel | (always on locally) | — | `node admin-cli/index.js --help` |
-| Admin Frontend (React UI) | `ENABLE_ADMIN_FRONTEND=true` | 3001 | `docker compose --profile admin up` |
-| Admin REST API | `ENABLE_ADMIN_REST_API=true` | 8888 | `docker compose --profile admin-api up` |
-| SSH Admin Dashboard | `ENABLE_ADMIN_SSH=true` | 2222 | `docker compose --profile admin-ssh up` |
+## Admin Security Overview
 
-See [ADMIN_PANELS.md](./ADMIN_PANELS.md) for the **complete guide** covering setup, authentication, usage, and security best practices for all four interfaces.
+All admin interfaces are secured by the security-service running on port 9102. The security-service validates:
+- JWT tokens for all REST API and Web Dashboard access
+- SSH credentials for terminal access
+- API key authentication for programmatic access
+- Email verification tokens for email-based admin commands
+
+Admin credentials are stored in a separate admin database with additional encryption and are never stored in the main application database.
+
+## Key Admin Concepts
+
+### RBAC Roles
+The Milonexa admin system uses Role-Based Access Control (RBAC) with four levels:
+- **Viewer**: Read-only access to all dashboards and reports
+- **Operator**: Can execute safe operations (ban users, flag content, acknowledge alerts)
+- **Admin**: Full access to all features including dangerous operations
+- **Break-Glass**: Emergency override access for critical incidents (requires dual approval)
+
+### Admin Account Creation
+The first admin account is created during platform initialization:
+```bash
+docker exec milonexa-api-gateway node admin/create-admin.js --username admin --email admin@milonexa.local --password <secure-password>
+```
+
+Subsequent admin accounts are created via the Web Dashboard (Admins tab) by existing admins.
+
+### Authentication Flow
+1. Admin submits credentials (username/password or OAuth)
+2. Security-service validates credentials against admin database
+3. JWT token issued (expires in 30 minutes)
+4. Optional 2FA verification if enabled on account
+5. Token used for all subsequent admin API calls
+6. All admin actions are immutably logged to audit trail
+
+## Related Documentation
+
+- [Platform Overview](../README.md)
+- [Deployment Guide](../deployment/README.md)
+- [Development Guide](../development/README.md)
 
 ---
 
-## CLI Admin Panel (Phase E)
-
-All admin CLI code lives in `admin-cli/` at the repository root.
-
-```bash
-node admin-cli/index.js --help          # full command reference
-node admin-cli/index.js doctor          # toolchain + role + audit status
-node admin-cli/index.js tui             # interactive full-screen TUI dashboard
-node admin-cli/index.js sla status      # SLO compliance (Phase E)
-node admin-cli/index.js sla predict     # breach predictions (Phase E)
-node admin-cli/index.js webhooks list   # webhook integrations (Phase E)
-node admin-cli/index.js remediate analyze  # AI-assisted remediation (Phase E)
-node admin-cli/index.js cluster list    # multi-cluster K8s management (Phase E)
-node admin-cli/index.js trends report   # trend analysis & charts (Phase E)
-node admin-cli/index.js dashboard       # live operations dashboard
-node admin-cli/index.js scale --runtime k8s --service api-gateway --replicas 3 --wait
-node admin-cli/index.js rollout --runtime k8s --strategy canary --service api-gateway
-```
-
-The CLI supports build/start/stop/status/logs across `direct`, `docker`, and `k8s` runtimes,
-with role-based authorization, immutable audit trails, progressive delivery controls,
-operational validation gates, AND advanced intelligence & governance features (Phase E):
-- **TUI Dashboard** with real-time ASCII charts
-- **Webhook integrations** (Slack, Teams, PagerDuty, GitHub)
-- **SLA breach prediction** with linear regression forecasting
-- **AI-assisted remediation** with 8 built-in rules + optional LLM
-- **Multi-cluster K8s** management across regional deployments
-- **Trend analysis** with sparklines, anomaly detection, forecasting
-
-For complete CLI documentation, see [CLI_ADMIN_PANEL.md](./CLI_ADMIN_PANEL.md).
-
-
-## Admin Frontend
-
-The admin frontend is a separate React application (port 3001). Set `ENABLE_ADMIN_FRONTEND=true` in `.env` to enable.
-
-```bash
-docker compose --profile admin up admin_frontend
-# Access: http://localhost:3001
-```
-
-## Admin REST API (Phase E)
-
-HTTP REST API on port 8888. Set `ENABLE_ADMIN_REST_API=true` in `.env` to enable.
-
-```bash
-docker compose --profile admin-api up admin-rest-api
-# Access: http://localhost:8888/api/v1/dashboard
-# Auth: Authorization: Bearer $ADMIN_API_KEY
-```
-
-## SSH Admin Dashboard (Phase E)
-
-Encrypted SSH-based interactive admin dashboard. Set `ENABLE_ADMIN_SSH=true` in `.env` to enable.
-
-```bash
-docker compose --profile admin-ssh up admin-ssh
-# Access: ssh admin@localhost -p 2222
-```
-
-## Admin API Endpoints (Gateway)
-
-All admin API calls through the API Gateway require:
-- Valid JWT with `admin` or `moderator` role
-- `X-Admin-Secret` header matching `ADMIN_API_SECRET`
-
-See [development/API.md](../development/API.md) for full API reference.
+Last Updated: 2024 | Milonexa Platform Documentation
