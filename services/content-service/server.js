@@ -46,7 +46,7 @@ healthChecker.registerCheck('redis', () => checkRedis(cacheManager.redis));
 // Standard Middlewares
 app.use(helmet());
 app.use(cors(buildCorsOptions()));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(createForwardedIdentityGuard());
 
 // Metrics tracking middleware

@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 8007;
 const healthChecker = new HealthChecker('ai-service');
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(healthChecker.metricsMiddleware());
 
 // ─────────────────────────────────────────────────────────────────────────────
