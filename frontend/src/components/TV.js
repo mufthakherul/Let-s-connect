@@ -4,12 +4,12 @@ import {
     IconButton, TextField, Tabs, Tab, Chip, List, ListItem, ListItemText, ListItemAvatar,
     Avatar, Button, Dialog, DialogTitle, DialogContent, DialogActions,
     FormControl, InputLabel, Select, MenuItem, CircularProgress, Paper, Tooltip,
-    Alert
+    Alert, Slider, Divider
 } from '@mui/material';
 import {
     PlayArrow, Pause, Fullscreen, VolumeUp, VolumeOff, Favorite, FavoriteBorder,
     Search, Tv as TvIcon, Add, ClosedCaption, Settings, History as HistoryIcon,
-    Star, Public, Hd
+    Star, Public, Hd, ContentCut, Chat as ChatIcon, Close, Send
 } from '@mui/icons-material';
 import { streamingService } from '../utils/streamingService';
 import { getApiBaseUrl } from '../utils/api';
@@ -46,6 +46,23 @@ const TV = () => {
     // Track stream attempt index per channel (0 = primary, 1..n = alternatives)
     const streamAttemptRef = useRef({});
     const [similarChannels, setSimilarChannels] = useState([]);
+
+    // Phase 3: VOD library
+    const [vodList, setVodList] = useState([]);
+    const [vodLoading, setVodLoading] = useState(false);
+
+    // Phase 3: Live Chat sidebar
+    const [liveChatOpen, setLiveChatOpen] = useState(false);
+    const [liveChatMessages, setLiveChatMessages] = useState([]);
+    const [liveChatInput, setLiveChatInput] = useState('');
+    const chatEventSourceRef = useRef(null);
+    const chatListRef = useRef(null);
+
+    // Phase 3: Clip creation
+    const [clipDialogOpen, setClipDialogOpen] = useState(false);
+    const [clipTitle, setClipTitle] = useState('');
+    const [clipDuration, setClipDuration] = useState(30);
+    const [clipSaving, setClipSaving] = useState(false);
 
     // --- Phase 14: Live reaction overlays ---
     const [floatingReactions, setFloatingReactions] = useState([]);
@@ -436,7 +453,107 @@ const TV = () => {
         };
     }, [currentChannel]);
 
-    // Fetch similar channels when a channel is selected (UI can render these)
+    // Phase 3: Load VOD library when VOD tab (index 3) is selected
+    useEffect(() => {
+        if (currentTab !== 3) return;
+        const loadVod = async () => {
+            setVodLoading(true);
+            try {
+                const response = await fetch(`${getApiBaseUrl()}/api/streaming/tv/vod?limit=20`);
+                const data = await response.json();
+                setVodList(data?.vod || data || []);
+            } catch (err) {
+                toast.error('Failed to load VOD library');
+                console.error(err);
+            } finally {
+                setVodLoading(false);
+            }
+        };
+        loadVod();
+    }, [currentTab]);
+
+    // Phase 3: Connect / disconnect Live Chat SSE when channel or sidebar changes
+    useEffect(() => {
+        if (chatEventSourceRef.current) {
+            chatEventSourceRef.current.close();
+            chatEventSourceRef.current = null;
+        }
+        if (!currentChannel || !liveChatOpen) {
+            setLiveChatMessages([]);
+            return;
+        }
+        setLiveChatMessages([]);
+        const url = `${getApiBaseUrl()}/api/streaming/tv/channels/${currentChannel.id}/chat`;
+        const es = new EventSource(url, { withCredentials: true });
+        chatEventSourceRef.current = es;
+        es.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                setLiveChatMessages(prev => [...prev, msg]);
+            } catch { /* ignore non-JSON frames */ }
+        };
+        es.onerror = () => { console.warn('Live chat SSE error'); };
+        return () => {
+            es.close();
+            chatEventSourceRef.current = null;
+        };
+    }, [currentChannel, liveChatOpen]);
+
+    // Phase 3: Auto-scroll chat list to bottom on new messages
+    useEffect(() => {
+        if (chatListRef.current) {
+            chatListRef.current.scrollTop = chatListRef.current.scrollHeight;
+        }
+    }, [liveChatMessages.length]);
+
+    // Phase 3: Format VOD duration (seconds -> mm:ss)
+    const formatVodDuration = (seconds) => {
+        const m = Math.floor((seconds || 0) / 60);
+        const s = (seconds || 0) % 60;
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    };
+
+    // Phase 3: Send a live chat message
+    const handleSendLiveChat = async () => {
+        if (!liveChatInput.trim() || !currentChannel) return;
+        try {
+            await fetch(`${getApiBaseUrl()}/api/streaming/tv/channels/${currentChannel.id}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ message: liveChatInput.trim() })
+            });
+            setLiveChatInput('');
+        } catch (err) {
+            toast.error('Failed to send message');
+            console.error(err);
+        }
+    };
+
+    // Phase 3: Create a clip from the current channel
+    const handleCreateClip = async () => {
+        if (!currentChannel) return;
+        setClipSaving(true);
+        try {
+            await fetch(`${getApiBaseUrl()}/api/streaming/tv/channels/${currentChannel.id}/clips`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ title: clipTitle || 'My Clip', duration: clipDuration })
+            });
+            toast.success('Clip saved!');
+            setClipDialogOpen(false);
+            setClipTitle('');
+            setClipDuration(30);
+        } catch (err) {
+            toast.error('Failed to save clip');
+            console.error(err);
+        } finally {
+            setClipSaving(false);
+        }
+    };
+
+    // Fetch similar channels when a channel is selected
     useEffect(() => {
         if (!currentChannel || !currentChannel.id) {
             setSimilarChannels([]);
@@ -611,10 +728,13 @@ const TV = () => {
             {/* Video Player */}
             {currentChannel && (
                 <Paper sx={{ p: 2, mb: 3 }}>
-                    <Box
-                        ref={playerRef}
-                        sx={{ position: 'relative', width: '100%', paddingTop: '56.25%', bgcolor: 'black' }}
-                    >
+                    {/* Phase 3: Flex layout — player left, live chat sidebar right */}
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Box
+                                ref={playerRef}
+                                sx={{ position: 'relative', width: '100%', paddingTop: '56.25%', bgcolor: 'black' }}
+                            >
                         {isYouTubeChannel(currentChannel) ? (
                             <iframe
                                 title={currentChannel.name}
@@ -719,6 +839,82 @@ const TV = () => {
                     </Tooltip>
                 ))}
             </Box>
+            {/* Phase 3: Clip creation + Live Chat toggle */}
+            <Box sx={{ mt: 1, display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<ContentCut />}
+                    onClick={() => setClipDialogOpen(true)}
+                >
+                    Clip
+                </Button>
+                <Tooltip title={liveChatOpen ? 'Hide live chat' : 'Show live chat'}>
+                    <IconButton
+                        size="small"
+                        onClick={() => setLiveChatOpen(v => !v)}
+                        color={liveChatOpen ? 'primary' : 'default'}
+                    >
+                        <ChatIcon />
+                    </IconButton>
+                </Tooltip>
+            </Box>
+        </Box>{/* end player flex:1 */}
+
+        {/* Phase 3: Live Chat sidebar — desktop only */}
+        {liveChatOpen && (
+            <Box sx={{
+                width: 280,
+                display: { xs: 'none', md: 'flex' },
+                flexDirection: 'column',
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: 1,
+                maxHeight: 420,
+                overflow: 'hidden'
+            }}>
+                <Box sx={{ p: 1, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="subtitle2">Live Chat</Typography>
+                    <IconButton size="small" onClick={() => setLiveChatOpen(false)}>
+                        <Close fontSize="small" />
+                    </IconButton>
+                </Box>
+                <Box ref={chatListRef} sx={{ flexGrow: 1, overflowY: 'auto', p: 1 }}>
+                    {liveChatMessages.map((msg, i) => (
+                        <Box key={i} sx={{ mb: 1 }}>
+                            <Typography variant="caption" color="primary" sx={{ fontWeight: 600 }}>
+                                {msg.username || 'User'}:{' '}
+                            </Typography>
+                            <Typography variant="caption">{msg.content || msg.message}</Typography>
+                            {msg.timestamp && (
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                    {new Date(msg.timestamp).toLocaleTimeString()}
+                                </Typography>
+                            )}
+                        </Box>
+                    ))}
+                    {liveChatMessages.length === 0 && (
+                        <Typography variant="caption" color="text.secondary">
+                            No messages yet...
+                        </Typography>
+                    )}
+                </Box>
+                <Box sx={{ p: 1, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1 }}>
+                    <TextField
+                        size="small"
+                        fullWidth
+                        placeholder="Say something..."
+                        value={liveChatInput}
+                        onChange={(e) => setLiveChatInput(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSendLiveChat()}
+                    />
+                    <IconButton size="small" onClick={handleSendLiveChat}>
+                        <Send fontSize="small" />
+                    </IconButton>
+                </Box>
+            </Box>
+        )}
+    </Box>{/* end player+chat flex container */}
             <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Avatar
@@ -814,6 +1010,7 @@ const TV = () => {
     <Tab icon={<TvIcon />} label="All Channels" />
     <Tab icon={<Star />} label={`Favorites (${favorites.length})`} />
     <Tab icon={<HistoryIcon />} label="History" />
+    <Tab label="VOD" />
 </Tabs>
 
 {/* Content */ }
@@ -876,6 +1073,62 @@ const TV = () => {
                         ))
                     )}
                 </List>
+            )}
+
+            {/* Phase 3: VOD Library Tab */}
+            {currentTab === 3 && (
+                <Box>
+                    {vodLoading ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                            <CircularProgress />
+                        </Box>
+                    ) : (
+                        <Grid container spacing={2}>
+                            {vodList.length === 0 ? (
+                                <Grid item xs={12}>
+                                    <Alert severity="info">No VOD content available at the moment.</Alert>
+                                </Grid>
+                            ) : (
+                                vodList.map((vod) => (
+                                    <Grid item xs={12} sm={6} md={4} lg={3} key={vod.id || vod.title}>
+                                        <Card sx={{ '&:hover': { transform: 'scale(1.02)', transition: 'transform 0.2s' } }}>
+                                            <CardActionArea onClick={() => { setCurrentChannel(vod); }}>
+                                                <CardMedia
+                                                    component="div"
+                                                    sx={{
+                                                        height: 140,
+                                                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}
+                                                >
+                                                    <PlayArrow sx={{ fontSize: 48, color: 'white', opacity: 0.8 }} />
+                                                </CardMedia>
+                                                <CardContent>
+                                                    <Typography variant="h6" gutterBottom noWrap>
+                                                        {vod.title || vod.name}
+                                                    </Typography>
+                                                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                                        {vod.duration !== undefined && (
+                                                            <Chip size="small" label={formatVodDuration(vod.duration)} />
+                                                        )}
+                                                        {vod.viewCount !== undefined && (
+                                                            <Chip size="small" label={`${vod.viewCount} views`} />
+                                                        )}
+                                                        {vod.createdAt && (
+                                                            <Chip size="small" label={new Date(vod.createdAt).toLocaleDateString()} />
+                                                        )}
+                                                    </Box>
+                                                </CardContent>
+                                            </CardActionArea>
+                                        </Card>
+                                    </Grid>
+                                ))
+                            )}
+                        </Grid>
+                    )}
+                </Box>
             )}
         </>
     )
@@ -972,6 +1225,43 @@ const TV = () => {
             disabled={!newChannel.name || !newChannel.streamUrl}
         >
             Add Channel
+        </Button>
+    </DialogActions>
+</Dialog>
+
+{/* Phase 3: Clip Creation Dialog */}
+<Dialog open={clipDialogOpen} onClose={() => setClipDialogOpen(false)} maxWidth="xs" fullWidth>
+    <DialogTitle>✂️ Create Clip</DialogTitle>
+    <DialogContent>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+                label="Clip Title"
+                value={clipTitle}
+                onChange={(e) => setClipTitle(e.target.value)}
+                placeholder="My awesome clip"
+                fullWidth
+            />
+            <Box>
+                <Typography gutterBottom>Duration</Typography>
+                <Slider
+                    value={clipDuration}
+                    onChange={(_, v) => setClipDuration(v)}
+                    step={null}
+                    marks={[
+                        { value: 15, label: '15s' },
+                        { value: 30, label: '30s' },
+                        { value: 60, label: '60s' }
+                    ]}
+                    min={15}
+                    max={60}
+                />
+            </Box>
+        </Box>
+    </DialogContent>
+    <DialogActions>
+        <Button onClick={() => setClipDialogOpen(false)}>Cancel</Button>
+        <Button variant="contained" onClick={handleCreateClip} disabled={clipSaving}>
+            {clipSaving ? 'Saving...' : 'Save Clip'}
         </Button>
     </DialogActions>
 </Dialog>

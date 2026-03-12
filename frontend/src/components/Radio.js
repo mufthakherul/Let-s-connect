@@ -4,12 +4,12 @@ import {
     IconButton, TextField, Tabs, Tab, Chip, List, ListItem, ListItemText, ListItemAvatar,
     Avatar, Button, Slider, Dialog, DialogTitle, DialogContent, DialogActions,
     FormControl, InputLabel, Select, MenuItem, CircularProgress, Paper, Tooltip,
-    Alert
+    Alert, Menu, Divider
 } from '@mui/material';
 import {
     PlayArrow, Pause, VolumeUp, VolumeOff, Favorite, FavoriteBorder,
     Search, Radio as RadioIcon, Add, Edit, Delete, History as HistoryIcon,
-    Star, Public, Language
+    Star, Public, Language, Alarm, MusicNote, Schedule
 } from '@mui/icons-material';
 import { streamingService } from '../utils/streamingService';
 import { getApiBaseUrl } from '../utils/api';
@@ -36,6 +36,16 @@ const Radio = () => {
     const audioRef = useRef(null);
     // Track stream attempt index per station (0 = primary, 1..n = alternatives)
     const streamAttemptRef = useRef({});
+
+    // Phase 3: Sleep timer
+    const [sleepTimerAnchor, setSleepTimerAnchor] = useState(null);
+    const [sleepTimerMinutes, setSleepTimerMinutes] = useState(0);
+    const [sleepTimerRemaining, setSleepTimerRemaining] = useState(0);
+    const sleepTimerIntervalRef = useRef(null);
+
+    // Phase 3: Station schedule and lyrics
+    const [scheduleInfo, setScheduleInfo] = useState(null);
+    const [lyricsDialogOpen, setLyricsDialogOpen] = useState(false);
 
     const getStreamForStation = (station) => {
         if (!station) return null;
@@ -71,6 +81,76 @@ const Radio = () => {
             audioRef.current.volume = volume / 100;
         }
     }, [volume]);
+
+    // Phase 3: Cleanup sleep timer on unmount
+    useEffect(() => {
+        return () => { clearInterval(sleepTimerIntervalRef.current); };
+    }, []);
+
+    // Phase 3: Fetch station schedule when current station changes
+    useEffect(() => {
+        if (!currentStation) { setScheduleInfo(null); return; }
+        fetch(`${getApiBaseUrl()}/api/streaming/radio/schedule/${currentStation.id}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => setScheduleInfo(data || null))
+            .catch(() => setScheduleInfo(null));
+    }, [currentStation]);
+
+    // Phase 3: Format countdown seconds -> mm:ss
+    const formatCountdown = (seconds) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    };
+
+    // Phase 3: Activate/deactivate sleep timer
+    const handleSleepTimer = (minutes) => {
+        setSleepTimerAnchor(null);
+        clearInterval(sleepTimerIntervalRef.current);
+        if (minutes === 0) {
+            setSleepTimerMinutes(0);
+            setSleepTimerRemaining(0);
+            return;
+        }
+        setSleepTimerMinutes(minutes);
+        setSleepTimerRemaining(minutes * 60);
+        sleepTimerIntervalRef.current = setInterval(() => {
+            setSleepTimerRemaining(prev => {
+                if (prev <= 1) {
+                    clearInterval(sleepTimerIntervalRef.current);
+                    if (audioRef.current) audioRef.current.pause();
+                    setIsPlaying(false);
+                    setSleepTimerMinutes(0);
+                    toast('Sleep timer ended', { icon: '\u23F2' });
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    };
+
+    // Phase 3: Build schedule display string from API data
+    const getScheduleDisplay = () => {
+        if (!scheduleInfo) return null;
+        const now = scheduleInfo.current;
+        const next = scheduleInfo.next;
+        if (!now && !next) return null;
+        let display = '';
+        if (now) display += `Now: ${now.title || now.show || 'Unknown'}`;
+        if (next) {
+            const nextTime = next.startTime ? new Date(next.startTime) : null;
+            if (nextTime) {
+                const diffMs = nextTime - Date.now();
+                const diffH = Math.floor(diffMs / 3600000);
+                const diffM = Math.floor((diffMs % 3600000) / 60000);
+                const timeStr = diffH > 0 ? `${diffH}h ${diffM}m` : `${diffM}m`;
+                display += ` \u00B7 Next: ${next.title || next.show || 'Unknown'} in ${timeStr}`;
+            } else {
+                display += ` \u00B7 Next: ${next.title || next.show || 'Unknown'}`;
+            }
+        }
+        return display;
+    };
 
     const loadStations = async () => {
         try {
@@ -378,18 +458,27 @@ const Radio = () => {
                                     <Typography variant="caption" color="text.secondary">
                                         {currentStation.genre}
                                     </Typography>
+                                    {/* Phase 3: Station schedule */}
+                                    {getScheduleDisplay() && (
+                                        <Tooltip title="Station schedule">
+                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                                                <Schedule sx={{ fontSize: 12 }} />
+                                                {getScheduleDisplay()}
+                                            </Typography>
+                                        </Tooltip>
+                                    )}
                                 </Box>
                             </Box>
                         </Grid>
                         <Grid item xs={12} sm={8}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                                 <IconButton onClick={() => handlePlay(currentStation)}>
                                     {isPlaying ? <Pause /> : <PlayArrow />}
                                 </IconButton>
                                 <IconButton onClick={toggleMute}>
                                     {isMuted ? <VolumeOff /> : <VolumeUp />}
                                 </IconButton>
-                                <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1, minWidth: 120 }}>
                                     <VolumeUp fontSize="small" />
                                     <Slider
                                         value={volume}
@@ -398,6 +487,28 @@ const Radio = () => {
                                         sx={{ flex: 1 }}
                                     />
                                     <Typography variant="caption">{volume}%</Typography>
+                                </Box>
+                                {/* Phase 3: Lyrics button */}
+                                <Tooltip title="Lyrics">
+                                    <IconButton size="small" onClick={() => setLyricsDialogOpen(true)}>
+                                        <MusicNote fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                                {/* Phase 3: Sleep timer button + countdown */}
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <Tooltip title="Sleep Timer">
+                                        <IconButton
+                                            size="small"
+                                            onClick={(e) => setSleepTimerAnchor(e.currentTarget)}
+                                        >
+                                            <Alarm fontSize="small" color={sleepTimerMinutes > 0 ? 'warning' : 'inherit'} />
+                                        </IconButton>
+                                    </Tooltip>
+                                    {sleepTimerRemaining > 0 && (
+                                        <Typography variant="caption" color="warning.main" sx={{ minWidth: 36 }}>
+                                            {formatCountdown(sleepTimerRemaining)}
+                                        </Typography>
+                                    )}
                                 </Box>
                             </Box>
                         </Grid>
@@ -600,6 +711,32 @@ const Radio = () => {
                     >
                         Add Station
                     </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Phase 3: Sleep Timer Menu */}
+            <Menu
+                anchorEl={sleepTimerAnchor}
+                open={Boolean(sleepTimerAnchor)}
+                onClose={() => setSleepTimerAnchor(null)}
+            >
+                <MenuItem onClick={() => handleSleepTimer(15)}>\u23F2 15 min</MenuItem>
+                <MenuItem onClick={() => handleSleepTimer(30)}>\u23F2 30 min</MenuItem>
+                <MenuItem onClick={() => handleSleepTimer(60)}>\u23F2 1 hour</MenuItem>
+                <Divider />
+                <MenuItem onClick={() => handleSleepTimer(0)}>Off</MenuItem>
+            </Menu>
+
+            {/* Phase 3: Lyrics Dialog */}
+            <Dialog open={lyricsDialogOpen} onClose={() => setLyricsDialogOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>\u266B Lyrics</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body1" color="text.secondary" sx={{ py: 2 }}>
+                        Lyrics not available for this station's live stream. Try the Now Playing metadata above.
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setLyricsDialogOpen(false)}>Close</Button>
                 </DialogActions>
             </Dialog>
         </Container>
