@@ -636,8 +636,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - APP_DB_USER=${APP_DB_USER:-app_user}
       - APP_DB_PASSWORD=${APP_DB_PASSWORD}
-      # admin: used via ADMIN_DB_URL (see .env.example)
-      # milonexa_admin: fallback default in security-service when ADMIN_DB_URL is unset
+      # admin + milonexa_admin: admin DBs (admin used via ADMIN_DB_URL; milonexa_admin is security-service fallback)
       - POSTGRES_MULTIPLE_DATABASES=users,content,messages,collaboration,media,shop,webhooks,streaming,admin,milonexa_admin
     volumes:
       - postgres-data:/var/lib/postgresql/data
