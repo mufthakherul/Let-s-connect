@@ -22,6 +22,9 @@ const Friend = sequelize.define('Friend', {
         defaultValue: 'active'
     },
     type: {
+        // Discriminates symmetric friendships from asymmetric follows.
+        // NOTE: when running against an existing DB, ensure a migration adds this column
+        // with DEFAULT 'friend' so existing rows are not invalidated.
         type: DataTypes.ENUM('friend', 'follow'),
         defaultValue: 'friend'
     },
