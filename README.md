@@ -14,7 +14,7 @@ A full-featured social platform with real-time messaging, collaborative tools, a
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
-![CI](https://img.shields.io/github/actions/workflow/status/your-org/Let-s-connect/ci.yml?branch=main&style=flat-square&label=CI)
+![CI](https://img.shields.io/github/actions/workflow/status/milonexa/platform/ci.yml?branch=main&style=flat-square&label=CI)
 
 </div>
 
