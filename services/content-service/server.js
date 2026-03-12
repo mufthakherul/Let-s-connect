@@ -1,3 +1,13 @@
+if (typeof global.File === 'undefined') {
+    global.File = class File extends Blob {
+        constructor(chunks = [], name = '', options = {}) {
+            super(chunks, options);
+            this.name = String(name);
+            this.lastModified = options.lastModified || Date.now();
+        }
+    };
+}
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');

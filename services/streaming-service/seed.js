@@ -648,7 +648,6 @@ const seed = async () => {
                 console.log(`  ${index + 1}. ${country}: ${count} stations`);
             });
         }
-        }
 
         if (!IS_DRY_RUN_MODE) {
             if (Object.keys(radioReport.bySource).length > 0) {
@@ -778,36 +777,36 @@ const seed = async () => {
             for (let i = 0; i < mergedTV.length; i += chunkSize) {
                 const chunk = mergedTV.slice(i, i + chunkSize);
 
-                for (const channel of chunk) {
-                    try {
-                        // Try to find existing by streamUrl OR by name+country
-                        const where = (IS_FAST_MODE && FAST_SKIP_PER_ITEM_PRECHECK)
-                            ? { streamUrl: channel.streamUrl }
-                            : {
-                                [Op.or]: [
-                                    { streamUrl: channel.streamUrl },
-                                    {
-                                        name: { [Op.iLike]: channel.name || '' },
-                                        country: channel.country || null
-                                    }
-                                ]
-                            };
+            for (const channel of chunk) {
+                try {
+                    // Try to find existing by streamUrl OR by name+country
+                    const where = (IS_FAST_MODE && FAST_SKIP_PER_ITEM_PRECHECK)
+                        ? { streamUrl: channel.streamUrl }
+                        : {
+                            [Op.or]: [
+                                { streamUrl: channel.streamUrl },
+                                {
+                                    name: { [Op.iLike]: channel.name || '' },
+                                    country: channel.country || null
+                                }
+                            ]
+                        };
 
-                        const existing = await TVChannel.findOne({ where });
+                    const existing = await TVChannel.findOne({ where });
 
-                        if (existing) {
-                            const incomingUrl = (channel.streamUrl || '').trim();
-                            const meta = existing.metadata || {};
-                            meta.alternativeUrls = meta.alternativeUrls || [];
+                    if (existing) {
+                        const incomingUrl = (channel.streamUrl || '').trim();
+                        const meta = existing.metadata || {};
+                        meta.alternativeUrls = meta.alternativeUrls || [];
 
-                            if (incomingUrl && incomingUrl !== existing.streamUrl && !meta.alternativeUrls.includes(incomingUrl)) {
-                                meta.alternativeUrls.unshift(incomingUrl);
-                                meta.alternativeUrls = Array.from(new Set(meta.alternativeUrls)).slice(0, 1000);
-                                await existing.update({ metadata: meta });
-                                tvReport.updatedAlternatives++;
-                            } else {
-                                tvReport.skipped++;
-                            }
+                        if (incomingUrl && incomingUrl !== existing.streamUrl && !meta.alternativeUrls.includes(incomingUrl)) {
+                            meta.alternativeUrls.unshift(incomingUrl);
+                            meta.alternativeUrls = Array.from(new Set(meta.alternativeUrls)).slice(0, 1000);
+                            await existing.update({ metadata: meta });
+                            tvReport.updatedAlternatives++;
+                        } else {
+                            tvReport.skipped++;
+                        }
 
                         continue;
                     }

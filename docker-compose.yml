@@ -285,7 +285,7 @@ services:
       - OLLAMA_KEEP_ALIVE=24h
       - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-1}
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:11434/api/tags > /dev/null 2>&1 || exit 1" ]
+      test: [ "CMD-SHELL", "/usr/bin/ollama list > /dev/null 2>&1 || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -298,7 +298,8 @@ services:
   # AI Assistant Service
   ai-service:
     build:
-      context: ./services/ai-service
+      context: ./services
+      dockerfile: ai-service/Dockerfile
     restart: unless-stopped
     ports:
       - "127.0.0.1:8007:8007"
