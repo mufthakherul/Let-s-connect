@@ -94,6 +94,9 @@ const RESULT_CATEGORIES = [
     { key: 'hashtagPosts', label: 'Hashtags' },
 ];
 
+/** Returns the display label for a suggestion item, regardless of backend shape */
+const getSuggestionLabel = (s) => s?.label || (s?.type === 'user' ? s?.username : s?.name) || '';
+
 /**
  * Renders backend snippet text that uses [[term]] highlight markers.
  */
@@ -593,7 +596,7 @@ const Search = () => {
                                     e.preventDefault();
                                     if (highlightedIndex >= 0 && suggestions[highlightedIndex]) {
                                         const sel = suggestions[highlightedIndex];
-                                        const selectedLabel = sel.label || (sel.type === 'user' ? sel.username : sel.name) || '';
+                                        const selectedLabel = getSuggestionLabel(sel);
                                         setQuery(selectedLabel);
                                         setSuggestionsOpen(false);
                                         setHighlightedIndex(-1);
@@ -672,7 +675,7 @@ const Search = () => {
                                                 component="button"
                                                 sx={{ bgcolor: idx === highlightedIndex ? 'action.selected' : undefined, cursor: 'pointer', width: '100%', border: 0, background: 'none', textAlign: 'left', p: 0 }}
                                                 onClick={() => {
-                                                    const selectedLabel = s.label || (s.type === 'user' ? s.username : s.name) || '';
+                                                    const selectedLabel = getSuggestionLabel(s);
                                                     setQuery(selectedLabel);
                                                     setSuggestionsOpen(false);
                                                     setHighlightedIndex(-1);
@@ -682,7 +685,7 @@ const Search = () => {
                                                 <ListItemAvatar sx={{ minWidth: 36 }}>
                                                     {s.type === 'user' ? (
                                                         <Avatar sx={{ width: 28, height: 28, fontSize: 14 }}>
-                                                            {(s.label || s.username || '?')[0].toUpperCase()}
+                                                            {(getSuggestionLabel(s) || '?')[0].toUpperCase()}
                                                         </Avatar>
                                                     ) : (
                                                         <Avatar sx={{ width: 28, height: 28, fontSize: 14 }}>
@@ -690,7 +693,7 @@ const Search = () => {
                                                         </Avatar>
                                                     )}
                                                 </ListItemAvatar>
-                                                <ListItemText primary={s.label || (s.type === 'user' ? s.username : s.name) || ''} />
+                                                <ListItemText primary={getSuggestionLabel(s)} />
                                                 {s.type !== 'user' && s.category && <Chip label={s.category} size="small" />}
                                             </ListItem>
                                         ))}
