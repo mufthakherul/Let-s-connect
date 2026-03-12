@@ -3,6 +3,7 @@ const { AppError, catchAsync } = require('../../../shared/errorHandling');
 const response = require('../../../shared/response-wrapper');
 const { Op } = require('sequelize');
 const { sanitizeText } = require('../../../shared/sanitization');
+const { createAndDeliverNotification } = require('./notificationController');
 
 // ─── Skills & Endorsements ────────────────────────────────────────────────────
 
@@ -69,6 +70,16 @@ exports.sendFriendRequest = catchAsync(async (req, res, next) => {
     }
 
     const request = await FriendRequest.create({ senderId, receiverId });
+
+    // Deliver notification to receiver
+    createAndDeliverNotification({
+        userId: receiverId,
+        type: 'friend_request',
+        title: 'New Friend Request',
+        body: 'Someone sent you a friend request',
+        data: { requestId: request.id, senderId }
+    }).catch(() => {});
+
     return response.success(req, res, request, 'Friend request sent', 201);
 });
 

@@ -22,7 +22,7 @@ const app = express();
 const PORT = process.env.PORT || 8005;
 const dbPoolProfile = process.env.DB_POOL_PROFILE || 'standard';
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(createForwardedIdentityGuard());
 
 // S3/MinIO Configuration

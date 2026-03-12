@@ -1,5 +1,6 @@
 const express = require('express');
 const authController = require('../controllers/authController');
+const oauthController = require('../controllers/oauthController');
 const {
 	validateRegister,
 	validateLogin,
@@ -32,6 +33,11 @@ router.get('/check-email', authController.checkEmail);
 
 // Public stats
 router.get('/public/stats', authController.getPublicStats);
+
+// OAuth social login (Google, GitHub, Discord, Apple)
+router.get('/oauth/:provider/authorize', oauthController.authorize);
+router.get('/oauth/:provider/callback', oauthController.callback);
+router.post('/oauth/:provider/callback', oauthController.callback); // Apple uses POST
 
 module.exports = router;
 
