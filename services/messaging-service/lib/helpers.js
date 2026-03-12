@@ -143,6 +143,7 @@ module.exports = function createHelpers({ redis, Webhook, Notification, Notifica
   }
 
   function startDigestScheduler() {
+    console.log(`[Digest] Scheduler started (check interval: 1 hour)`);
     setInterval(async () => {
       try {
         const now = new Date();
