@@ -1,7 +1,7 @@
 'use strict';
 
 const createMeetingsRouter = require('./meetings');
-const createMeetingModesRouter = require('./meeting-modes');
+const { createMeetingModesRouter } = require('./meeting-modes');
 const createDocumentsRouter = require('./documents');
 const createWikisRouter = require('./wikis');
 const createTasksRouter = require('./tasks');

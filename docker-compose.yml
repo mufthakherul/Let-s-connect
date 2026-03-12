@@ -59,7 +59,7 @@ services:
       - SECURITY_PORT=${SECURITY_PORT:-9102}
       - ADMIN_API_SECRET=${ADMIN_API_SECRET}
       - INTERNAL_GATEWAY_TOKEN=${INTERNAL_GATEWAY_TOKEN}
-      - USER_SERVICE_URL=http://user-service:8002
+      - USER_SERVICE_URL=http://user-service:8001
       - ADMIN_DB_URL=${ADMIN_DB_URL}
       - ADMIN_MASTER_USERNAME=${ADMIN_MASTER_USERNAME}
       - ADMIN_MASTER_PASSWORD=${ADMIN_MASTER_PASSWORD}
@@ -285,7 +285,7 @@ services:
       - OLLAMA_KEEP_ALIVE=24h
       - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-1}
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:11434/api/tags > /dev/null 2>&1 || exit 1" ]
+      test: [ "CMD-SHELL", "/usr/bin/ollama list > /dev/null 2>&1 || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -294,29 +294,12 @@ services:
       - milonexa-network
 
   # Model initialiser — pulls the default model on first run then exits.
-  ollama-init:
-    image: ollama/ollama:latest
-    restart: "no"
-    depends_on:
-      ollama:
-        condition: service_healthy
-    volumes:
-      - ollama-data:/root/.ollama
-    environment:
-      - OLLAMA_HOST=http://ollama:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
-    entrypoint: >
-      sh -c "
-        ollama pull $${OLLAMA_MODEL:-llama3.2} &&
-        echo 'Model ready.'
-      "
-    networks:
-      - milonexa-network
 
   # AI Assistant Service
   ai-service:
     build:
-      context: ./services/ai-service
+      context: ./services
+      dockerfile: ai-service/Dockerfile
     restart: unless-stopped
     ports:
       - "127.0.0.1:8007:8007"
@@ -530,7 +513,7 @@ services:
       dockerfile: Dockerfile.backend
       args:
         - SERVICE=bot
-    command: ["node", "telegram/bot.js"]
+    command: [ "node", "telegram/bot.js" ]
     restart: unless-stopped
     environment:
       - ENABLE_ADMIN_BOT_TELEGRAM=${ENABLE_ADMIN_BOT_TELEGRAM:-false}
@@ -554,7 +537,7 @@ services:
       dockerfile: Dockerfile.backend
       args:
         - SERVICE=bot
-    command: ["node", "slack/bot.js"]
+    command: [ "node", "slack/bot.js" ]
     restart: unless-stopped
     environment:
       - ENABLE_ADMIN_BOT_SLACK=${ENABLE_ADMIN_BOT_SLACK:-false}
