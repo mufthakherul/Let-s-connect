@@ -193,11 +193,14 @@ const jsonParser = express.json({ limit: '10mb' });
 const urlencodedParser = express.urlencoded({ extended: true, limit: '10mb' });
 app.use((req, res, next) => {
   if (req.path === '/api/shop/webhooks/stripe') {
-    return next(); // forward raw body untouched
+    return next(); // forward raw body untouched for Stripe signature verification
   }
   jsonParser(req, res, (err) => {
     if (err) return next(err);
-    urlencodedParser(req, res, next);
+    urlencodedParser(req, res, (err2) => {
+      if (err2) return next(err2);
+      next();
+    });
   });
 });
 
@@ -884,7 +887,8 @@ app.get('/api/search', authMiddleware, applyUserLimiter, async (req, res) => {
         return { type, items: resp.data?.data || resp.data?.results || [] };
       }
       if (type === 'posts' || type === 'groups') {
-        const resp = await axios.get(`${services.content}/search?q=${encodeURIComponent(query)}&type=${type}&limit=${limit}&page=${page}`, { headers, timeout: 3000 });
+        // content-service /search uses query= param
+        const resp = await axios.get(`${services.content}/search?query=${encodeURIComponent(query)}&type=${type}&limit=${limit}&page=${page}`, { headers, timeout: 3000 });
         return { type, items: resp.data?.data || resp.data?.results || [] };
       }
       if (type === 'channels') {
