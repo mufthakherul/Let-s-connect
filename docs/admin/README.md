@@ -32,7 +32,7 @@ Complete documentation for all Milonexa admin interfaces. This guide covers ever
 2. Web dashboard: http://localhost:3001
 3. CLI: `cd admin/cli && node index.js`
 4. SSH TUI: `ssh admin@localhost -p 2222`
-5. REST API: http://localhost:8888/api/admin
+5. REST API: http://localhost:8888/api/v1 (see [REST API docs](./REST_API.md))
 
 ## Admin Security Overview
 

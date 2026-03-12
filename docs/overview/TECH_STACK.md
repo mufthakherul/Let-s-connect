@@ -18,13 +18,13 @@ Complete reference for all technologies used in Milonexa.
 | **Socket.io-client** | latest | WebSocket client for real-time features |
 | **DOMPurify** | 3.3.2 | XSS sanitization for user content |
 | **react-scripts** | 5.0.1 | Build toolchain (CRA-based) |
-| **Node.js** | 20+ | Required by react-router-dom@7 & dompurify@3.3.2 |
+| **Node.js** | 20+ (LTS) | Required by react-router-dom@7 & dompurify@3.3.2; also used for backend |
 
 ## Backend
 
 | Technology | Version | Purpose |
 |-----------|---------|---------|
-| **Node.js** | 18+ | Runtime for all microservices |
+| **Node.js** | 20+ (LTS) | Runtime for all microservices (matches repo-wide Node 20 standard) |
 | **Express** | 4.x | HTTP framework for all services |
 | **Sequelize** | 6.x | ORM for PostgreSQL |
 | **Socket.io** | 4.x | WebSocket server (messaging-service) |

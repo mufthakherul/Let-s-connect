@@ -147,12 +147,12 @@ Emergency override access for critical incidents. Requires dual approval from tw
 
 **Permissions**:
 - All Admin permissions
-- Direct database access (all queries)
-- Modify audit logs
-- Bypass rate limits and security policies
+- Direct database access for emergency read/write operations (all queries are fully audited)
+- Append emergency justification entries to audit logs (existing entries remain immutable)
+- Perform emergency operations that may exceed normal rate limits, with mandatory justification and enhanced auditing
 - Perform emergency service restarts
-- Access cryptographic keys
-- Create super-admin accounts
+- Access cryptographic keys required for recovery
+- Initiate super-admin account recovery workflows (all actions logged)
 
 **Restrictions**:
 - All actions require logging and two-person approval

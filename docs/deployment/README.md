@@ -60,4 +60,4 @@ Access platform:
 
 ---
 
-Last Updated: 2024
+Last updated: March 12, 2026

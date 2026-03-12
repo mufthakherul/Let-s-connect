@@ -3,13 +3,13 @@
 Documentation for developing Milonexa platform locally.
 
 ## Tech Stack
-- **Frontend**: React 18, TypeScript, Vite
-- **Backend**: Node.js 20, Express.js
+- **Frontend**: React 18, Material-UI v5, Zustand, react-scripts 5 (CRA-based build)
+- **Backend**: Node.js 20 (LTS), Express.js
 - **Database**: PostgreSQL 15, Redis 7
 - **Storage**: MinIO (S3-compatible)
 - **Search**: Elasticsearch 8
-- **AI**: Gemini or Ollama
-- **Infrastructure**: Docker, Docker Compose
+- **AI**: Google Gemini 2.5 Flash / Ollama (local)
+- **Infrastructure**: Docker, Docker Compose, Kubernetes
 
 ## Quick Start
 
@@ -55,4 +55,4 @@ npm run test -- --coverage # With coverage
 - `npm run format` - Auto-format code
 
 ---
-Last Updated: 2024
+Last updated: March 12, 2026
