@@ -20,6 +20,9 @@ EOSQL
 
 # Create multiple databases in PostgreSQL (idempotent)
 # Create multiple databases in PostgreSQL (idempotent)
+# Note: 'admin' is the default DB name used via ADMIN_DB_URL (see .env.example).
+# 'milonexa_admin' is the fallback default in security-service/server.js when
+# ADMIN_DB_URL is not set. Both are created for compatibility across deployments.
 for db in users content messages collaboration media shop webhooks streaming admin milonexa_admin; do
   echo "[Init] Ensuring database exists: ${db}"
   if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${db}'" | grep -q 1; then
