@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import {
     Paper,
     Typography,
@@ -34,6 +34,11 @@ import {
     Accordion,
     AccordionSummary,
     AccordionDetails,
+    Popper,
+    ClickAwayListener,
+    FormGroup,
+    FormControlLabel,
+    Checkbox,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -52,6 +57,7 @@ import {
     SmartToy as SmartToyIcon,
     PlayArrow as RunIcon,
     Close as CloseIcon,
+    History as HistoryIcon,
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
@@ -146,11 +152,36 @@ const Search = () => {
     const [aiSummary, setAiSummary] = useState(null);
     const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
     const [aiExpanded, setAiExpanded] = useState(null);
+
+    // Feature 1: Local search history (localStorage)
+    const [localHistory, setLocalHistory] = useState([]);
+    const [historyPopperOpen, setHistoryPopperOpen] = useState(false);
+
+    // Feature 2: Autocomplete suggestions
+    const [suggestions, setSuggestions] = useState([]);
+    const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+    const [highlightedIndex, setHighlightedIndex] = useState(-1);
+
+    // Feature 3: Advanced filters
+    const [filterLanguage, setFilterLanguage] = useState('any');
+    const [mediaTypeText, setMediaTypeText] = useState(true);
+    const [mediaTypeImages, setMediaTypeImages] = useState(true);
+    const [mediaTypeVideo, setMediaTypeVideo] = useState(true);
+
+    const searchInputRef = useRef(null);
+    const debounceTimerRef = useRef(null);
     const [aiExpandLoading, setAiExpandLoading] = useState(false);
 
     useEffect(() => {
         fetchSearchHistory();
         fetchSavedSearches();
+        try {
+            const stored = JSON.parse(localStorage.getItem('lc_search_history') || '[]');
+            setLocalHistory(Array.isArray(stored) ? stored : []);
+        } catch (err) {
+            console.warn('Failed to load local search history:', err);
+            setLocalHistory([]);
+        }
     }, []);
 
     useEffect(() => {
@@ -161,6 +192,30 @@ const Search = () => {
             handleSearch(queryParam);
         }
     }, [location.search]);
+
+    // Feature 2: autocomplete suggestions with debounce
+    useEffect(() => {
+        if (query.length >= 2) {
+            clearTimeout(debounceTimerRef.current);
+            debounceTimerRef.current = setTimeout(async () => {
+                try {
+                    const res = await api.get('/api/user/discovery/search', { params: { q: query, limit: 8 } });
+                    const items = res.data?.results || res.data || [];
+                    setSuggestions(Array.isArray(items) ? items : []);
+                    setSuggestionsOpen(true);
+                } catch {
+                    setSuggestions([]);
+                    setSuggestionsOpen(false);
+                }
+            }, 300);
+        } else {
+            clearTimeout(debounceTimerRef.current);
+            setSuggestions([]);
+            setSuggestionsOpen(false);
+            setHighlightedIndex(-1);
+        }
+        return () => clearTimeout(debounceTimerRef.current);
+    }, [query]);
 
     const normalizedResults = useMemo(() => {
         if (!results) return null;
@@ -215,6 +270,10 @@ const Search = () => {
                 sortBy,
                 ...(dateFrom ? { dateFrom } : {}),
                 ...(dateTo ? { dateTo } : {}),
+                ...(filterLanguage !== 'any' ? { language: filterLanguage } : {}),
+                ...((!mediaTypeText || !mediaTypeImages || !mediaTypeVideo)
+                    ? { mediaTypes: [mediaTypeText && 'text', mediaTypeImages && 'images', mediaTypeVideo && 'video'].filter(Boolean) }
+                    : {}),
             };
 
             // Search content-service for posts/comments/blogs/hashtags
@@ -273,6 +332,16 @@ const Search = () => {
 
             const resultSet = { ...contentResults, users, groups, pages };
             setResults(resultSet);
+
+            // Feature 1: Save to localStorage history (deduplicated, max 10)
+            try {
+                const stored = JSON.parse(localStorage.getItem('lc_search_history') || '[]');
+                const deduped = [searchQuery, ...stored.filter((q) => q !== searchQuery)].slice(0, 10);
+                localStorage.setItem('lc_search_history', JSON.stringify(deduped));
+                setLocalHistory(deduped);
+            } catch (err) {
+                console.warn('Failed to save local search history:', err);
+            }
 
             const firstNonEmptyCategory = RESULT_CATEGORIES.find(
                 (category) => (resultSet[category.key]?.count || 0) > 0
@@ -496,22 +565,136 @@ const Search = () => {
         >
             <Paper sx={{ p: 3, mb: 3, borderRadius: 3 }}>
                 <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} md={6}>
+                    <Grid item xs={12} md={6} ref={searchInputRef}>
                         <TextField
                             fullWidth
                             label="Search query"
                             aria-label="Search query"
                             value={query}
-                            onChange={(e) => setQuery(e.target.value)}
+                            onChange={(e) => {
+                                setQuery(e.target.value);
+                                if (e.target.value) setHistoryPopperOpen(false);
+                            }}
+                            onFocus={() => { if (!query) setHistoryPopperOpen(true); }}
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
+                                if (e.key === 'ArrowDown') {
                                     e.preventDefault();
-                                    handleSubmit();
+                                    setHighlightedIndex((i) => (suggestions.length > 0 ? (i + 1) % suggestions.length : -1));
+                                } else if (e.key === 'ArrowUp') {
+                                    e.preventDefault();
+                                    setHighlightedIndex((i) => (suggestions.length > 0 ? (i <= 0 ? suggestions.length - 1 : i - 1) : -1));
+                                } else if (e.key === 'Escape') {
+                                    setSuggestionsOpen(false);
+                                    setHighlightedIndex(-1);
+                                    setHistoryPopperOpen(false);
+                                } else if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    if (highlightedIndex >= 0 && suggestions[highlightedIndex]) {
+                                        const sel = suggestions[highlightedIndex];
+                                        const name = sel.type === 'user' ? sel.username : sel.name;
+                                        setQuery(name);
+                                        setSuggestionsOpen(false);
+                                        setHighlightedIndex(-1);
+                                        handleSearch(name);
+                                    } else {
+                                        handleSubmit();
+                                    }
                                 }
                             }}
                             placeholder="Search posts, users, groups, pages..."
                         />
                     </Grid>
+                    {/* Feature 1: History Popper */}
+                    <ClickAwayListener onClickAway={() => setHistoryPopperOpen(false)}>
+                        <div style={{ position: 'absolute' }}>
+                            <Popper
+                                open={historyPopperOpen && !query && localHistory.length > 0}
+                                anchorEl={searchInputRef.current}
+                                placement="bottom-start"
+                                style={{ zIndex: 1300, width: searchInputRef.current?.offsetWidth }}
+                            >
+                                <Paper elevation={4} sx={{ p: 1 }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                        <Typography variant="caption" color="text.secondary">Recent searches</Typography>
+                                        <Button size="small" onClick={() => { localStorage.removeItem('lc_search_history'); setLocalHistory([]); setHistoryPopperOpen(false); }}>
+                                            Clear all
+                                        </Button>
+                                    </Box>
+                                    {localHistory.map((item, idx) => (
+                                        <Box
+                                            key={idx}
+                                            sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, px: 1, borderRadius: 1, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                                        >
+                                            <HistoryIcon fontSize="small" color="action" />
+                                            <Typography
+                                                variant="body2"
+                                                sx={{ flex: 1 }}
+                                                onClick={() => { setQuery(item); setHistoryPopperOpen(false); handleSearch(item); }}
+                                            >
+                                                {item}
+                                            </Typography>
+                                            <IconButton
+                                                size="small"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const updated = localHistory.filter((_, i) => i !== idx);
+                                                    setLocalHistory(updated);
+                                                    localStorage.setItem('lc_search_history', JSON.stringify(updated));
+                                                }}
+                                                aria-label="Remove from history"
+                                            >
+                                                <CloseIcon fontSize="small" />
+                                            </IconButton>
+                                        </Box>
+                                    ))}
+                                </Paper>
+                            </Popper>
+                        </div>
+                    </ClickAwayListener>
+                    {/* Feature 2: Suggestions Popper */}
+                    <ClickAwayListener onClickAway={() => { setSuggestionsOpen(false); setHighlightedIndex(-1); }}>
+                        <div style={{ position: 'absolute' }}>
+                            <Popper
+                                open={query.length >= 2 && suggestionsOpen && suggestions.length > 0}
+                                anchorEl={searchInputRef.current}
+                                placement="bottom-start"
+                                style={{ zIndex: 1301, width: searchInputRef.current?.offsetWidth }}
+                            >
+                                <Paper elevation={4}>
+                                    <List dense disablePadding>
+                                        {suggestions.map((s, idx) => (
+                                            <ListItem
+                                                key={idx}
+                                                component="button"
+                                                sx={{ bgcolor: idx === highlightedIndex ? 'action.selected' : undefined, cursor: 'pointer', width: '100%', border: 0, background: 'none', textAlign: 'left', p: 0 }}
+                                                onClick={() => {
+                                                    const name = s.type === 'user' ? s.username : s.name;
+                                                    setQuery(name);
+                                                    setSuggestionsOpen(false);
+                                                    setHighlightedIndex(-1);
+                                                    handleSearch(name);
+                                                }}
+                                            >
+                                                <ListItemAvatar sx={{ minWidth: 36 }}>
+                                                    {s.type === 'user' ? (
+                                                        <Avatar sx={{ width: 28, height: 28, fontSize: 14 }}>
+                                                            {(s.username || '?')[0].toUpperCase()}
+                                                        </Avatar>
+                                                    ) : (
+                                                        <Avatar sx={{ width: 28, height: 28, fontSize: 14 }}>
+                                                            <SearchIcon fontSize="small" />
+                                                        </Avatar>
+                                                    )}
+                                                </ListItemAvatar>
+                                                <ListItemText primary={s.type === 'user' ? s.username : s.name} />
+                                                {s.type !== 'user' && s.category && <Chip label={s.category} size="small" />}
+                                            </ListItem>
+                                        ))}
+                                    </List>
+                                </Paper>
+                            </Popper>
+                        </div>
+                    </ClickAwayListener>
                     <Grid item xs={12} md={3}>
                         <FormControl fullWidth>
                             <InputLabel>Type</InputLabel>
@@ -607,7 +790,7 @@ const Search = () => {
                     )}
                 </Box>
 
-                {/* Date range filter */}
+                {/* Date range filter + advanced filters */}
                 <Collapse in={showFilters}>
                     <Grid container spacing={2} sx={{ mt: 1 }}>
                         <Grid item xs={12} sm={6}>
@@ -643,6 +826,46 @@ const Search = () => {
                                 </Button>
                             </Grid>
                         )}
+                        <Grid item xs={12} sm={6}>
+                            <FormControl fullWidth size="small">
+                                <InputLabel>Language</InputLabel>
+                                <Select
+                                    value={filterLanguage}
+                                    onChange={(e) => setFilterLanguage(e.target.value)}
+                                    label="Language"
+                                >
+                                    <MenuItem value="any">Any</MenuItem>
+                                    <MenuItem value="English">English</MenuItem>
+                                    <MenuItem value="Spanish">Spanish</MenuItem>
+                                    <MenuItem value="French">French</MenuItem>
+                                    <MenuItem value="Arabic">Arabic</MenuItem>
+                                    <MenuItem value="German">German</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item xs={12}>
+                            <Typography variant="body2" gutterBottom>Media Type</Typography>
+                            <FormGroup row>
+                                <FormControlLabel
+                                    control={<Checkbox size="small" checked={mediaTypeText} onChange={(e) => setMediaTypeText(e.target.checked)} />}
+                                    label="Text"
+                                />
+                                <FormControlLabel
+                                    control={<Checkbox size="small" checked={mediaTypeImages} onChange={(e) => setMediaTypeImages(e.target.checked)} />}
+                                    label="Images"
+                                />
+                                <FormControlLabel
+                                    control={<Checkbox size="small" checked={mediaTypeVideo} onChange={(e) => setMediaTypeVideo(e.target.checked)} />}
+                                    label="Video"
+                                />
+                            </FormGroup>
+                        </Grid>
+                        <Grid item xs={12}>
+                            <Stack direction="row" spacing={1}>
+                                <Button variant="contained" size="small" onClick={handleSubmit}>Apply Filters</Button>
+                                <Button size="small" onClick={() => { setDateFrom(''); setDateTo(''); setFilterLanguage('any'); setMediaTypeText(true); setMediaTypeImages(true); setMediaTypeVideo(true); }}>Clear Filters</Button>
+                            </Stack>
+                        </Grid>
                     </Grid>
                 </Collapse>
 
