@@ -294,24 +294,6 @@ services:
       - milonexa-network
 
   # Model initialiser — pulls the default model on first run then exits.
-  ollama-init:
-    image: ollama/ollama:latest
-    restart: "no"
-    depends_on:
-      ollama:
-        condition: service_healthy
-    volumes:
-      - ollama-data:/root/.ollama
-    environment:
-      - OLLAMA_HOST=http://ollama:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
-    entrypoint: >
-      sh -c "
-        ollama pull $${OLLAMA_MODEL:-llama3.2} &&
-        echo 'Model ready.'
-      "
-    networks:
-      - milonexa-network
 
   # AI Assistant Service
   ai-service:
