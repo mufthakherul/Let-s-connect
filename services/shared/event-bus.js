@@ -12,7 +12,13 @@
  *  - Graceful degradation when Redis is unavailable
  *
  * Usage:
- *   const bus = require('../shared/event-bus');
+ *   const { EventBus } = require('../shared/event-bus');
+ *   const Redis = require('ioredis');
+ *
+ *   const publishClient = new Redis(process.env.REDIS_URL);
+ *   const subscribeClient = new Redis(process.env.REDIS_URL);
+ *   const bus = new EventBus(publishClient, subscribeClient);
+ *
  *   await bus.publish('user.registered', { userId, email });
  *   bus.subscribe('user.registered', async (payload) => { ... });
  */

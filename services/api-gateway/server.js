@@ -114,7 +114,9 @@ app.use((req, res, next) => {
   const origEnd = res.end.bind(res);
   res.end = function responseTimeEnd(...args) {
     const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
-    res.setHeader('X-Response-Time', `${durationMs.toFixed(2)}ms`);
+    if (!res.headersSent) {
+      res.setHeader('X-Response-Time', `${durationMs.toFixed(2)}ms`);
+    }
     return origEnd(...args);
   };
   next();
@@ -204,7 +206,18 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'X-User-Id', 'X-API-Version'],
-  exposedHeaders: ['X-API-Version', 'X-API-Latest-Version', 'X-Response-Time', 'X-Request-Id', 'X-Correlation-Id', 'Deprecation'],
+  exposedHeaders: [
+    'X-API-Version',
+    'X-API-Latest-Version',
+    'X-Response-Time',
+    'X-Request-Id',
+    'X-Correlation-Id',
+    'Deprecation',
+    'Sunset',
+    'X-API-Deprecation',
+    'X-API-Migration-Guide',
+    'Link'
+  ],
   optionsSuccessStatus: 204
 };
 
@@ -255,6 +268,62 @@ app.use(requestLoggingMiddleware('api-gateway'));
 // Phase 7: Reduced Data Mode for mobile optimization
 app.use(addDataModeHeaders);
 app.use(reducedDataMode);
+
+// API Versioning System — registered early so ALL routes (including /api/metrics,
+// /health/*, webhooks, etc.) consistently receive X-API-Version + X-API-Latest-Version headers.
+// v2 is the current production version. v1 is legacy-supported but deprecated.
+const CURRENT_API_VERSION = 'v2';
+const SUPPORTED_VERSIONS = ['v1', 'v2'];
+const DEPRECATED_VERSIONS = ['v1'];
+const V1_SUNSET_DATE = '2027-06-30';
+
+// Version resolution order:
+//  1. URL path prefix  — /v2/api/... or /v1/api/...
+//  2. Request header   — X-API-Version: v2
+//  3. Default          — CURRENT_API_VERSION ('v2')
+const versionMiddleware = (req, res, next) => {
+  const versionMatch = req.path.match(/^\/(v\d+)\//);
+
+  if (versionMatch) {
+    const requestedVersion = versionMatch[1];
+    if (!SUPPORTED_VERSIONS.includes(requestedVersion)) {
+      return res.status(400).json({
+        error: 'Unsupported API version',
+        requestedVersion,
+        supportedVersions: SUPPORTED_VERSIONS,
+        currentVersion: CURRENT_API_VERSION,
+        message: `API version ${requestedVersion} is not supported. Use one of: ${SUPPORTED_VERSIONS.join(', ')}`
+      });
+    }
+    req.apiVersion = requestedVersion;
+    // Strip version prefix so downstream /api/* proxy mounts work transparently.
+    req.url = req.url.replace(/^\/v\d+(?=\/)/, '');
+  } else {
+    const headerVersion = req.headers['x-api-version'];
+    req.apiVersion = (headerVersion && SUPPORTED_VERSIONS.includes(headerVersion))
+      ? headerVersion
+      : CURRENT_API_VERSION;
+  }
+
+  // Version + latest-version headers on every response
+  res.setHeader('X-API-Version', req.apiVersion);
+  res.setHeader('X-API-Latest-Version', CURRENT_API_VERSION);
+
+  // RFC 8594 deprecation headers for v1 callers
+  if (DEPRECATED_VERSIONS.includes(req.apiVersion)) {
+    // Deprecation: true (RFC 8594 §2.2 boolean form)
+    res.setHeader('Deprecation', 'true');
+    // Sunset: HTTP-date (RFC 7231) format required by RFC 8594 §3
+    res.setHeader('Sunset', new Date(V1_SUNSET_DATE + 'T23:59:59Z').toUTCString());
+    res.setHeader('X-API-Deprecation', `v1 is deprecated. Sunset: ${V1_SUNSET_DATE}. Migrate to v2.`);
+    res.setHeader('X-API-Migration-Guide', 'https://docs.milonexa.com/api/migration/v1-to-v2');
+    res.setHeader('Link', `<https://docs.milonexa.com/api/migration/v1-to-v2>; rel="successor-version"`);
+  }
+
+  next();
+};
+
+app.use(versionMiddleware);
 
 // feature toggle for rate limiting
 const RATE_LIMITING_ENABLED = process.env.RATE_LIMITING_ENABLED !== 'false';
@@ -612,8 +681,8 @@ app.get('/api/metrics/summary', requireAdminSecret, (req, res) => {
       avgResponseTimeMs: Number(avgResponseTimeMs)
     },
     memory: {
-      heapUsedMB: (mem.heapUsed / 1024 / 1024).toFixed(1),
-      rssUsedMB: (mem.rss / 1024 / 1024).toFixed(1)
+      heapUsedMB: Number((mem.heapUsed / 1024 / 1024).toFixed(1)),
+      rssUsedMB: Number((mem.rss / 1024 / 1024).toFixed(1))
     },
     circuits: getCircuitBreakerStates()
   });
@@ -659,73 +728,11 @@ app.get('/api/data-mode/info', (req, res) => {
 
 // Rate limiting has been removed; the rate-limit-status endpoint is no longer needed and has been deleted.
 
-// Phase 7: Webhooks System
-app.use('/api/webhooks', authMiddleware, webhookRoutes);
-
-// API Versioning System
-// v2 is the current production version. v1 is legacy-supported but deprecated.
-const CURRENT_API_VERSION = 'v2';
-const API_VERSION = process.env.API_VERSION || CURRENT_API_VERSION;
-const SUPPORTED_VERSIONS = ['v1', 'v2'];
-const DEPRECATED_VERSIONS = ['v1'];
-const V1_SUNSET_DATE = '2027-06-30';
-
-// API version middleware — resolves version from path prefix (/v1/api/ or /v2/api/)
-// or from the X-API-Version request header; falls back to CURRENT_API_VERSION.
-const versionMiddleware = (req, res, next) => {
-  // 1. Path-based versioning (/v2/api/...)
-  const versionMatch = req.path.match(/^\/(v\d+)\//);
-
-  if (versionMatch) {
-    const requestedVersion = versionMatch[1];
-
-    if (!SUPPORTED_VERSIONS.includes(requestedVersion)) {
-      return res.status(400).json({
-        error: 'Unsupported API version',
-        requestedVersion,
-        supportedVersions: SUPPORTED_VERSIONS,
-        currentVersion: CURRENT_API_VERSION,
-        message: `API version ${requestedVersion} is not supported. Use one of: ${SUPPORTED_VERSIONS.join(', ')}`
-      });
-    }
-
-    req.apiVersion = requestedVersion;
-    // Strip version prefix so downstream /api/* proxy mounts work transparently.
-    req.url = req.url.replace(/^\/v\d+(?=\/)/, '');
-  } else {
-    // 2. Header-based versioning (X-API-Version: v2)
-    const headerVersion = req.headers['x-api-version'];
-    if (headerVersion && SUPPORTED_VERSIONS.includes(headerVersion)) {
-      req.apiVersion = headerVersion;
-    } else {
-      // 3. Default to current production version
-      req.apiVersion = CURRENT_API_VERSION;
-    }
-  }
-
-  // Inform clients which version is being served and what the latest is
-  res.setHeader('X-API-Version', req.apiVersion);
-  res.setHeader('X-API-Latest-Version', CURRENT_API_VERSION);
-
-  // Deprecation warning for legacy callers
-  if (DEPRECATED_VERSIONS.includes(req.apiVersion)) {
-    res.setHeader(
-      'Deprecation',
-      `version="${req.apiVersion}", sunset="${V1_SUNSET_DATE}"`
-    );
-    res.setHeader('X-API-Deprecation', `v1 is deprecated. Sunset: ${V1_SUNSET_DATE}. Migrate to v2.`);
-    res.setHeader('X-API-Migration-Guide', 'https://docs.milonexa.com/api/migration/v1-to-v2');
-    res.setHeader('Link', `<https://docs.milonexa.com/api/migration/v1-to-v2>; rel="successor-version"`);
-  }
-
-  next();
-};
-
-// Apply version middleware globally
-app.use(versionMiddleware);
-
 // Apply route governance on all API routes
 app.use('/api', routeGovernanceMiddleware, governanceRateLimiter, classificationAuthMiddleware);
+
+// Phase 7: Webhooks System (registered after governance so it is subject to governance + version headers)
+app.use('/api/webhooks', authMiddleware, webhookRoutes);
 
 // Governance introspection endpoints (admin secret required)
 app.get('/api/internal/routes', requireAdminSecret, routeRegistryHandler);
