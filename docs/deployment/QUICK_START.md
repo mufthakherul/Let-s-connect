@@ -63,4 +63,4 @@ echo "MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD"
 - Check [PRODUCTION.md](./PRODUCTION.md) for hardening
 
 ---
-Last Updated: 2024
+Last Updated: 2026-03-12
