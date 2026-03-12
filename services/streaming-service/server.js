@@ -4,11 +4,16 @@ const { Sequelize, DataTypes, Op } = require('sequelize');
 const axios = require('axios');
 const net = require('net');
 const NodeCache = require('node-cache');
+const EventEmitter = require('events');
 const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { syncWithPolicy } = require('../shared/db-sync-policy');
 const { buildCorsOptions } = require('../shared/cors-config');
 const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
 const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
+
+// Dedicated EventEmitter for live chat SSE — avoids process event-bus pollution and max-listeners warnings
+const liveChatBus = new EventEmitter();
+liveChatBus.setMaxListeners(1000);
 require('dotenv').config({ quiet: true });
 
 // Advanced TV services (search, health, recommendations)
@@ -1784,6 +1789,162 @@ app.get('/', (req, res) => {
         message: 'Streaming service is running.',
         health: '/health'
     });
+});
+
+// ─── Phase 3: VOD Library, Live Chat, Clip Creation, Radio Schedule ──────────
+
+// Define extra models if not defined yet
+
+// VOD recording
+const VODRecording = sequelize.define('VODRecording', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    channelId: { type: DataTypes.UUID, allowNull: false },
+    title: DataTypes.STRING,
+    description: DataTypes.TEXT,
+    thumbnailUrl: DataTypes.TEXT,
+    videoUrl: DataTypes.TEXT,
+    duration: DataTypes.INTEGER, // seconds
+    viewCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+    userId: DataTypes.UUID,
+    recordedAt: DataTypes.DATE
+}, { tableName: 'VODRecordings', timestamps: true });
+
+// Live chat message
+const LiveChatMessage = sequelize.define('LiveChatMessage', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    channelId: { type: DataTypes.UUID, allowNull: false },
+    userId: DataTypes.UUID,
+    username: DataTypes.STRING,
+    content: { type: DataTypes.TEXT, allowNull: false },
+    emoji: DataTypes.STRING
+}, { tableName: 'LiveChatMessages', timestamps: true });
+
+// Highlight Clip
+const HighlightClip = sequelize.define('HighlightClip', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    channelId: { type: DataTypes.UUID, allowNull: false },
+    userId: DataTypes.UUID,
+    title: DataTypes.STRING,
+    startOffset: DataTypes.INTEGER, // seconds from start
+    duration: { type: DataTypes.INTEGER, defaultValue: 30 },
+    videoUrl: DataTypes.TEXT
+}, { tableName: 'HighlightClips', timestamps: true });
+
+// Radio Schedule
+const RadioSchedule = sequelize.define('RadioSchedule', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    stationId: { type: DataTypes.UUID, allowNull: false },
+    showTitle: DataTypes.STRING,
+    description: DataTypes.TEXT,
+    hostName: DataTypes.STRING,
+    startTime: DataTypes.DATE,
+    endTime: DataTypes.DATE,
+    daysOfWeek: DataTypes.JSON // ['Mon', 'Wed', 'Fri']
+}, { tableName: 'RadioSchedules', timestamps: true });
+
+// ─── VOD Library ─────────────────────────────────────────────────────────────
+app.get('/tv/vod', async (req, res) => {
+    try {
+        const { cursor, limit: limitStr = '20', search } = req.query;
+        const limit = Math.min(50, parseInt(limitStr));
+        const where = {};
+        if (cursor) where.recordedAt = { [Op.lt]: new Date(cursor) };
+        if (search) where.title = { [Op.iLike]: `%${search}%` };
+
+        const recordings = await VODRecording.findAll({ where, order: [['recordedAt', 'DESC']], limit: limit + 1 });
+        const hasMore = recordings.length > limit;
+        const items = recordings.slice(0, limit);
+        return res.json({ recordings: items, nextCursor: hasMore ? items[items.length - 1].recordedAt : null, hasMore });
+    } catch (err) {
+        console.error('[GET /tv/vod]', err);
+        return res.status(500).json({ error: 'Failed to fetch VOD library' });
+    }
+});
+
+// ─── Live Channel Chat (SSE) ──────────────────────────────────────────────────
+app.get('/tv/channels/:id/chat', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const channelId = req.params.id;
+    const listener = (msg) => {
+        if (String(msg.channelId) === String(channelId)) {
+            res.write(`data: ${JSON.stringify(msg)}\n\n`);
+        }
+    };
+    // Use dedicated EventEmitter for cross-request SSE (avoids process event-bus pollution)
+    liveChatBus.on(`live-chat:${channelId}`, listener);
+    req.on('close', () => liveChatBus.off(`live-chat:${channelId}`, listener));
+});
+
+app.post('/tv/channels/:id/chat', async (req, res) => {
+    try {
+        const userId = req.header('x-user-id');
+        if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+        const { content, username } = req.body;
+        if (!content) return res.status(400).json({ error: 'content is required' });
+
+        const msg = await LiveChatMessage.create({ channelId: req.params.id, userId, username: username || 'Anonymous', content });
+        liveChatBus.emit(`live-chat:${req.params.id}`, msg.toJSON());
+        return res.status(201).json(msg);
+    } catch (err) {
+        console.error('[POST /tv/channels/:id/chat]', err);
+        return res.status(500).json({ error: 'Failed to send chat message' });
+    }
+});
+
+// ─── Clip Creation ────────────────────────────────────────────────────────────
+app.post('/tv/channels/:id/clips', async (req, res) => {
+    try {
+        const userId = req.header('x-user-id');
+        if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+        const { title, startOffset = 0, duration = 30 } = req.body;
+        const clip = await HighlightClip.create({ channelId: req.params.id, userId, title, startOffset, duration });
+        return res.status(201).json(clip);
+    } catch (err) {
+        console.error('[POST /tv/channels/:id/clips]', err);
+        return res.status(500).json({ error: 'Failed to create clip' });
+    }
+});
+
+app.get('/tv/channels/:id/clips', async (req, res) => {
+    try {
+        const clips = await HighlightClip.findAll({ where: { channelId: req.params.id }, order: [['createdAt', 'DESC']], limit: 50 });
+        return res.json(clips);
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to fetch clips' });
+    }
+});
+
+// ─── Radio Schedule ───────────────────────────────────────────────────────────
+app.get('/radio/schedule/:stationId', async (req, res) => {
+    try {
+        const schedules = await RadioSchedule.findAll({
+            where: { stationId: req.params.stationId },
+            order: [['startTime', 'ASC']],
+            limit: 20
+        });
+        return res.json(schedules);
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to fetch schedule' });
+    }
+});
+
+app.post('/radio/schedule/:stationId', async (req, res) => {
+    try {
+        const userId = req.header('x-user-id');
+        if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+        const { showTitle, description, hostName, startTime, endTime, daysOfWeek } = req.body;
+        const schedule = await RadioSchedule.create({ stationId: req.params.stationId, showTitle, description, hostName, startTime, endTime, daysOfWeek });
+        return res.status(201).json(schedule);
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to create schedule' });
+    }
 });
 
 // Standard route fallback

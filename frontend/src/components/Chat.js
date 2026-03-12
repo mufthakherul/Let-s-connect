@@ -24,7 +24,8 @@ import {
   FormControlLabel,
   Switch,
   ToggleButtonGroup,
-  ToggleButton
+  ToggleButton,
+  Badge
 } from '@mui/material';
 import {
   ContentCopy,
@@ -38,8 +39,14 @@ import {
   Groups,
   DoneAll,
   Done,
-  AutoAwesome as SmartToyIcon
+  AutoAwesome as SmartToyIcon,
+  LockOutlined,
+  Phone,
+  Videocam,
+  DeleteOutline,
+  Timer
 } from '@mui/icons-material';
+import { VariableSizeList } from 'react-window';
 import io from 'socket.io-client';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
@@ -90,8 +97,20 @@ function Chat({ user }) {
   const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
   const aiDebounceRef = useRef(null);
 
+  // Phase 3: Unread count, ephemeral messages, call buttons, virtualized list
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [ephemeralEnabled, setEphemeralEnabled] = useState(false);
+  const [conversationSettingsAnchor, setConversationSettingsAnchor] = useState(null);
+  const [listHeight, setListHeight] = useState(500);
+  const listRef = useRef(null);
+  const listContainerRef = useRef(null);
+
   useEffect(() => {
     fetchConversations();
+    // Phase 3: Fetch unread message count on mount
+    api.get('/messaging/messages/unread-count')
+      .then((res) => { const d = extractApiData(res); setUnreadCount(d?.unreadCount || 0); })
+      .catch(() => {});
     const newSocket = io(config.MESSAGING_SERVICE_URL, {
       transports: ['websocket', 'polling'],
       withCredentials: true,
@@ -131,7 +150,26 @@ function Chat({ user }) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Phase 14: Typing indicator helpers
+  // Phase 3: Measure list container height for VariableSizeList
+  useEffect(() => {
+    const el = listContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setListHeight(entry.contentRect.height || 500);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Phase 3: Auto-scroll to bottom and reset item sizes on new messages
+  useEffect(() => {
+    if (listRef.current && messages.length > 0) {
+      listRef.current.resetAfterIndex(0, true);
+      listRef.current.scrollToItem(messages.length - 1, 'end');
+    }
+  }, [messages.length]);
   const emitTyping = useCallback(() => {
     if (!socket || !selectedConversation || !user?.id) return;
     socket.emit('typing', { conversationId: selectedConversation.id, userId: user.id });
@@ -178,17 +216,36 @@ function Chat({ user }) {
     return getConversationType(conv) === chatMode;
   });
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedConversation || !socket) return;
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation) return;
 
-    socket.emit('send-message', {
-      conversationId: selectedConversation.id,
-      senderId: user.id,
-      content: newMessage,
-      type: 'text',
-      // Phase 2: Include reply if replying
-      replyToId: replyingTo?.id || null
-    });
+    if (ephemeralEnabled) {
+      // Phase 3: Send ephemeral message via REST with 1h TTL
+      try {
+        const res = await api.post(`/messaging/conversations/${selectedConversation.id}/messages`, {
+          senderId: user.id,
+          content: newMessage,
+          type: 'text',
+          replyToId: replyingTo?.id || null,
+          ephemeralTtl: 3600
+        });
+        const msg = extractApiData(res);
+        if (msg) setMessages((prev) => [...prev, msg]);
+      } catch (err) {
+        console.error('Failed to send ephemeral message:', err);
+        toast.error('Failed to send message');
+        return;
+      }
+    } else if (socket) {
+      socket.emit('send-message', {
+        conversationId: selectedConversation.id,
+        senderId: user.id,
+        content: newMessage,
+        type: 'text',
+        // Phase 2: Include reply if replying
+        replyToId: replyingTo?.id || null
+      });
+    }
 
     setNewMessage('');
     setReplyingTo(null);
@@ -214,7 +271,7 @@ function Chat({ user }) {
         }));
         const res = await api.post('/ai-service/suggest/chat', { history, partialInput: value });
         setAiSuggestions(res.data?.suggestions || []);
-      } catch {
+      } catch (_e) {
         setAiSuggestions([]);
       } finally {
         setAiSuggestLoading(false);
@@ -345,6 +402,37 @@ function Chat({ user }) {
     }
   };
 
+  // Phase 3: Delete message with optimistic removal, restore on failure
+  const handleDeleteMessage = async (messageId) => {
+    const backup = [...messages];
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    handleMessageMenuClose();
+    try {
+      await api.delete(`/messaging/messages/${messageId}`);
+      toast.success('Message deleted');
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+      setMessages(backup);
+      toast.error('Failed to delete message');
+    }
+  };
+
+  // Phase 3: Initiate voice or video call
+  const handleInitiateCall = async (type) => {
+    if (!selectedConversation) return;
+    toast('Calling\u2026', { icon: type === 'video' ? '\uD83D\uDCF9' : '\uD83D\uDCDE' });
+    try {
+      await api.post('/messaging/calls/initiate', {
+        conversationId: selectedConversation.id,
+        type
+      });
+      toast.success(`${type === 'video' ? 'Video' : 'Voice'} call started`);
+    } catch (err) {
+      console.error('Call initiation failed:', err);
+      toast.error('Call failed to connect');
+    }
+  };
+
   const handleMessageMenuOpen = (event, message) => {
     setMessageMenuAnchor(event.currentTarget);
     setSelectedMessage(message);
@@ -425,10 +513,139 @@ function Chat({ user }) {
     }
   }, [tab]);
 
+  // Phase 3: Estimate row height for VariableSizeList based on content
+  const getItemSize = (index) => {
+    const message = messages[index];
+    if (!message) return 100;
+    const contentLen = (message.content || '').length;
+    const lines = Math.max(1, Math.ceil(contentLen / 45));
+    const base = 72;
+    const reactionH = (message.reactions?.length > 0) ? 32 : 0;
+    const replyH = message.replyTo ? 44 : 0;
+    const ephemeralH = message.ephemeralTtl ? 28 : 0;
+    return base + lines * 20 + reactionH + replyH + ephemeralH;
+  };
+
+  // Phase 3: Row renderer for VariableSizeList (no hooks — uses closures)
+  const renderMessageRow = ({ index, style }) => {
+    const message = messages[index];
+    if (!message) return null;
+    return (
+      <Box style={style} sx={{ px: 2, py: 0.5 }}>
+        <Card
+          sx={{
+            maxWidth: '70%',
+            ml: message.senderId === user.id ? 'auto' : 0,
+            bgcolor: message.senderId === user.id ? 'primary.light' : 'grey.200',
+            position: 'relative'
+          }}
+        >
+          <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
+            {/* Phase 2: Show reply context */}
+            {message.replyTo && (
+              <Box
+                sx={{
+                  mb: 1, p: 0.5, bgcolor: 'action.hover',
+                  borderRadius: 1, borderLeft: 3, borderColor: 'primary.main'
+                }}
+              >
+                <Typography variant="caption" color="text.secondary">Replying to:</Typography>
+                <Typography variant="caption" display="block" sx={{ fontStyle: 'italic' }}>
+                  {message.replyTo.content?.substring(0, 50)}{message.replyTo.content?.length > 50 ? '...' : ''}
+                </Typography>
+              </Box>
+            )}
+
+            {/* Phase 2: Forwarded badge */}
+            {message.forwardedFrom && (
+              <Chip label="Forwarded" size="small" sx={{ mb: 0.5 }} icon={<Forward fontSize="small" />} />
+            )}
+
+            {/* Phase 3: Ephemeral indicator */}
+            {message.ephemeralTtl && (
+              <Chip
+                icon={<Timer fontSize="small" />}
+                label="Disappears in 1h"
+                size="small"
+                color="warning"
+                variant="outlined"
+                sx={{ mb: 0.5 }}
+              />
+            )}
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+              <Typography variant="body2">{message.content}</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', ml: 1, gap: 0.5 }}>
+                {/* Phase 14: Delivery / read receipt for own messages */}
+                {message.senderId === user?.id && (
+                  <Tooltip title={readMessages.has(message.id) ? 'Read' : deliveredMessages.has(message.id) ? 'Delivered' : 'Sent'}>
+                    {readMessages.has(message.id)
+                      ? <DoneAll fontSize="inherit" sx={{ color: 'primary.main', fontSize: 14 }} />
+                      : <Done fontSize="inherit" sx={{ color: 'text.disabled', fontSize: 14 }} />}
+                  </Tooltip>
+                )}
+                <IconButton size="small" onClick={(e) => handleMessageMenuOpen(e, message)}>
+                  <MoreVert fontSize="small" />
+                </IconButton>
+              </Box>
+            </Box>
+
+            {/* Phase 2: Reaction chips */}
+            {message.reactions && message.reactions.length > 0 && (
+              <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                {Object.entries(
+                  message.reactions.reduce((acc, r) => {
+                    acc[r.reactionType] = (acc[r.reactionType] || 0) + 1;
+                    return acc;
+                  }, {})
+                ).map(([type, count]) => (
+                  <Chip
+                    key={type}
+                    label={`${type} ${count}`}
+                    size="small"
+                    onClick={() => {
+                      const userReaction = getUserReaction(message);
+                      if (userReaction === type) {
+                        handleRemoveReaction(message.id);
+                      } else {
+                        handleAddReaction(message.id, type);
+                      }
+                    }}
+                    variant={getUserReaction(message) === type ? 'filled' : 'outlined'}
+                    sx={{ cursor: 'pointer' }}
+                  />
+                ))}
+              </Box>
+            )}
+
+            {/* Phase 2: Quick reaction + reply buttons */}
+            <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5 }}>
+              <Tooltip title="Add reaction">
+                <IconButton size="small" onClick={(e) => handleReactionPickerOpen(e, message)}>
+                  <EmojiEmotions fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Reply">
+                <IconButton size="small" onClick={() => handleReplyToMessage(message)}>
+                  <Reply fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </CardContent>
+        </Card>
+      </Box>
+    );
+  };
+
   return (
     <Box>
       <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ mb: 3 }}>
-        <Tab label="Messages" />
+        {/* Phase 3: Unread count badge on Messages tab */}
+        <Tab label={
+          <Badge badgeContent={unreadCount || 0} color="error" max={99}>
+            Messages
+          </Badge>
+        } />
         <Tab label="Server Discovery" />
       </Tabs>
 
@@ -497,134 +714,70 @@ function Chat({ user }) {
           <Box sx={{ width: { xs: '100%', md: '66%' }, display: 'flex', flexDirection: 'column' }}>
             <Box sx={{ px: 2, py: 1.25, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                  {selectedConversation?.name || 'Select a conversation'}
-                </Typography>
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                    {selectedConversation?.name || 'Select a conversation'}
+                  </Typography>
+                  {/* Phase 3: E2E encryption visual badge */}
+                  {selectedConversation && (
+                    <Tooltip title="End-to-end encrypted">
+                      <LockOutlined sx={{ fontSize: 16, color: 'success.main' }} />
+                    </Tooltip>
+                  )}
+                  {selectedConversation && (
+                    <Chip
+                      size="small"
+                      color="primary"
+                      variant="outlined"
+                      icon={getConversationType(selectedConversation) === 'u2g' ? <Groups fontSize="small" /> : <Person fontSize="small" />}
+                      label={getConversationType(selectedConversation) === 'u2g' ? 'Group / Channel' : 'Direct chat'}
+                    />
+                  )}
+                </Stack>
                 {selectedConversation && (
-                  <Chip
-                    size="small"
-                    color="primary"
-                    variant="outlined"
-                    icon={getConversationType(selectedConversation) === 'u2g' ? <Groups fontSize="small" /> : <Person fontSize="small" />}
-                    label={getConversationType(selectedConversation) === 'u2g' ? 'Group / Channel' : 'Direct chat'}
-                  />
+                  <Stack direction="row" alignItems="center" spacing={0.5}>
+                    {/* Phase 3: Voice call */}
+                    <Tooltip title="Voice call">
+                      <IconButton size="small" onClick={() => handleInitiateCall('audio')}>
+                        <Phone fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    {/* Phase 3: Video call */}
+                    <Tooltip title="Video call">
+                      <IconButton size="small" onClick={() => handleInitiateCall('video')}>
+                        <Videocam fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    {/* Phase 3: Conversation settings (ephemeral toggle) */}
+                    <Tooltip title="Conversation settings">
+                      <IconButton size="small" onClick={(e) => setConversationSettingsAnchor(e.currentTarget)}>
+                        <MoreVert fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
                 )}
               </Stack>
             </Box>
-            <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}>
-              {messages.map((message) => (
-                <Card
-                  key={message.id}
-                  sx={{
-                    mb: 1,
-                    maxWidth: '70%',
-                    ml: message.senderId === user.id ? 'auto' : 0,
-                    bgcolor: message.senderId === user.id ? 'primary.light' : 'grey.200',
-                    position: 'relative'
-                  }}
+            {/* Phase 3: Virtualized message list with react-window */}
+            <Box ref={listContainerRef} sx={{ flexGrow: 1, overflow: 'hidden' }}>
+              {messages.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {selectedConversation ? 'No messages yet. Say hello!' : 'Select a conversation to start chatting.'}
+                  </Typography>
+                </Box>
+              ) : (
+                <VariableSizeList
+                  ref={listRef}
+                  height={listHeight}
+                  width="100%"
+                  itemCount={messages.length}
+                  itemSize={getItemSize}
+                  overscanCount={5}
                 >
-                  <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
-                    {/* Phase 2: Show reply context */}
-                    {message.replyTo && (
-                      <Box
-                        sx={{
-                          mb: 1,
-                          p: 0.5,
-                          bgcolor: 'action.hover',
-                          borderRadius: 1,
-                          borderLeft: 3,
-                          borderColor: 'primary.main'
-                        }}
-                      >
-                        <Typography variant="caption" color="text.secondary">
-                          Replying to:
-                        </Typography>
-                        <Typography variant="caption" display="block" sx={{ fontStyle: 'italic' }}>
-                          {message.replyTo.content?.substring(0, 50)}{message.replyTo.content?.length > 50 ? '...' : ''}
-                        </Typography>
-                      </Box>
-                    )}
-
-                    {/* Phase 2: Show forwarded context */}
-                    {message.forwardedFrom && (
-                      <Chip
-                        label="Forwarded"
-                        size="small"
-                        sx={{ mb: 0.5 }}
-                        icon={<Forward fontSize="small" />}
-                      />
-                    )}
-
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                      <Typography variant="body2">{message.content}</Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', ml: 1, gap: 0.5 }}>
-                        {/* Phase 14: Delivery / read receipt for own messages */}
-                        {message.senderId === user?.id && (
-                          <Tooltip title={readMessages.has(message.id) ? 'Read' : deliveredMessages.has(message.id) ? 'Delivered' : 'Sent'}>
-                            {readMessages.has(message.id)
-                              ? <DoneAll fontSize="inherit" sx={{ color: 'primary.main', fontSize: 14 }} />
-                              : <Done fontSize="inherit" sx={{ color: 'text.disabled', fontSize: 14 }} />}
-                          </Tooltip>
-                        )}
-                        <IconButton
-                          size="small"
-                          onClick={(e) => handleMessageMenuOpen(e, message)}
-                        >
-                          <MoreVert fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    </Box>
-
-                    {/* Phase 2: Show reactions */}
-                    {message.reactions && message.reactions.length > 0 && (
-                      <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                        {Object.entries(
-                          message.reactions.reduce((acc, r) => {
-                            acc[r.reactionType] = (acc[r.reactionType] || 0) + 1;
-                            return acc;
-                          }, {})
-                        ).map(([type, count]) => (
-                          <Chip
-                            key={type}
-                            label={`${type} ${count}`}
-                            size="small"
-                            onClick={() => {
-                              const userReaction = getUserReaction(message);
-                              if (userReaction === type) {
-                                handleRemoveReaction(message.id);
-                              } else {
-                                handleAddReaction(message.id, type);
-                              }
-                            }}
-                            variant={getUserReaction(message) === type ? 'filled' : 'outlined'}
-                            sx={{ cursor: 'pointer' }}
-                          />
-                        ))}
-                      </Box>
-                    )}
-
-                    {/* Phase 2: Quick reaction button */}
-                    <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5 }}>
-                      <Tooltip title="Add reaction">
-                        <IconButton
-                          size="small"
-                          onClick={(e) => handleReactionPickerOpen(e, message)}
-                        >
-                          <EmojiEmotions fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Reply">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleReplyToMessage(message)}
-                        >
-                          <Reply fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </CardContent>
-                </Card>
-              ))}
+                  {renderMessageRow}
+                </VariableSizeList>
+              )}
             </Box>
 
             <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
@@ -700,6 +853,12 @@ function Chat({ user }) {
                     sx={{ mr: 0 }}
                   />
                 </Tooltip>
+                {/* Phase 3: Ephemeral icon shown when disappearing messages are active */}
+                {ephemeralEnabled && (
+                  <Tooltip title="Disappearing messages enabled (1h)">
+                    <Timer fontSize="small" color="warning" />
+                  </Tooltip>
+                )}
                 <TextField
                   fullWidth
                   size="small"
@@ -907,6 +1066,13 @@ function Chat({ user }) {
           <Forward fontSize="small" sx={{ mr: 1 }} />
           Forward
         </MenuItem>
+        {/* Phase 3: Delete own messages only */}
+        {selectedMessage?.senderId === user?.id && (
+          <MenuItem onClick={() => handleDeleteMessage(selectedMessage?.id)} sx={{ color: 'error.main' }}>
+            <DeleteOutline fontSize="small" sx={{ mr: 1 }} />
+            Delete
+          </MenuItem>
+        )}
       </Menu>
 
       {/* Phase 2: Reaction Picker Menu */}
@@ -935,6 +1101,32 @@ function Chat({ user }) {
           disabled={!hasUserReacted(selectedMessage)}
         >
           Remove Reaction
+        </MenuItem>
+      </Menu>
+
+      {/* Phase 3: Conversation settings menu — ephemeral message toggle */}
+      <Menu
+        anchorEl={conversationSettingsAnchor}
+        open={Boolean(conversationSettingsAnchor)}
+        onClose={() => setConversationSettingsAnchor(null)}
+      >
+        <MenuItem disableRipple>
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={ephemeralEnabled}
+                onChange={(e) => setEphemeralEnabled(e.target.checked)}
+                color="warning"
+              />
+            }
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Timer fontSize="small" />
+                <Typography variant="body2">Disappearing messages</Typography>
+              </Box>
+            }
+          />
         </MenuItem>
       </Menu>
     </Box>

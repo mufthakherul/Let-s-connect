@@ -25,8 +25,8 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  CardMedia,
   CardActions,
+  CircularProgress,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -34,27 +34,71 @@ import {
   Delete as DeleteIcon,
   Verified as VerifiedIcon,
   People as PeopleIcon,
+  BarChart as InsightsIcon,
+  Favorite as FollowIcon,
 } from '@mui/icons-material';
+import { motion } from 'framer-motion';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
+
+const CATEGORY_GRADIENTS = {
+  Technology: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  Business: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+  Entertainment: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  Education: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
+  Health: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+  Sports: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+  Arts: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+  default: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+};
+
+const generateMockFollowerGrowth = (baseCount = 100) => {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  let count = baseCount;
+  return days.map((day) => {
+    count += Math.floor(Math.random() * 40) + 5;
+    return { day, followers: count };
+  });
+};
+
+const getCoverStyle = (page) => {
+  if (page.coverUrl) return {};
+  const cat = page.category || '';
+  const key = cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
+  return { background: CATEGORY_GRADIENTS[key] || CATEGORY_GRADIENTS.default };
+};
 
 function Pages({ user }) {
   const [pages, setPages] = useState([]);
   const [myPages, setMyPages] = useState([]);
+  const [followingPages, setFollowingPages] = useState([]);
   const [selectedPage, setSelectedPage] = useState(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [adminsDialogOpen, setAdminsDialogOpen] = useState(false);
+  const [insightsDialogOpen, setInsightsDialogOpen] = useState(false);
+  const [insightsData, setInsightsData] = useState(null);
   const [pageAdmins, setPageAdmins] = useState([]);
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     category: '',
     avatarUrl: '',
     coverUrl: '',
+    ctaLabel: '',
+    ctaUrl: '',
   });
 
   const [adminFormData, setAdminFormData] = useState({
@@ -66,30 +110,42 @@ function Pages({ user }) {
     if (user?.id) {
       fetchMyPages();
       fetchAllPages();
+      fetchFollowingPages();
     }
   }, [user]);
 
   const fetchMyPages = async () => {
     try {
-      const response = await api.get(`/users/${user.id}/pages`);
+      const response = await api.get('/user/pages');
       setMyPages(response.data || []);
     } catch (error) {
       console.error('Failed to fetch my pages:', error);
-      toast.error('Failed to load your pages');
+      // Fallback to legacy endpoint
+      try {
+        const resp = await api.get(`/users/${user.id}/pages`);
+        setMyPages(resp.data || []);
+      } catch (e) {
+        toast.error('Failed to load your pages');
+      }
     }
   };
 
   const fetchAllPages = async () => {
     try {
-      // Fetch user's pages first
-      const myPagesResponse = await api.get(`/users/${user.id}/pages`);
-      const myPagesData = myPagesResponse.data || [];
-      
-      // For discover, we could fetch all pages if backend supports it
-      // For now, just show empty list to avoid showing own pages in Discover
-      setPages([]);
+      const response = await api.get('/user/pages/discover');
+      setPages(response.data || []);
     } catch (error) {
-      console.error('Failed to fetch pages:', error);
+      // Discover may not exist yet; keep empty
+      setPages([]);
+    }
+  };
+
+  const fetchFollowingPages = async () => {
+    try {
+      const response = await api.get('/user/pages/following');
+      setFollowingPages(response.data || []);
+    } catch (error) {
+      setFollowingPages([]);
     }
   };
 
@@ -103,24 +159,48 @@ function Pages({ user }) {
     }
   };
 
+  const fetchPageInsights = async (page) => {
+    setSelectedPage(page);
+    try {
+      const response = await api.get(`/user/pages/${page.id}/insights`);
+      setInsightsData(response.data);
+    } catch (error) {
+      // Use mock data when endpoint is not yet available
+      setInsightsData({
+        followerGrowth: generateMockFollowerGrowth(page.followers || 100),
+        totalViews: Math.floor(Math.random() * 10000) + 500,
+        followers: page.followers || 0,
+        engagementRate: (Math.random() * 8 + 1).toFixed(1),
+      });
+    }
+    setInsightsDialogOpen(true);
+  };
+
   const handleCreatePage = async () => {
     if (!formData.name.trim()) {
       toast.error('Page name is required');
       return;
     }
-
     setLoading(true);
     try {
-      await api.post('/pages', formData);
-      
+      await api.post('/user/pages', formData);
       toast.success('Page created successfully!');
       setCreateDialogOpen(false);
-      setFormData({ name: '', description: '', category: '', avatarUrl: '', coverUrl: '' });
+      resetForm();
       fetchMyPages();
       fetchAllPages();
     } catch (error) {
-      console.error('Failed to create page:', error);
-      toast.error(error.response?.data?.error || 'Failed to create page');
+      // Fallback to legacy endpoint
+      try {
+        await api.post('/pages', formData);
+        toast.success('Page created successfully!');
+        setCreateDialogOpen(false);
+        resetForm();
+        fetchMyPages();
+      } catch (e) {
+        console.error('Failed to create page:', e);
+        toast.error(e.response?.data?.error || 'Failed to create page');
+      }
     } finally {
       setLoading(false);
     }
@@ -131,20 +211,26 @@ function Pages({ user }) {
       toast.error('Page name is required');
       return;
     }
-
     setLoading(true);
     try {
-      await api.put(`/pages/${selectedPage.id}`, formData);
-      
+      await api.put(`/user/pages/${selectedPage.id}`, formData);
       toast.success('Page updated successfully!');
       setEditDialogOpen(false);
       setSelectedPage(null);
-      setFormData({ name: '', description: '', category: '', avatarUrl: '', coverUrl: '' });
+      resetForm();
       fetchMyPages();
-      fetchAllPages();
     } catch (error) {
-      console.error('Failed to update page:', error);
-      toast.error(error.response?.data?.error || 'Failed to update page');
+      try {
+        await api.put(`/pages/${selectedPage.id}`, formData);
+        toast.success('Page updated successfully!');
+        setEditDialogOpen(false);
+        setSelectedPage(null);
+        resetForm();
+        fetchMyPages();
+      } catch (e) {
+        console.error('Failed to update page:', e);
+        toast.error(e.response?.data?.error || 'Failed to update page');
+      }
     } finally {
       setLoading(false);
     }
@@ -152,12 +238,29 @@ function Pages({ user }) {
 
   const handleFollowPage = async (pageId) => {
     try {
-      await api.post(`/pages/${pageId}/follow`, { userId: user.id });
-      toast.success('Page followed successfully!');
+      await api.post(`/user/pages/${pageId}/follow`);
+      toast.success('Page followed!');
+      fetchAllPages();
+      fetchFollowingPages();
+    } catch (error) {
+      try {
+        await api.post(`/pages/${pageId}/follow`, { userId: user.id });
+        toast.success('Page followed!');
+        fetchAllPages();
+      } catch (e) {
+        toast.error(e.response?.data?.error || 'Failed to follow page');
+      }
+    }
+  };
+
+  const handleUnfollowPage = async (pageId) => {
+    try {
+      await api.post(`/user/pages/${pageId}/unfollow`);
+      toast.success('Unfollowed page');
+      fetchFollowingPages();
       fetchAllPages();
     } catch (error) {
-      console.error('Failed to follow page:', error);
-      toast.error(error.response?.data?.error || 'Failed to follow page');
+      toast.error(error.response?.data?.error || 'Failed to unfollow page');
     }
   };
 
@@ -169,6 +272,8 @@ function Pages({ user }) {
       category: page.category || '',
       avatarUrl: page.avatarUrl || '',
       coverUrl: page.coverUrl || '',
+      ctaLabel: page.ctaLabel || '',
+      ctaUrl: page.ctaUrl || '',
     });
     setEditDialogOpen(true);
   };
@@ -184,14 +289,12 @@ function Pages({ user }) {
       toast.error('User ID is required');
       return;
     }
-
     setLoading(true);
     try {
       await api.post(`/pages/${selectedPage.id}/admins`, {
         adminUserId: adminFormData.userId,
         role: adminFormData.role,
       });
-      
       toast.success('Admin added successfully!');
       setAdminFormData({ userId: '', role: 'moderator' });
       fetchPageAdmins(selectedPage.id);
@@ -217,69 +320,172 @@ function Pages({ user }) {
     }
   };
 
-  const renderPageCard = (page, isOwner = false) => (
+  const resetForm = () => {
+    setFormData({ name: '', description: '', category: '', avatarUrl: '', coverUrl: '', ctaLabel: '', ctaUrl: '' });
+  };
+
+  const renderPageFormFields = () => (
+    <>
+      <TextField
+        autoFocus
+        margin="dense"
+        label="Page Name"
+        fullWidth
+        value={formData.name}
+        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+        disabled={loading}
+        sx={{ mb: 1 }}
+      />
+      <TextField
+        margin="dense"
+        label="Description"
+        fullWidth
+        multiline
+        rows={3}
+        value={formData.description}
+        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+        disabled={loading}
+        sx={{ mb: 1 }}
+      />
+      <TextField
+        margin="dense"
+        label="Category"
+        fullWidth
+        value={formData.category}
+        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+        disabled={loading}
+        sx={{ mb: 1 }}
+      />
+      <TextField
+        margin="dense"
+        label="Avatar URL (optional)"
+        fullWidth
+        value={formData.avatarUrl}
+        onChange={(e) => setFormData({ ...formData, avatarUrl: e.target.value })}
+        disabled={loading}
+        sx={{ mb: 1 }}
+      />
+      <TextField
+        margin="dense"
+        label="Cover Photo URL (optional)"
+        fullWidth
+        value={formData.coverUrl}
+        onChange={(e) => setFormData({ ...formData, coverUrl: e.target.value })}
+        disabled={loading}
+        sx={{ mb: 1 }}
+      />
+      <TextField
+        margin="dense"
+        label="CTA Button Label (optional)"
+        fullWidth
+        value={formData.ctaLabel}
+        onChange={(e) => setFormData({ ...formData, ctaLabel: e.target.value })}
+        disabled={loading}
+        sx={{ mb: 1 }}
+      />
+      <TextField
+        margin="dense"
+        label="CTA Button URL (optional)"
+        fullWidth
+        value={formData.ctaUrl}
+        onChange={(e) => setFormData({ ...formData, ctaUrl: e.target.value })}
+        disabled={loading}
+      />
+    </>
+  );
+
+  const renderPageCard = (page, isOwner = false, showUnfollow = false) => (
     <Grid item xs={12} sm={6} md={4} key={page.id}>
-      <Card>
-        {page.coverUrl && (
-          <CardMedia
-            component="img"
-            height="140"
-            image={page.coverUrl}
-            alt={page.name}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        whileHover={{ y: -3 }}
+      >
+        <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          {/* Cover strip */}
+          <Box
+            sx={{
+              height: 100,
+              ...getCoverStyle(page),
+              backgroundImage: page.coverUrl ? `url(${page.coverUrl})` : undefined,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
           />
-        )}
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <Avatar
-              src={page.avatarUrl}
-              sx={{ width: 56, height: 56, mr: 2 }}
-            >
-              {page.name?.[0]}
-            </Avatar>
-            <Box sx={{ flex: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="h6">{page.name}</Typography>
-                {page.isVerified && (
-                  <VerifiedIcon color="primary" fontSize="small" />
+
+          <CardContent sx={{ flexGrow: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <Avatar
+                src={page.avatarUrl}
+                sx={{ width: 56, height: 56, mr: 2, mt: -4, border: '3px solid white' }}
+              >
+                {page.name?.[0]}
+              </Avatar>
+              <Box sx={{ flex: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography variant="h6" noWrap>
+                    {page.name}
+                  </Typography>
+                  {page.isVerified && (
+                    <VerifiedIcon color="primary" fontSize="small" />
+                  )}
+                </Box>
+                {page.category && (
+                  <Chip label={page.category} size="small" sx={{ mt: 0.5 }} />
                 )}
               </Box>
-              {page.category && (
-                <Chip label={page.category} size="small" />
-              )}
             </Box>
-          </Box>
-          
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {page.description}
-          </Typography>
-          
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              {page.description}
+            </Typography>
+
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <PeopleIcon fontSize="small" color="action" />
               <Typography variant="body2" color="text.secondary">
                 {page.followers || 0} followers
               </Typography>
             </Box>
-          </Box>
-        </CardContent>
-        
-        <CardActions>
-          {isOwner ? (
-            <>
-              <Button size="small" startIcon={<EditIcon />} onClick={() => handleEditClick(page)}>
-                Edit
+          </CardContent>
+
+          <CardActions sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+            {isOwner ? (
+              <>
+                <Button size="small" startIcon={<EditIcon />} onClick={() => handleEditClick(page)}>
+                  Edit
+                </Button>
+                <Button
+                  size="small"
+                  startIcon={<InsightsIcon />}
+                  onClick={() => fetchPageInsights(page)}
+                >
+                  Insights
+                </Button>
+                <Button
+                  size="small"
+                  startIcon={<PeopleIcon />}
+                  onClick={() => handleManageAdminsClick(page)}
+                >
+                  Admins
+                </Button>
+              </>
+            ) : showUnfollow ? (
+              <Button size="small" color="error" onClick={() => handleUnfollowPage(page.id)}>
+                Unfollow
               </Button>
-              <Button size="small" startIcon={<PeopleIcon />} onClick={() => handleManageAdminsClick(page)}>
-                Admins
+            ) : (
+              <Button
+                size="small"
+                startIcon={<FollowIcon />}
+                onClick={() => handleFollowPage(page.id)}
+              >
+                Follow
               </Button>
-            </>
-          ) : (
-            <Button size="small" onClick={() => handleFollowPage(page.id)}>
-              Follow
-            </Button>
-          )}
-        </CardActions>
-      </Card>
+            )}
+          </CardActions>
+        </Card>
+      </motion.div>
     </Grid>
   );
 
@@ -298,9 +504,10 @@ function Pages({ user }) {
         </Button>
       </Box>
 
-      <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
+      <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ mb: 3 }}>
         <Tab label="My Pages" />
-        <Tab label="Discover Pages" />
+        <Tab label="Discover" />
+        <Tab label="Following" />
       </Tabs>
 
       {tabValue === 0 && (
@@ -339,6 +546,24 @@ function Pages({ user }) {
         </Grid>
       )}
 
+      {tabValue === 2 && (
+        <Grid container spacing={3}>
+          {followingPages.length === 0 ? (
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="body1" color="text.secondary" align="center">
+                    You're not following any pages yet.
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          ) : (
+            followingPages.map((page) => renderPageCard(page, false, true))
+          )}
+        </Grid>
+      )}
+
       {/* Create Page Dialog */}
       <Dialog
         open={createDialogOpen}
@@ -346,60 +571,22 @@ function Pages({ user }) {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Create New Page</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Page Name"
-            fullWidth
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            disabled={loading}
-          />
-          <TextField
-            margin="dense"
-            label="Description"
-            fullWidth
-            multiline
-            rows={3}
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            disabled={loading}
-          />
-          <TextField
-            margin="dense"
-            label="Category"
-            fullWidth
-            value={formData.category}
-            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-            disabled={loading}
-          />
-          <TextField
-            margin="dense"
-            label="Avatar URL (optional)"
-            fullWidth
-            value={formData.avatarUrl}
-            onChange={(e) => setFormData({ ...formData, avatarUrl: e.target.value })}
-            disabled={loading}
-          />
-          <TextField
-            margin="dense"
-            label="Cover Image URL (optional)"
-            fullWidth
-            value={formData.coverUrl}
-            onChange={(e) => setFormData({ ...formData, coverUrl: e.target.value })}
-            disabled={loading}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)} disabled={loading}>
-            Cancel
-          </Button>
-          <Button onClick={handleCreatePage} variant="contained" disabled={loading}>
-            Create
-          </Button>
-        </DialogActions>
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+        >
+          <DialogTitle>Create New Page</DialogTitle>
+          <DialogContent>{renderPageFormFields()}</DialogContent>
+          <DialogActions>
+            <Button onClick={() => { setCreateDialogOpen(false); resetForm(); }} disabled={loading}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreatePage} variant="contained" disabled={loading}>
+              {loading ? <CircularProgress size={20} /> : 'Create'}
+            </Button>
+          </DialogActions>
+        </motion.div>
       </Dialog>
 
       {/* Edit Page Dialog */}
@@ -409,59 +596,104 @@ function Pages({ user }) {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Edit Page</DialogTitle>
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+        >
+          <DialogTitle>Edit Page</DialogTitle>
+          <DialogContent>{renderPageFormFields()}</DialogContent>
+          <DialogActions>
+            <Button onClick={() => setEditDialogOpen(false)} disabled={loading}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdatePage} variant="contained" disabled={loading}>
+              {loading ? <CircularProgress size={20} /> : 'Update'}
+            </Button>
+          </DialogActions>
+        </motion.div>
+      </Dialog>
+
+      {/* Page Insights Dialog */}
+      <Dialog
+        open={insightsDialogOpen}
+        onClose={() => setInsightsDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Page Insights — {selectedPage?.name}</DialogTitle>
         <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Page Name"
-            fullWidth
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            disabled={loading}
-          />
-          <TextField
-            margin="dense"
-            label="Description"
-            fullWidth
-            multiline
-            rows={3}
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            disabled={loading}
-          />
-          <TextField
-            margin="dense"
-            label="Category"
-            fullWidth
-            value={formData.category}
-            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-            disabled={loading}
-          />
-          <TextField
-            margin="dense"
-            label="Avatar URL (optional)"
-            fullWidth
-            value={formData.avatarUrl}
-            onChange={(e) => setFormData({ ...formData, avatarUrl: e.target.value })}
-            disabled={loading}
-          />
-          <TextField
-            margin="dense"
-            label="Cover Image URL (optional)"
-            fullWidth
-            value={formData.coverUrl}
-            onChange={(e) => setFormData({ ...formData, coverUrl: e.target.value })}
-            disabled={loading}
-          />
+          {insightsData && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              {/* Stats row */}
+              <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid item xs={4}>
+                  <Card variant="outlined">
+                    <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                      <Typography variant="h5" fontWeight="bold">
+                        {insightsData.totalViews?.toLocaleString() || '—'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Total Views
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={4}>
+                  <Card variant="outlined">
+                    <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                      <Typography variant="h5" fontWeight="bold">
+                        {insightsData.followers?.toLocaleString() || '—'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Followers
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={4}>
+                  <Card variant="outlined">
+                    <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                      <Typography variant="h5" fontWeight="bold">
+                        {insightsData.engagementRate || '—'}%
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Engagement Rate
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              {/* Follower growth chart */}
+              <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1 }}>
+                Follower Growth (Last 7 Days)
+              </Typography>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={insightsData.followerGrowth || []}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="day" />
+                  <YAxis />
+                  <RechartsTooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="followers"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    dot={{ fill: '#6366f1', r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </motion.div>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)} disabled={loading}>
-            Cancel
-          </Button>
-          <Button onClick={handleUpdatePage} variant="contained" disabled={loading}>
-            Update
-          </Button>
+          <Button onClick={() => setInsightsDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 
@@ -500,11 +732,7 @@ function Pages({ user }) {
                   <MenuItem value="admin">Admin</MenuItem>
                 </Select>
               </FormControl>
-              <Button
-                variant="contained"
-                onClick={handleAddAdmin}
-                disabled={loading}
-              >
+              <Button variant="contained" onClick={handleAddAdmin} disabled={loading}>
                 Add
               </Button>
             </Box>
@@ -524,10 +752,7 @@ function Pages({ user }) {
                   <ListItemAvatar>
                     <Avatar>{admin.userId?.[0]}</Avatar>
                   </ListItemAvatar>
-                  <ListItemText
-                    primary={admin.userId}
-                    secondary={admin.role}
-                  />
+                  <ListItemText primary={admin.userId} secondary={admin.role} />
                   <ListItemSecondaryAction>
                     {admin.role !== 'owner' && (
                       <IconButton

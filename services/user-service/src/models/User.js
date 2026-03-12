@@ -67,6 +67,10 @@ const User = sequelize.define('User', {
     },
     lastVerificationSentAt: {
         type: DataTypes.DATE
+    },
+    deletionPendingAt: {
+        type: DataTypes.DATE,
+        allowNull: true
     }
 }, {
     timestamps: true,

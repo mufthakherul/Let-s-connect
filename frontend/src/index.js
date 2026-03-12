@@ -21,7 +21,7 @@ startWebVitalsCollection((metric) => {
   try {
     window.__webVitals = window.__webVitals || [];
     window.__webVitals.push({ ...metric, ts: Date.now() });
-  } catch {
+  } catch (_e) {
     // no-op when window is unavailable
   }
 });

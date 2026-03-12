@@ -3867,6 +3867,113 @@ app.delete('/categories/:categoryId', async (req, res) => {
   }
 });
 
+// ─── Phase 3: REST send / delete / read / unread-count ───────────────────────
+
+// POST /conversations/:conversationId/messages — send message via REST (complement to WebSocket)
+app.post('/conversations/:conversationId/messages', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const senderId = req.header('x-user-id');
+    if (!senderId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { content, type = 'text', attachmentUrl, ephemeralTtl } = req.body;
+    if (!content && !attachmentUrl) return res.status(400).json({ error: 'content or attachmentUrl required' });
+
+    const msg = await Message.create({
+      conversationId,
+      senderId,
+      content: content || '',
+      type,
+      attachmentUrl: attachmentUrl || null,
+      expiresAt: ephemeralTtl ? new Date(Date.now() + ephemeralTtl * 1000) : null
+    });
+
+    // Broadcast to WebSocket room
+    io.to(conversationId).emit('new-message', msg);
+
+    return res.status(201).json(msg);
+  } catch (error) {
+    console.error('[POST /conversations/:id/messages]', error);
+    return res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+// DELETE /messages/:messageId — delete own message (within 15 min)
+app.delete('/messages/:messageId', async (req, res) => {
+  try {
+    const senderId = req.header('x-user-id');
+    if (!senderId) return res.status(401).json({ error: 'Authentication required' });
+
+    const msg = await Message.findByPk(req.params.messageId);
+    if (!msg) return res.status(404).json({ error: 'Message not found' });
+    if (msg.senderId !== senderId) return res.status(403).json({ error: 'Not your message' });
+
+    const ageMs = Date.now() - new Date(msg.createdAt).getTime();
+    if (ageMs > 15 * 60 * 1000) return res.status(403).json({ error: 'Cannot delete messages older than 15 minutes' });
+
+    await msg.destroy();
+    io.to(msg.conversationId).emit('message-deleted', { messageId: msg.id });
+    return res.status(204).send();
+  } catch (error) {
+    console.error('[DELETE /messages/:id]', error);
+    return res.status(500).json({ error: 'Failed to delete message' });
+  }
+});
+
+// POST /messages/:messageId/read — mark message as read
+app.post('/messages/:messageId/read', async (req, res) => {
+  try {
+    const readerId = req.header('x-user-id');
+    if (!readerId) return res.status(401).json({ error: 'Authentication required' });
+
+    const msg = await Message.findByPk(req.params.messageId);
+    if (!msg) return res.status(404).json({ error: 'Message not found' });
+
+    // Emit read receipt via WebSocket
+    io.to(msg.conversationId).emit('message-read-receipt', { messageId: msg.id, readerId });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[POST /messages/:id/read]', error);
+    return res.status(500).json({ error: 'Failed to mark as read' });
+  }
+});
+
+// GET /messages/unread-count — total unread messages count
+app.get('/messages/unread-count', async (req, res) => {
+  try {
+    const userId = req.header('x-user-id');
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    // Count conversations where user is a participant with unread messages
+    const conversations = await Conversation.findAll({
+      where: Sequelize.where(
+        Sequelize.cast(Sequelize.col('participants'), 'text'),
+        { [Op.like]: `%${userId.replace(/[%_\\]/g, '\\$&')}%` }
+      ),
+      attributes: ['id']
+    });
+    const convIds = conversations.map(c => c.id);
+
+    // We approximate unread as messages in those conversations after last seen
+    // For simplicity, count conversations with any message not from the user
+    const count = convIds.length > 0
+      ? await Message.count({
+          where: {
+            conversationId: convIds,
+            senderId: { [Op.ne]: userId },
+            createdAt: { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+          }
+        })
+      : 0;
+
+    return res.json({ unreadCount: count });
+  } catch (error) {
+    console.error('[GET /messages/unread-count]', error);
+    return res.status(500).json({ error: 'Failed to get unread count' });
+  }
+});
+
 // Friendly root endpoint (avoid default "Cannot GET /")
 app.get('/', (req, res) => {
   res.status(200).json({
