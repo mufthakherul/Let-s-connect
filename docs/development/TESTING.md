@@ -17,7 +17,7 @@ cd services/api-gateway
 npm test                    # Run all 22 tests
 npm test -- --watch        # Watch mode
 npm test -- --coverage     # With coverage report
-npm test resilience        # Run specific test file
+npm test -- resilience.test.js        # Run specific test file
 ```
 
 ### Frontend
