@@ -2,7 +2,7 @@
 const express = require('express');
 const { Op } = require('sequelize');
 
-function createTasksRouter({ models, redis }) {
+function createTasksRouter({ models }) {
   const { Task, Issue, IssueComment, Project, Milestone } = models;
 
   const router = express.Router();

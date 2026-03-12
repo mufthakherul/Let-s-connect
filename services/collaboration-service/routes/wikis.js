@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { Op } = require('sequelize');
 const DiffMatchPatch = require('diff-match-patch');
 
-function createWikisRouter({ models, redis }) {
+function createWikisRouter({ models }) {
   const { Wiki, WikiHistory } = models;
 
   const dmp = new DiffMatchPatch();
