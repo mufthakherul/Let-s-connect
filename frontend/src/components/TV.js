@@ -461,7 +461,7 @@ const TV = () => {
             try {
                 const response = await fetch(`${getApiBaseUrl()}/api/streaming/tv/vod?limit=20`);
                 const data = await response.json();
-                setVodList(data?.vod || data || []);
+                setVodList(data?.recordings || data?.vod || []);
             } catch (err) {
                 toast.error('Failed to load VOD library');
                 console.error(err);
@@ -490,7 +490,7 @@ const TV = () => {
             try {
                 const msg = JSON.parse(event.data);
                 setLiveChatMessages(prev => [...prev, msg]);
-            } catch { /* ignore non-JSON frames */ }
+            } catch (_e) { /* ignore non-JSON frames */ }
         };
         es.onerror = () => { console.warn('Live chat SSE error'); };
         return () => {

@@ -21,6 +21,10 @@ const Friend = sequelize.define('Friend', {
         type: DataTypes.ENUM('active', 'blocked'),
         defaultValue: 'active'
     },
+    type: {
+        type: DataTypes.ENUM('friend', 'follow'),
+        defaultValue: 'friend'
+    },
     closeFriend: {
         type: DataTypes.BOOLEAN,
         defaultValue: false

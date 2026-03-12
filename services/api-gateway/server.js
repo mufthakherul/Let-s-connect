@@ -800,7 +800,8 @@ app.get('/api/public/stats', (req, res) => {
       version: '2.0.0',
       uptime: process.uptime(),
       services: Object.keys(services).length,
-      features: 10
+      features: 10,
+      userCount: 52000
     }
   });
 });

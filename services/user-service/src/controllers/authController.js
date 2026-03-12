@@ -34,7 +34,8 @@ function generateRefreshToken(userId) {
 }
 
 function safeOtp(length = 6) {
-    return String(Math.floor(Math.random() * Math.pow(10, length))).padStart(length, '0');
+    // Use cryptographically secure randomness
+    return String(crypto.randomInt(0, Math.pow(10, length))).padStart(length, '0');
 }
 
 // ------- controllers -------
@@ -160,6 +161,11 @@ exports.refresh = catchAsync(async (req, res, next) => {
         payload = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
     } catch (e) {
         return next(new AppError('Invalid or expired refresh token', 401, 'TOKEN_EXPIRED'));
+    }
+
+    // Validate that this is actually a refresh token, not an access token
+    if (payload.type !== 'refresh') {
+        return next(new AppError('Invalid token type', 401, 'TOKEN_TYPE_INVALID'));
     }
 
     const stored = await RefreshToken.findOne({
@@ -319,8 +325,8 @@ exports.resendVerification = catchAsync(async (req, res, next) => {
 });
 
 exports.setup2FA = catchAsync(async (req, res, next) => {
-    // Requires authenticated user (auth middleware should set req.user)
-    const userId = req.user?.id || req.body.userId;
+    // Use gateway-forwarded identity header exclusively — never trust body.userId
+    const userId = req.header('x-user-id');
     if (!userId) return next(new AppError('Authentication required', 401, 'UNAUTHENTICATED'));
 
     const user = await User.findByPk(userId);
@@ -341,7 +347,7 @@ exports.setup2FA = catchAsync(async (req, res, next) => {
 });
 
 exports.verify2FA = catchAsync(async (req, res, next) => {
-    const userId = req.user?.id || req.body.userId;
+    const userId = req.header('x-user-id');
     const { code } = req.body;
 
     if (!userId) return next(new AppError('Authentication required', 401, 'UNAUTHENTICATED'));
@@ -368,7 +374,7 @@ exports.verify2FA = catchAsync(async (req, res, next) => {
 });
 
 exports.disable2FA = catchAsync(async (req, res, next) => {
-    const userId = req.user?.id || req.body.userId;
+    const userId = req.header('x-user-id');
     const { password } = req.body;
 
     if (!userId) return next(new AppError('Authentication required', 401, 'UNAUTHENTICATED'));

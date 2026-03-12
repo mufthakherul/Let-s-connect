@@ -226,7 +226,8 @@ function Profile({ user }) {
     if (!currentUser || user.id === currentUser.id) return;
     try {
       const resp = await axios.get(`/api/user/social/friends/${user.id}/mutual`, { headers });
-      setMutualFriends(resp.data?.friends || resp.data || []);
+      const mutual = resp?.data?.data?.mutual || resp?.data?.friends || [];
+      setMutualFriends(mutual);
     } catch (err) {
       console.error('Failed to fetch mutual friends:', err);
     }

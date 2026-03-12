@@ -87,7 +87,8 @@ function UnregisterLanding() {
     // Fetch live user count from public stats endpoint
     useEffect(() => {
         api.get('/api/public/stats').then(res => {
-            if (res.data?.userCount) setUserCount(res.data.userCount);
+            const count = res?.data?.data?.userCount;
+            if (typeof count === 'number' && Number.isFinite(count)) setUserCount(count);
         }).catch((err) => {
             console.debug('[UnregisterLanding] Could not fetch public stats:', err?.message);
         });

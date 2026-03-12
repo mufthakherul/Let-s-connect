@@ -201,8 +201,8 @@ const Search = () => {
             clearTimeout(debounceTimerRef.current);
             debounceTimerRef.current = setTimeout(async () => {
                 try {
-                    const res = await api.get('/api/user/discovery/search', { params: { q: query, limit: 8 } });
-                    const items = res.data?.results || res.data || [];
+                    const res = await api.get('/api/user/discovery/search/suggestions', { params: { q: query, limit: 8 } });
+                    const items = res.data?.suggestions || res.data?.results || [];
                     setSuggestions(Array.isArray(items) ? items : []);
                     setSuggestionsOpen(true);
                 } catch {
@@ -593,11 +593,11 @@ const Search = () => {
                                     e.preventDefault();
                                     if (highlightedIndex >= 0 && suggestions[highlightedIndex]) {
                                         const sel = suggestions[highlightedIndex];
-                                        const name = sel.type === 'user' ? sel.username : sel.name;
-                                        setQuery(name);
+                                        const selectedLabel = sel.label || (sel.type === 'user' ? sel.username : sel.name) || '';
+                                        setQuery(selectedLabel);
                                         setSuggestionsOpen(false);
                                         setHighlightedIndex(-1);
-                                        handleSearch(name);
+                                        handleSearch(selectedLabel);
                                     } else {
                                         handleSubmit();
                                     }
@@ -672,17 +672,17 @@ const Search = () => {
                                                 component="button"
                                                 sx={{ bgcolor: idx === highlightedIndex ? 'action.selected' : undefined, cursor: 'pointer', width: '100%', border: 0, background: 'none', textAlign: 'left', p: 0 }}
                                                 onClick={() => {
-                                                    const name = s.type === 'user' ? s.username : s.name;
-                                                    setQuery(name);
+                                                    const selectedLabel = s.label || (s.type === 'user' ? s.username : s.name) || '';
+                                                    setQuery(selectedLabel);
                                                     setSuggestionsOpen(false);
                                                     setHighlightedIndex(-1);
-                                                    handleSearch(name);
+                                                    handleSearch(selectedLabel);
                                                 }}
                                             >
                                                 <ListItemAvatar sx={{ minWidth: 36 }}>
                                                     {s.type === 'user' ? (
                                                         <Avatar sx={{ width: 28, height: 28, fontSize: 14 }}>
-                                                            {(s.username || '?')[0].toUpperCase()}
+                                                            {(s.label || s.username || '?')[0].toUpperCase()}
                                                         </Avatar>
                                                     ) : (
                                                         <Avatar sx={{ width: 28, height: 28, fontSize: 14 }}>
@@ -690,7 +690,7 @@ const Search = () => {
                                                         </Avatar>
                                                     )}
                                                 </ListItemAvatar>
-                                                <ListItemText primary={s.type === 'user' ? s.username : s.name} />
+                                                <ListItemText primary={s.label || (s.type === 'user' ? s.username : s.name) || ''} />
                                                 {s.type !== 'user' && s.category && <Chip label={s.category} size="small" />}
                                             </ListItem>
                                         ))}

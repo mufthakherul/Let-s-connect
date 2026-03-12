@@ -16,7 +16,7 @@ exports.addSkill = catchAsync(async (req, res, next) => {
     }
 
     const skill = await Skill.create({ userId, name, level });
-    response.success(res, skill, 'Skill added successfully', 201);
+    response.success(req, res, skill, { message: 'Skill added successfully' }, 201);
 });
 
 exports.getSkills = catchAsync(async (req, res) => {
@@ -24,7 +24,7 @@ exports.getSkills = catchAsync(async (req, res) => {
         where: { userId: req.params.userId },
         order: [['endorsements', 'DESC']]
     });
-    response.success(res, skills);
+    response.success(req, res, skills);
 });
 
 exports.endorseSkill = catchAsync(async (req, res, next) => {
@@ -40,7 +40,7 @@ exports.endorseSkill = catchAsync(async (req, res, next) => {
     await Endorsement.create({ skillId, endorserId });
     await skill.increment('endorsements');
 
-    response.success(res, skill, 'Skill endorsed successfully');
+    response.success(req, res, skill, { message: 'Skill endorsed successfully' });
 });
 
 // ─── Friends ──────────────────────────────────────────────────────────────────
@@ -82,8 +82,8 @@ exports.acceptFriendRequest = catchAsync(async (req, res, next) => {
     await request.update({ status: 'accepted' });
 
     await Friend.bulkCreate([
-        { userId: request.senderId, friendId: request.receiverId },
-        { userId: request.receiverId, friendId: request.senderId }
+        { userId: request.senderId, friendId: request.receiverId, type: 'friend' },
+        { userId: request.receiverId, friendId: request.senderId, type: 'friend' }
     ], { ignoreDuplicates: true });
 
     return response.success(req, res, null, 'Friend request accepted');
@@ -109,7 +109,7 @@ exports.getFriends = catchAsync(async (req, res, next) => {
     const offset = (page - 1) * limit;
     const search = req.query.search ? sanitizeText(req.query.search, { maxLength: 100 }) : null;
 
-    const whereClause = { userId };
+    const whereClause = { userId, type: 'friend' };
     const userWhere = {};
     if (search) {
         userWhere[Op.or] = [
@@ -297,10 +297,10 @@ exports.followUser = catchAsync(async (req, res, next) => {
     if (userId === targetId) return next(new AppError('Cannot follow yourself', 400));
 
     // Use friend model as a one-way "follow" entry (friendId = target, no reciprocal)
-    const existing = await Friend.findOne({ where: { userId, friendId: targetId } });
+    const existing = await Friend.findOne({ where: { userId, friendId: targetId, type: 'follow' } });
     if (existing) return next(new AppError('Already following', 400));
 
-    await Friend.create({ userId, friendId: targetId });
+    await Friend.create({ userId, friendId: targetId, type: 'follow' });
     return response.success(req, res, null, 'Followed successfully');
 });
 
@@ -309,7 +309,7 @@ exports.unfollowUser = catchAsync(async (req, res, next) => {
     const userId = req.header('x-user-id');
     if (!userId) return next(new AppError('Authentication required', 401, 'UNAUTHENTICATED'));
 
-    await Friend.destroy({ where: { userId, friendId: targetId } });
+    await Friend.destroy({ where: { userId, friendId: targetId, type: 'follow' } });
     return response.success(req, res, null, 'Unfollowed successfully');
 });
 
