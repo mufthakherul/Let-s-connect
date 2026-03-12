@@ -95,7 +95,7 @@ Authorization: Bearer <jwt_token>
 
 ## GraphQL API
 
-Endpoint: `POST /api/graphql` or `GET /api/graphql` (UI)
+Endpoint: `POST /graphql` or `GET /graphql` (UI)
 
 ### Example Query
 ```graphql
