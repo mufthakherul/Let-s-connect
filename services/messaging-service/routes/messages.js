@@ -37,16 +37,26 @@ module.exports = function createMessagesRouter({
       return res.status(503).json({ error: 'Push notifications are disabled (VAPID not configured)' });
     }
     try {
-      const { userId, subscription } = req.body;
-      await Subscription.upsert({
-        userId,
-        endpoint: subscription.endpoint,
-        p256dh: subscription.keys.p256dh,
-        auth: subscription.keys.auth
-      }, {
-        where: { endpoint: subscription.endpoint }
+      const userId = req.header('x-user-id') || req.body.userId;
+      const { subscription } = req.body;
+      if (!subscription || !subscription.endpoint) {
+        return res.status(400).json({ error: 'Invalid subscription object' });
+      }
+      // findOrCreate to avoid duplicates; endpoint should have a unique constraint
+      const [record, created] = await Subscription.findOrCreate({
+        where: { endpoint: subscription.endpoint },
+        defaults: {
+          userId,
+          endpoint: subscription.endpoint,
+          p256dh: subscription.keys.p256dh,
+          auth: subscription.keys.auth
+        }
       });
-      res.status(201).json({ message: 'Subscribed to push notifications' });
+      if (!created) {
+        // Update existing subscription with latest keys and userId
+        await record.update({ userId, p256dh: subscription.keys.p256dh, auth: subscription.keys.auth });
+      }
+      res.status(created ? 201 : 200).json({ message: created ? 'Subscribed to push notifications' : 'Subscription updated' });
     } catch (error) {
       console.error('Push subscribe error:', error);
       res.status(500).json({ error: 'Failed to subscribe' });
@@ -60,11 +70,10 @@ module.exports = function createMessagesRouter({
       const userId = req.header('x-user-id');
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
+      // Use array containment operator to find conversations where userId is a participant
+      // This avoids LIKE cast false positives on UUID substrings
       const conversations = await Conversation.findAll({
-        where: Sequelize.where(
-          Sequelize.cast(Sequelize.col('participants'), 'text'),
-          { [Op.like]: `%${userId.replace(/[%_\\]/g, '\\$&')}%` }
-        ),
+        where: { participants: { [Op.contains]: [userId] } },
         attributes: ['id']
       });
       const convIds = conversations.map(c => c.id);

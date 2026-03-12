@@ -127,6 +127,42 @@ async function upsertOAuthUser({ provider, providerId, email, firstName, lastNam
     return user;
 }
 
+// ─── State store (in-memory with TTL) ────────────────────────────────────────
+const stateStore = new Map(); // { state: { returnUrl, expiresAt } }
+const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+function storeState(state, returnUrl) {
+    stateStore.set(state, { returnUrl, expiresAt: Date.now() + STATE_TTL_MS });
+    // Clean up expired entries periodically
+    if (stateStore.size > 1000) {
+        const now = Date.now();
+        for (const [k, v] of stateStore) {
+            if (v.expiresAt < now) stateStore.delete(k);
+        }
+    }
+}
+
+function consumeState(state) {
+    const entry = stateStore.get(state);
+    if (!entry) return null;
+    stateStore.delete(state);
+    if (Date.now() > entry.expiresAt) return null;
+    return entry.returnUrl;
+}
+
+/**
+ * Validate that the returnUrl stays within the allowed frontend origin.
+ * Prevents open-redirect attacks.
+ */
+function sanitizeReturnUrl(returnUrl) {
+    try {
+        const parsed = new URL(returnUrl);
+        const allowed = new URL(FRONTEND_URL);
+        if (parsed.origin === allowed.origin) return returnUrl;
+    } catch (_e) { /* fall through */ }
+    return FRONTEND_URL;
+}
+
 // ─── Controller methods ───────────────────────────────────────────────────────
 
 /**
@@ -142,7 +178,10 @@ exports.authorize = (req, res) => {
     }
 
     const state = crypto.randomBytes(16).toString('hex');
-    const returnUrl = req.query.returnUrl || FRONTEND_URL;
+    const returnUrl = sanitizeReturnUrl(req.query.returnUrl || FRONTEND_URL);
+
+    // Store state server-side; only the opaque token goes to the provider
+    storeState(state, returnUrl);
 
     // Build authorization URL
     const params = new URLSearchParams({
@@ -150,7 +189,7 @@ exports.authorize = (req, res) => {
         redirect_uri: config.redirectUri,
         scope: config.scope,
         response_type: 'code',
-        state: `${state}:${encodeURIComponent(returnUrl)}`,
+        state,
         ...(config.responseMode ? { response_mode: config.responseMode } : {})
     });
 
@@ -175,10 +214,15 @@ exports.callback = catchAsync(async (req, res) => {
 
     if (!code) return res.status(400).json({ error: 'Missing authorization code' });
 
-    // Parse returnUrl from state
-    let returnUrl = FRONTEND_URL;
-    if (state && state.includes(':')) {
-        returnUrl = decodeURIComponent(state.split(':').slice(1).join(':')) || FRONTEND_URL;
+    // Validate state server-side to prevent CSRF attacks
+    if (!state) {
+        logger.warn(`[OAuth ${provider}] callback missing state`);
+        return res.redirect(`${FRONTEND_URL}/login?error=oauth_invalid_state`);
+    }
+    const returnUrl = consumeState(state);
+    if (!returnUrl) {
+        logger.warn(`[OAuth ${provider}] invalid or expired state: ${state}`);
+        return res.redirect(`${FRONTEND_URL}/login?error=oauth_invalid_state`);
     }
 
     // Exchange code for access token
@@ -238,7 +282,6 @@ exports.callback = catchAsync(async (req, res) => {
                 avatar: d.avatar ? `https://cdn.discordapp.com/avatars/${d.id}/${d.avatar}.png` : null
             };
         } else if (provider === 'apple') {
-            // Apple sends user info in the first authorization only (id_token JWT payload)
             if (tokenData.id_token) {
                 const payload = JSON.parse(Buffer.from(tokenData.id_token.split('.')[1], 'base64').toString());
                 profile = { providerId: payload.sub, email: payload.email, firstName: req.body?.user?.name?.firstName || '', lastName: req.body?.user?.name?.lastName || '', avatar: null };
@@ -274,11 +317,9 @@ exports.callback = catchAsync(async (req, res) => {
         logger.warn(`[OAuth ${provider}] refresh token save failed:`, err.message);
     }
 
-    // Redirect back to frontend with tokens in URL fragment (SPA pattern)
-    const redirectTarget = new URL('/oauth-callback', FRONTEND_URL);
-    redirectTarget.searchParams.set('token', jwtToken);
-    redirectTarget.searchParams.set('refresh_token', refreshToken);
-    redirectTarget.searchParams.set('returnUrl', returnUrl);
-
-    res.redirect(redirectTarget.toString());
+    // Use URL fragment (#) so tokens are never sent to the server in referrer headers.
+    // The SPA at /oauth-callback reads window.location.hash to extract tokens.
+    const baseUrl = new URL('/oauth-callback', FRONTEND_URL);
+    const fragment = new URLSearchParams({ token: jwtToken, refresh_token: refreshToken, returnUrl });
+    res.redirect(`${baseUrl.toString()}#${fragment.toString()}`);
 });
