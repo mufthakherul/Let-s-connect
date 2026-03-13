@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const { Sequelize } = require('sequelize');
 const { sequelize } = require('./src/models');
 const routes = require('./src/routes');
 const { HealthChecker, checkDatabase, checkRedis } = require('../shared/monitoring');
@@ -171,6 +172,80 @@ async function startServer() {
         name: 'init-user-tables',
         up: async (qi) => {
           await syncWithPolicy(sequelize, 'user-service');
+        }
+      },
+      {
+        name: 'add-feedback-table',
+        up: async (qi) => {
+          await qi.createTable('Feedbacks', {
+            id: {
+              type: Sequelize.UUID,
+              defaultValue: Sequelize.UUIDV4,
+              primaryKey: true
+            },
+            userId: {
+              type: Sequelize.UUID,
+              allowNull: true,
+              references: { model: 'Users', key: 'id' }
+            },
+            category: {
+              type: Sequelize.ENUM('feature-request', 'bug-report', 'improvement', 'praise', 'other'),
+              allowNull: false
+            },
+            subject: {
+              type: Sequelize.STRING(140),
+              allowNull: false
+            },
+            message: {
+              type: Sequelize.TEXT,
+              allowNull: false
+            },
+            rating: {
+              type: Sequelize.FLOAT,
+              allowNull: true
+            },
+            displayName: {
+              type: Sequelize.STRING(80),
+              allowNull: false,
+              defaultValue: 'Community Member'
+            },
+            status: {
+              type: Sequelize.ENUM('pending', 'approved', 'rejected'),
+              allowNull: false,
+              defaultValue: 'pending'
+            },
+            verified: {
+              type: Sequelize.BOOLEAN,
+              allowNull: false,
+              defaultValue: false
+            },
+            reviewerId: {
+              type: Sequelize.UUID,
+              allowNull: true,
+              references: { model: 'Users', key: 'id' }
+            },
+            reviewedAt: {
+              type: Sequelize.DATE,
+              allowNull: true
+            },
+            reason: {
+              type: Sequelize.TEXT,
+              allowNull: true
+            },
+            createdAt: {
+              type: Sequelize.DATE,
+              allowNull: false,
+              defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
+            },
+            updatedAt: {
+              type: Sequelize.DATE,
+              allowNull: false,
+              defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
+            }
+          });
+          await qi.addIndex('Feedbacks', ['status']);
+          await qi.addIndex('Feedbacks', ['category']);
+          await qi.addIndex('Feedbacks', ['userId']);
         }
       }
     ]);

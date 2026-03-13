@@ -29,6 +29,7 @@ const Notification = require('./Notification');
 const NotificationPreference = require('./NotificationPreference');
 const AuditLog = require('./AuditLog');
 const ContentFlag = require('./ContentFlag');
+const Feedback = require('./Feedback');
 const PasswordResetToken = require('./PasswordResetToken');
 const RefreshToken = require('./RefreshToken');
 
@@ -83,6 +84,10 @@ AuditLog.belongsTo(User, { as: 'Admin', foreignKey: 'adminId' });
 
 User.hasMany(ContentFlag, { as: 'Reports', foreignKey: 'reporterId' });
 ContentFlag.belongsTo(User, { as: 'Reporter', foreignKey: 'reporterId' });
+
+User.hasMany(Feedback, { as: 'Feedbacks', foreignKey: 'userId' });
+Feedback.belongsTo(User, { as: 'Author', foreignKey: 'userId' });
+Feedback.belongsTo(User, { as: 'Reviewer', foreignKey: 'reviewerId' });
 
 User.hasMany(PasswordResetToken, { foreignKey: 'userId' });
 PasswordResetToken.belongsTo(User, { foreignKey: 'userId' });
