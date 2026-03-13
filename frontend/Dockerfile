@@ -1,11 +1,11 @@
-FROM node:25-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
 # Accept build-time environment variables
 ARG REACT_APP_API_URL
 ENV REACT_APP_API_URL=${REACT_APP_API_URL}
-ENV NODE_OPTIONS=--max_old_space_size=1536
+ENV NODE_OPTIONS=--max-old-space-size=2048
 ENV DISABLE_ESLINT_PLUGIN=true
 
 # Set Node environment - can be overridden at runtime

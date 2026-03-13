@@ -17,11 +17,24 @@ log "--- Storage Cleanup Started ---"
 log "Disk usage BEFORE cleanup:"
 df -h "$WORKSPACE" | tee -a "$LOGFILE"
 
+DOCKER_AVAILABLE=false
+if command -v docker >/dev/null 2>&1; then
+  if docker info >/dev/null 2>&1; then
+    DOCKER_AVAILABLE=true
+  else
+    log "Docker daemon not reachable. Skipping Docker cleanup steps."
+  fi
+else
+  log "Docker CLI not found. Skipping Docker cleanup steps."
+fi
+
 # Docker cleanup
-log "Cleaning Docker system..."
-docker system prune -af --volumes
-log "Cleaning Docker builder cache..."
-docker builder prune -af
+if [ "$DOCKER_AVAILABLE" = true ]; then
+  log "Cleaning Docker system..."
+  docker system prune -af --volumes
+  log "Cleaning Docker builder cache..."
+  docker builder prune -af
+fi
 
 # Remove workspace logs, builds, node_modules, cache
 log "Removing workspace logs and build artifacts..."
@@ -39,21 +52,23 @@ if [ "$EUID" -eq 0 ]; then
   journalctl --vacuum-size=100M || true
 fi
 
-# Remove orphaned Docker volumes
-log "Removing orphaned Docker volumes..."
-docker volume prune -f
+if [ "$DOCKER_AVAILABLE" = true ]; then
+  # Remove orphaned Docker volumes
+  log "Removing orphaned Docker volumes..."
+  docker volume prune -f
 
-# Remove orphaned Docker networks
-log "Removing orphaned Docker networks..."
-docker network prune -f
+  # Remove orphaned Docker networks
+  log "Removing orphaned Docker networks..."
+  docker network prune -f
 
-# Remove orphaned Docker images
-log "Removing dangling Docker images..."
-docker image prune -f
+  # Remove orphaned Docker images
+  log "Removing dangling Docker images..."
+  docker image prune -f
 
-# Remove old Ollama images
-log "Removing old Ollama images..."
-docker images | grep 'ollama/ollama' | awk '{print $3}' | xargs -r docker rmi -f || true
+  # Remove old Ollama images
+  log "Removing old Ollama images..."
+  docker images | grep 'ollama/ollama' | awk '{print $3}' | xargs -r docker rmi -f || true
+fi
 
 # Interactive prompt for critical folders
 CRITICAL_FOLDERS=("$WORKSPACE/frontend/public/uploads" "$WORKSPACE/services/media-service/uploads")
