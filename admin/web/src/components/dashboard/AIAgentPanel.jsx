@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     Box, Typography, Grid, Card, CardContent, CardHeader,
     Chip, Alert, Button, IconButton, CircularProgress,
@@ -51,12 +51,19 @@ const AIAgentPanel = () => {
     const [decisionBy, setDecisionBy] = useState('');
 
     const AI_STATUS_BASE = process.env.REACT_APP_AI_STATUS_URL || 'http://localhost:8890';
+    const AI_STATUS_TOKEN = process.env.REACT_APP_AI_STATUS_TOKEN || process.env.REACT_APP_ADMIN_SECRET || '';
+    const authHeaders = useMemo(
+        () => (AI_STATUS_TOKEN ? { Authorization: `Bearer ${AI_STATUS_TOKEN}` } : {}),
+        [AI_STATUS_TOKEN]
+    );
 
     const fetchStatus = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${AI_STATUS_BASE}/status`);
+            const res = await fetch(`${AI_STATUS_BASE}/status`, {
+                headers: authHeaders,
+            });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             setStatus(data);
@@ -67,18 +74,20 @@ const AIAgentPanel = () => {
         } finally {
             setLoading(false);
         }
-    }, [AI_STATUS_BASE]);
+    }, [AI_STATUS_BASE, authHeaders]);
 
     const fetchPermissions = useCallback(async () => {
         try {
-            const res = await fetch(`${AI_STATUS_BASE}/permissions`);
+            const res = await fetch(`${AI_STATUS_BASE}/permissions`, {
+                headers: authHeaders,
+            });
             if (!res.ok) return;
             const data = await res.json();
             setPermissions(data.pending || []);
         } catch (_) {
             setPermissions([]);
         }
-    }, [AI_STATUS_BASE]);
+    }, [AI_STATUS_BASE, authHeaders]);
 
     useEffect(() => {
         fetchStatus();
@@ -95,7 +104,7 @@ const AIAgentPanel = () => {
         try {
             await fetch(`${AI_STATUS_BASE}/permissions/${id}/approve`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { ...authHeaders, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ by: decisionBy || 'admin-web' }),
             });
             setApproveDialog({ open: false, id: null, action: null });
@@ -111,7 +120,7 @@ const AIAgentPanel = () => {
         try {
             await fetch(`${AI_STATUS_BASE}/permissions/${id}/deny`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { ...authHeaders, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ by: decisionBy || 'admin-web' }),
             });
             setDenyDialog({ open: false, id: null });

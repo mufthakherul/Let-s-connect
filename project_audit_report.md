@@ -84,3 +84,13 @@
 - API gateway unit tests run successfully after installing local deps (`22/22 passed`), but full monorepo test sweep was not executed in this run.
 - Environment includes high churn rebuild containers; short transient connection resets can occur while frontend/admin-web compile/start.
 
+## Follow-up Addendum (Post-report user verification)
+- **Admin AI dashboard auth hardened**:
+  - `/dashboard` and `/status` now return `401` without token.
+  - `/health` remains public for liveness checks.
+  - Token accepted via `Authorization: Bearer <token>` and `?token=<token>` for browser dashboard access.
+- **Admin web blank screen fixed**:
+  - Root cause was runtime `ReferenceError` from missing icon imports in `admin/web/src/App.js`.
+  - Rebuilt and verified with Playwright: no console/page runtime errors on `/`.
+- **Frontend 500 check re-run**:
+  - Browser automation over critical pages (`/login`, `/feed`, `/messaging`, `/friends`, `/groups`) and extended crawl showed `0` HTTP 500 responses during validation.
