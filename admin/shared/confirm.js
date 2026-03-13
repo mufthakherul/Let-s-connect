@@ -30,6 +30,9 @@ const READ_ONLY_COMMANDS = new Set([
     'compliance',
     'recommendations',
     'dashboard',
+    'admin:list',
+    'admin:verify',
+    'admin:logs',
 ]);
 
 /**

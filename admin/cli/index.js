@@ -571,6 +571,53 @@ function emitJSON(payload) {
     process.stdout.write(JSON.stringify(payload, null, 2) + os.EOL);
 }
 
+function getAdminApiBase(options = {}) {
+    return String(
+        options['admin-url'] ||
+        options.adminUrl ||
+        process.env.ADMIN_API_URL ||
+        'http://localhost:9102'
+    ).replace(/\/+$/, '');
+}
+
+function resolveAdminToken(options = {}) {
+    return (
+        options.token ||
+        process.env.ADMIN_CLI_TOKEN ||
+        process.env.ADMIN_JWT_TOKEN ||
+        ''
+    );
+}
+
+async function adminApiRequest(method, endpoint, options = {}, body = null) {
+    const token = resolveAdminToken(options);
+    if (!token) {
+        fatal('Admin token required. Pass --token <jwt> or set ADMIN_CLI_TOKEN.');
+    }
+
+    const response = await fetch(`${getAdminApiBase(options)}${endpoint}`, {
+        method,
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: body ? JSON.stringify(body) : undefined,
+    });
+
+    let payload = null;
+    try {
+        payload = await response.json();
+    } catch (_) {
+        payload = null;
+    }
+
+    if (!response.ok) {
+        const message = payload?.error || payload?.message || `Request failed (${response.status})`;
+        fatal(message);
+    }
+    return payload;
+}
+
 /** Pad a string to a given length for tabular output. */
 function pad(str, len, align = 'left') {
     const s = String(str == null ? '' : str);
@@ -2996,6 +3043,7 @@ function cmdCompletion(rawArgs) {
 
     const builtinCmds = [
         'doctor', 'build', 'start', 'stop', 'restart', 'status', 'logs', 'health',
+        'admin:list', 'admin:create', 'admin:disable', 'admin:verify', 'admin:logs',
         'backup', 'monitor', 'run', 'audit', 'set-role', 'role', 'check',
         'scale', 'rollout', 'incident', 'metrics', 'alerts', 'policies', 'costs',
         'compliance', 'recommendations', 'dashboard', 'tui', 'webhooks', 'sla',
@@ -3704,6 +3752,81 @@ function cmdConfig(rawArgs) {
     }
 }
 
+async function cmdAdmin(rawArgs) {
+    const { options, positionals } = parseArgs(rawArgs);
+    const sub = (positionals[0] || '').toLowerCase();
+
+    switch (sub) {
+        case 'list': {
+            const payload = await adminApiRequest('GET', '/admin/users', options);
+            const users = payload?.users || [];
+            if (toBool(options.json, false)) {
+                emitJSON(users);
+                return;
+            }
+            if (!users.length) {
+                info('No admin users found.');
+                return;
+            }
+            printTable([
+                ['id', 'username', 'email', 'role', 'active', 'lastLoginAt'],
+                ...users.map((u) => [
+                    u.id,
+                    u.username || '',
+                    u.email || '',
+                    u.role || '',
+                    u.isActive ? 'yes' : 'no',
+                    u.lastLoginAt || '-',
+                ]),
+            ]);
+            return;
+        }
+        case 'create': {
+            const username = options.username || positionals[1];
+            const password = options.password || positionals[2];
+            const role = options.role || 'admin';
+            const email = options.email || '';
+            if (!username || !password) {
+                fatal('Usage: admin:create --username <username> --password <password> [--email <email>] [--role admin|viewer|master]');
+            }
+            const payload = await adminApiRequest('POST', '/admin/users', options, { username, password, email, role });
+            if (toBool(options.json, false)) {
+                emitJSON(payload);
+                return;
+            }
+            success(`Created admin user '${payload.username}' (${payload.role})`);
+            return;
+        }
+        case 'disable': {
+            const id = options.id || positionals[1];
+            if (!id) {
+                fatal('Usage: admin:disable --id <adminUserId>');
+            }
+            const payload = await adminApiRequest('POST', `/admin/users/${id}/disable`, options);
+            if (toBool(options.json, false)) {
+                emitJSON(payload);
+                return;
+            }
+            success(`Disabled admin user '${payload.id}'`);
+            return;
+        }
+        case 'verify': {
+            const payload = await adminApiRequest('GET', '/admin/verify', options);
+            if (toBool(options.json, false)) {
+                emitJSON(payload);
+                return;
+            }
+            success(`Token is valid for '${payload.user?.username || 'unknown'}' (${payload.user?.role || 'n/a'})`);
+            return;
+        }
+        case 'logs': {
+            return cmdLogs(rawArgs.slice(1));
+        }
+        default:
+            fatal('Usage: admin:<list|create|disable|verify|logs> [options]');
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Help
 // ---------------------------------------------------------------------------
@@ -3723,6 +3846,11 @@ Core commands:
   restart [--runtime direct|docker|k8s]    Restart services
   status  [--runtime direct|docker|k8s]    Show running state
   logs    [--runtime direct|docker|k8s] --service <name> [--follow] [--tail N]
+  admin:list                               List admin users (requires --token)
+  admin:create --username --password       Create admin user (requires --token)
+  admin:disable --id <adminUserId>         Disable admin user (requires --token)
+  admin:verify                             Verify admin token/session (requires --token)
+  admin:logs [logs args...]                Alias for logs
 
 Operational wrappers:
   health   [--gateway http://localhost:8000] [--timeout 5]
@@ -3878,6 +4006,7 @@ async function cmdInteractive() {
         completer: (line) => {
             const completions = [
                 'doctor', 'role', 'status', 'health', 'logs', 'audit',
+                'admin:list', 'admin:create', 'admin:disable', 'admin:verify', 'admin:logs',
                 'tui', 'ai', 'ai status', 'ai workflows',
                 'metrics status', 'alerts list', 'costs summary',
                 'monitor cache', 'monitor error-budget',
@@ -3933,7 +4062,10 @@ async function cmdInteractive() {
 // ---------------------------------------------------------------------------
 
 async function main() {
-    const [, , command, ...rawArgs] = process.argv;
+    const [, , rawCommand, ...rawArgs] = process.argv;
+    const command = rawCommand === 'admin' && rawArgs[0]
+        ? `admin:${String(rawArgs[0]).toLowerCase()}`
+        : rawCommand;
 
     if (!command || ['help', '--help', '-h'].includes(command)) {
         // If stdin is a TTY and no command given, start interactive mode
@@ -4012,6 +4144,11 @@ async function main() {
             case 'restart': cmdRestart(rawArgs); break;
             case 'status': cmdStatus(rawArgs); break;
             case 'logs': cmdLogs(rawArgs); break;
+            case 'admin:list': await cmdAdmin(['list', ...rawArgs]); break;
+            case 'admin:create': await cmdAdmin(['create', ...rawArgs]); break;
+            case 'admin:disable': await cmdAdmin(['disable', ...rawArgs]); break;
+            case 'admin:verify': await cmdAdmin(['verify', ...rawArgs]); break;
+            case 'admin:logs': await cmdAdmin(['logs', ...rawArgs]); break;
             case 'health': cmdHealth(rawArgs); break;
             case 'backup': cmdBackup(rawArgs); break;
             case 'monitor': cmdMonitor(rawArgs); break;

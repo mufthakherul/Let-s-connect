@@ -13,6 +13,7 @@ import {
 } from '@mui/icons-material';
 import { streamingService } from '../utils/streamingService';
 import { getApiBaseUrl } from '../utils/api';
+import config from '../config/api';
 import toast from 'react-hot-toast';
 import shaka from 'shaka-player/dist/shaka-player.ui';
 import 'shaka-player/dist/controls.css';
@@ -70,8 +71,7 @@ const TV = () => {
     const reactionCounterRef = useRef(0);
 
     useEffect(() => {
-        const messagingUrl = (window._env_?.REACT_APP_MESSAGING_SERVICE_URL || process.env.REACT_APP_MESSAGING_SERVICE_URL || 'http://localhost:3002');
-        const socket = io(messagingUrl, { transports: ['websocket', 'polling'] });
+        const socket = io(config.MESSAGING_SERVICE_URL, { transports: ['websocket', 'polling'], withCredentials: true });
         socketRef.current = socket;
 
         socket.on('stream-reaction', (data) => {

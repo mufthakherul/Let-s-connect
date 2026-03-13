@@ -59,6 +59,11 @@ const COMMAND_POLICY = {
     remediate: 'viewer',
     cluster: 'operator',
     trends: 'viewer',
+    'admin:list': 'viewer',
+    'admin:create': 'admin',
+    'admin:disable': 'admin',
+    'admin:verify': 'viewer',
+    'admin:logs': 'viewer',
     // Phase F (Q2 2026)
     plugins: 'viewer',
     'plugin-run': 'operator',

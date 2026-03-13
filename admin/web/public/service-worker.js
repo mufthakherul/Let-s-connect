@@ -3,6 +3,9 @@
 // generate a new cache version on each build/refresh by using timestamp
 const CACHE_VERSION = `v${Date.now()}`;
 const CACHE_NAME = `milonexa-${CACHE_VERSION}`;
+const SW_DEBUG = false;
+const swLog = (...args) => { if (SW_DEBUG) console.log(...args); };
+const swWarn = (...args) => { if (SW_DEBUG) console.warn(...args); };
 
 // Assets to cache on install
 const STATIC_ASSETS = [
@@ -24,10 +27,10 @@ const API_CACHE_MAX_AGE = 2 * 60 * 1000;
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
-  console.log('[Service Worker] Installing...');
+  swLog('[Service Worker] Installing...');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Caching static assets');
+      swLog('[Service Worker] Caching static assets');
       return cache.addAll(STATIC_ASSETS);
     }).then(() => {
       // Force the waiting service worker to become active
@@ -38,13 +41,13 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('[Service Worker] Activating...');
+  swLog('[Service Worker] Activating...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
-            console.log('[Service Worker] Deleting old cache:', cacheName);
+            swLog('[Service Worker] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -106,7 +109,7 @@ async function cacheFirstStrategy(request) {
 
     return networkResponse;
   } catch (error) {
-    console.error('[Service Worker] Fetch failed:', error);
+    swWarn('[Service Worker] Fetch failed:', error);
 
     // Return offline page for navigation requests
     if (request.mode === 'navigate') {
@@ -116,11 +119,7 @@ async function cacheFirstStrategy(request) {
       }
     }
 
-    // Return a basic error response
-    return new Response('Network error', {
-      status: 408,
-      headers: { 'Content-Type': 'text/plain' }
-    });
+    return Response.error();
   }
 }
 

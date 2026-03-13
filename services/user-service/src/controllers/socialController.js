@@ -301,6 +301,20 @@ exports.getFriendSuggestions = catchAsync(async (req, res, next) => {
     return response.success(req, res, suggestions);
 });
 
+exports.getFollowing = catchAsync(async (req, res, next) => {
+    const requesterId = req.header('x-user-id');
+    if (!requesterId) return next(new AppError('Authentication required', 401, 'UNAUTHENTICATED'));
+
+    const targetUserId = req.params.userId || requesterId;
+
+    const rows = await Friend.findAll({
+        where: { userId: targetUserId, type: 'follow' },
+        attributes: ['friendId']
+    });
+
+    return response.success(req, res, { following: rows.map((row) => row.friendId) });
+});
+
 exports.followUser = catchAsync(async (req, res, next) => {
     const { userId: targetId } = req.params;
     const userId = req.header('x-user-id');
@@ -323,4 +337,3 @@ exports.unfollowUser = catchAsync(async (req, res, next) => {
     await Friend.destroy({ where: { userId, friendId: targetId, type: 'follow' } });
     return response.success(req, res, null, { message: 'Unfollowed successfully' });
 });
-

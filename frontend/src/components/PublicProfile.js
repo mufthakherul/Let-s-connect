@@ -45,8 +45,8 @@ function PublicProfile({ user }) {
     const fetchFollowing = async () => {
         try {
             if (!user?.id) return;
-            const response = await api.get(`/content/follows/${user.id}`);
-            setFollowingIds(response.data?.following || []);
+            const response = await api.get('/user/social/friends/following');
+            setFollowingIds(response.data?.data?.following || response.data?.following || []);
         } catch (error) {
             console.error('Failed to load following list:', error);
         }
@@ -57,10 +57,10 @@ function PublicProfile({ user }) {
         const isFollowing = followingIds.includes(profileUser.id);
         try {
             if (isFollowing) {
-                await api.delete(`/content/follows/${profileUser.id}`);
+                await api.delete(`/user/social/friends/${profileUser.id}/follow`);
                 setFollowingIds((prev) => prev.filter((followId) => followId !== profileUser.id));
             } else {
-                await api.post('/content/follows', { followedId: profileUser.id });
+                await api.post(`/user/social/friends/${profileUser.id}/follow`);
                 setFollowingIds((prev) => [...prev, profileUser.id]);
             }
         } catch (error) {

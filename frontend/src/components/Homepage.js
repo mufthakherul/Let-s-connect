@@ -290,8 +290,8 @@ function Homepage({ user }) {
 
     const fetchFollowing = async () => {
         try {
-            const response = await api.get(`/content/follows/${user.id}`);
-            setFollowingIds(response.data?.following || []);
+            const response = await api.get('/user/social/friends/following');
+            setFollowingIds(response.data?.data?.following || response.data?.following || []);
         } catch (error) {
             console.error('Failed to fetch following list:', error);
         }
@@ -302,11 +302,11 @@ function Homepage({ user }) {
         const isFollowing = followingIds.includes(authorId);
         try {
             if (isFollowing) {
-                await api.delete(`/content/follows/${authorId}`);
+                await api.delete(`/user/social/friends/${authorId}/follow`);
                 setFollowingIds((prev) => prev.filter((id) => id !== authorId));
                 toast.success('Unfollowed');
             } else {
-                await api.post('/content/follows', { followedId: authorId });
+                await api.post(`/user/social/friends/${authorId}/follow`);
                 setFollowingIds((prev) => [...prev, authorId]);
                 toast.success('Now following');
             }
