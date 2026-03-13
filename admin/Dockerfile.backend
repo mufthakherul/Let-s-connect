@@ -17,6 +17,7 @@ WORKDIR /app
 
 # Copy shared libs first (used by all services)
 COPY shared/ ./shared/
+COPY bot/pagerduty/ ./bot/pagerduty/
 COPY config.js ./
 
 # Copy the specific service directory
