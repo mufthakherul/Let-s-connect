@@ -138,6 +138,11 @@ export async function registerBackgroundSync(tag) {
       console.log(`[PWA] Background sync registered: ${tag}`);
       return true;
     } catch (error) {
+      const message = String(error?.message || error);
+      if (error?.name === 'UnknownError' || /disabled/i.test(message)) {
+        console.info('[PWA] Background sync unavailable in this browser context');
+        return false;
+      }
       console.error('[PWA] Background sync registration failed:', error);
       return false;
     }

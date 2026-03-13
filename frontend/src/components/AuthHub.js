@@ -42,18 +42,25 @@ import { useTheme } from '@mui/material/styles';
 import {
   ArrowBack,
   CheckCircle,
+  Chat,
   Close,
   ContentCopy,
+  Description,
   DevicesOther,
   Email as EmailIcon,
   GitHub,
   LockOutlined,
   PersonAdd,
+  Radio,
   Shield,
+  ShoppingCart,
   TravelExplore,
+  Tv,
+  VideoLibrary,
   Visibility,
   VisibilityOff,
   Warning,
+  Groups,
 } from '@mui/icons-material';
 
 import api from '../utils/api';

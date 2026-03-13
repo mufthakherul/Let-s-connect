@@ -39,7 +39,14 @@ const AI_STATE_DIR   = path.join(ADMIN_HOME, 'ai');
 const DOC_INTEL_DIR  = path.join(AI_STATE_DIR, 'doc-intelligence');
 const PROJECT_ROOT   = path.resolve(__dirname, '..', '..', '..');
 const SERVICES_DIR   = path.join(PROJECT_ROOT, 'services');
-const DOCS_OUTPUT    = process.env.DOC_OUTPUT_DIR || path.join(PROJECT_ROOT, 'docs', 'generated');
+let DOCS_OUTPUT      = process.env.DOC_OUTPUT_DIR || path.join(PROJECT_ROOT, 'docs', 'generated');
+const LOG_SERVICE    = 'ADMIN-AI';
+const LOG_MODULE     = 'DOC-INTELLIGENCE';
+
+function log(level, message) {
+    const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    console.log(`[${ts}] [${LOG_SERVICE}] [${LOG_MODULE}] [${level}] ${message}`);
+}
 
 /** Target languages for translation (if configured). */
 function targetLanguages() {
@@ -90,12 +97,12 @@ class DocIntelligence {
      * @returns {Promise<object>}
      */
     async analyze(llmFn, permGate) {
-        console.log('[doc-intelligence] Starting documentation intelligence analysis…');
+        log('INFO', 'Starting documentation intelligence analysis');
         this._lastRunAt = new Date().toISOString();
 
         // 1. Determine which services have changed (diff-based).
         const changedServices = await this._getChangedServices();
-        console.log(`[doc-intelligence] Changed services: ${changedServices.length > 0 ? changedServices.join(', ') : 'none'}`);
+        log('INFO', `Changed services: ${changedServices.length > 0 ? changedServices.join(', ') : 'none'}`);
 
         // 2. OpenAPI spec generation (only for changed services, or all if first run).
         const targetServices = changedServices.length > 0 ? changedServices : SERVICE_NAMES;
@@ -108,7 +115,7 @@ class DocIntelligence {
                     this._saveOpenAPISpec(svc, spec);
                 }
             } catch (e) {
-                console.error(`[doc-intelligence] OpenAPI spec error (${svc}):`, e.message);
+                log('ERROR', `OpenAPI spec error (${svc}): ${e.message}`);
             }
         }
         this._openApiSpecs = [...this._openApiSpecs.filter(s => !targetServices.includes(s.service)), ...newSpecs];
@@ -122,7 +129,7 @@ class DocIntelligence {
                 this._saveChangelog(changelogEntry);
             }
         } catch (e) {
-            console.error('[doc-intelligence] Changelog error:', e.message);
+            log('ERROR', `Changelog error: ${e.message}`);
         }
 
         // 4. Runbook generation (changed services only).
@@ -132,10 +139,10 @@ class DocIntelligence {
                 if (runbook) {
                     this._runbooks = [...this._runbooks.filter(r => r.service !== svc), runbook];
                     this._saveRunbook(svc, runbook.content);
-                    console.log(`[doc-intelligence] Runbook generated for ${svc}`);
+                    log('INFO', `Runbook generated for ${svc}`);
                 }
             } catch (e) {
-                console.error(`[doc-intelligence] Runbook error (${svc}):`, e.message);
+                log('ERROR', `Runbook error (${svc}): ${e.message}`);
             }
         }
 
@@ -167,7 +174,7 @@ class DocIntelligence {
             translations:     this._translations.length,
         };
 
-        console.log(`[doc-intelligence] Done: ${newSpecs.length} specs, ${this._runbooks.length} runbooks, ${this._translations.length} translations`);
+        log('INFO', `Done: ${newSpecs.length} specs, ${this._runbooks.length} runbooks, ${this._translations.length} translations`);
         return summary;
     }
 
@@ -610,7 +617,7 @@ class DocIntelligence {
                         if (!fs.existsSync(langDir)) fs.mkdirSync(langDir, { recursive: true });
                         try { fs.writeFileSync(path.join(langDir, `${runbook.service}.md`), translated, 'utf8'); } catch (_) {}
 
-                        console.log(`[doc-intelligence] Translated ${runbook.service} runbook to ${lang}`);
+                        log('INFO', `Translated ${runbook.service} runbook to ${lang}`);
                     }
                 } catch (_) {}
             }
@@ -619,9 +626,20 @@ class DocIntelligence {
 
     /** @private */
     _ensureDirs() {
-        [AI_STATE_DIR, DOC_INTEL_DIR, DOCS_OUTPUT].forEach(d => {
+        [AI_STATE_DIR, DOC_INTEL_DIR].forEach(d => {
             if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
         });
+
+        try {
+            if (!fs.existsSync(DOCS_OUTPUT)) fs.mkdirSync(DOCS_OUTPUT, { recursive: true });
+            fs.accessSync(DOCS_OUTPUT, fs.constants.W_OK);
+        } catch (err) {
+            const fallback = path.join(AI_STATE_DIR, 'docs-generated');
+            if (!fs.existsSync(fallback)) fs.mkdirSync(fallback, { recursive: true });
+            fs.accessSync(fallback, fs.constants.W_OK);
+            log('WARN', `DOC_OUTPUT_DIR '${DOCS_OUTPUT}' is not writable (${err.message}). Falling back to '${fallback}'`);
+            DOCS_OUTPUT = fallback;
+        }
     }
 }
 
