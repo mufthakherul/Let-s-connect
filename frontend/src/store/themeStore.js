@@ -46,7 +46,7 @@ const initializeAccessibilitySettings = () => {
     magnification: 1.0,
     reducedMotion: false,
     fontFamily: 'default',
-    glassmorphism: true,
+    glassmorphism: false,
   };
 
   const saved = getJSON('accessibility-settings', null);
@@ -101,7 +101,7 @@ export const useThemeStore = create((set, get) => ({
       magnification: 1.0,
       reducedMotion: false,
       fontFamily: 'default',
-      glassmorphism: true,
+      glassmorphism: false,
     };
     try {
       setJSON('accessibility-settings', defaultSettings);
@@ -126,8 +126,9 @@ export const useThemeStore = create((set, get) => ({
   },
 
   toggleGlassmorphism: () => set((state) => {
-    const newValue = !state.accessibility.glassmorphism;
-    const newAccessibility = { ...state.accessibility, glassmorphism: newValue };
+    // Glass mode has been retired in favor of standard design system surfaces.
+    // Keep this action for backward compatibility, but always force false.
+    const newAccessibility = { ...state.accessibility, glassmorphism: false };
     try {
       setJSON('accessibility-settings', newAccessibility);
     } catch (error) {

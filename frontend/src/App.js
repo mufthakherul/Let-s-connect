@@ -8,7 +8,7 @@ import { useLocation } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/authStore';
-import { designTokens, getGlassyStyle } from './theme/designSystem';
+import { designTokens } from './theme/designSystem';
 import AppProviders from './providers/AppProviders';
 import MainLayout from './layouts/MainLayout';
 import AppRoutes from './routing/AppRoutes';
@@ -41,7 +41,6 @@ function AppContent() {
         const {
             textScale = 1,
             highContrast = false,
-            glassmorphism = false,
             fontFamily = 'default',
         } = accessibility || {};
 
@@ -128,7 +127,6 @@ function AppContent() {
                 MuiAppBar: {
                     styleOverrides: {
                         root: {
-                            ...(glassmorphism ? getGlassyStyle(mode) : {}),
                             backgroundColor: mode === 'dark' ? '#1e293b' : '#ffffff',
                             color: mode === 'dark' ? '#f8fafc' : '#0f172a',
                             backgroundImage: 'none',
@@ -140,7 +138,6 @@ function AppContent() {
                 MuiDrawer: {
                     styleOverrides: {
                         paper: {
-                            ...(glassmorphism ? getGlassyStyle(mode) : {}),
                             backgroundImage: 'none',
                             borderRight: `1px solid ${designTokens.colors[mode].border}`,
                         },
@@ -149,12 +146,6 @@ function AppContent() {
                 MuiCard: {
                     styleOverrides: {
                         root: {
-                            ...(glassmorphism
-                                ? {
-                                    backgroundColor: mode === 'dark' ? 'rgba(30, 41, 59, 0.4)' : 'rgba(255, 255, 255, 0.4)',
-                                    backdropFilter: 'blur(8px)',
-                                }
-                                : {}),
                             borderRadius: 16,
                             border: `1px solid ${designTokens.colors[mode].border}`,
                             boxShadow: mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.05)',

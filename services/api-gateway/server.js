@@ -55,6 +55,35 @@ const INTERNAL_GATEWAY_TOKEN = getRequiredEnv('INTERNAL_GATEWAY_TOKEN');
 // secret token used by admin frontend/backend for extra protection
 const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || 'change-me';
 
+// In-memory feedback moderation store for public landing testimonials.
+// NOTE: This is intentionally lightweight for the gateway layer. For production
+// durability, replace with persistent storage in a dedicated service.
+const feedbackStore = {
+  seq: 1,
+  pending: [],
+  approved: [],
+  rejected: []
+};
+
+const FEEDBACK_ALLOWED_CATEGORIES = new Set([
+  'feature-request',
+  'bug-report',
+  'improvement',
+  'praise',
+  'other'
+]);
+
+const sanitizeText = (value, maxLength) => {
+  if (typeof value !== 'string') return '';
+  return value.trim().replace(/\s+/g, ' ').slice(0, maxLength);
+};
+
+const clampRating = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, Math.min(5, Math.round(parsed * 10) / 10));
+};
+
 const proxy = (target, options = {}) => {
   // Extract service name from target URL for resilience config
   const serviceName = target.match(/http:\/\/([^-:]+)/)?.[1] || 'unknown';
@@ -205,7 +234,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'X-User-Id', 'X-API-Version'],
+  allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'X-User-Id', 'X-API-Version', 'X-Admin-Secret'],
   exposedHeaders: [
     'X-API-Version',
     'X-API-Latest-Version',
@@ -886,6 +915,8 @@ const publicRoutes = [
   '/api/user/check-email',
   '/api/user/public/stats',
   '/api/public/',
+  '/api/public/feedback',
+  '/api/public/testimonials',
   '/api/auth/oauth/google/authorize',
   '/api/auth/oauth/google/callback',
   '/api/auth/oauth/github/authorize',
@@ -965,6 +996,167 @@ app.get('/api/public/stats', (req, res) => {
       services: Object.keys(services).length,
       features: 10,
       userCount: 52000
+    }
+  });
+});
+
+app.post('/api/public/feedback', (req, res) => {
+  const category = sanitizeText(req.body?.category, 60);
+  const subject = sanitizeText(req.body?.subject, 120);
+  const message = sanitizeText(req.body?.message, 1000);
+  const displayName = sanitizeText(req.body?.displayName || 'Community Member', 60) || 'Community Member';
+  const rating = clampRating(req.body?.rating);
+
+  if (!FEEDBACK_ALLOWED_CATEGORIES.has(category)) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'INVALID_CATEGORY', message: 'Feedback category is invalid.' }
+    });
+  }
+
+  if (!subject || subject.length < 3) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'INVALID_SUBJECT', message: 'Subject must be at least 3 characters.' }
+    });
+  }
+
+  if (!message || message.length < 10) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'INVALID_MESSAGE', message: 'Feedback message must be at least 10 characters.' }
+    });
+  }
+
+  const entry = {
+    id: String(feedbackStore.seq++),
+    category,
+    subject,
+    message,
+    rating,
+    displayName,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    source: 'landing'
+  };
+
+  feedbackStore.pending.unshift(entry);
+
+  return res.status(201).json({
+    success: true,
+    data: {
+      id: entry.id,
+      status: entry.status,
+      message: 'Feedback submitted successfully and is awaiting moderation.'
+    }
+  });
+});
+
+app.get('/api/public/testimonials', (req, res) => {
+  const limit = Math.min(12, Math.max(1, parseInt(req.query.limit, 10) || 6));
+  const minRating = clampRating(req.query.minRating);
+
+  const visible = feedbackStore.approved
+    .filter((item) => (minRating === null ? true : Number(item.rating || 0) >= minRating))
+    .slice(0, limit)
+    .map((item) => ({
+      id: item.id,
+      displayName: item.displayName,
+      role: item.role || 'Community Member',
+      message: item.message,
+      rating: item.rating,
+      approvedAt: item.approvedAt
+    }));
+
+  return res.json({
+    success: true,
+    data: {
+      testimonials: visible,
+      total: feedbackStore.approved.length
+    }
+  });
+});
+
+app.get('/api/admin/feedback/pending', requireAdminSecret, (req, res) => {
+  return res.json({
+    success: true,
+    data: {
+      pending: feedbackStore.pending,
+      count: feedbackStore.pending.length
+    }
+  });
+});
+
+app.get('/api/admin/feedback/approved', requireAdminSecret, (req, res) => {
+  return res.json({
+    success: true,
+    data: {
+      approved: feedbackStore.approved,
+      count: feedbackStore.approved.length
+    }
+  });
+});
+
+app.post('/api/admin/feedback/:id/approve', requireAdminSecret, (req, res) => {
+  const { id } = req.params;
+  const idx = feedbackStore.pending.findIndex((item) => item.id === id);
+
+  if (idx === -1) {
+    return res.status(404).json({
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Pending feedback entry not found.' }
+    });
+  }
+
+  const item = feedbackStore.pending.splice(idx, 1)[0];
+  const role = sanitizeText(req.body?.role || 'Community Member', 80) || 'Community Member';
+  const displayName = sanitizeText(req.body?.displayName || item.displayName, 60) || 'Community Member';
+  const approved = {
+    ...item,
+    status: 'approved',
+    role,
+    displayName,
+    approvedAt: new Date().toISOString(),
+    approvedBy: 'admin'
+  };
+
+  feedbackStore.approved.unshift(approved);
+
+  return res.json({
+    success: true,
+    data: {
+      id,
+      status: 'approved'
+    }
+  });
+});
+
+app.post('/api/admin/feedback/:id/reject', requireAdminSecret, (req, res) => {
+  const { id } = req.params;
+  const idx = feedbackStore.pending.findIndex((item) => item.id === id);
+
+  if (idx === -1) {
+    return res.status(404).json({
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Pending feedback entry not found.' }
+    });
+  }
+
+  const item = feedbackStore.pending.splice(idx, 1)[0];
+  const reason = sanitizeText(req.body?.reason || 'Rejected by moderator', 200);
+
+  feedbackStore.rejected.unshift({
+    ...item,
+    status: 'rejected',
+    rejectedAt: new Date().toISOString(),
+    reason
+  });
+
+  return res.json({
+    success: true,
+    data: {
+      id,
+      status: 'rejected'
     }
   });
 });
@@ -1272,7 +1464,7 @@ app.post('/api/analytics/vitals', (req, res) => {
     // Store in Redis with short TTL for real-time dashboards; log for aggregation
     if (redisClient && redisClient.status === 'ready') {
       const key = `vitals:${metric.name}:${Date.now()}`;
-      redisClient.setEx(key, 86400, JSON.stringify(metric)).catch(() => {});
+      redisClient.setEx(key, 86400, JSON.stringify(metric)).catch(() => { });
     }
     logger.info({ name: metric.name, value: metric.value, rating: metric.rating, url: metric.url }, '[Vitals]');
   }

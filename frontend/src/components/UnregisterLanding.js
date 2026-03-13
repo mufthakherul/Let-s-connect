@@ -1,16 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, useMotionValue, useSpring, useInView } from 'framer-motion';
 import ErrorBoundary from './common/ErrorBoundary';
 import {
     Typography, Box, Button, Grid, Card, CardContent, Container, useTheme,
-    Paper, Chip, Stack, Collapse, useMediaQuery, Avatar
+    Paper, Chip, Stack, useMediaQuery, Avatar, Divider
 } from '@mui/material';
 import {
     Speed, Security, CloudDone, Groups, Chat, VideoLibrary,
     ShoppingCart, Description, VerifiedUser, Event, Lock, Radio, Tv, Pages as PagesIcon
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
-import { designTokens, getGlassyStyle } from '../theme/designSystem';
+import { designTokens } from '../theme/designSystem';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import api from '../utils/api';
 
@@ -34,11 +34,10 @@ function AnimatedCounter({ to, prefix = '', suffix = '' }) {
 
 function UnregisterLanding() {
     const theme = useTheme();
-    // use the new API (motion.create) so we avoid the deprecated call
     const MotionCard = motion.create ? motion.create(Card) : motion(Card);
     const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
-    const [expandedIndex, setExpandedIndex] = useState(null);
     const [userCount, setUserCount] = useState(50000);
+    const [approvedTestimonials, setApprovedTestimonials] = useState([]);
 
     const mode = theme.palette.mode;
     const brandGradient = `linear-gradient(135deg, ${designTokens.colors[mode].primary}, ${designTokens.colors[mode].secondary})`;
@@ -84,13 +83,23 @@ function UnregisterLanding() {
         }
     }, []);
 
-    // Fetch live user count from public stats endpoint
     useEffect(() => {
         api.get('/api/public/stats').then(res => {
             const count = res?.data?.data?.userCount;
             if (typeof count === 'number' && Number.isFinite(count)) setUserCount(count);
         }).catch((err) => {
             console.debug('[UnregisterLanding] Could not fetch public stats:', err?.message);
+        });
+    }, []);
+
+    useEffect(() => {
+        api.get('/api/public/testimonials?limit=6').then((res) => {
+            const testimonials = res?.data?.data?.testimonials;
+            if (Array.isArray(testimonials)) {
+                setApprovedTestimonials(testimonials);
+            }
+        }).catch((err) => {
+            console.debug('[UnregisterLanding] Could not fetch public testimonials:', err?.message);
         });
     }, []);
 
@@ -170,7 +179,6 @@ function UnregisterLanding() {
         { icon: <VerifiedUser sx={{ color: 'secondary.main' }} />, text: 'Enterprise-ready' },
     ];
 
-    // Motion variants
     const container = {
         hidden: { opacity: 0, y: 12 },
         visible: { opacity: 1, y: 0, transition: { staggerChildren: 0.12, when: 'beforeChildren' } }
@@ -184,7 +192,7 @@ function UnregisterLanding() {
     const cardVariant = {
         hidden: { opacity: 0, y: 8, scale: 0.98 },
         visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.45, ease: 'easeOut' } },
-        hover: { y: -8, scale: 1.02, boxShadow: '0 10px 30px rgba(2,6,23,0.12)' }
+        hover: { y: -6, scale: 1.01 }
     };
 
     const floatIcon = prefersReducedMotion
@@ -221,11 +229,7 @@ function UnregisterLanding() {
                     position: 'relative',
                     overflow: 'hidden',
                     zIndex: 1,
-                    // Ensure content is always visible regardless of theme
                     isolation: 'isolate',
-                    // make sure the landing page always extends at least to the
-                    // bottom of the viewport so returning visitors don't see a
-                    // blank gap when the scroll position is preserved
                     minHeight: '100vh',
                     pb: 2,
                 }}
@@ -400,10 +404,10 @@ function UnregisterLanding() {
                                 variant="outlined"
                                 size="large"
                                 component={Link}
-                                to="/helpcenter"
+                                to="/helpcenter/feedback"
                                 sx={{ px: 4, py: 1.5 }}
                             >
-                                See Plans
+                                Share Feedback
                             </Button>
                         </motion.div>
 
@@ -423,7 +427,6 @@ function UnregisterLanding() {
 
                 {/* Social Proof Section */}
                 <Box sx={{ mb: 8, position: 'relative', zIndex: 2 }} component={motion.div} variants={fadeInUp}>
-                    {/* Animated stat cards */}
                     <Grid container spacing={2} sx={{ mb: 6, justifyContent: 'center' }}>
                         {[
                             { label: 'Users', to: userCount >= 1000 ? Math.round(userCount / 1000) : userCount, suffix: userCount >= 1000 ? 'K+' : '+' },
@@ -432,7 +435,16 @@ function UnregisterLanding() {
                             { label: 'Countries', to: 150, suffix: '+' },
                         ].map((stat, i) => (
                             <Grid item xs={6} sm={3} key={i} component={motion.div} variants={cardVariant}>
-                                <Paper elevation={0} sx={{ textAlign: 'center', p: { xs: 2, sm: 3 }, borderRadius: 3, ...getGlassyStyle(mode) }}>
+                                <Paper
+                                    elevation={0}
+                                    sx={{
+                                        textAlign: 'center',
+                                        p: { xs: 2, sm: 3 },
+                                        borderRadius: 3,
+                                        border: `1px solid ${theme.palette.divider}`,
+                                        backgroundColor: 'background.paper'
+                                    }}
+                                >
                                     <Typography variant="h4" fontWeight="800" sx={{
                                         background: brandGradient,
                                         WebkitBackgroundClip: 'text',
@@ -445,33 +457,6 @@ function UnregisterLanding() {
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary" fontWeight={600}>
                                         {stat.label}
-                                    </Typography>
-                                </Paper>
-                            </Grid>
-                        ))}
-                    </Grid>
-
-                    {/* Testimonials */}
-                    <Typography variant="h5" fontWeight="bold" textAlign="center" sx={{ mb: 3 }}>
-                        What our users say
-                    </Typography>
-                    <Grid container spacing={3} sx={{ mb: 5 }}>
-                        {[
-                            { name: 'Alex Rivera', role: 'Content Creator', text: 'Milonexa replaced 4 apps for me. The seamless feed, chat, and video platform in one place is a game changer.', initials: 'AR', color: 'primary.main' },
-                            { name: 'Priya Sharma', role: 'Community Manager', text: 'The real-time collaboration tools and Pages feature helped us grow our community 3× in just two months.', initials: 'PS', color: 'secondary.main' },
-                            { name: 'Marcus Chen', role: 'Tech Entrepreneur', text: 'Enterprise-grade security with a consumer-friendly UX. I finally found a platform I trust for both personal and professional use.', initials: 'MC', color: 'success.main' },
-                        ].map((t, i) => (
-                            <Grid item xs={12} md={4} key={i} component={motion.div} variants={cardVariant}>
-                                <Paper elevation={0} sx={{ p: 3, borderRadius: 3, height: '100%', ...getGlassyStyle(mode) }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                                        <Avatar sx={{ bgcolor: t.color, fontWeight: 700 }}>{t.initials}</Avatar>
-                                        <Box>
-                                            <Typography variant="subtitle2" fontWeight={700}>{t.name}</Typography>
-                                            <Typography variant="caption" color="text.secondary">{t.role}</Typography>
-                                        </Box>
-                                    </Box>
-                                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                                        "{t.text}"
                                     </Typography>
                                 </Paper>
                             </Grid>
@@ -495,7 +480,7 @@ function UnregisterLanding() {
                                         color: 'text.secondary',
                                         letterSpacing: 0.5,
                                         cursor: 'default',
-                                        ...getGlassyStyle(mode),
+                                        backgroundColor: 'background.paper',
                                     }}>
                                     {logo}
                                 </Box>
@@ -510,10 +495,6 @@ function UnregisterLanding() {
                         <Typography component={motion.h2} variant="h4" fontWeight="bold" sx={{ mb: { xs: 1, md: 0 } }}>
                             Features
                         </Typography>
-
-                        <Typography variant="caption" color="text.secondary" sx={{ textAlign: { xs: 'center', md: 'right' }, fontStyle: 'italic' }}>
-                            Tap or click a card to reveal more details
-                        </Typography>
                     </Box>
 
                     <Grid container spacing={3}>
@@ -522,23 +503,19 @@ function UnregisterLanding() {
                                 <MotionCard
                                     variants={cardVariant}
                                     initial="hidden"
-                                    onClick={() => setExpandedIndex(expandedIndex === index ? null : index)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedIndex(expandedIndex === index ? null : index); } }}
-                                    role="button"
-                                    tabIndex={0}
-                                    aria-expanded={expandedIndex === index}
                                     sx={{
                                         height: '100%',
                                         minHeight: 250,
-                                        cursor: 'pointer',
-                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                        outline: expandedIndex === index ? `2px solid ${theme.palette.primary.light}` : 'none',
-                                        ...getGlassyStyle(mode),
+                                        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                                         borderRadius: 4,
+                                        border: `1px solid ${theme.palette.divider}`,
+                                        backgroundColor: 'background.paper',
                                         '&:hover': {
-                                            transform: 'translateY(-8px)',
-                                            boxShadow: designTokens.glassmorphism[mode].boxShadow,
-                                            borderColor: designTokens.colors[mode].primary,
+                                            transform: 'translateY(-6px)',
+                                            boxShadow: mode === 'dark'
+                                                ? '0 14px 28px rgba(0,0,0,0.45)'
+                                                : '0 14px 28px rgba(15, 23, 42, 0.12)',
+                                            borderColor: theme.palette.primary.main,
                                         }
                                     }}
                                 >
@@ -693,6 +670,82 @@ function UnregisterLanding() {
                         ))}
                     </Stack>
                 </Box>
+
+                {/* Testimonials - intentionally placed at end of the landing content */}
+                <Paper
+                    elevation={0}
+                    sx={{
+                        p: { xs: 3, md: 4 },
+                        mb: 6,
+                        borderRadius: 3,
+                        border: `1px solid ${theme.palette.divider}`,
+                        backgroundColor: 'background.paper',
+                        position: 'relative',
+                        zIndex: 2
+                    }}
+                    component={motion.div}
+                    variants={fadeInUp}
+                >
+                    <Box sx={{ textAlign: 'center', mb: 3 }}>
+                        <Typography variant="h5" fontWeight="bold" gutterBottom>
+                            Community feedback
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Public testimonials are displayed only after admin moderation.
+                        </Typography>
+                    </Box>
+
+                    <Divider sx={{ mb: 3 }} />
+
+                    <Grid container spacing={3}>
+                        {(approvedTestimonials.length > 0 ? approvedTestimonials : [
+                            {
+                                id: 'placeholder',
+                                displayName: 'Your name here',
+                                role: 'Community Member',
+                                message: 'Share your feedback and, once reviewed, it may appear here as a public testimonial.',
+                                rating: 5
+                            }
+                        ]).map((t, i) => (
+                            <Grid item xs={12} md={4} key={t.id || i}>
+                                <Paper
+                                    elevation={0}
+                                    sx={{
+                                        p: 3,
+                                        height: '100%',
+                                        borderRadius: 3,
+                                        border: `1px solid ${theme.palette.divider}`,
+                                        backgroundColor: mode === 'dark' ? 'rgba(15,23,42,0.4)' : '#fff'
+                                    }}
+                                >
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                                        <Avatar sx={{ bgcolor: 'primary.main', fontWeight: 700 }}>
+                                            {(t.displayName || 'C').charAt(0).toUpperCase()}
+                                        </Avatar>
+                                        <Box>
+                                            <Typography variant="subtitle2" fontWeight={700}>{t.displayName}</Typography>
+                                            <Typography variant="caption" color="text.secondary">{t.role || 'Community Member'}</Typography>
+                                        </Box>
+                                    </Box>
+                                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                        "{t.message}"
+                                    </Typography>
+                                    {typeof t.rating === 'number' && t.rating > 0 && (
+                                        <Typography variant="caption" sx={{ display: 'block', mt: 1.5 }} color="text.secondary">
+                                            ★ {t.rating.toFixed(1)} / 5
+                                        </Typography>
+                                    )}
+                                </Paper>
+                            </Grid>
+                        ))}
+                    </Grid>
+
+                    <Box sx={{ textAlign: 'center', mt: 3 }}>
+                        <Button component={Link} to="/helpcenter/feedback" variant="outlined">
+                            Share feedback for review
+                        </Button>
+                    </Box>
+                </Paper>
 
                 {/* CTA Section */}
                 <Paper
