@@ -237,7 +237,7 @@ Adjust `RATE_LIMIT_MAX` based on your expected traffic:
 
 > **Admin interfaces must never be exposed to the public internet.**
 
-### Admin Frontend (`admin_frontend`, port 3001)
+### Admin Frontend (`admin-web`, port 3001)
 
 - [ ] Only start with `--profile admin` when actively needed
 - [ ] Bind to loopback (`127.0.0.1:3001`) or restrict via firewall
@@ -463,7 +463,7 @@ docker run --rm aquasec/trivy image milonexa/api-gateway:latest
 When the admin panel is needed in production:
 
 ```bash
-docker compose --profile admin up -d admin_frontend
+docker compose --profile admin up -d admin-web
 ```
 
 Access only via:

@@ -57,6 +57,9 @@ Access platform:
 - [CI/CD Pipeline](./CI_CD.md) — GitHub Actions setup
 - [Production Hardening](./PRODUCTION.md) — Security setup
 - [Reverse Proxy](./REVERSE_PROXY.md) — Nginx/Caddy config
+- [Operations Runbook](./OPERATIONS_RUNBOOK.md) — Incident response and service recovery workflows
+- [Disaster Recovery](./DISASTER_RECOVERY.md) — RTO/RPO, backup/restore, and DR drills
+- [Service Ownership & On-Call](./SERVICE_OWNERSHIP_ONCALL.md) — Operational ownership and escalation matrix
 
 ---
 

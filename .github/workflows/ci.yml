@@ -294,10 +294,73 @@ jobs:
           echo ""
           echo "✅ Flaky test detection framework configured"
 
+  docs-quality:
+    name: Docs Quality Checks
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Markdown lint (advisory)
+        run: |
+          npm install --no-save markdownlint-cli@0.42.0
+          npx markdownlint \
+            README.md CONTRIBUTING.md TESTING.md \
+            docs/**/*.md \
+            --disable MD013 || echo "Markdown lint warnings found (advisory)"
+
+      - name: Internal markdown link check (advisory)
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          root = Path('.')
+          targets = [Path('README.md'), Path('CONTRIBUTING.md'), Path('TESTING.md'), Path('docs')]
+          md_files = []
+          for t in targets:
+            if t.is_file() and t.suffix == '.md':
+              md_files.append(t)
+            elif t.is_dir():
+              md_files.extend(sorted(t.rglob('*.md')))
+
+          link_re = re.compile(r'\[[^\]]*\]\(([^)]+)\)')
+          missing = []
+
+          for f in md_files:
+            text = f.read_text(encoding='utf-8', errors='ignore')
+            for raw in link_re.findall(text):
+              link = raw.strip().split()[0]
+              if link.startswith(('http://', 'https://', 'mailto:', '#')):
+                continue
+              link = link.split('#')[0]
+              if not link:
+                continue
+              candidate = (f.parent / link).resolve()
+              if not candidate.exists():
+                missing.append(f"{f}: {raw}")
+
+          if missing:
+            print('Missing relative markdown links detected:')
+            for m in missing[:200]:
+              print(' -', m)
+            raise SystemExit(1)
+
+          print('Internal markdown link check passed.')
+          PY
+        continue-on-error: true
+
   quality-gates:
     name: Quality Gates Summary
     runs-on: ubuntu-latest
-    needs: [frontend-test, backend-tests, lint-check, e2e-tests, security-audit, critical-path-baseline, coverage-thresholds, flaky-test-detection]
+    needs: [frontend-test, backend-tests, lint-check, e2e-tests, security-audit, critical-path-baseline, coverage-thresholds, flaky-test-detection, docs-quality]
     if: always()
     
     steps:
@@ -314,6 +377,7 @@ jobs:
           echo "  - Critical-path baseline (Workstream G)"
           echo "  - Coverage thresholds validation"
           echo "  - Flaky test detection"
+          echo "  - Docs quality checks (markdown lint + link validation)"
           echo ""
           echo "Workstream G completion:"
           echo "  ✓ G1: Testing pyramid rollout (baseline suites created)"

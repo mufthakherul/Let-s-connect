@@ -26,7 +26,7 @@ Milonexa is built as a microservices platform. This document describes the full 
                     │  ┌─────────────────┐    ┌───────────────────┐  │
                     │  │  React Web App  │    │  Admin Web Panel  │  │
                     │  │   (port 3000)   │    │    (port 3001)    │  │
-                    │  │   frontend/     │    │  admin_frontend/  │  │
+                    │  │   frontend/     │    │    admin/web/     │  │
                     │  └────────┬────────┘    └─────────┬─────────┘  │
                     └───────────┼──────────────────────┼─────────────┘
                                 │ HTTP/WebSocket         │
@@ -80,7 +80,7 @@ Milonexa is built as a microservices platform. This document describes the full 
 | Service | Port | Primary Responsibility |
 |---------|------|----------------------|
 | **frontend** | 3000 | React 18 SPA — full user interface, PWA |
-| **admin_frontend** | 3001 | React admin web panel (Docker profile: admin) |
+| **admin-web** | 3001 | React admin web panel (Docker profile: admin) |
 | **api-gateway** | 8000 | JWT auth, request routing, rate limiting, GraphQL, Swagger |
 | **user-service** | 8001 | Registration, login, OAuth (Google/GitHub/Discord/Apple), profiles, social graph, friends, pages, notifications, 2FA |
 | **content-service** | 8002 | Posts, feed, reactions, comments, groups, communities, blogs, videos, hubs, playlists, discovery |

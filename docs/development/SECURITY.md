@@ -366,12 +366,12 @@ Emergency admin access is logged with extra detail and triggers immediate Slack/
 
 ### Admin Panel Deployment
 
-The admin panel (`admin_frontend`) should only be started when needed:
+The admin panel (`admin-web`) should only be started when needed:
 
 ```bash
-docker compose --profile admin up -d admin_frontend
+docker compose --profile admin up -d admin-web
 # Use when done:
-docker compose stop admin_frontend
+docker compose stop admin-web
 ```
 
 ---

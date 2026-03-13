@@ -9,6 +9,7 @@ This section covers the Milonexa platform architecture, structure, and technolog
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Full system architecture with ASCII diagrams, data flows, service topology |
 | [DIRECTORY_STRUCTURE.md](./DIRECTORY_STRUCTURE.md) | Complete annotated repository directory tree |
 | [TECH_STACK.md](./TECH_STACK.md) | Technology stack — frontend, backend, infrastructure, DevOps |
+| [DOCUMENTATION_GAP_ANALYSIS.md](./DOCUMENTATION_GAP_ANALYSIS.md) | Documentation quality audit and improvement matrix |
 
 ## What Is Milonexa?
 

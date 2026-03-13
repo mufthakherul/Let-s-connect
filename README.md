@@ -6,6 +6,7 @@
 
 A full-featured social platform with real-time messaging, collaborative tools, an AI-powered feed, and a built-in marketplace — all in one open platform.
 
+
 ---
 
 ![Node.js](https://img.shields.io/badge/Node.js-20.x-339933?style=flat-square&logo=node.js&logoColor=white)
@@ -87,7 +88,7 @@ A full-featured social platform with real-time messaging, collaborative tools, a
 
 ```bash
 # 1. Clone
-git clone https://github.com/your-org/Let-s-connect.git && cd Let-s-connect
+git clone https://github.com/mufthakherul/Let-s-connect.git && cd Let-s-connect
 
 # 2. Configure
 cp .env.example .env
@@ -159,6 +160,26 @@ docker compose --profile admin up --build -d
 | [GRAPHQL.md](docs/development/GRAPHQL.md) | GraphQL API documentation |
 | [SECURITY.md](docs/development/SECURITY.md) | Security best practices |
 | [CONTRIBUTING.md](docs/development/CONTRIBUTING.md) | Contribution guide |
+| [TESTING_PLAYBOOK.md](docs/development/TESTING_PLAYBOOK.md) | Advanced test strategy and quality gates |
+| [TROUBLESHOOTING.md](docs/development/TROUBLESHOOTING.md) | Diagnostic workflows and common fixes |
+| [API_LIFECYCLE.md](docs/development/API_LIFECYCLE.md) | API lifecycle, versioning, and deprecation standards |
+| [RELEASE_PROCESS.md](docs/development/RELEASE_PROCESS.md) | Release planning and rollout process |
+| [adr/README.md](docs/development/adr/README.md) | ADR framework and decision history |
+
+### Operations
+
+| Document | Description |
+|---|---|
+| [OPERATIONS_RUNBOOK.md](docs/deployment/OPERATIONS_RUNBOOK.md) | Incident response and operational runbooks |
+| [DISASTER_RECOVERY.md](docs/deployment/DISASTER_RECOVERY.md) | Backup, restore, and recovery strategy |
+| [SERVICE_OWNERSHIP_ONCALL.md](docs/deployment/SERVICE_OWNERSHIP_ONCALL.md) | Service ownership and on-call escalation matrix |
+
+### Wiki
+
+| Document | Description |
+|---|---|
+| [Wiki Home](https://github.com/mufthakherul/Let-s-connect/wiki) | GitHub Wiki for operational and usage knowledge |
+| [Wiki Kit](docs/wiki/README.md) | Ready-to-publish local markdown pages for the wiki |
 
 ### Admin
 

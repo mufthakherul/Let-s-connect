@@ -1,6 +1,8 @@
 # Testing Guide
 
-Testing practices, frameworks, and running tests in Milonexa.
+Testing practices, frameworks, and execution commands for Let-s-connect.
+
+> For the full strategy (pyramid, quality gates, PR evidence), see [TESTING_PLAYBOOK.md](./TESTING_PLAYBOOK.md).
 
 ## Test Frameworks
 
@@ -14,10 +16,10 @@ Testing practices, frameworks, and running tests in Milonexa.
 ### API Gateway
 ```bash
 cd services/api-gateway
-npm test                    # Run all 22 tests
+npm test                    # Run service tests
 npm test -- --watch        # Watch mode
 npm test -- --coverage     # With coverage report
-npm test -- resilience.test.js        # Run specific test file
+npm test -- resilience.test.js        # Run specific test file (example)
 ```
 
 ### Frontend
@@ -30,7 +32,7 @@ npm test -- --coverage     # Coverage
 
 ### E2E Tests
 ```bash
-cd admin_frontend
+cd frontend
 npx playwright test         # Run all E2E tests
 npx playwright test --ui    # Interactive UI mode
 npx playwright test --debug # Debug mode
@@ -41,7 +43,7 @@ npx playwright test --debug # Debug mode
 ```
 services/api-gateway/
 ├── tests/
-│   ├── resilience.test.js      # 22 tests for circuit breakers
+│   ├── resilience.test.js      # Circuit-breaker/resilience test cases
 │   ├── auth.test.js
 │   ├── errors.test.js
 │   └── helpers.js              # Test utilities
@@ -70,9 +72,9 @@ Tests use `NODE_ENV=test`:
 
 ## Coverage
 
-Current coverage: ~85% across services
+Coverage is tracked per service and validated in CI quality gates.
 
-View: `npm test -- --coverage` → `coverage/lcov-report/index.html`
+View local coverage: `npm test -- --coverage` → `coverage/lcov-report/index.html`
 
 ## Best Practices
 

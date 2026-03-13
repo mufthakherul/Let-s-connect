@@ -208,7 +208,7 @@ done
 | Database | Used By | Description |
 |---|---|---|
 | `milonexa` | All application services | Main application database |
-| `admin` | admin_frontend, security-service | Admin panel data |
+| `admin` | admin-web, security-service | Admin panel data |
 | `milonexa_admin` | Admin CLI | Combined admin access |
 
 ### Manual Database Creation
