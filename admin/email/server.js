@@ -60,7 +60,12 @@ const { simpleParser } = require('mailparser');
 // ---------------------------------------------------------------------------
 
 const CLI_PATH = path.join(__dirname, '../cli/index.js');
-const AUDIT_LOG_FILE = path.join(__dirname, '../../.admin-cli/audit.log');
+const REPO_ROOT_CANDIDATE = path.resolve(__dirname, '..', '..');
+const ROOT_DIR = fs.existsSync(path.join(REPO_ROOT_CANDIDATE, 'docker-compose.yml'))
+  ? REPO_ROOT_CANDIDATE
+  : path.resolve(__dirname, '..');
+const ADMIN_HOME = process.env.ADMIN_HOME || path.join(ROOT_DIR, '.admin-cli');
+const AUDIT_LOG_FILE = path.join(ADMIN_HOME, 'audit.log');
 const COMMAND_TIMEOUT_MS = 30_000;
 const MAX_OUTPUT_CHARS = 4_000;
 const RATE_LIMIT_MAX = 5;

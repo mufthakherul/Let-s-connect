@@ -40,8 +40,11 @@ if (process.env.ENABLE_ADMIN_WEBHOOK !== 'true') {
 const PORT        = parseInt(process.env.ADMIN_WEBHOOK_PORT || '8889', 10);
 const HOST        = process.env.ADMIN_WEBHOOK_HOST || '0.0.0.0';
 const SECRET      = process.env.ADMIN_WEBHOOK_SECRET || '';
-const REPO_ROOT   = path.resolve(__dirname, '..', '..');
-const ADMIN_HOME  = process.env.ADMIN_HOME || path.join(REPO_ROOT, '.admin-cli');
+const REPO_ROOT_CANDIDATE = path.resolve(__dirname, '..', '..');
+const ROOT_DIR = fs.existsSync(path.join(REPO_ROOT_CANDIDATE, 'docker-compose.yml'))
+    ? REPO_ROOT_CANDIDATE
+    : path.resolve(__dirname, '..');
+const ADMIN_HOME  = process.env.ADMIN_HOME || path.join(ROOT_DIR, '.admin-cli');
 const STORAGE_DIR = path.join(ADMIN_HOME, 'webhooks');
 const WEBHOOKS_FILE = path.join(STORAGE_DIR, 'webhooks.json');
 const HISTORY_FILE  = path.join(STORAGE_DIR, 'history.json');
