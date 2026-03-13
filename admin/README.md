@@ -95,16 +95,32 @@ docker compose --profile admin-email up admin-email
 # Then send email with subject: [ADMIN-CMD] status
 ```
 
-## CLI Usage (no Docker required)
+## CLI Usage (portable, no global Node required)
+
+Use the launcher scripts below. They run the admin CLI with local Node if available,
+or automatically fall back to Docker (`node:20-alpine`) when Node is not installed.
+
+### Linux / macOS
 
 ```bash
-cd admin/cli
-node index.js doctor
-node index.js status --runtime docker
-node index.js metrics status
-node index.js alerts list
-node index.js dashboard --interval 5
+./scripts/admin-cli.sh doctor
+./scripts/admin-cli.sh status --runtime docker
+./scripts/admin-cli.sh metrics status
+./scripts/admin-cli.sh alerts list
+./scripts/admin-cli.sh dashboard --interval 5
 ```
+
+### Windows (Command Prompt)
+
+```bat
+scripts\admin-cli.bat doctor
+scripts\admin-cli.bat status --runtime docker
+scripts\admin-cli.bat metrics status
+scripts\admin-cli.bat alerts list
+scripts\admin-cli.bat dashboard --interval 5
+```
+
+> If both Node and Docker are missing, the launcher prints a clear setup error.
 
 ## Enabling Multiple Interfaces
 
