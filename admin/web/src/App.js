@@ -4,7 +4,7 @@ import {
   AppBar, Toolbar, Typography, Button, Container, Box, IconButton,
   CssBaseline, ThemeProvider, createTheme, Drawer, List,
   ListItem, ListItemButton, ListItemIcon, ListItemText, useMediaQuery, Divider, Avatar,
-  CircularProgress, Menu, MenuItem, Tooltip, Badge,
+  CircularProgress, Menu, MenuItem, Tooltip, Badge, ListItemAvatar,
   Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import { grey } from '@mui/material/colors';
@@ -12,7 +12,11 @@ import {
   Brightness4, Brightness7, Menu as MenuIcon,
   ExitToApp, Login as LoginIcon,
   Dashboard as DashboardIcon,
-  Settings as SettingsIcon, Close as CloseIcon,
+  Settings as SettingsIcon, Close as CloseIcon, Description,
+  Home as HomeIcon, Search as SearchIcon, People as PeopleIcon,
+  Group as GroupIcon, Apps as AppsIcon, Pages as PagesIcon,
+  ShoppingCart, Event as EventIcon, Article, Radio as RadioIcon,
+  Tv as TvIcon, Chat as ChatIcon, Person, VideoLibrary,
 } from '@mui/icons-material';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

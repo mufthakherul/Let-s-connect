@@ -133,7 +133,7 @@ const CONFIG = {
     statusPort:     parseInt(process.env.AI_STATUS_PORT, 10) || 8890,
     // Shared secret required in `Authorization: Bearer <token>` header for all non-/health routes.
     // If empty, auth is disabled (suitable only for localhost-only deployments).
-    statusToken:    process.env.AI_STATUS_TOKEN || '',
+    statusToken:    process.env.AI_STATUS_TOKEN || process.env.REACT_APP_ADMIN_SECRET || process.env.ADMIN_SECRET || '',
     notifyEvery:    process.env.AI_NOTIFY_EVERY_CYCLE === 'true',
     emergencyNotify: process.env.AI_EMERGENCY_NOTIFY !== 'false',
     autoHeal:       process.env.AI_AUTO_HEAL !== 'false',
@@ -1199,8 +1199,10 @@ function isAuthorized(req, pathname) {
     if (!CONFIG.statusToken) return true; // auth disabled — localhost-only recommended
     if (pathname === '/health') return true; // always public
     const authHeader = req.headers['authorization'] || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-    return token === CONFIG.statusToken;
+    const headerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    const reqUrl = new URL(req.url, `http://localhost:${CONFIG.statusPort}`);
+    const queryToken = reqUrl.searchParams.get('token') || '';
+    return headerToken === CONFIG.statusToken || queryToken === CONFIG.statusToken;
 }
 
 function startStatusServer() {
