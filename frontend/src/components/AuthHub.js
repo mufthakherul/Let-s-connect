@@ -817,7 +817,7 @@ function BrandPanel({ mode }) {
         <Box sx={{ mt: 4, pt: 2, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
           <Typography variant="caption" sx={{ opacity: 0.85 }}>
             {stats.userCount != null
-              ? `${stats.userCount.toLocaleString()} users are already on the platform` 
+              ? `${stats.userCount.toLocaleString()} users are already on the platform`
               : 'Connecting communities of creators and collaborators.'}
           </Typography>
           {stats.totalFeatures != null && (
@@ -1356,7 +1356,7 @@ function RegisterPanel({ onSwitchToLogin, setUser }) {
                   }}
                   helperText={
                     passwordMismatch ? 'Passwords do not match' :
-                    passwordMatch ? 'Passwords match' : ''
+                      passwordMatch ? 'Passwords match' : ''
                   }
                   error={passwordMismatch}
                 />
@@ -1402,9 +1402,9 @@ function RegisterPanel({ onSwitchToLogin, setUser }) {
                   }}
                   helperText={
                     usernameStatus === 'checking' ? 'Checking availability…' :
-                    usernameStatus === 'available' ? '✓ Username is available' :
-                    usernameStatus === 'taken' ? 'Username already taken — try another' :
-                    'Letters, numbers, dashes and underscores only'
+                      usernameStatus === 'available' ? '✓ Username is available' :
+                        usernameStatus === 'taken' ? 'Username already taken — try another' :
+                          'Letters, numbers, dashes and underscores only'
                   }
                   error={usernameStatus === 'taken'}
                 />
