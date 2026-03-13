@@ -11,11 +11,18 @@ services:
       - NODE_ENV=${NODE_ENV:-production}
       - JWT_SECRET=${JWT_SECRET}
       - INTERNAL_GATEWAY_TOKEN=${INTERNAL_GATEWAY_TOKEN}
+      - ADMIN_API_SECRET=${ADMIN_API_SECRET}
+      - ADMIN_JWT_SECRET=${ADMIN_JWT_SECRET}
       - REDIS_URL=redis://redis:6379
       - DB_USER=${APP_DB_USER:-app_user}
       - DB_PASSWORD=${APP_DB_PASSWORD}
       - DB_HOST=postgres
       - DB_NAME=webhooks
+      - APP_DB_USER=${APP_DB_USER:-app_user}
+      - APP_DB_PASSWORD=${APP_DB_PASSWORD}
+      - POSTGRES_PASSWORD=${APP_DB_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=webhooks
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,6 +98,13 @@ services:
       - DATABASE_URL=postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD}@postgres:5432/users
       - JWT_SECRET=${JWT_SECRET}
       - INTERNAL_GATEWAY_TOKEN=${INTERNAL_GATEWAY_TOKEN}
+      - ADMIN_API_SECRET=${ADMIN_API_SECRET}
+      - ADMIN_JWT_SECRET=${ADMIN_JWT_SECRET}
+      - APP_DB_USER=${APP_DB_USER:-app_user}
+      - APP_DB_PASSWORD=${APP_DB_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=users
+      - POSTGRES_PASSWORD=${APP_DB_PASSWORD}
       - REDIS_URL=redis://redis:6379
       - DB_SYNC_ALTER=${DB_SYNC_ALTER:-false}
       - MAILGUN_API_KEY=${MAILGUN_API_KEY}

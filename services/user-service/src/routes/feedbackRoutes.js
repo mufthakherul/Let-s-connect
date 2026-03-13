@@ -1,7 +1,6 @@
 const express = require('express');
-const { validate, Joi } = require('../../shared/validation');
+const { validate, Joi } = require('../../../shared/validation');
 const feedbackController = require('../controllers/feedbackController');
-const { authMiddleware } = require('../../shared/auth-middleware');
 
 const router = express.Router();
 
@@ -33,10 +32,9 @@ router.get(
 );
 
 // Admin moderation endpoints (requires JWT + admin role)
-router.get('/admin/feedback/pending', authMiddleware, feedbackController.ensureAdmin, feedbackController.getPendingFeedback);
+router.get('/admin/feedback/pending', feedbackController.ensureAdmin, feedbackController.getPendingFeedback);
 router.post(
     '/admin/feedback/:id/approve',
-    authMiddleware,
     feedbackController.ensureAdmin,
     validate({
         body: Joi.object({
@@ -49,7 +47,6 @@ router.post(
 );
 router.post(
     '/admin/feedback/:id/reject',
-    authMiddleware,
     feedbackController.ensureAdmin,
     validate({
         body: Joi.object({

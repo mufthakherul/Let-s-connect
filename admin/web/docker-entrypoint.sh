@@ -17,7 +17,7 @@ if [ "$NODE_ENV" = "development" ]; then
   echo "[Frontend] 🚀 Starting in DEVELOPMENT mode"
   echo "[Frontend] ✓ Hot reload enabled"
   echo "[Frontend] ✓ Source maps enabled"
-  echo "[Frontend] ✓ Available at http://localhost:3000"
+  echo "[Frontend] ✓ Available at http://localhost:3001"
   echo ""
   echo "Starting React dev server..."
   exec npm start
