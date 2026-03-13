@@ -7,7 +7,7 @@ set -euo pipefail
 REPO_OWNER="mufthakherul"
 REPO_NAME="Let-s-connect"
 WIKI_REMOTE="https://github.com/${REPO_OWNER}/${REPO_NAME}.wiki.git"
-SOURCE_DIR="docs/wiki"
+SOURCE_DIR="wiki"
 WORK_DIR="/tmp/${REPO_NAME}-wiki-sync"
 
 if ! command -v git >/dev/null 2>&1; then
