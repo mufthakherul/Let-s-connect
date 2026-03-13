@@ -994,10 +994,8 @@ function AppContent() {
                     element={<Navigate to="/admin" />}
                   />
                   <Route path="/login" element={<Login setUser={setInternalUser} />} />
-                  <Route
-                    path="/admin"
-                    element={internalUser && (internalUser.role === 'admin' || internalUser.role === 'moderator') ? <AdminDashboard /> : <Navigate to="/login" />}
-                  />
+                  <Route path="/admin/login" element={<Navigate to="/admin" replace />} />
+                  <Route path="/admin" element={<AdminDashboard />} />
                   {/* Catch all - redirect to admin */}
                   <Route path="*" element={<Navigate to="/admin" />} />
                 </Routes>
