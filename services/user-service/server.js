@@ -12,7 +12,7 @@ const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { buildCorsOptions } = require('../shared/cors-config');
 const response = require('../shared/response-wrapper');
 const { errorHandler: globalErrorHandler } = require('../shared/errorHandling');
-const logger = require('../shared/logger');
+const { createLogger, requestLogger, errorLogger, logStartup, logShutdown } = require('../shared/advanced-logger');
 // Workstream E: New utilities
 const { initGracefulShutdown, createDatabaseCleanup, createRedisCleanup } = require('../shared/graceful-shutdown');
 const { createHealthCheck, setupHealthRoutes } = require('../shared/health-check');
@@ -23,6 +23,7 @@ const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
 require('dotenv').config({ quiet: true });
 
 const app = express();
+const logger = createLogger('user-service');
 const healthChecker = new HealthChecker('user-service');
 const cacheManager = new CacheManager();
 const migrationManager = new MigrationManager(sequelize, 'user-service');
@@ -50,26 +51,14 @@ app.use(cors(buildCorsOptions()));
 app.use(express.json({ limit: '10mb' }));
 app.use(createForwardedIdentityGuard());
 
+// Advanced request logging middleware
+app.use(requestLogger('user-service'));
+
 // Workstream E: Security audit middleware
 app.use(securityAuditMiddleware(logger));
 
 // Metrics tracking middleware
 app.use(healthChecker.metricsMiddleware());
-
-// Log requests
-app.use((req, res, next) => {
-  req.id = req.headers['x-request-id'] || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  logger.info({
-    method: req.method,
-    path: req.url,
-    requestId: req.id,
-    correlationId: req.headers['x-correlation-id'] || req.id,
-    traceId: req.traceContext?.traceId,
-    spanId: req.traceContext?.spanId,
-    traceparent: req.headers.traceparent || req.traceContext?.traceparent
-  });
-  next();
-});
 
 // Attach utilities to req
 app.use((req, res, next) => {
@@ -131,6 +120,9 @@ app.use((req, res) => {
   });
 });
 
+// Advanced error logging middleware
+app.use(errorLogger('user-service'));
+
 // Global Error Handler
 app.use(globalErrorHandler);
 
@@ -143,7 +135,7 @@ async function ensureSchemaBootstrapIfMissing() {
   );
 
   if (!tableNames.has('Users')) {
-    console.warn('[User Service] Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
+    logger.warn('Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
     await sequelize.sync();
   }
 }
@@ -153,8 +145,9 @@ let newHealthCheck;
 
 async function startServer() {
   try {
+    const startTime = Date.now();
     await sequelize.authenticate();
-    logger.info('Database connection established');
+    logger.database('authenticate', 'sequelize', Date.now() - startTime);
 
     // Workstream F2/F3: Query monitoring + pool health checks
     setupQueryMonitoring(sequelize, {
@@ -259,7 +252,11 @@ async function startServer() {
     ]);
 
     const server = app.listen(PORT, () => {
-      logger.info(`User service running on port ${PORT}`);
+      logStartup('user-service', PORT, {
+        database: 'connected',
+        redis: cacheManager.redis ? 'connected' : 'disabled',
+        environment: process.env.NODE_ENV || 'development'
+      });
     });
 
     // Workstream E: Initialize graceful shutdown
@@ -297,9 +294,13 @@ async function startServer() {
     setupHealthRoutes(app, newHealthCheck);
 
   } catch (err) {
-    logger.error({ message: 'Failed to start server', error: err.message });
+    logger.error({ err }, 'Failed to start server');
     process.exit(1);
   }
 }
+
+// Handle graceful shutdown logging
+process.on('SIGTERM', () => logShutdown('user-service', 'SIGTERM received'));
+process.on('SIGINT', () => logShutdown('user-service', 'SIGINT received'));
 
 startServer();

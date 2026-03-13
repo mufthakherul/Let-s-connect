@@ -25,6 +25,7 @@
     "otplib": "^12.0.1",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
+    "pino-pretty": "^14.2.0",
     "sanitize-html": "^2.17.0",
     "sequelize": "^6.37.8",
     "simple-oauth2": "^5.1.0",
