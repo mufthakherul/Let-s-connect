@@ -65,8 +65,11 @@ const { Server: SSHServer, utils: sshUtils } = ssh2;
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
-const ROOT_DIR = path.resolve(__dirname, '../..');
-const ADMIN_HOME = path.join(ROOT_DIR, '.admin-cli');
+const REPO_ROOT_CANDIDATE = path.resolve(__dirname, '../..');
+const ROOT_DIR = fs.existsSync(path.join(REPO_ROOT_CANDIDATE, 'docker-compose.yml'))
+    ? REPO_ROOT_CANDIDATE
+    : path.resolve(__dirname, '..');
+const ADMIN_HOME = process.env.ADMIN_HOME || path.join(ROOT_DIR, '.admin-cli');
 const SSH_STATE_DIR = path.join(ADMIN_HOME, 'ssh');
 
 const args = process.argv.slice(2);

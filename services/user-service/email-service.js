@@ -164,27 +164,7 @@ async function sendEmail(to, template, data) {
     ? templateData(data.user, data.data || data)
     : templateData;
 
-  // 1) Prefer SMTP transporter if available
-  if (transporter) {
-    try {
-      const mailOptions = {
-        from: process.env.SMTP_FROM || '"Milonexa" <noreply@milonexa.com>',
-        to,
-        subject,
-        text,
-        html
-      };
-
-      const result = await transporter.sendMail(mailOptions);
-      console.log('[Email] Sent via SMTP:', result.messageId);
-      return { success: true, messageId: result.messageId, provider: 'smtp', template };
-    } catch (error) {
-      console.error('[Email] SMTP send failed:', error);
-      // fallthrough to try Mailgun if configured
-    }
-  }
-
-  // 2) Fallback to Mailgun (if configured)
+  // 1) Prefer Mailgun if available (default provider)
   if (mailgunClient && mailgunDomain) {
     try {
       const emailData = {
@@ -200,7 +180,27 @@ async function sendEmail(to, template, data) {
       return { success: true, messageId: result.id, provider: 'mailgun', template };
     } catch (err) {
       console.error('[Email] Mailgun send failed:', err);
-      return { success: false, error: err.message };
+      // fallthrough to SMTP if configured
+    }
+  }
+
+  // 2) Fallback to SMTP transporter
+  if (transporter) {
+    try {
+      const mailOptions = {
+        from: process.env.SMTP_FROM || '"Milonexa" <noreply@milonexa.com>',
+        to,
+        subject,
+        text,
+        html
+      };
+
+      const result = await transporter.sendMail(mailOptions);
+      console.log('[Email] Sent via SMTP:', result.messageId);
+      return { success: true, messageId: result.messageId, provider: 'smtp', template };
+    } catch (error) {
+      console.error('[Email] SMTP send failed:', error);
+      return { success: false, error: error.message };
     }
   }
 
@@ -215,9 +215,9 @@ async function sendEmail(to, template, data) {
  * @returns {Promise<object>} - Bulk send results
  */
 async function sendBulkEmails(recipients) {
-  if (!transporter) {
-    console.warn('[Email] SMTP not configured. Bulk emails not sent.');
-    return { success: false, error: 'SMTP not configured' };
+  if (!mailgunClient && !transporter) {
+    console.warn('[Email] No email provider configured. Bulk emails not sent.');
+    return { success: false, error: 'No email provider configured' };
   }
 
   const results = {
