@@ -28,6 +28,7 @@ Welcome to the **Milonexa** documentation — a comprehensive self-hosted social
 | 🛠️ [Admin Guide](./admin/README.md) | Full admin panel documentation |
 | 👤 [User Guide](./user/README.md) | End-user feature documentation |
 | 🏗️ [Architecture](./overview/ARCHITECTURE.md) | System architecture & diagrams |
+| 🧭 [Phase 3 Execution Report](./overview/PHASE3_EXECUTION_REPORT.md) | Landing modernization, feedback moderation, and theme defaults |
 | 🔧 [Dev Setup](./development/SETUP.md) | Developer environment guide |
 | 📦 [Environment Vars](./deployment/ENVIRONMENT.md) | Full `.env` reference |
 | 🔒 [Security](./development/SECURITY.md) | Security best practices |
@@ -141,7 +142,7 @@ docs/
 | 🔖 **Bookmarks** | Save and organize any content | ✅ Live |
 | 🔍 **Search** | Full-text + semantic search across all content | ✅ Live |
 | ⚙️ **Admin Ecosystem** | 8 admin interfaces (web, CLI, SSH, API, AI, bots, webhook, email) | ✅ Live |
-| 🌙 **Dark Mode** | Full system-wide dark/light mode with glassmorphism option | ✅ Live |
+| 🌙 **Dark Mode** | Full system-wide dark/light mode with standard design-system surfaces | ✅ Live |
 | ♿ **Accessibility** | WCAG 2.1 AA compliant, screen reader support | ✅ Live |
 | 📱 **PWA** | Progressive Web App with offline support | ✅ Live |
 | 🔒 **Security** | JWT, OAuth (Google/GitHub/Discord/Apple), 2FA, RBAC | ✅ Live |

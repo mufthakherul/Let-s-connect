@@ -1,35 +1,66 @@
 import React, { useState } from 'react';
 import {
     Container, Typography, Paper, Box, TextField, Button, Alert,
-    FormControl, InputLabel, Select, MenuItem, Rating
+    FormControl, InputLabel, Select, MenuItem, Rating, FormControlLabel, Checkbox
 } from '@mui/material';
 import { Send } from '@mui/icons-material';
 import toast from 'react-hot-toast';
+import api from '../../../utils/api';
 
 export default function Feedback() {
     const [formData, setFormData] = useState({
         category: '',
         rating: 0,
         subject: '',
-        message: ''
+        message: '',
+        displayName: '',
+        allowPublicDisplay: false
     });
     const [submitted, setSubmitted] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.category || !formData.subject || !formData.message) {
             toast.error('Please fill in all required fields');
             return;
         }
 
-        // Here you would send the feedback to your API
-        console.log('Feedback submitted:', formData);
-        toast.success('Thank you for your feedback!');
-        setSubmitted(true);
+        setIsSubmitting(true);
+
+        try {
+            await api.post('/api/public/feedback', {
+                category: formData.category,
+                rating: formData.rating || 0,
+                subject: formData.subject,
+                message: formData.message,
+                displayName: formData.allowPublicDisplay
+                    ? (formData.displayName || 'Community Member')
+                    : 'Community Member'
+            });
+
+            toast.success('Thank you for your feedback!');
+            setSubmitted(true);
+        } catch (error) {
+            const message = error?.response?.data?.error?.message || 'Could not submit feedback right now. Please try again.';
+            toast.error(message);
+            setSubmitted(false);
+            setIsSubmitting(false);
+            return;
+        }
+
+        setIsSubmitting(false);
 
         // Reset form after 3 seconds
         setTimeout(() => {
-            setFormData({ category: '', rating: 0, subject: '', message: '' });
+            setFormData({
+                category: '',
+                rating: 0,
+                subject: '',
+                message: '',
+                displayName: '',
+                allowPublicDisplay: false
+            });
             setSubmitted(false);
         }, 3000);
     };
@@ -97,14 +128,37 @@ export default function Feedback() {
                             placeholder="Please provide as much detail as possible..."
                         />
 
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    checked={formData.allowPublicDisplay}
+                                    onChange={(e) => setFormData({ ...formData, allowPublicDisplay: e.target.checked })}
+                                />
+                            }
+                            label="I allow this feedback to be considered for public testimonials after moderator approval"
+                            sx={{ mb: 1 }}
+                        />
+
+                        {formData.allowPublicDisplay && (
+                            <TextField
+                                fullWidth
+                                label="Display Name (optional)"
+                                value={formData.displayName}
+                                onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                                sx={{ mb: 3 }}
+                                placeholder="How your name should appear publicly"
+                            />
+                        )}
+
                         <Button
                             type="submit"
                             variant="contained"
                             size="large"
                             startIcon={<Send />}
                             fullWidth
+                            disabled={isSubmitting}
                         >
-                            Submit Feedback
+                            {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
                         </Button>
                     </Box>
                 )}
