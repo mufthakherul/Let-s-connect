@@ -168,7 +168,7 @@ The admin ecosystem consists of optional modules activated via feature flags and
 
 | Variable | Example Value | Required | Description |
 |---|---|---|---|
-| `ADMIN_API_KEY` | `<32-char-random-hex>` | Conditional | REST API key for the admin API endpoints. Required if admin_frontend or admin CLI are used. Must be changed from any default. |
+| `ADMIN_API_KEY` | `<32-char-random-hex>` | Conditional | REST API key for the admin API endpoints. Required if admin-web or admin CLI are used. Must be changed from any default. |
 | `ADMIN_SSH_HOST` | `127.0.0.1` | No | Host that the embedded SSH server binds to. Defaults to `127.0.0.1` (loopback only — do not change to `0.0.0.0` in production). |
 | `ADMIN_SSH_PORT` | `2222` | No | Port for the embedded SSH admin shell. Defaults to `2222`. |
 | `ADMIN_SSH_PASSWORD` | `changeme` | Conditional | Password for SSH admin shell authentication. Required when `ENABLE_ADMIN_SSH=true`. Change before enabling. |

@@ -76,7 +76,7 @@ milonexa/                              Root of the repository
 │   │       └── designSystem.js        Design tokens, color palettes, typography
 │   └── package.json
 │
-├── admin_frontend/                    Admin React web panel (Docker profile: admin)
+├── admin/web/                         Admin React web panel (Docker profile: admin)
 │   └── src/
 │       ├── App.js                     Admin app shell
 │       └── components/
@@ -191,7 +191,7 @@ milonexa/                              Root of the repository
 │   │   ├── teams-bot.js               Microsoft Teams bot
 │   │   └── pagerduty-bot.js           PagerDuty integration
 │   ├── web/
-│   │   └── src/                       React app (see admin_frontend above)
+│   │   └── src/                       React app (admin web panel)
 │   └── shared/                        Shared admin modules
 │       ├── metrics.js                 MetricsCollector
 │       ├── alerts.js                  AlertManager
@@ -246,7 +246,7 @@ milonexa/                              Root of the repository
 ├── .env.example                       Environment configuration template
 ├── README.md                          Repository README
 ├── ROADMAP.md                         Platform roadmap v2.0
-└── SECURITY_NOTES.md                  Security practices
+└── docs/development/SECURITY.md       Security practices
 ```
 
 ---

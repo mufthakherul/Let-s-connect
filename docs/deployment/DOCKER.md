@@ -69,7 +69,7 @@ The `docker-compose.yml` defines 15+ services organised into logical groups:
 | Service | Build Context | Host Port | Description |
 |---|---|---|---|
 | `frontend` | `frontend/` | `3000` | User-facing React SPA |
-| `admin_frontend` | `admin_frontend/` | `3001` | Admin React SPA (opt-in via `admin` profile) |
+| `admin-web` | `admin/web/` | `3001` | Admin React SPA (opt-in via `admin` profile) |
 
 ---
 
@@ -80,7 +80,7 @@ Profiles allow selectively enabling optional services without modifying the comp
 | Profile | Services Enabled | Use Case |
 |---|---|---|
 | *(default)* | All infrastructure + all application services + frontend | Standard deployment |
-| `admin` | `admin_frontend` | Enable admin web panel |
+| `admin` | `admin-web` | Enable admin web panel |
 | `admin-ssh` | Admin SSH server | Enable SSH admin shell |
 | `admin-api` | Admin REST API extensions | Enable admin REST API |
 | `admin-webhook` | Webhook dispatcher | Enable admin webhook events |

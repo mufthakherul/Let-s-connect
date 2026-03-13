@@ -30,7 +30,7 @@ All contributors are expected to be respectful, inclusive, and constructive. Har
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - Docker + Docker Compose
 - Git
 
@@ -50,7 +50,7 @@ cd frontend && npm install --legacy-peer-deps && npm start
 cd services/user-service && npm install && npm start
 ```
 
-See [QUICK_START.md](./QUICK_START.md) and [docs/deployment/DEPLOYMENT_GUIDE.md](./docs/deployment/DEPLOYMENT_GUIDE.md) for full setup.
+See [docs/deployment/QUICK_START.md](./docs/deployment/QUICK_START.md) and [docs/deployment/README.md](./docs/deployment/README.md) for full setup.
 
 ---
 
@@ -84,7 +84,7 @@ docker compose --profile admin up -d  # Including admin panel
 ```
 Let-s-connect/
 ├── frontend/          # React 18 user frontend
-├── admin_frontend/    # React admin panel (Docker profile: admin)
+├── admin/web/         # React admin panel (Docker profile: admin)
 ├── services/
 │   ├── api-gateway/   # Entry point — routes, auth, rate limiting
 │   ├── user-service/  # Auth, profiles, follows
@@ -264,7 +264,7 @@ Please email security concerns directly to the maintainers or use GitHub's priva
 - Potential impact
 - Suggested fix (if known)
 
-See [SECURITY_NOTES.md](./SECURITY_NOTES.md) for the full security policy.
+See [docs/development/SECURITY.md](./docs/development/SECURITY.md) for the full security policy.
 
 ---
 

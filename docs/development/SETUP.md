@@ -48,7 +48,7 @@ git --version      # Should output git version 2.x
 ## 2. Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/Let-s-connect.git
+git clone https://github.com/mufthakherul/Let-s-connect.git
 cd Let-s-connect
 ```
 

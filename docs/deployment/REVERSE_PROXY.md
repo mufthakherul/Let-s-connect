@@ -31,7 +31,7 @@ Internet
     ├── milonexa.com ──────────────→ frontend:3000
     ├── api.milonexa.com ──────────→ api-gateway:8000
     │       └── /ws, /socket.io ──→ messaging-service:8003 (WebSocket)
-    └── admin.milonexa.com ────────→ admin_frontend:3001 (IP restricted)
+    └── admin.milonexa.com ────────→ admin-web:3001 (IP restricted)
 ```
 
 All upstream services listen on the internal Docker/Kubernetes network. The reverse proxy is the only component with public internet access.

@@ -14,7 +14,7 @@ Documentation for developing Milonexa platform locally.
 ## Quick Start
 
 1. Prerequisites: Node.js 20+, Docker, Git
-2. Clone repo: `git clone https://github.com/milonexa/platform.git`
+2. Clone repo: `git clone https://github.com/mufthakherul/Let-s-connect.git`
 3. Start infrastructure: `docker compose up postgres redis minio elasticsearch -d`
 4. Initialize DB: `bash scripts/init-databases.sh`
 5. Install frontend: `cd frontend && npm install --legacy-peer-deps && npm start`
@@ -29,6 +29,14 @@ Documentation for developing Milonexa platform locally.
 - [Authentication](./AUTHENTICATION.md) — Auth implementation
 - [WebSockets](./WEBSOCKETS.md) — Real-time communication
 - [Testing](./TESTING.md) — Running tests
+- [Testing Playbook](./TESTING_PLAYBOOK.md) — Advanced testing strategy and CI-aligned quality gates
+- [Troubleshooting](./TROUBLESHOOTING.md) — Common issues and practical diagnostics
+- [API Lifecycle](./API_LIFECYCLE.md) — Versioning, compatibility, and deprecation standards
+- [Release Process](./RELEASE_PROCESS.md) — Release planning, rollout, and verification workflow
+- [Release Notes Template](./RELEASE_NOTES_TEMPLATE.md) — Standard structure for release communication
+- [Changelog Policy](./CHANGELOG_POLICY.md) — How to document and communicate changes
+- [Docs Style Guide](./DOCUMENTATION_STYLE_GUIDE.md) — Authoring standards for maintainable docs
+- [ADR Index](./adr/README.md) — Architecture decision records and templates
 - [Contributing](./CONTRIBUTING.md) — Code standards
 
 ## Code Style

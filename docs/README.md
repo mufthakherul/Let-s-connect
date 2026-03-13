@@ -17,12 +17,21 @@ Welcome to the **Milonexa** documentation — a comprehensive self-hosted social
 |-|-|
 | ⚡ [Quick Start](./deployment/QUICK_START.md) | Get running in under 10 minutes |
 | 📖 [API Reference](./development/API_REFERENCE.md) | Complete REST API documentation |
+| 🧪 [Testing Playbook](./development/TESTING_PLAYBOOK.md) | Test strategy, quality gates, and CI mapping |
+| 🧰 [Troubleshooting](./development/TROUBLESHOOTING.md) | Common issues, diagnostics, and fixes |
+| 🔁 [API Lifecycle](./development/API_LIFECYCLE.md) | API versioning, deprecation, and compatibility standards |
+| 🧾 [Release Process](./development/RELEASE_PROCESS.md) | Release planning, rollout, and verification playbook |
+| 🧱 [ADR Index](./development/adr/README.md) | Architecture decision records and templates |
+| 🚨 [Operations Runbook](./deployment/OPERATIONS_RUNBOOK.md) | Incident response and production runbooks |
+| 💾 [Disaster Recovery](./deployment/DISASTER_RECOVERY.md) | Backup/restore and recovery procedures |
+| 👥 [Service Ownership](./deployment/SERVICE_OWNERSHIP_ONCALL.md) | On-call ownership and escalation matrix |
 | 🛠️ [Admin Guide](./admin/README.md) | Full admin panel documentation |
 | 👤 [User Guide](./user/README.md) | End-user feature documentation |
 | 🏗️ [Architecture](./overview/ARCHITECTURE.md) | System architecture & diagrams |
 | 🔧 [Dev Setup](./development/SETUP.md) | Developer environment guide |
 | 📦 [Environment Vars](./deployment/ENVIRONMENT.md) | Full `.env` reference |
 | 🔒 [Security](./development/SECURITY.md) | Security best practices |
+| 📘 [Wiki Kit](./wiki/README.md) | GitHub Wiki-ready pages and publishing workflow |
 
 ---
 
@@ -85,17 +94,33 @@ docs/
 │   ├── CACHING.md               Redis caching strategies
 │   ├── GRAPHQL.md               GraphQL endpoint documentation
 │   ├── TESTING.md               Testing guide & running tests
+│   ├── TESTING_PLAYBOOK.md      Advanced testing strategy, matrix, and quality gates
+│   ├── TROUBLESHOOTING.md       Practical debugging and issue resolution playbook
+│   ├── API_LIFECYCLE.md         API lifecycle, versioning, and deprecation standards
+│   ├── RELEASE_PROCESS.md       End-to-end release planning and deployment workflow
+│   ├── RELEASE_NOTES_TEMPLATE.md Standard release note template for launches
+│   ├── CHANGELOG_POLICY.md      Changelog categorization and communication rules
+│   ├── DOCUMENTATION_STYLE_GUIDE.md Authoring standards for technical docs
+│   ├── adr/                     Architecture Decision Records (ADR)
+│   │   ├── README.md            ADR process and conventions
+│   │   ├── ADR_TEMPLATE.md      Reusable ADR template
+│   │   └── 0001-api-versioning-policy.md Initial accepted ADR
 │   ├── CONTRIBUTING.md          How to contribute
 │   └── SECURITY.md              Security best practices & OWASP
-└── deployment/                  Deployment guides
-    ├── README.md
-    ├── QUICK_START.md           10-minute deployment guide
-    ├── DOCKER.md                Docker Compose full guide
-    ├── KUBERNETES.md            Kubernetes deployment guide
-    ├── ENVIRONMENT.md           Complete environment variable reference
-    ├── CI_CD.md                 CI/CD pipeline guide
-    ├── PRODUCTION.md            Production hardening checklist
-    └── REVERSE_PROXY.md         Nginx/Caddy reverse proxy setup
+├── deployment/                  Deployment guides
+│   ├── README.md
+│   ├── QUICK_START.md           10-minute deployment guide
+│   ├── DOCKER.md                Docker Compose full guide
+│   ├── KUBERNETES.md            Kubernetes deployment guide
+│   ├── ENVIRONMENT.md           Complete environment variable reference
+│   ├── CI_CD.md                 CI/CD pipeline guide
+│   ├── PRODUCTION.md            Production hardening checklist
+│   ├── REVERSE_PROXY.md         Nginx/Caddy reverse proxy setup
+│   ├── OPERATIONS_RUNBOOK.md    Incident response and service restoration runbooks
+│   ├── DISASTER_RECOVERY.md     Recovery objectives and backup/restore procedures
+│   └── SERVICE_OWNERSHIP_ONCALL.md Service ownership and on-call escalation matrix
+└── wiki/                        GitHub Wiki content pack (ready-to-publish)
+   └── *.md                     Home, sidebar, onboarding, architecture, operations pages
 ```
 
 ---
@@ -130,8 +155,8 @@ docs/
             │
             ▼
     ┌───────────────┐
-    │  React SPA    │ :3000  (frontend/)
-    │  React Admin  │ :3001  (admin_frontend/) [profile: admin]
+      │  React SPA    │ :3000  (frontend/)
+      │  React Admin  │ :3001  (admin/web/) [profile: admin]
     └───────┬───────┘
             │ HTTPS/WSS
             ▼
