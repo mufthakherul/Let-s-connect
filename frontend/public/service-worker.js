@@ -7,6 +7,9 @@ const CACHE_NAME = `milonexa-${CACHE_VERSION}`;
 const SYNC_DB_NAME = 'milonexa-sync-db';
 const SYNC_STORE_NAME = 'queued-requests';
 const MAX_SYNC_ATTEMPTS = 5;
+const SW_DEBUG = false;
+const swLog = (...args) => { if (SW_DEBUG) console.log(...args); };
+const swWarn = (...args) => { if (SW_DEBUG) console.warn(...args); };
 
 // Assets to cache on install
 const STATIC_ASSETS = [
@@ -42,10 +45,10 @@ const MUTATION_SYNC_PATTERNS = [
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
-  console.log('[Service Worker] Installing...');
+  swLog('[Service Worker] Installing...');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Caching static assets');
+      swLog('[Service Worker] Caching static assets');
       return cache.addAll(STATIC_ASSETS);
     }).then(() => {
       // Force the waiting service worker to become active
@@ -56,13 +59,13 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('[Service Worker] Activating...');
+  swLog('[Service Worker] Activating...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
-            console.log('[Service Worker] Deleting old cache:', cacheName);
+            swLog('[Service Worker] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -128,7 +131,7 @@ async function cacheFirstStrategy(request) {
 
     return networkResponse;
   } catch (error) {
-    console.error('[Service Worker] Fetch failed:', error);
+    swWarn('[Service Worker] Fetch failed:', error);
 
     // Return offline page for navigation requests
     if (request.mode === 'navigate') {
@@ -138,11 +141,8 @@ async function cacheFirstStrategy(request) {
       }
     }
 
-    // Return a basic error response
-    return new Response('Network error', {
-      status: 408,
-      headers: { 'Content-Type': 'text/plain' }
-    });
+    // Bubble as network error instead of synthetic 408 to avoid noisy app logs.
+    return Response.error();
   }
 }
 
@@ -201,7 +201,7 @@ async function networkFirstStrategy(request) {
 
     return networkResponse;
   } catch (error) {
-    console.log('[Service Worker] Network request failed, trying cache:', error);
+    swLog('[Service Worker] Network request failed, trying cache:', error);
 
     // Try to serve from cache
     const cachedResponse = await caches.match(request);
@@ -212,7 +212,7 @@ async function networkFirstStrategy(request) {
       if (cacheTimestamp) {
         const age = Date.now() - parseInt(cacheTimestamp, 10);
         if (age < API_CACHE_MAX_AGE) {
-          console.log('[Service Worker] Serving from cache');
+          swLog('[Service Worker] Serving from cache');
           return cachedResponse;
         }
       }
@@ -277,7 +277,7 @@ async function queueRequestForSync(request, tag) {
     }
 
     await addQueuedRequest(payload);
-    console.log('[Service Worker] Request queued for sync:', tag, payload.url);
+    swLog('[Service Worker] Request queued for sync:', tag, payload.url);
     return true;
   } catch (error) {
     console.error('[Service Worker] Failed to queue request for sync:', error);
@@ -464,7 +464,7 @@ async function replayQueuedRequests(tag) {
 
 // Background sync for offline actions
 self.addEventListener('sync', (event) => {
-  console.log('[Service Worker] Background sync:', event.tag);
+  swLog('[Service Worker] Background sync:', event.tag);
 
   if (event.tag === 'sync-posts') {
     event.waitUntil(syncPosts());
@@ -474,18 +474,18 @@ self.addEventListener('sync', (event) => {
 });
 
 async function syncPosts() {
-  console.log('[Service Worker] Syncing posts...');
+  swLog('[Service Worker] Syncing posts...');
   await replayQueuedRequests('sync-posts');
 }
 
 async function syncMessages() {
-  console.log('[Service Worker] Syncing messages...');
+  swLog('[Service Worker] Syncing messages...');
   await replayQueuedRequests('sync-messages');
 }
 
 // Push notifications
 self.addEventListener('push', (event) => {
-  console.log('[Service Worker] Push notification received');
+  swLog('[Service Worker] Push notification received');
 
   const data = event.data ? event.data.json() : {};
   const title = data.title || 'Let\'s Connect';
@@ -507,12 +507,12 @@ self.addEventListener('push', (event) => {
 
 // Notification click handler
 self.addEventListener('notificationclick', (event) => {
-  console.log('[Service Worker] Notification clicked:', event.notification.tag);
+  swLog('[Service Worker] Notification clicked:', event.notification.tag);
   event.notification.close();
 
   // Handle notification action
   if (event.action) {
-    console.log('[Service Worker] Notification action:', event.action);
+    swLog('[Service Worker] Notification action:', event.action);
   }
 
   // Open or focus the app
@@ -539,7 +539,7 @@ self.addEventListener('notificationclick', (event) => {
 
 // Message handler for client communication
 self.addEventListener('message', (event) => {
-  console.log('[Service Worker] Message received:', event.data);
+  swLog('[Service Worker] Message received:', event.data);
 
   if (event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
@@ -560,4 +560,4 @@ self.addEventListener('message', (event) => {
   }
 });
 
-console.log('[Service Worker] Loaded version:', CACHE_VERSION);
+swLog('[Service Worker] Loaded version:', CACHE_VERSION);

@@ -8,7 +8,7 @@ const ipRangeCheck = require('ip-range-check');
 const speakeasy = require('speakeasy');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { Sequelize, DataTypes } = require('sequelize');
+const { Sequelize, DataTypes, Op } = require('sequelize');
 require('dotenv').config({ quiet: true });
 
 const { getRequiredEnv, isPlaceholderSecret } = require('../shared/security-utils');
@@ -48,6 +48,36 @@ const strictLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
 });
+
+const adminLoginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 8,
+    message: { error: 'Authentication temporarily unavailable' },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+const ADMIN_ROLES = new Set(['master', 'admin', 'viewer']);
+
+function normalizeUsername(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function normalizeEmail(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function parseBoolean(value) {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.toLowerCase() === 'true';
+    return false;
+}
+
+function sanitizeRole(value) {
+    const role = String(value || '').trim().toLowerCase();
+    if (!ADMIN_ROLES.has(role)) return null;
+    return role;
+}
 
 // helper middleware to check admin secret or JWT token
 // allows unauthenticated access to login endpoint
@@ -188,24 +218,50 @@ async function initializeAdminDB() {
 
         AdminUser = adminSequelize.define('AdminUser', {
             username: { type: DataTypes.STRING, unique: true, allowNull: false },
+            email: { type: DataTypes.STRING, unique: true, allowNull: true },
             passwordHash: { type: DataTypes.STRING, allowNull: false },
-            role: { type: DataTypes.STRING, allowNull: false, defaultValue: 'admin' }
+            role: { type: DataTypes.STRING, allowNull: false, defaultValue: 'admin' },
+            isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+            failedLoginAttempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+            lockedUntil: { type: DataTypes.DATE, allowNull: true },
+            lastLoginAt: { type: DataTypes.DATE, allowNull: true }
         });
 
         await adminSequelize.authenticate();
         await adminSequelize.sync({ alter: true });
 
-        if (process.env.ADMIN_MASTER_USERNAME && process.env.ADMIN_MASTER_PASSWORD) {
-            const [user, created] = await AdminUser.findOrCreate({
-                where: { username: process.env.ADMIN_MASTER_USERNAME },
-                defaults: { passwordHash: await bcrypt.hash(process.env.ADMIN_MASTER_PASSWORD, 10) }
+        const masterUsername = normalizeUsername(process.env.MASTER_ADMIN_USERNAME || process.env.ADMIN_MASTER_USERNAME);
+        const masterEmail = normalizeEmail(process.env.MASTER_ADMIN_EMAIL);
+        const masterPassword = process.env.MASTER_ADMIN_PASSWORD || process.env.ADMIN_MASTER_PASSWORD;
+
+        if (masterUsername && masterPassword) {
+            const lookup = [{ username: masterUsername }];
+            if (masterEmail) lookup.push({ email: masterEmail });
+
+            let user = await AdminUser.findOne({
+                where: { [Op.or]: lookup }
             });
-            if (!created) {
-                const newHash = await bcrypt.hash(process.env.ADMIN_MASTER_PASSWORD, 10);
-                if (user.passwordHash !== newHash) {
-                    user.passwordHash = newHash;
-                    await user.save();
-                }
+
+            const passwordHash = await bcrypt.hash(masterPassword, 10);
+
+            if (!user) {
+                user = await AdminUser.create({
+                    username: masterUsername,
+                    email: masterEmail || null,
+                    passwordHash,
+                    role: 'master',
+                    isActive: true
+                });
+            } else {
+                await user.update({
+                    username: masterUsername,
+                    email: masterEmail || user.email,
+                    passwordHash,
+                    role: 'master',
+                    isActive: true,
+                    lockedUntil: null,
+                    failedLoginAttempts: 0
+                });
             }
         }
 
@@ -302,6 +358,7 @@ app.options(/.*/, cors(corsOptions));
 
 // Apply rate limiting
 app.use('/user-service/admin', strictLimiter);
+app.use('/admin/login', adminLoginLimiter);
 app.use(limiter);
 
 app.use(express.json({ limit: '10mb' }));
@@ -348,46 +405,238 @@ app.post('/setup-2fa', (req, res) => {
 // ---------- admin authentication routes ----------
 // master login / admin user sign in
 app.post('/admin/login', async (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password required' });
+    const username = normalizeUsername(req.body.username);
+    const email = normalizeEmail(req.body.email);
+    const identifier = username || email;
+    const { password } = req.body;
+
+    if (!identifier || !password) {
+        return res.status(400).json({ error: 'Username/email and password required' });
     }
     if (!dbInitialized || !AdminUser) {
         return res.status(503).json({ error: 'Admin database not ready, please try again' });
     }
     try {
-        const user = await AdminUser.findOne({ where: { username } });
-        if (!user) {
-            return res.status(401).json({ error: 'Invalid credentials' });
+        const or = [{ username: identifier }];
+        if (identifier.includes('@')) or.push({ email: identifier });
+
+        const user = await AdminUser.findOne({ where: { [Op.or]: or } });
+        if (!user || !user.isActive) {
+            return res.status(401).json({ error: 'Authentication failed' });
         }
+
+        if (user.lockedUntil && user.lockedUntil > new Date()) {
+            return res.status(401).json({ error: 'Authentication failed' });
+        }
+
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok) {
-            return res.status(401).json({ error: 'Invalid credentials' });
+            const attempts = (user.failedLoginAttempts || 0) + 1;
+            const lockAccount = attempts >= 5;
+            await user.update({
+                failedLoginAttempts: lockAccount ? 0 : attempts,
+                lockedUntil: lockAccount ? new Date(Date.now() + 15 * 60 * 1000) : null
+            });
+            return res.status(401).json({ error: 'Authentication failed' });
         }
+
+        await user.update({
+            failedLoginAttempts: 0,
+            lockedUntil: null,
+            lastLoginAt: new Date()
+        });
         const token = generateAdminToken(user);
-        res.json({ token, role: user.role });
+        res.json({
+            token,
+            role: user.role,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                role: user.role
+            }
+        });
     } catch (err) {
         console.error('login error', err);
-        res.status(500).json({ error: 'Login failed' });
+        res.status(500).json({ error: 'Authentication failed' });
     }
 });
 
 // protected route to create additional admin users
 app.post('/admin/users', requireAdminJWT, async (req, res) => {
-    const { username, password, role } = req.body;
+    const username = normalizeUsername(req.body.username);
+    const email = normalizeEmail(req.body.email);
+    const password = req.body.password;
+    const role = sanitizeRole(req.body.role || 'admin');
+
     if (!username || !password) {
         return res.status(400).json({ error: 'Username and password required' });
+    }
+    if (!role) {
+        return res.status(400).json({ error: 'Invalid role' });
+    }
+    if (role === 'master' && req.admin.role !== 'master') {
+        return res.status(403).json({ error: 'Only master admin can assign master role' });
     }
     if (!dbInitialized || !AdminUser) {
         return res.status(503).json({ error: 'Admin database not ready, please try again' });
     }
     try {
+        const existing = await AdminUser.findOne({
+            where: {
+                [Op.or]: [
+                    { username },
+                    ...(email ? [{ email }] : [])
+                ]
+            }
+        });
+        if (existing) {
+            return res.status(409).json({ error: 'Admin user already exists' });
+        }
         const hash = await bcrypt.hash(password, 10);
-        const newUser = await AdminUser.create({ username, passwordHash: hash, role: role || 'admin' });
-        res.json({ id: newUser.id, username: newUser.username, role: newUser.role });
+        const newUser = await AdminUser.create({
+            username,
+            email: email || null,
+            passwordHash: hash,
+            role
+        });
+        res.status(201).json({
+            id: newUser.id,
+            username: newUser.username,
+            email: newUser.email,
+            role: newUser.role,
+            isActive: newUser.isActive
+        });
     } catch (err) {
         console.error('create admin user error', err);
         res.status(500).json({ error: 'Failed to create user' });
+    }
+});
+
+app.get('/admin/users', requireAdminJWT, async (req, res) => {
+    if (!dbInitialized || !AdminUser) {
+        return res.status(503).json({ error: 'Admin database not ready, please try again' });
+    }
+    try {
+        const users = await AdminUser.findAll({
+            attributes: ['id', 'username', 'email', 'role', 'isActive', 'lastLoginAt', 'createdAt', 'updatedAt'],
+            order: [['createdAt', 'DESC']]
+        });
+        return res.json({ users });
+    } catch (err) {
+        console.error('list admin users error', err);
+        return res.status(500).json({ error: 'Failed to list admin users' });
+    }
+});
+
+app.patch('/admin/users/:id', requireAdminJWT, async (req, res) => {
+    if (!dbInitialized || !AdminUser) {
+        return res.status(503).json({ error: 'Admin database not ready, please try again' });
+    }
+    try {
+        const user = await AdminUser.findByPk(req.params.id);
+        if (!user) {
+            return res.status(404).json({ error: 'Admin user not found' });
+        }
+
+        if (req.admin.role !== 'master' && user.role === 'master') {
+            return res.status(403).json({ error: 'Only master admin can modify master account' });
+        }
+
+        const updates = {};
+        if (typeof req.body.username === 'string') {
+            const normalizedUsername = normalizeUsername(req.body.username);
+            if (!normalizedUsername) return res.status(400).json({ error: 'Invalid username' });
+            updates.username = normalizedUsername;
+        }
+        if (typeof req.body.email === 'string') {
+            const normalizedEmail = normalizeEmail(req.body.email);
+            updates.email = normalizedEmail || null;
+        }
+        if (typeof req.body.role !== 'undefined') {
+            const normalizedRole = sanitizeRole(req.body.role);
+            if (!normalizedRole) return res.status(400).json({ error: 'Invalid role' });
+            if (normalizedRole === 'master' && req.admin.role !== 'master') {
+                return res.status(403).json({ error: 'Only master admin can assign master role' });
+            }
+            updates.role = normalizedRole;
+        }
+        if (typeof req.body.isActive !== 'undefined') {
+            if (user.id === req.admin.id && parseBoolean(req.body.isActive) === false) {
+                return res.status(400).json({ error: 'Cannot deactivate own account' });
+            }
+            if (user.role === 'master' && parseBoolean(req.body.isActive) === false) {
+                return res.status(400).json({ error: 'Master account cannot be deactivated' });
+            }
+            updates.isActive = parseBoolean(req.body.isActive);
+        }
+        if (typeof req.body.password === 'string' && req.body.password.length > 0) {
+            updates.passwordHash = await bcrypt.hash(req.body.password, 10);
+            updates.failedLoginAttempts = 0;
+            updates.lockedUntil = null;
+        }
+
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ error: 'No valid updates provided' });
+        }
+
+        await user.update(updates);
+        return res.json({
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            isActive: user.isActive,
+            lastLoginAt: user.lastLoginAt
+        });
+    } catch (err) {
+        console.error('update admin user error', err);
+        return res.status(500).json({ error: 'Failed to update admin user' });
+    }
+});
+
+app.post('/admin/users/:id/disable', requireAdminJWT, async (req, res) => {
+    if (!dbInitialized || !AdminUser) {
+        return res.status(503).json({ error: 'Admin database not ready, please try again' });
+    }
+    try {
+        const user = await AdminUser.findByPk(req.params.id);
+        if (!user) {
+            return res.status(404).json({ error: 'Admin user not found' });
+        }
+        if (user.id === req.admin.id) {
+            return res.status(400).json({ error: 'Cannot disable own account' });
+        }
+        if (user.role === 'master') {
+            return res.status(400).json({ error: 'Master account cannot be disabled' });
+        }
+        if (req.admin.role !== 'master') {
+            return res.status(403).json({ error: 'Master admin privileges required' });
+        }
+
+        await user.update({ isActive: false, lockedUntil: null, failedLoginAttempts: 0 });
+        return res.json({ id: user.id, disabled: true });
+    } catch (err) {
+        console.error('disable admin user error', err);
+        return res.status(500).json({ error: 'Failed to disable admin user' });
+    }
+});
+
+app.get('/admin/verify', requireAdminJWT, async (req, res) => {
+    if (!dbInitialized || !AdminUser) {
+        return res.status(503).json({ error: 'Admin database not ready, please try again' });
+    }
+    try {
+        const user = await AdminUser.findByPk(req.admin.id, {
+            attributes: ['id', 'username', 'email', 'role', 'isActive', 'lastLoginAt']
+        });
+        if (!user || !user.isActive) {
+            return res.status(401).json({ error: 'Authentication failed' });
+        }
+        return res.json({ valid: true, user });
+    } catch (err) {
+        console.error('verify admin token error', err);
+        return res.status(500).json({ error: 'Verification failed' });
     }
 });
 

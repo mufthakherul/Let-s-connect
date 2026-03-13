@@ -291,7 +291,7 @@ async function ensureStreamingSchemaBootstrap() {
         rawTables.map((entry) => (typeof entry === 'string' ? entry : entry.tableName || entry)).filter(Boolean)
     );
 
-    const requiredTables = ['RadioStations', 'TVChannels'];
+    const requiredTables = ['RadioStations', 'TVChannels', 'Favorites', 'PlaybackHistories', 'Playlists', 'FallbackEvents'];
     const missingRequiredTable = requiredTables.some((tableName) => !tableNames.has(tableName));
 
     if (missingRequiredTable) {

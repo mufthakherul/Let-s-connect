@@ -9,6 +9,8 @@ router.post('/skills/:skillId/endorse', socialController.endorseSkill);
 
 // ─── Friends — Phase 2 ───────────────────────────────────────────────────────
 router.get('/friends', socialController.getFriends);
+router.get('/friends/following', socialController.getFollowing);
+router.get('/friends/following/:userId', socialController.getFollowing);
 router.get('/friends/suggestions', socialController.getFriendSuggestions);
 router.get('/friends/requests', socialController.getFriendRequests);
 router.get('/friends/:userId/mutual', socialController.getMutualFriends);
@@ -23,4 +25,3 @@ router.post('/friends/:userId/follow', socialController.followUser);
 router.delete('/friends/:userId/follow', socialController.unfollowUser);
 
 module.exports = router;
-
