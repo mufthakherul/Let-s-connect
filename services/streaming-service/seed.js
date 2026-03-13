@@ -175,6 +175,32 @@ const TVChannel = sequelize.define('TVChannel', {
     addedBy: DataTypes.UUID
 });
 
+async function ensureStreamingSchemaBootstrap() {
+    const qi = sequelize.getQueryInterface();
+    const rawTables = await qi.showAllTables();
+    const tableNames = new Set(
+        rawTables.map((entry) => (typeof entry === 'string' ? entry : entry.tableName || entry)).filter(Boolean)
+    );
+
+    const requiredTables = ['RadioStations', 'TVChannels'];
+    const missingRequiredTable = requiredTables.some((tableName) => !tableNames.has(tableName));
+
+    if (missingRequiredTable) {
+        console.warn('[Streaming Seed] Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
+        await sequelize.sync();
+    }
+}
+
+function isMissingCoreTableError(error) {
+    if (!error) return false;
+    const msg = String(error.message || '');
+    const sql = String(error.sql || error?.parent?.sql || '');
+    return (
+        (msg.includes('relation "RadioStations" does not exist') || msg.includes('relation "TVChannels" does not exist')) ||
+        (sql.includes('"RadioStations"') || sql.includes('"TVChannels"')) && (error?.parent?.code === '42P01' || msg.includes('does not exist'))
+    );
+}
+
 // ==================== FETCHER FUNCTIONS ====================
 
 function readJson(filePath, fallback = []) {
@@ -512,6 +538,7 @@ const seed = async () => {
         if (!IS_DRY_RUN_MODE) {
             console.log('🔧 Synchronizing database models...');
             await syncWithPolicy(sequelize, 'streaming-service-seed');
+            await ensureStreamingSchemaBootstrap();
             console.log('✅ Database models sync step completed\n');
         } else {
             console.log('🔍 Skipping database sync in dry-run mode\n');
@@ -579,7 +606,9 @@ const seed = async () => {
                 bySource: {}
             };
 
-            for (const station of mergedRadio) {
+            let abortedRadioBySchemaIssue = false;
+            for (let stationIndex = 0; stationIndex < mergedRadio.length; stationIndex++) {
+                const station = mergedRadio[stationIndex];
                 try {
                     // Try to find existing by streamUrl OR by strong name+country match
                     const where = (IS_FAST_MODE && FAST_SKIP_PER_ITEM_PRECHECK)
@@ -638,10 +667,19 @@ const seed = async () => {
                 if (radioReport.created % 50 === 0) {
                     console.log(`  ⏳ Progress: ${radioReport.created} stations added...`);
                 }
-            } catch (error) {
-                console.log(`  ⚠️  Error seeding "${station.name}": ${error.message}`);
+                } catch (error) {
+                    if (isMissingCoreTableError(error)) {
+                        const remaining = mergedRadio.length - stationIndex;
+                        console.warn(`  ⚠️  Core schema missing while seeding radio ("${station.name}"). Skipping remaining ${remaining} radio items to avoid repeated failures.`);
+                        abortedRadioBySchemaIssue = true;
+                        break;
+                    }
+                    console.log(`  ⚠️  Error seeding "${station.name}": ${error.message}`);
+                }
             }
-        }
+            if (abortedRadioBySchemaIssue) {
+                console.warn('  ⚠️  Radio seeding aborted early due to missing core tables.');
+            }
 
         console.log(`\n📊 Radio Stations Final Report:`);
         console.log(`  ✅ Created: ${radioReport.created}`);
@@ -794,10 +832,12 @@ const seed = async () => {
 
             // Process TV seed in chunks to avoid long single-run spikes and improve resilience
             const chunkSize = mergedTV.length > 5000 ? 500 : 1000;
+            let abortedTVBySchemaIssue = false;
             for (let i = 0; i < mergedTV.length; i += chunkSize) {
                 const chunk = mergedTV.slice(i, i + chunkSize);
 
-            for (const channel of chunk) {
+            for (let chunkIndex = 0; chunkIndex < chunk.length; chunkIndex++) {
+                const channel = chunk[chunkIndex];
                 try {
                     // Try to find existing by streamUrl OR by name+country
                     const where = (IS_FAST_MODE && FAST_SKIP_PER_ITEM_PRECHECK)
@@ -854,14 +894,28 @@ const seed = async () => {
                         console.log(`  ⏳ Progress: ${tvReport.created} channels added...`);
                     }
                 } catch (error) {
+                    if (isMissingCoreTableError(error)) {
+                        const remaining = mergedTV.length - (i + chunkIndex);
+                        console.warn(`  ⚠️  Core schema missing while seeding TV ("${channel.name}"). Skipping remaining ${remaining} TV items to avoid repeated failures.`);
+                        abortedTVBySchemaIssue = true;
+                        break;
+                    }
                     console.log(`  ⚠️  Error seeding "${channel.name}": ${error.message}`);
                 }
+            }
+
+            if (abortedTVBySchemaIssue) {
+                break;
             }
 
             console.log(`  ⏳ Seeded ${Math.min(i + chunkSize, mergedTV.length)}/${mergedTV.length} TV channels...`);
             if (CHUNK_DELAY_MS > 0) {
                 await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY_MS));
             }
+        }
+
+        if (abortedTVBySchemaIssue) {
+            console.warn('  ⚠️  TV seeding aborted early due to missing core tables.');
         }
 
         if (!IS_DRY_RUN_MODE) {

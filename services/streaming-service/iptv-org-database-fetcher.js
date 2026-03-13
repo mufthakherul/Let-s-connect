@@ -14,7 +14,7 @@ class IPTVOrgDatabaseFetcher {
         this.baseUrl = 'https://raw.githubusercontent.com/iptv-org/database/master/data';
         this.timeout = options.timeout || 30000;
         this.retries = options.retries || 3;
-        this.cacheDir = options.cacheDir || path.join(__dirname, 'cache');
+        this.cacheDir = options.cacheDir || process.env.STREAMING_CACHE_DIR || path.join('/tmp', 'streaming-service-cache');
         this.cache = new Map();
 
         // CSV files to fetch from the database
@@ -34,8 +34,13 @@ class IPTVOrgDatabaseFetcher {
         ];
 
         // Ensure cache directory exists
-        if (!fs.existsSync(this.cacheDir)) {
-            fs.mkdirSync(this.cacheDir, { recursive: true });
+        try {
+            if (this.cacheDir && !fs.existsSync(this.cacheDir)) {
+                fs.mkdirSync(this.cacheDir, { recursive: true });
+            }
+        } catch (error) {
+            console.log(`⚠️  Could not initialize IPTV cache dir "${this.cacheDir}": ${error.message}. Continuing without file cache.`);
+            this.cacheDir = null;
         }
     }
 
@@ -371,11 +376,10 @@ class IPTVOrgDatabaseFetcher {
      * Fetch with caching
      */
     async _fetchWithCache(url) {
-        const cacheKey = url;
-        const cacheFile = path.join(this.cacheDir, this._urlToFilename(url));
+        const cacheFile = this.cacheDir ? path.join(this.cacheDir, this._urlToFilename(url)) : null;
 
         // Check cache first (24 hour expiry)
-        if (fs.existsSync(cacheFile)) {
+        if (cacheFile && fs.existsSync(cacheFile)) {
             const stats = fs.statSync(cacheFile);
             const age = Date.now() - stats.mtime.getTime();
             if (age < 24 * 60 * 60 * 1000) {
@@ -391,7 +395,7 @@ class IPTVOrgDatabaseFetcher {
         const data = await this._fetch(url);
 
         // Cache the result
-        if (data) {
+        if (data && cacheFile) {
             try {
                 fs.writeFileSync(cacheFile, data, 'utf8');
             } catch (error) {
