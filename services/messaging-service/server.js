@@ -10,7 +10,11 @@ const { buildSocketCorsOptions } = require('../shared/cors-config');
 const { HealthChecker, checkDatabase, checkRedis } = require('../shared/monitoring');
 const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
 const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
+const { createLogger, requestLogger, errorLogger, logStartup, logShutdown } = require('../shared/advanced-logger');
 require('dotenv').config({ quiet: true });
+
+// Create service logger
+const logger = createLogger('messaging-service');
 
 const models = require('./models');
 const mountRoutes = require('./routes');
@@ -33,6 +37,7 @@ const dbPoolProfile = process.env.DB_POOL_PROFILE || 'heavy';
 
 const healthChecker = new HealthChecker('messaging-service');
 app.use(express.json({ limit: '10mb' }));
+app.use(requestLogger('messaging-service'));
 app.use(createForwardedIdentityGuard());
 app.use(healthChecker.metricsMiddleware());
 
@@ -96,7 +101,7 @@ async function ensureSchemaBootstrapIfMissing() {
 
   // recovery: migrations may have run while schema sync was skipped
   if (!tableNames.has('Notifications')) {
-    console.warn('[Messaging Service] Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
+    logger.warn('Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
     await sequelize.sync();
   }
 }
@@ -106,7 +111,7 @@ startServiceWithDatabase({
   sequelize,
   beforeStart: async () => {
     await sequelize.authenticate();
-    console.log('[Messaging Service] Database connected.');
+    logger.info('Database connected');
     setupQueryMonitoring(sequelize, {
       slowQueryThreshold: parseInt(process.env.SLOW_QUERY_THRESHOLD || '100', 10),
       n1Threshold: parseInt(process.env.N1_QUERY_THRESHOLD || '5', 10),
@@ -117,11 +122,30 @@ startServiceWithDatabase({
   },
   start: () => new Promise((resolve) => {
     server.listen(PORT, () => {
-      console.log(`Messaging service running on port ${PORT}`);
+      logStartup('messaging-service', PORT, { dbPoolProfile, socketIO: true });
       resolve();
     });
   }),
   onError: (error) => {
-    console.error('Database initialization failed:', error);
+    logger.fatal({ err: error }, 'Database initialization failed');
   }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  logShutdown('messaging-service', 'SIGTERM received');
+  server.close(() => {
+    redis.disconnect();
+    redisSub.disconnect();
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  logShutdown('messaging-service', 'SIGINT received');
+  server.close(() => {
+    redis.disconnect();
+    redisSub.disconnect();
+    process.exit(0);
+  });
 });
