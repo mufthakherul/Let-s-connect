@@ -368,6 +368,7 @@ services:
       - SEED_FAST_SKIP_PER_ITEM_PRECHECK=${SEED_FAST_SKIP_PER_ITEM_PRECHECK:-true}
       - SEED_CHUNK_DELAY_MS=${SEED_CHUNK_DELAY_MS:-0}
       - SEED_CHANNEL_ENRICH_MAX_CONCURRENT=${SEED_CHANNEL_ENRICH_MAX_CONCURRENT:-20}
+      - STREAMING_CACHE_DIR=${STREAMING_CACHE_DIR:-/tmp/streaming-service-cache}
     depends_on:
       postgres:
         condition: service_healthy
