@@ -615,9 +615,11 @@ services:
       dockerfile: Dockerfile.backend
       args:
         - SERVICE=ai
+    command: [ "node", "agent.js" ]
     restart: unless-stopped
     environment:
       - ENABLE_ADMIN_AI=${ENABLE_ADMIN_AI:-false}
+      - ADMIN_HOME=/app/.admin-cli
       - AI_PROVIDER=${AI_PROVIDER:-demo}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}

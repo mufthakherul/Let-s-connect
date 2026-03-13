@@ -84,6 +84,8 @@ const CHUNK_DELAY_MS = parseNumber(
     process.env.SEED_CHUNK_DELAY_MS,
     FAST_DISABLE_DELAYS ? 0 : 250
 );
+const SEED_DB_CONNECT_RETRIES = parseNumber(process.env.SEED_DB_CONNECT_RETRIES, 3);
+const SEED_DB_CONNECT_RETRY_DELAY_MS = parseNumber(process.env.SEED_DB_CONNECT_RETRY_DELAY_MS, 2000);
 
 const CHANNEL_ENRICH_MAX_CONCURRENT = parseNumber(
     process.env.SEED_CHANNEL_ENRICH_MAX_CONCURRENT,
@@ -199,6 +201,39 @@ function isMissingCoreTableError(error) {
         (msg.includes('relation "RadioStations" does not exist') || msg.includes('relation "TVChannels" does not exist')) ||
         (sql.includes('"RadioStations"') || sql.includes('"TVChannels"')) && (error?.parent?.code === '42P01' || msg.includes('does not exist'))
     );
+}
+
+function isTransientDbConnectivityError(error) {
+    if (!error) return false;
+    const msg = String(error.message || '');
+    const code = String(error.code || error?.parent?.code || '');
+    return (
+        code === 'ENOTFOUND' ||
+        code === 'ECONNREFUSED' ||
+        code === 'EAI_AGAIN' ||
+        msg.includes('getaddrinfo ENOTFOUND postgres') ||
+        msg.includes('connect ECONNREFUSED') ||
+        msg.includes('Connection terminated unexpectedly')
+    );
+}
+
+async function ensureDatabaseConnectivity(maxAttempts = SEED_DB_CONNECT_RETRIES, retryDelayMs = SEED_DB_CONNECT_RETRY_DELAY_MS) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            await sequelize.authenticate();
+            if (attempt > 1) {
+                console.log(`[Streaming Seed][DB_CONNECT] Recovered connectivity on attempt ${attempt}/${maxAttempts}.`);
+            }
+            return true;
+        } catch (error) {
+            const code = error?.parent?.code || error?.code || 'UNKNOWN';
+            console.warn(`[Streaming Seed][DB_CONNECT] Attempt ${attempt}/${maxAttempts} failed (${code}): ${error.message}`);
+            if (attempt < maxAttempts) {
+                await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+            }
+        }
+    }
+    return false;
 }
 
 // ==================== FETCHER FUNCTIONS ====================
@@ -540,6 +575,12 @@ const seed = async () => {
             await syncWithPolicy(sequelize, 'streaming-service-seed');
             await ensureStreamingSchemaBootstrap();
             console.log('✅ Database models sync step completed\n');
+
+            const dbReachable = await ensureDatabaseConnectivity();
+            if (!dbReachable) {
+                console.warn('[Streaming Seed][ABORT] Database is unreachable after retries. Skipping remaining seed workload and starting service without seeding.');
+                process.exit(0);
+            }
         } else {
             console.log('🔍 Skipping database sync in dry-run mode\n');
         }
@@ -607,6 +648,8 @@ const seed = async () => {
             };
 
             let abortedRadioBySchemaIssue = false;
+            let radioGenericErrorCount = 0;
+            let radioGenericErrorLogged = 0;
             for (let stationIndex = 0; stationIndex < mergedRadio.length; stationIndex++) {
                 const station = mergedRadio[stationIndex];
                 try {
@@ -670,15 +713,28 @@ const seed = async () => {
                 } catch (error) {
                     if (isMissingCoreTableError(error)) {
                         const remaining = mergedRadio.length - stationIndex;
-                        console.warn(`  ⚠️  Core schema missing while seeding radio ("${station.name}"). Skipping remaining ${remaining} radio items to avoid repeated failures.`);
+                        console.warn(`[Streaming Seed][RADIO_ABORT] Core schema missing at station="${station.name}". Skipping remaining ${remaining} items.`);
                         abortedRadioBySchemaIssue = true;
                         break;
                     }
-                    console.log(`  ⚠️  Error seeding "${station.name}": ${error.message}`);
+                    if (isTransientDbConnectivityError(error)) {
+                        const remaining = mergedRadio.length - stationIndex;
+                        console.warn(`[Streaming Seed][RADIO_ABORT] Database connectivity lost while seeding station="${station.name}". Skipping remaining ${remaining} items.`);
+                        abortedRadioBySchemaIssue = true;
+                        break;
+                    }
+                    radioGenericErrorCount++;
+                    if (radioGenericErrorLogged < 10) {
+                        console.log(`[Streaming Seed][RADIO_ITEM_ERROR] station="${station.name}" message="${error.message}"`);
+                        radioGenericErrorLogged++;
+                    }
                 }
             }
             if (abortedRadioBySchemaIssue) {
-                console.warn('  ⚠️  Radio seeding aborted early due to missing core tables.');
+                console.warn('[Streaming Seed][RADIO_ABORT] Radio seeding aborted early due to critical DB/schema condition.');
+            }
+            if (radioGenericErrorCount > radioGenericErrorLogged) {
+                console.warn(`[Streaming Seed][RADIO_ITEM_ERROR] Suppressed ${radioGenericErrorCount - radioGenericErrorLogged} additional radio item errors.`);
             }
 
         console.log(`\n📊 Radio Stations Final Report:`);
@@ -833,6 +889,8 @@ const seed = async () => {
             // Process TV seed in chunks to avoid long single-run spikes and improve resilience
             const chunkSize = mergedTV.length > 5000 ? 500 : 1000;
             let abortedTVBySchemaIssue = false;
+            let tvGenericErrorCount = 0;
+            let tvGenericErrorLogged = 0;
             for (let i = 0; i < mergedTV.length; i += chunkSize) {
                 const chunk = mergedTV.slice(i, i + chunkSize);
 
@@ -896,11 +954,21 @@ const seed = async () => {
                 } catch (error) {
                     if (isMissingCoreTableError(error)) {
                         const remaining = mergedTV.length - (i + chunkIndex);
-                        console.warn(`  ⚠️  Core schema missing while seeding TV ("${channel.name}"). Skipping remaining ${remaining} TV items to avoid repeated failures.`);
+                        console.warn(`[Streaming Seed][TV_ABORT] Core schema missing at channel="${channel.name}". Skipping remaining ${remaining} items.`);
                         abortedTVBySchemaIssue = true;
                         break;
                     }
-                    console.log(`  ⚠️  Error seeding "${channel.name}": ${error.message}`);
+                    if (isTransientDbConnectivityError(error)) {
+                        const remaining = mergedTV.length - (i + chunkIndex);
+                        console.warn(`[Streaming Seed][TV_ABORT] Database connectivity lost while seeding channel="${channel.name}". Skipping remaining ${remaining} items.`);
+                        abortedTVBySchemaIssue = true;
+                        break;
+                    }
+                    tvGenericErrorCount++;
+                    if (tvGenericErrorLogged < 10) {
+                        console.log(`[Streaming Seed][TV_ITEM_ERROR] channel="${channel.name}" message="${error.message}"`);
+                        tvGenericErrorLogged++;
+                    }
                 }
             }
 
@@ -915,7 +983,10 @@ const seed = async () => {
         }
 
         if (abortedTVBySchemaIssue) {
-            console.warn('  ⚠️  TV seeding aborted early due to missing core tables.');
+            console.warn('[Streaming Seed][TV_ABORT] TV seeding aborted early due to critical DB/schema condition.');
+        }
+        if (tvGenericErrorCount > tvGenericErrorLogged) {
+            console.warn(`[Streaming Seed][TV_ITEM_ERROR] Suppressed ${tvGenericErrorCount - tvGenericErrorLogged} additional TV item errors.`);
         }
 
         if (!IS_DRY_RUN_MODE) {
