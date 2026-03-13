@@ -43,7 +43,7 @@ exports.submitFeedback = catchAsync(async (req, res) => {
         displayName
     });
 
-    response.success(res, { id: feedback.id, status: feedback.status }, 'Feedback submitted successfully');
+    response.success(req, res, { id: feedback.id, status: feedback.status }, { message: 'Feedback submitted successfully' });
 });
 
 exports.getApprovedFeedback = catchAsync(async (req, res) => {
@@ -57,7 +57,7 @@ exports.getApprovedFeedback = catchAsync(async (req, res) => {
 
     const items = await Feedback.findAll({
         where,
-        order: [['approvedAt', 'DESC']],
+        order: [['reviewedAt', 'DESC']],
         limit
     });
 
@@ -71,7 +71,7 @@ exports.getApprovedFeedback = catchAsync(async (req, res) => {
         raw: true
     });
 
-    response.success(res, {
+    response.success(req, res, {
         testimonials: items.map((item) => ({
             id: item.id,
             displayName: item.displayName,
@@ -79,7 +79,7 @@ exports.getApprovedFeedback = catchAsync(async (req, res) => {
             message: item.message,
             rating: item.rating,
             verified: item.verified,
-            approvedAt: item.approvedAt
+            approvedAt: item.reviewedAt
         })),
         stats: {
             total: Number(stats.total || 0),
@@ -109,7 +109,7 @@ exports.getPendingFeedback = catchAsync(async (req, res) => {
         offset
     });
 
-    response.success(res, {
+    response.success(req, res, {
         pending: rows,
         total: count,
         page,
@@ -141,7 +141,7 @@ exports.approveFeedback = catchAsync(async (req, res) => {
 
     await feedback.save();
 
-    response.success(res, { id: feedback.id, status: feedback.status });
+    response.success(req, res, { id: feedback.id, status: feedback.status });
 });
 
 exports.rejectFeedback = catchAsync(async (req, res) => {
@@ -159,7 +159,7 @@ exports.rejectFeedback = catchAsync(async (req, res) => {
 
     await feedback.save();
 
-    response.success(res, { id: feedback.id, status: feedback.status });
+    response.success(req, res, { id: feedback.id, status: feedback.status });
 });
 
 exports.ensureAdmin = ensureAdmin;

@@ -37,7 +37,18 @@ const resolveRuntimeApiBase = () => {
   return origin;
 };
 
-let API_BASE_URL = process.env.REACT_APP_API_URL || resolveRuntimeApiBase();
+const configuredApiBase = (process.env.REACT_APP_API_URL || '').trim();
+const runtimeApiBase = resolveRuntimeApiBase();
+let API_BASE_URL = configuredApiBase || runtimeApiBase;
+
+if (
+  typeof window !== 'undefined' &&
+  configuredApiBase &&
+  window.location.origin.includes('localhost') &&
+  configuredApiBase.includes('.app.github.dev')
+) {
+  API_BASE_URL = runtimeApiBase;
+}
 // in development we don't want to use an absolute URL even if someone set
 // REACT_APP_API_URL (the template often does).  stick with relative paths and
 // rely on the proxy we configured above.
@@ -77,6 +88,9 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
+    if (typeof config.url === 'string' && config.baseURL?.endsWith('/api') && config.url.startsWith('/api/')) {
+      config.url = config.url.slice(4);
+    }
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

@@ -119,24 +119,24 @@ function errorHandler(err, req, res, next) {
   // Handle Common Library Errors
   if (err.name === 'SequelizeValidationError') {
     const details = err.errors.map(e => ({ field: e.path, message: e.message }));
-    return response.error(res, 'Validation failed', 400, details, { code: 'VALIDATION_ERROR' });
+    return response.error(req, res, 'VALIDATION_ERROR', 'Validation failed', 400, details);
   }
 
   if (err.name === 'SequelizeUniqueConstraintError') {
     const field = err.errors[0]?.path || 'field';
-    return response.error(res, `${field} already exists`, 409, { field }, { code: 'CONFLICT' });
+    return response.error(req, res, 'CONFLICT', `${field} already exists`, 409, { field });
   }
 
   if (err.name === 'JsonWebTokenError') {
-    return response.error(res, 'Invalid authentication token', 401, null, { code: 'INVALID_TOKEN' });
+    return response.error(req, res, 'INVALID_TOKEN', 'Invalid authentication token', 401, null);
   }
 
   if (err.name === 'TokenExpiredError') {
-    return response.error(res, 'Authentication token has expired', 401, null, { code: 'TOKEN_EXPIRED' });
+    return response.error(req, res, 'TOKEN_EXPIRED', 'Authentication token has expired', 401, null);
   }
 
   // Final generic fallback for production
-  return response.error(res, 'An unexpected error occurred', 500, null, { code: 'INTERNAL_SERVER_ERROR' });
+  return response.error(req, res, 'INTERNAL_SERVER_ERROR', 'An unexpected error occurred', 500, null);
 }
 
 /**

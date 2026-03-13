@@ -7,7 +7,7 @@ exports.createChannel = catchAsync(async (req, res, next) => {
     const userId = req.header('x-user-id');
 
     const channel = await Channel.create({ userId, name, description, avatarUrl, bannerUrl });
-    response.success(res, channel, 'Channel created', 201);
+    response.success(req, res, channel, { message: 'Channel created' }, 201);
 });
 
 exports.uploadVideo = catchAsync(async (req, res, next) => {
@@ -15,7 +15,7 @@ exports.uploadVideo = catchAsync(async (req, res, next) => {
     const userId = req.header('x-user-id');
 
     const video = await Video.create({ userId, channelId, title, description, videoUrl, thumbnailUrl });
-    response.success(res, video, 'Video uploaded', 201);
+    response.success(req, res, video, { message: 'Video uploaded' }, 201);
 });
 
 exports.subscribe = catchAsync(async (req, res, next) => {
@@ -25,7 +25,7 @@ exports.subscribe = catchAsync(async (req, res, next) => {
     await Subscription.findOrCreate({ where: { userId, channelId } });
     await Channel.increment('subscribers', { where: { id: channelId } });
 
-    response.success(res, null, 'Subscribed successfully');
+    response.success(req, res, null, { message: 'Subscribed successfully' });
 });
 
 exports.getPublicVideos = catchAsync(async (req, res) => {
@@ -33,7 +33,7 @@ exports.getPublicVideos = catchAsync(async (req, res) => {
         order: [['createdAt', 'DESC']],
         limit: 20
     });
-    response.success(res, videos, 'Public videos fetched');
+    response.success(req, res, videos, { message: 'Public videos fetched' });
 });
 
 exports.getChannels = catchAsync(async (req, res) => {
@@ -41,7 +41,7 @@ exports.getChannels = catchAsync(async (req, res) => {
         order: [['subscribers', 'DESC']],
         limit: 20
     });
-    response.success(res, channels, 'Channels fetched');
+    response.success(req, res, channels, { message: 'Channels fetched' });
 });
 
 exports.getChannelById = catchAsync(async (req, res, next) => {
@@ -49,7 +49,7 @@ exports.getChannelById = catchAsync(async (req, res, next) => {
         include: [{ model: Video }]
     });
     if (!channel) return next(new AppError('Channel not found', 404));
-    response.success(res, channel, 'Channel details fetched');
+    response.success(req, res, channel, { message: 'Channel details fetched' });
 });
 
 exports.unsubscribe = catchAsync(async (req, res) => {
@@ -59,5 +59,5 @@ exports.unsubscribe = catchAsync(async (req, res) => {
     if (result) {
         await Channel.decrement('subscribers', { where: { id: channelId } });
     }
-    response.success(res, null, 'Unsubscribed successfully');
+    response.success(req, res, null, { message: 'Unsubscribed successfully' });
 });

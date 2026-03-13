@@ -31,7 +31,7 @@ const resolveServiceUrl = (overrideUrl, defaultPort) => {
 
 // Centralized API configuration — prefer runtime-resolved base when available.
 const RUNTIME_API = (typeof window !== 'undefined' && getApiBaseUrl()) || '';
-const API_BASE_URL = process.env.REACT_APP_API_URL || RUNTIME_API || 'http://localhost:8000';
+const API_BASE_URL = RUNTIME_API || process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const MESSAGING_SERVICE_URL = resolveServiceUrl(process.env.REACT_APP_MESSAGING_URL, 8003);
 const MEDIA_SERVICE_URL = resolveServiceUrl(process.env.REACT_APP_MEDIA_URL, 8005);
 
