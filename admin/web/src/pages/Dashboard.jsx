@@ -18,12 +18,14 @@ import {
     Security,
     Assignment,
     Refresh,
-    Home
+    Home,
+    Feedback as FeedbackIcon
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import HealthMetricsPanel from '../components/dashboard/HealthMetricsPanel';
 import KeyMetricsPanel from '../components/dashboard/KeyMetricsPanel';
 import ModerationQueuePanel from '../components/dashboard/ModerationQueuePanel';
+import FeedbackModerationPanel from '../components/dashboard/FeedbackModerationPanel';
 
 /**
  * Dashboard - Composed admin dashboard with tabbed interface
@@ -65,6 +67,11 @@ const Dashboard = () => {
             label: 'Moderation',
             icon: <Assignment fontSize="small" />,
             component: <ModerationQueuePanel key={lastRefresh.getTime()} />
+        },
+        {
+            label: 'Feedback',
+            icon: <FeedbackIcon fontSize="small" />,
+            component: <FeedbackModerationPanel key={lastRefresh.getTime()} />
         },
         {
             label: 'System Health',

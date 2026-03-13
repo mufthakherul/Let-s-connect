@@ -38,6 +38,7 @@ function UnregisterLanding() {
     const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
     const [userCount, setUserCount] = useState(50000);
     const [approvedTestimonials, setApprovedTestimonials] = useState([]);
+    const [testimonialStats, setTestimonialStats] = useState(null);
 
     const mode = theme.palette.mode;
     const brandGradient = `linear-gradient(135deg, ${designTokens.colors[mode].primary}, ${designTokens.colors[mode].secondary})`;
@@ -95,8 +96,12 @@ function UnregisterLanding() {
     useEffect(() => {
         api.get('/api/public/testimonials?limit=6').then((res) => {
             const testimonials = res?.data?.data?.testimonials;
+            const stats = res?.data?.data?.stats;
             if (Array.isArray(testimonials)) {
                 setApprovedTestimonials(testimonials);
+            }
+            if (stats && typeof stats === 'object') {
+                setTestimonialStats(stats);
             }
         }).catch((err) => {
             console.debug('[UnregisterLanding] Could not fetch public testimonials:', err?.message);
@@ -430,6 +435,7 @@ function UnregisterLanding() {
                     <Grid container spacing={2} sx={{ mb: 6, justifyContent: 'center' }}>
                         {[
                             { label: 'Users', to: userCount >= 1000 ? Math.round(userCount / 1000) : userCount, suffix: userCount >= 1000 ? 'K+' : '+' },
+                            { label: 'Testimonials', to: testimonialStats?.total ?? 0, suffix: '+' },
                             { label: 'Posts', to: 1, suffix: 'M+' },
                             { label: 'Uptime', to: null, display: '99.9%' },
                             { label: 'Countries', to: 150, suffix: '+' },
@@ -730,6 +736,15 @@ function UnregisterLanding() {
                                     <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                                         "{t.message}"
                                     </Typography>
+                                    {t.verified && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
+                                            <VerifiedUser fontSize="small" sx={{ color: 'success.main' }} />
+                                            <Typography variant="caption" color="success.main" sx={{ fontWeight: 600 }}>
+                                                Verified
+                                            </Typography>
+                                        </Box>
+                                    )}
+
                                     {typeof t.rating === 'number' && t.rating > 0 && (
                                         <Typography variant="caption" sx={{ display: 'block', mt: 1.5 }} color="text.secondary">
                                             ★ {t.rating.toFixed(1)} / 5

@@ -675,11 +675,58 @@ function TwoFAWizard({ open, userId, onClose, onComplete }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function BrandPanel({ mode }) {
-  const features = [
-    { icon: <TravelExplore />, title: 'Discover', desc: 'Connect with people who share your passions' },
-    { icon: <DevicesOther />, title: 'Multi-platform', desc: 'Seamlessly sync across all your devices' },
-    { icon: <Shield />, title: 'Secure', desc: 'End-to-end encrypted messages and 2FA support' },
-  ];
+  const [stats, setStats] = useState({ userCount: null, totalFeatures: null });
+  const [features, setFeatures] = useState([]);
+
+  const iconMap = {
+    Groups: <Groups sx={{ fontSize: 20 }} />, // Social feed
+    Chat: <Chat sx={{ fontSize: 20 }} />,
+    VideoLibrary: <VideoLibrary sx={{ fontSize: 20 }} />,
+    ShoppingCart: <ShoppingCart sx={{ fontSize: 20 }} />,
+    Description: <Description sx={{ fontSize: 20 }} />,
+    Tv: <Tv sx={{ fontSize: 20 }} />,
+    Radio: <Radio sx={{ fontSize: 20 }} />,
+    Default: <TravelExplore sx={{ fontSize: 20 }} />,
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    api.get('/api/public/stats').then((res) => {
+      if (!mounted) return;
+      const data = res?.data?.data || {};
+      setStats({
+        userCount: typeof data.userCount === 'number' ? data.userCount : null,
+        totalFeatures: typeof data.features === 'number'
+          ? data.features
+          : Array.isArray(data.features)
+            ? data.features.length
+            : null,
+      });
+    }).catch(() => {
+      // silent fallback
+    });
+
+    api.get('/api/public/features').then((res) => {
+      if (!mounted) return;
+      const list = res?.data?.data?.features;
+      if (Array.isArray(list)) setFeatures(list.slice(0, 3));
+    }).catch(() => {
+      // silent fallback
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const displayFeatures = features.length
+    ? features
+    : [
+      { title: 'Connect with friends', description: 'Join a global community and build meaningful connections.', icon: 'Groups' },
+      { title: 'Live chat & media', description: 'Chat, share, and stream content seamlessly across devices.', icon: 'Chat' },
+      { title: 'Secure by design', description: 'Built with encryption, 2FA, and privacy-first defaults.', icon: 'Shield' },
+    ];
 
   return (
     <Box
@@ -734,7 +781,7 @@ function BrandPanel({ mode }) {
         </Typography>
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {features.map((f, i) => (
+          {displayFeatures.map((f, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, x: -20 }}
@@ -754,15 +801,30 @@ function BrandPanel({ mode }) {
                     flexShrink: 0,
                   }}
                 >
-                  {f.icon}
+                  {iconMap[f.icon] || iconMap.Default}
                 </Box>
                 <Box>
                   <Typography variant="subtitle2" fontWeight={700}>{f.title}</Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.8, lineHeight: 1.4 }}>{f.desc}</Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.8, lineHeight: 1.4 }}>
+                    {f.description}
+                  </Typography>
                 </Box>
               </Box>
             </motion.div>
           ))}
+        </Box>
+
+        <Box sx={{ mt: 4, pt: 2, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+          <Typography variant="caption" sx={{ opacity: 0.85 }}>
+            {stats.userCount != null
+              ? `${stats.userCount.toLocaleString()} users are already on the platform` 
+              : 'Connecting communities of creators and collaborators.'}
+          </Typography>
+          {stats.totalFeatures != null && (
+            <Typography variant="caption" sx={{ opacity: 0.75, display: 'block', mt: 0.5 }}>
+              {stats.totalFeatures} platform features available today
+            </Typography>
+          )}
         </Box>
       </motion.div>
     </Box>
