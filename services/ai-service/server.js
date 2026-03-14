@@ -4,13 +4,16 @@ const Redis = require('ioredis');
 const crypto = require('crypto');
 const { HealthChecker, checkRedis } = require('../shared/monitoring');
 const { CacheKeyBuilder, CacheTTL, getCacheStats } = require('../shared/cache-strategy');
+const { createLogger, requestLogger, errorLogger, logStartup, logShutdown } = require('../shared/advanced-logger');
 require('dotenv').config({ quiet: true });
 
 const app = express();
 const PORT = process.env.PORT || 8007;
 const healthChecker = new HealthChecker('ai-service');
+const logger = createLogger('ai-service');
 
 app.use(express.json({ limit: '10mb' }));
+app.use(requestLogger('ai-service'));
 app.use(healthChecker.metricsMiddleware());
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -296,6 +299,11 @@ const parseJsonSafely = (text) => {
   }
 };
 
+const handleRouteError = (res, error, message, statusCode = 500, meta = {}) => {
+  logger.error({ err: error, ...meta }, message);
+  return res.status(statusCode).json({ error: message, details: error?.message });
+};
+
 // Routes
 
 app.get('/health', (req, res) => {
@@ -348,8 +356,7 @@ app.post('/chat', async (req, res) => {
 
     res.json({ response, cached: false });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'AI request failed', details: error.message });
+    return handleRouteError(res, error, 'AI request failed');
   }
 });
 
@@ -370,8 +377,7 @@ app.post('/summarize', async (req, res) => {
 
     res.json({ summary });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Summarization failed' });
+    return handleRouteError(res, error, 'Summarization failed');
   }
 });
 
@@ -423,8 +429,7 @@ app.post('/search/summary', async (req, res) => {
 
     res.json({ ...output, cached: false });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Search summary generation failed', details: error.message });
+    return handleRouteError(res, error, 'Search summary generation failed');
   }
 });
 
@@ -467,8 +472,7 @@ app.post('/search/semantic-expand', async (req, res) => {
 
     res.json({ ...output, cached: false });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Semantic query expansion failed', details: error.message });
+    return handleRouteError(res, error, 'Semantic query expansion failed');
   }
 });
 
@@ -522,8 +526,7 @@ app.post('/moderate', async (req, res) => {
       scores
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Moderation failed' });
+    return handleRouteError(res, error, 'Moderation failed');
   }
 });
 
@@ -546,8 +549,7 @@ app.post('/suggest', async (req, res) => {
 
     res.json({ suggestions });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Suggestion generation failed' });
+    return handleRouteError(res, error, 'Suggestion generation failed');
   }
 });
 
@@ -600,7 +602,7 @@ Content Type: ${contentType || 'general'}
         }));
       }
     } catch (parseError) {
-      console.error('Failed to parse recommendations:', parseError);
+      logger.error({ err: parseError }, 'Failed to parse recommendations');
       recommendations = [{
         title: 'Unable to generate recommendations',
         reason: 'Please try again later',
@@ -613,8 +615,7 @@ Content Type: ${contentType || 'general'}
 
     res.json({ recommendations, cached: false });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Recommendation generation failed', details: error.message });
+    return handleRouteError(res, error, 'Recommendation generation failed');
   }
 });
 
@@ -669,8 +670,7 @@ Task: Recommend content based on what similar users have engaged with.
 
     res.json({ recommendations, cached: false });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Collaborative filtering failed', details: error.message });
+    return handleRouteError(res, error, 'Collaborative filtering failed');
   }
 });
 
@@ -718,7 +718,7 @@ Feedback: ${JSON.stringify(feedbackData || {})}
         preferences = parsed;
       }
     } catch (parseError) {
-      console.error('Failed to parse preferences:', parseError);
+      logger.error({ err: parseError }, 'Failed to parse preferences');
       preferences = { status: 'learning', interactions: allInteractions.length };
     }
 
@@ -731,8 +731,7 @@ Feedback: ${JSON.stringify(feedbackData || {})}
       interactionCount: allInteractions.length
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Preference learning failed', details: error.message });
+    return handleRouteError(res, error, 'Preference learning failed');
   }
 });
 
@@ -760,8 +759,7 @@ app.get('/recommend/preferences/:userId', async (req, res) => {
       interactionCount: interactions ? JSON.parse(interactions).length : 0
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch preferences' });
+    return handleRouteError(res, error, 'Failed to fetch preferences');
   }
 });
 
@@ -810,8 +808,7 @@ Identify what's trending and why.
 
     res.json({ trending, cached: false, timeframe });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Trending analysis failed', details: error.message });
+    return handleRouteError(res, error, 'Trending analysis failed');
   }
 });
 
@@ -892,8 +889,7 @@ app.post('/tag', async (req, res) => {
     await redis.setex(cacheKey, CacheTTL.MEDIUM, JSON.stringify(tags));
     res.json({ tags, cached: false });
   } catch (error) {
-    console.error('[ai/tag]', error);
-    res.status(500).json({ error: 'Auto-tagging failed' });
+    return handleRouteError(res, error, 'Auto-tagging failed', 500, { endpoint: 'tag' });
   }
 });
 
@@ -922,8 +918,7 @@ app.post('/sentiment', async (req, res) => {
     await redis.setex(cacheKey, CacheTTL.MEDIUM, JSON.stringify(result));
     res.json({ ...result, cached: false });
   } catch (error) {
-    console.error('[ai/sentiment]', error);
-    res.status(500).json({ error: 'Sentiment analysis failed' });
+    return handleRouteError(res, error, 'Sentiment analysis failed', 500, { endpoint: 'sentiment' });
   }
 });
 
@@ -953,8 +948,7 @@ app.post('/meeting/summarize', async (req, res) => {
     await redis.setex(cacheKey, LONG_TERM_CACHE_TTL, JSON.stringify(result));
     res.json({ ...result, cached: false });
   } catch (error) {
-    console.error('[ai/meeting/summarize]', error);
-    res.status(500).json({ error: 'Meeting summarization failed' });
+    return handleRouteError(res, error, 'Meeting summarization failed', 500, { endpoint: 'meeting/summarize' });
   }
 });
 
@@ -984,8 +978,7 @@ app.post('/translate', async (req, res) => {
     await redis.setex(cacheKey, CacheTTL.LONG, JSON.stringify(result));
     res.json({ ...result, cached: false });
   } catch (error) {
-    console.error('[ai/translate]', error);
-    res.status(500).json({ error: 'Translation failed' });
+    return handleRouteError(res, error, 'Translation failed', 500, { endpoint: 'translate' });
   }
 });
 
@@ -1023,8 +1016,7 @@ app.post('/digest', async (req, res) => {
     await redis.setex(cacheKey, TRENDING_CACHE_TTL, JSON.stringify(enriched));
     res.json({ digest: enriched, cached: false });
   } catch (error) {
-    console.error('[ai/digest]', error);
-    res.status(500).json({ error: 'Digest generation failed' });
+    return handleRouteError(res, error, 'Digest generation failed', 500, { endpoint: 'digest' });
   }
 });
 
@@ -1058,8 +1050,7 @@ app.post('/writing/assist', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('[ai/writing/assist]', error);
-    res.status(500).json({ error: 'Writing assistance failed' });
+    return handleRouteError(res, error, 'Writing assistance failed', 500, { endpoint: 'writing/assist' });
   }
 });
 
@@ -1091,8 +1082,7 @@ app.post('/suggest/chat', async (req, res) => {
     await redis.setex(cacheKey, 30, JSON.stringify(suggestions)); // short TTL for chat
     res.json({ suggestions, cached: false });
   } catch (error) {
-    console.error('[ai/suggest/chat]', error);
-    res.status(500).json({ error: 'Chat suggestion failed' });
+    return handleRouteError(res, error, 'Chat suggestion failed', 500, { endpoint: 'suggest/chat' });
   }
 });
 
@@ -1114,12 +1104,14 @@ app.post('/embed', async (req, res) => {
     await redis.setex(cacheKey, CacheTTL.LONG, JSON.stringify(embeddings));
     res.json({ embeddings, dims, cached: false });
   } catch (error) {
-    console.error('[ai/embed]', error);
-    res.status(500).json({ error: 'Embedding generation failed' });
+    return handleRouteError(res, error, 'Embedding generation failed', 500, { endpoint: 'embed' });
   }
 });
 
 // Standard route fallback
+// Error logging middleware (after routes)
+app.use(errorLogger('ai-service'));
+
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -1130,6 +1122,26 @@ app.use((req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`AI service running on port ${PORT}`);
+const server = app.listen(PORT, () => {
+  logStartup('ai-service', PORT, {
+    ollamaModel: OLLAMA_MODEL,
+    redisConnected: Boolean(redis),
+    cacheHost: process.env.REDIS_URL || 'redis://redis:6379'
+  });
 });
+
+const gracefulShutdown = async (signal) => {
+  logShutdown('ai-service', `${signal} received`);
+  try {
+    await redis.quit();
+  } catch (err) {
+    logger.error({ err }, 'Failed to close redis during shutdown');
+  }
+
+  server.close(() => {
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
