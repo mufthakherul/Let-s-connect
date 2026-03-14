@@ -478,21 +478,185 @@ module.exports = {
 
 // Placeholder functions (implement based on your ORM/database layer)
 async function fetchUsersFromDB(userIds) {
-    // TODO: Implement database fetch
-    return [];
+    if (!Array.isArray(userIds) || userIds.length === 0) return [];
+
+    // Prefer direct DB access when running inside the monorepo services
+    try {
+        const { User, Profile } = require('../user-service/src/models');
+        const users = await User.findAll({
+            where: { id: userIds, isActive: true },
+            include: [
+                {
+                    model: Profile,
+                    attributes: ['headline', 'city', 'country', 'interests', 'skills'],
+                    required: false
+                }
+            ]
+        });
+
+        return users.map((user) => (typeof user.toJSON === 'function' ? user.toJSON() : user));
+    } catch (err) {
+        console.error('[cache-warmer] Failed to fetch users via models:', err.message);
+    }
+
+    // Fallback to service API
+    const baseUrl = process.env.USER_SERVICE_URL || 'http://user-service:8001';
+    const gatewayToken = process.env.INTERNAL_GATEWAY_TOKEN || '';
+    const results = [];
+
+    for (const id of userIds) {
+        try {
+            const res = await fetch(`${baseUrl}/profile/${id}`, {
+                headers: gatewayToken ? { 'x-internal-gateway-token': gatewayToken } : undefined
+            });
+            if (res.ok) {
+                const payload = await res.json();
+                const user = payload?.user || payload?.data || payload;
+                if (user) results.push(user);
+            }
+        } catch (apiErr) {
+            console.error('[cache-warmer] Failed to fetch user via HTTP:', apiErr.message);
+        }
+    }
+
+    return results;
 }
 
 async function fetchPostsFromDB(postIds) {
-    // TODO: Implement database fetch
-    return [];
+    if (!Array.isArray(postIds) || postIds.length === 0) return [];
+
+    try {
+        const { Post, AnonIdentity } = require('../content-service/src/models');
+
+        const posts = await Post.findAll({
+            where: { id: postIds, isPublished: true, isFlagged: false },
+            attributes: ['id', 'userId', 'content', 'likes', 'comments', 'shares', 'visibility', 'createdAt', 'updatedAt', 'isAnonymous', 'anonIdentityId'],
+            include: [
+                {
+                    model: AnonIdentity,
+                    attributes: ['handle', 'avatarUrl'],
+                    required: false
+                }
+            ]
+        });
+
+        return posts.map((post) => (typeof post.toJSON === 'function' ? post.toJSON() : post));
+    } catch (err) {
+        console.error('[cache-warmer] Failed to fetch posts via models:', err.message);
+    }
+
+    // Fallback to service API
+    const baseUrl = process.env.CONTENT_SERVICE_URL || 'http://content-service:8002';
+    const results = [];
+
+    for (const id of postIds) {
+        try {
+            const res = await fetch(`${baseUrl}/posts/${id}`);
+            if (res.ok) {
+                const payload = await res.json();
+                const post = payload?.post || payload?.data || payload;
+                if (post) results.push(post);
+            }
+        } catch (apiErr) {
+            console.error('[cache-warmer] Failed to fetch post via HTTP:', apiErr.message);
+        }
+    }
+
+    return results;
 }
 
 async function getPopularUserIds() {
-    // TODO: Implement logic to get popular user IDs
+    // Try calculating from follower graph
+    try {
+        const { Friend, User, sequelize } = require('../user-service/src/models');
+
+        const popular = await Friend.findAll({
+            attributes: [
+                'friendId',
+                [sequelize.fn('COUNT', sequelize.col('friendId')), 'followCount']
+            ],
+            where: {
+                status: 'active',
+                ...(Friend.rawAttributes?.type ? { type: 'follow' } : {})
+            },
+            group: ['friendId'],
+            order: [[sequelize.literal('"followCount" DESC')]],
+            limit: 50
+        });
+
+        if (popular.length > 0) {
+            return popular.map((entry) => entry.friendId);
+        }
+
+        // Fallback to most recent active users
+        const recent = await User.findAll({
+            where: { isActive: true },
+            order: [['createdAt', 'DESC']],
+            limit: 50
+        });
+
+        return recent.map((user) => user.id);
+    } catch (err) {
+        console.error('[cache-warmer] Failed to compute popular users via models:', err.message);
+    }
+
+    // HTTP fallback using discovery endpoint
+    try {
+        const baseUrl = process.env.USER_SERVICE_URL || 'http://user-service:8001';
+        const res = await fetch(`${baseUrl}/discover/people?limit=50`);
+        if (res.ok) {
+            const payload = await res.json();
+            const people = payload?.people || payload?.users || payload?.data?.people || [];
+            return people.map((person) => person.id).filter(Boolean);
+        }
+    } catch (apiErr) {
+        console.error('[cache-warmer] Failed to fetch popular users via HTTP:', apiErr.message);
+    }
+
     return [];
 }
 
 async function getTrendingPostIds() {
-    // TODO: Implement logic to get trending post IDs
+    const limit = 50;
+
+    try {
+        const { Post, sequelize, Op: ContentOp } = require('../content-service/src/models');
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+        const posts = await Post.findAll({
+            where: {
+                isPublished: true,
+                isFlagged: false,
+                createdAt: { [ContentOp.gte]: since }
+            },
+            order: [
+                [
+                    sequelize.literal('(COALESCE(likes, 0) * 2 + COALESCE(comments, 0) * 3 + COALESCE(shares, 0) * 5)'),
+                    'DESC'
+                ],
+                ['createdAt', 'DESC']
+            ],
+            attributes: ['id'],
+            limit
+        });
+
+        return posts.map((post) => post.id);
+    } catch (err) {
+        console.error('[cache-warmer] Failed to compute trending posts via models:', err.message);
+    }
+
+    // HTTP fallback using feed endpoint
+    try {
+        const baseUrl = process.env.CONTENT_SERVICE_URL || 'http://content-service:8002';
+        const res = await fetch(`${baseUrl}/posts/feed?filter=trending&limit=${limit}`);
+        if (res.ok) {
+            const payload = await res.json();
+            const posts = payload?.posts || payload?.data?.posts || [];
+            return posts.map((post) => post.id).filter(Boolean);
+        }
+    } catch (apiErr) {
+        console.error('[cache-warmer] Failed to fetch trending posts via HTTP:', apiErr.message);
+    }
+
     return [];
 }
