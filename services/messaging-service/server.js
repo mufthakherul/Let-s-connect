@@ -10,7 +10,7 @@ const { buildSocketCorsOptions } = require('../shared/cors-config');
 const { HealthChecker, checkDatabase, checkRedis } = require('../shared/monitoring');
 const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
 const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
-const { createLogger, requestLogger, errorLogger, logStartup, logShutdown } = require('../shared/advanced-logger');
+const { createLogger, requestLogger, logStartup, logShutdown } = require('../shared/advanced-logger');
 require('dotenv').config({ quiet: true });
 
 // Create service logger
