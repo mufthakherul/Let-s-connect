@@ -60,19 +60,15 @@ const MultiStepVerification = ({ initialIdentifier, initialSecret, onSuccess }) 
 
   /**
    * Send verification code to email
+   *
+   * Note: Backend endpoint for sending verification codes is not implemented
+   * in this repository. This function is kept as a placeholder to preserve
+   * the flow structure without making a failing network request.
    */
   const sendVerificationCode = useCallback(async () => {
-    try {
-      await fetch('/api/admin/send-verification-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier }),
-        credentials: 'include'
-      });
-    } catch (error) {
-      console.error('[Multi-Step] Code send error (silent)');
-    }
-  }, [identifier]);
+    // Intentionally left as a no-op until a matching backend route exists.
+    return;
+  }, []);
 
   /**
    * Step 2: Submit verification code
