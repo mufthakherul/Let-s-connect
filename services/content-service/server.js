@@ -22,7 +22,11 @@ const { createForwardedIdentityGuard } = require('../shared/security-utils');
 const { buildCorsOptions } = require('../shared/cors-config');
 const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
 const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
+const { createLogger, requestLogger, errorLogger, logStartup, logShutdown } = require('../shared/advanced-logger');
 require('dotenv').config({ quiet: true });
+
+// Create service logger
+const logger = createLogger('content-service');
 
 const PORT = process.env.PORT || 8002;
 const dbPoolProfile = process.env.DB_POOL_PROFILE || 'standard';
@@ -44,7 +48,7 @@ const ensureSchemaBootstrapIfMissing = async () => {
     const hasCorePostTable = tableNames.has('Posts');
 
     if (!hasCorePostTable) {
-        console.warn('[Content Service] Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
+        logger.warn('Core schema tables missing; bootstrapping with sequelize.sync() for recovery.');
         await sequelize.sync();
     }
 };
@@ -57,6 +61,7 @@ healthChecker.registerCheck('redis', () => checkRedis(cacheManager.redis));
 app.use(helmet());
 app.use(cors(buildCorsOptions()));
 app.use(express.json({ limit: '10mb' }));
+app.use(requestLogger('content-service'));
 app.use(createForwardedIdentityGuard());
 
 // Metrics tracking middleware
@@ -119,12 +124,13 @@ app.use((req, res) => {
 });
 
 // Global Error Handler
+app.use(errorLogger('content-service'));
 app.use(globalErrorHandler);
 
 const startServer = async () => {
     try {
         await sequelize.authenticate();
-        console.log('[Content Service] Database connected.');
+        logger.info('Database connected');
 
         setupQueryMonitoring(sequelize, {
             slowQueryThreshold: parseInt(process.env.SLOW_QUERY_THRESHOLD || '100', 10),
@@ -175,18 +181,30 @@ const startServer = async () => {
                     { mappingCiphertext: null, zeroizedAt: new Date() },
                     { where: { mappingCiphertext: { [Op.ne]: null }, createdAt: { [Op.lte]: cutoff } } }
                 );
+                logger.debug('Anon identity cleanup completed');
             } catch (err) {
-                console.error('[Anon Cleanup Error]', err);
+                logger.error({ err }, 'Anon cleanup error');
             }
         }, 24 * 60 * 60 * 1000);
 
         app.listen(PORT, () => {
-            console.log(`[Content Service] Running on port ${PORT}`);
+            logStartup('content-service', PORT, { dbPoolProfile });
         });
     } catch (error) {
-        console.error('[Content Service] Failed to start:', error);
+        logger.fatal({ err: error }, 'Failed to start service');
         process.exit(1);
     }
 };
 
 startServer();
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    logShutdown('content-service', 'SIGTERM received');
+    process.exit(0);
+});
+
+process.on('SIGINT', () => {
+    logShutdown('content-service', 'SIGINT received');
+    process.exit(0);
+});

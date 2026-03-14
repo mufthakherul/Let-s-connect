@@ -12,7 +12,7 @@ const swaggerSpec = require('./swagger-config');
 const webhookRoutes = require('./webhook-routes');
 const postmanGenerator = require('./postman-generator');
 const { reducedDataMode, addDataModeHeaders, getDataModeStats } = require('./reduced-data-mode');
-const logger = require('../shared/logger');
+const { createLogger, requestLogger: advancedRequestLogger, errorLogger, logStartup, logShutdown } = require('../shared/advanced-logger');
 const response = require('../shared/response-wrapper');
 const { globalErrorHandler, AppError, catchAsync } = require('../shared/errorHandling');
 const { v4: uuidv4 } = require('uuid');
@@ -21,7 +21,6 @@ const { getRequiredEnv } = require('../shared/security-utils');
 const { assertEnvValid } = require('../shared/env-validator');
 const compression = require('compression');
 const { getServiceTimeout, executeWithRetry, getCircuitBreakerStates, resetCircuitBreaker } = require('./resilience-config');
-const { requestLoggingMiddleware } = require('../shared/logging-utils');
 const {
   routeGovernanceMiddleware,
   classificationAuthMiddleware,
@@ -31,6 +30,9 @@ const {
 } = require('./route-governance');
 require('dotenv').config({ quiet: true });
 
+// Create logger instance
+const logger = createLogger('api-gateway');
+
 // Validate environment at startup
 try {
   assertEnvValid({
@@ -38,7 +40,7 @@ try {
     additionalSecrets: ['ADMIN_API_SECRET']
   });
 } catch (err) {
-  console.error(err.message);
+  logger.error({ err }, 'Environment validation failed');
   process.exit(1);
 }
 
@@ -119,11 +121,7 @@ const proxy = (target, options = {}) => {
     proxyErrorHandler: (err, res, next) => {
       // Log timeout and connection errors
       if (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT') {
-        logger.error(`Proxy error for ${serviceName}:`, {
-          code: err.code,
-          message: err.message,
-          target
-        });
+        logger.error({ err, serviceName, target }, `Proxy error for ${serviceName}`);
       }
       next(err);
     }
@@ -288,8 +286,8 @@ app.use((req, res, next) => {
 // Distributed trace context propagation (W3C traceparent)
 app.use(healthChecker.tracingMiddleware());
 
-// Enhanced structured logging (Phase 2)
-app.use(requestLoggingMiddleware('api-gateway'));
+// Advanced structured logging middleware
+app.use(advancedRequestLogger('api-gateway'));
 
 // Phase 7: Reduced Data Mode for mobile optimization
 app.use(addDataModeHeaders);
@@ -444,7 +442,10 @@ if (RATE_LIMITING_ENABLED) {
     store: new RedisStore({ sendCommand: sendRedisCommand, prefix: 'rl:username-soft:' }),
     keyGenerator: (req) => getIpRateLimitKey(req),
     handler: (req, res) => {
-      logger.warn({ ip: req.ip, url: req.originalUrl }, '[rate-limit] username soft-threshold reached — captcha required');
+      logger.security('username-soft-threshold-reached', {
+        ip: req.ip,
+        url: req.originalUrl
+      });
       res.set('X-Captcha-Required', '1');
       res.set('Retry-After', String(Math.ceil(60 * 60)));
       return res.status(429).json({ error: 'captcha_required', message: 'CAPTCHA required for further username checks' });
@@ -462,7 +463,10 @@ if (RATE_LIMITING_ENABLED) {
     }),
     keyGenerator: (req) => getIpRateLimitKey(req),
     handler: (req, res) => {
-      logger.warn({ ip: req.ip, url: req.originalUrl }, '[rate-limit] username check throttled');
+      logger.security('username-check-throttled', {
+        ip: req.ip,
+        url: req.originalUrl
+      });
       res.set('Retry-After', String(Math.ceil(60 * 60)));
       return res.status(429).json({ error: 'Too many username checks. Please try again later.' });
     }
@@ -474,7 +478,7 @@ if (RATE_LIMITING_ENABLED) {
   if (process.env.NODE_ENV !== 'development') {
     app.use(globalLimiter);
   } else {
-    logger.info('[API Gateway] skipping global rate limiter (development mode)');
+    logger.info('Skipping global rate limiter (development mode)');
   }
 }
 
@@ -740,7 +744,7 @@ app.post('/health/circuits/:serviceName/reset', requireAdminSecret, (req, res) =
   const success = resetCircuitBreaker(serviceName);
 
   if (success) {
-    logger.info(`Circuit breaker reset for ${serviceName}`);
+    logger.audit('circuit-breaker-reset', { serviceName });
     res.json({ success: true, message: `Circuit breaker for ${serviceName} reset` });
   } else {
     res.status(404).json({ success: false, message: `Circuit breaker for ${serviceName} not found` });
@@ -1057,7 +1061,7 @@ app.get('/api/search', authMiddleware, applyUserLimiter, async (req, res) => {
       }
       return { type, items: [] };
     } catch (err) {
-      logger.warn(`[search] fan-out failed for type=${type}: ${err.message}`);
+      logger.warn({ type, err }, `Search fan-out failed for type ${type}`);
       return { type, items: [], error: err.message };
     }
   };
@@ -1080,7 +1084,7 @@ app.get('/api/search', authMiddleware, applyUserLimiter, async (req, res) => {
       }
     });
   } catch (err) {
-    logger.error('[search] unified search error:', err);
+    logger.error({ err }, 'Unified search error');
     res.status(500).json({ error: 'Search failed', code: 'SEARCH_ERROR' });
   }
 });
@@ -1255,7 +1259,7 @@ app.get('/api/docs/postman', (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="milonexa-api.postman_collection.json"');
     res.send(collection);
   } catch (error) {
-    console.error('Postman collection generation error:', error);
+    logger.error({ err: error }, 'Postman collection generation error');
     res.status(500).json({ error: 'Failed to generate Postman collection' });
   }
 });
@@ -1266,7 +1270,7 @@ app.get('/api/docs/postman/info', (req, res) => {
     const info = postmanGenerator.getCollectionInfo();
     res.json(info);
   } catch (error) {
-    console.error('Postman collection info error:', error);
+    logger.error({ err: error }, 'Postman collection info error');
     res.status(500).json({ error: 'Failed to get collection info' });
   }
 });
@@ -1316,7 +1320,7 @@ app.post('/api/analytics/vitals', (req, res) => {
       const key = `vitals:${metric.name}:${Date.now()}`;
       redisClient.setEx(key, 86400, JSON.stringify(metric)).catch(() => { });
     }
-    logger.info({ name: metric.name, value: metric.value, rating: metric.rating, url: metric.url }, '[Vitals]');
+    logger.info({ vitals: { name: metric.name, value: metric.value, rating: metric.rating, url: metric.url } }, 'Web Vitals metric');
   }
   res.status(204).end();
 });
@@ -1333,13 +1337,24 @@ app.use((req, res) => {
   });
 });
 
+// Advanced error logging middleware
+app.use(errorLogger('api-gateway'));
+
 // Global Error Handling
 app.use(globalErrorHandler);
 
 app.listen(PORT, () => {
-  logger.info({ port: PORT, env: process.env.NODE_ENV }, 'API Gateway running');
-  logger.info({ services: Object.keys(services) }, 'Service routes configured');
+  logStartup('api-gateway', PORT, {
+    environment: process.env.NODE_ENV || 'development',
+    services: Object.keys(services).join(', '),
+    rateLimiting: RATE_LIMITING_ENABLED ? 'enabled' : 'disabled',
+    apiVersion: CURRENT_API_VERSION
+  });
 });
+
+// Handle graceful shutdown logging
+process.on('SIGTERM', () => logShutdown('api-gateway', 'SIGTERM received'));
+process.on('SIGINT', () => logShutdown('api-gateway', 'SIGINT received'));
 
 // ----------------------------------------------------------
 // Optional admin-only listener (separate port for security)
