@@ -1,52 +1,36 @@
 /**
  * Email Notification Service
- * SMTP-based email sending functionality for Milonexa
- * Phase 7 Feature
+ * Mailgun-based email sending functionality for Milonexa
+ * Phase 7 Feature - SMTP Removed, Mailgun Only
  */
 
-const nodemailer = require('nodemailer');
 const Mailgun = require('mailgun.js');
 const FormData = require('form-data');
 
 // Email transport configuration
-let transporter = null;
 let mailgunClient = null;
 let mailgunDomain = process.env.MAILGUN_DOMAIN || '';
 
-// Initialize email transporter (SMTP)
+// Initialize email transporter (Mailgun only)
 function initializeEmailTransport() {
-  const smtpConfig = {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-    auth: {
-      user: process.env.SMTP_USER || '',
-      pass: process.env.SMTP_PASSWORD || ''
-    }
-  };
-
-  // Only initialize if SMTP credentials are provided
-  if (smtpConfig.auth.user && smtpConfig.auth.pass) {
-    transporter = nodemailer.createTransport(smtpConfig);
-    console.log('[Email] SMTP transport initialized');
-  } else {
-    console.warn('[Email] SMTP credentials not configured. SMTP disabled.');
-  }
-
   // Initialize Mailgun client if API key is provided
   const mgKey = process.env.MAILGUN_API_KEY || '';
   if (!mailgunClient && mgKey) {
     try {
       const mg = new Mailgun(FormData);
-      mailgunClient = mg.client({ username: 'api', key: mgKey, url: (process.env.MAILGUN_BASE_URL || 'https://api.mailgun.net').replace(/\/v3\/?$/, '') });
+      mailgunClient = mg.client({
+        username: 'api',
+        key: mgKey,
+        url: (process.env.MAILGUN_BASE_URL || 'https://api.mailgun.net').replace(/\/v3\/?$/, '')
+      });
       mailgunDomain = process.env.MAILGUN_DOMAIN || mailgunDomain;
-      console.log('[Email] Mailgun client initialized');
+      console.log('[Email] Mailgun client initialized successfully');
     } catch (err) {
-      console.warn('[Email] Mailgun initialization failed:', err.message);
+      console.error('[Email] Mailgun initialization failed:', err.message);
       mailgunClient = null;
     }
   } else if (!mgKey) {
-    console.log('[Email] Mailgun API key not configured');
+    console.warn('[Email] Mailgun API key not configured. Email functionality disabled.');
   }
 }
 
@@ -147,7 +131,7 @@ const emailTemplates = {
 };
 
 /**
- * Send email notification
+ * Send email notification using Mailgun
  * @param {string} to - Recipient email address
  * @param {string} template - Template name (welcome, passwordReset, notification, etc.)
  * @param {object} data - Data to populate template
@@ -164,49 +148,28 @@ async function sendEmail(to, template, data) {
     ? templateData(data.user, data.data || data)
     : templateData;
 
-  // 1) Prefer Mailgun if available (default provider)
-  if (mailgunClient && mailgunDomain) {
-    try {
-      const emailData = {
-        from: process.env.EMAIL_FROM || process.env.SMTP_FROM || '"Milonexa" <noreply@milonexa.com>',
-        to,
-        subject,
-        text,
-        html
-      };
-
-      const result = await mailgunClient.messages.create(mailgunDomain, emailData);
-      console.log('[Email] Sent via Mailgun:', result.id);
-      return { success: true, messageId: result.id, provider: 'mailgun', template };
-    } catch (err) {
-      console.error('[Email] Mailgun send failed:', err);
-      // fallthrough to SMTP if configured
-    }
+  // Send via Mailgun (only provider)
+  if (!mailgunClient || !mailgunDomain) {
+    console.error('[Email] Mailgun not configured');
+    return { success: false, error: 'Mailgun not configured. Set MAILGUN_API_KEY and MAILGUN_DOMAIN.' };
   }
 
-  // 2) Fallback to SMTP transporter
-  if (transporter) {
-    try {
-      const mailOptions = {
-        from: process.env.SMTP_FROM || '"Milonexa" <noreply@milonexa.com>',
-        to,
-        subject,
-        text,
-        html
-      };
+  try {
+    const emailData = {
+      from: process.env.EMAIL_FROM || '"Milonexa" <noreply@milonexa.com>',
+      to,
+      subject,
+      text,
+      html
+    };
 
-      const result = await transporter.sendMail(mailOptions);
-      console.log('[Email] Sent via SMTP:', result.messageId);
-      return { success: true, messageId: result.messageId, provider: 'smtp', template };
-    } catch (error) {
-      console.error('[Email] SMTP send failed:', error);
-      return { success: false, error: error.message };
-    }
+    const result = await mailgunClient.messages.create(mailgunDomain, emailData);
+    console.log('[Email] Sent via Mailgun:', result.id);
+    return { success: true, messageId: result.id, provider: 'mailgun', template };
+  } catch (err) {
+    console.error('[Email] Mailgun send failed:', err);
+    return { success: false, error: err.message || 'Mailgun send failed' };
   }
-
-  // 3) No provider available
-  console.warn('[Email] No email provider configured (SMTP or Mailgun)');
-  return { success: false, error: 'No email provider configured' };
 }
 
 /**
@@ -215,9 +178,9 @@ async function sendEmail(to, template, data) {
  * @returns {Promise<object>} - Bulk send results
  */
 async function sendBulkEmails(recipients) {
-  if (!mailgunClient && !transporter) {
-    console.warn('[Email] No email provider configured. Bulk emails not sent.');
-    return { success: false, error: 'No email provider configured' };
+  if (!mailgunClient || !mailgunDomain) {
+    console.error('[Email] Mailgun not configured. Bulk emails not sent.');
+    return { success: false, error: 'Mailgun not configured. Set MAILGUN_API_KEY and MAILGUN_DOMAIN.' };
   }
 
   const results = {
@@ -245,28 +208,17 @@ async function sendBulkEmails(recipients) {
 }
 
 /**
- * Verify SMTP connection
+ * Verify Mailgun connection
  * @returns {Promise<boolean>} - Connection status
  */
 async function verifyConnection() {
-  // Check SMTP first
-  if (transporter) {
-    try {
-      await transporter.verify();
-      console.log('[Email] SMTP connection verified');
-      return true;
-    } catch (error) {
-      console.error('[Email] SMTP connection failed:', error.message || error);
-      // fall through to mailgun check
-    }
-  }
-
   // If Mailgun credentials are present, consider that 'configured'
   if (mailgunClient && mailgunDomain) {
-    console.log('[Email] Mailgun configured (connection not actively verified)');
+    console.log('[Email] Mailgun configured and ready');
     return true;
   }
 
+  console.error('[Email] Mailgun not configured. Set MAILGUN_API_KEY and MAILGUN_DOMAIN.');
   return false;
 }
 

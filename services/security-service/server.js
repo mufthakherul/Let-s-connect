@@ -11,9 +11,15 @@ const bcrypt = require('bcryptjs');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 require('dotenv').config({ quiet: true });
 
+let server;
+
 const { getRequiredEnv, isPlaceholderSecret } = require('../shared/security-utils');
 const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
 const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
+const { createLogger, requestLogger, errorLogger, logStartup, logShutdown } = require('../shared/advanced-logger');
+
+// Create service logger
+const logger = createLogger('security-service');
 
 // configuration
 // security-service listens on a configurable port (previously 9101)
@@ -266,9 +272,9 @@ async function initializeAdminDB() {
         }
 
         dbInitialized = true;
-        console.log('[Admin DB] Connected and initialized successfully');
+        logger.info('Admin database connected and initialized successfully');
     } catch (err) {
-        console.error('[Admin DB] Initialization failed:', err.message);
+        logger.error({ err }, 'Admin database initialization failed - retrying in 5s');
         // Retry after 5 seconds
         setTimeout(initializeAdminDB, 5000);
     }
@@ -338,7 +344,7 @@ const adminCorsOrigins = (process.env.ADMIN_CORS_ORIGINS || '').split(',').map(s
 if (process.env.CODESPACE_NAME && process.env.REACT_APP_ADMIN_PORT) {
     const codespaceUrl = `https://${process.env.CODESPACE_NAME}-${process.env.REACT_APP_ADMIN_PORT}.app.github.dev`;
     adminCorsOrigins.push(codespaceUrl);
-    console.log(`Added GitHub Codespaces CORS origin: ${codespaceUrl}`);
+    logger.info({ codespaceUrl }, 'Added GitHub Codespaces CORS origin');
 }
 
 const corsOptions = {
@@ -363,6 +369,7 @@ app.use(limiter);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(requestLogger('security-service'));
 
 // Health check endpoint (no middleware)
 app.get('/health', (req, res) => {
@@ -457,7 +464,7 @@ app.post('/admin/login', async (req, res) => {
             }
         });
     } catch (err) {
-        console.error('login error', err);
+        logger.error({ err, username: identifier }, 'Admin login error');
         res.status(500).json({ error: 'Authentication failed' });
     }
 });
@@ -508,7 +515,7 @@ app.post('/admin/users', requireAdminJWT, async (req, res) => {
             isActive: newUser.isActive
         });
     } catch (err) {
-        console.error('create admin user error', err);
+        logger.error({ err, username }, 'Create admin user error');
         res.status(500).json({ error: 'Failed to create user' });
     }
 });
@@ -524,7 +531,7 @@ app.get('/admin/users', requireAdminJWT, async (req, res) => {
         });
         return res.json({ users });
     } catch (err) {
-        console.error('list admin users error', err);
+        logger.error({ err }, 'List admin users error');
         return res.status(500).json({ error: 'Failed to list admin users' });
     }
 });
@@ -590,7 +597,7 @@ app.patch('/admin/users/:id', requireAdminJWT, async (req, res) => {
             lastLoginAt: user.lastLoginAt
         });
     } catch (err) {
-        console.error('update admin user error', err);
+        logger.error({ err, userId: req.params.id }, 'Update admin user error');
         return res.status(500).json({ error: 'Failed to update admin user' });
     }
 });
@@ -617,7 +624,7 @@ app.post('/admin/users/:id/disable', requireAdminJWT, async (req, res) => {
         await user.update({ isActive: false, lockedUntil: null, failedLoginAttempts: 0 });
         return res.json({ id: user.id, disabled: true });
     } catch (err) {
-        console.error('disable admin user error', err);
+        logger.error({ err, userId: req.params.id }, 'Disable admin user error');
         return res.status(500).json({ error: 'Failed to disable admin user' });
     }
 });
@@ -635,7 +642,7 @@ app.get('/admin/verify', requireAdminJWT, async (req, res) => {
         }
         return res.json({ valid: true, user });
     } catch (err) {
-        console.error('verify admin token error', err);
+        logger.error({ err, adminId: req.admin.id }, 'Verify admin token error');
         return res.status(500).json({ error: 'Verification failed' });
     }
 });
@@ -652,8 +659,50 @@ app.use('/:service', (req, res, next) => {
     return proxy(target, proxyOptions)(req, res, next);
 });
 
-app.listen(PORT, () => {
-    console.log(`Security service (admin backend) listening on port ${PORT}`);
-    console.log('Proxying the following services:');
-    Object.keys(services).forEach(k => console.log(`  - ${k} -> ${services[k]}`));
+app.use(errorLogger('security-service'));
+
+server = app.listen(PORT, () => {
+    logStartup('security-service', PORT, {
+        dbInitialized,
+        ipWhitelisting: ALLOWED_IPS.length > 0 || ALLOWED_IP_RANGES.length > 0,
+        twoFactor: ENABLE_2FA,
+        proxiedServices: Object.keys(services).length
+    });
+    logger.info({ services }, 'Proxying services');
+});
+
+// Graceful shutdown
+async function gracefulShutdown(signal) {
+    logShutdown('security-service', `${signal} received`);
+
+    try {
+        if (server) {
+            await new Promise((resolve, reject) => {
+                server.close(err => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    resolve();
+                });
+            });
+        }
+
+        if (adminSequelize) {
+            await adminSequelize.close();
+        }
+    } catch (err) {
+        if (logger && typeof logger.error === 'function') {
+            logger.error({ err, signal }, 'Error during graceful shutdown');
+        }
+    } finally {
+        process.exit(0);
+    }
+}
+
+process.on('SIGTERM', () => {
+    gracefulShutdown('SIGTERM');
+});
+
+process.on('SIGINT', () => {
+    gracefulShutdown('SIGINT');
 });
