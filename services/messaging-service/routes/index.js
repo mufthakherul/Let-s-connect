@@ -61,7 +61,7 @@ module.exports = function mountRoutes(app, deps) {
   // ── Feature Routes ─────────────────────────────────────────────────────────
 
   app.use(createMessagesRouter({ models, io, redis, pushNotificationsEnabled, webpush, VAPID_PUBLIC_KEY, botService }));
-  app.use(createConversationsRouter({ models, io }));
+  app.use(createConversationsRouter({ models, io, botService }));
   app.use(createChannelsRouter({
     models, io, redis,
     publishEvent, triggerWebhooks, getUserPresence, sendDigestEmail,
