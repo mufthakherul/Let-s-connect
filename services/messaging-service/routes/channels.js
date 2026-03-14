@@ -623,15 +623,28 @@ module.exports = function createChannelsRouter({
   router.post('/webhooks/:webhookId/:token', async (req, res) => {
     try {
       const { webhookId, token } = req.params;
-      const { content, embeds, channelId } = req.body || {};
+      const {
+        content,
+        embeds,
+        channelId,
+        username,
+        avatar_url,
+        tts = false,
+        allowed_mentions
+      } = req.body || {};
 
-      if (!content && !Array.isArray(embeds)) {
+      // Validate that at least content or embeds is provided
+      if (!content && (!Array.isArray(embeds) || embeds.length === 0)) {
         return res.status(400).json({ error: 'content or embeds is required' });
       }
 
+      // Verify webhook exists and token matches
       const webhook = await Webhook.findByPk(webhookId);
-      if (!webhook || webhook.token !== token) return res.status(401).json({ error: 'Invalid webhook token' });
+      if (!webhook || webhook.token !== token) {
+        return res.status(401).json({ error: 'Invalid webhook token' });
+      }
 
+      // Find target conversation/channel
       let conversation = null;
       if (channelId) conversation = await Conversation.findByPk(channelId);
       if (!conversation && webhook.channelId) conversation = await Conversation.findByPk(webhook.channelId);
@@ -647,22 +660,145 @@ module.exports = function createChannelsRouter({
         }
       }
 
-      const embedText = Array.isArray(embeds)
-        ? embeds.slice(0, 3).map(e => e?.title || e?.description).filter(Boolean).join(' | ')
-        : '';
-
-      const normalized = String(content || embedText || '').trim();
-      if (!normalized) return res.status(400).json({ error: 'message content is empty' });
-      if (normalized.length > 4000) return res.status(400).json({ error: 'message content too long' });
-
-      const message = await persistExternalMessage({
+      // Process Discord embeds if present
+      let messageData = {
         conversationId: conversation.id,
         senderId: webhook.createdBy || BOT_SYSTEM_USER_ID,
-        content: normalized,
-        type: 'text'
+        type: 'text',
+        content: '',
+        attachments: []
+      };
+
+      // Format Discord-style embeds
+      if (Array.isArray(embeds) && embeds.length > 0) {
+        const formattedEmbeds = embeds.slice(0, 10).map(embed => {
+          const formatted = {};
+
+          // Discord embed properties
+          if (embed.title) formatted.title = String(embed.title).substring(0, 256);
+          if (embed.description) formatted.description = String(embed.description).substring(0, 4096);
+          if (embed.url) formatted.url = embed.url;
+          if (embed.timestamp) formatted.timestamp = embed.timestamp;
+          if (embed.color) formatted.color = embed.color;
+
+          // Footer
+          if (embed.footer) {
+            formatted.footer = {
+              text: String(embed.footer.text || '').substring(0, 2048),
+              icon_url: embed.footer.icon_url
+            };
+          }
+
+          // Image
+          if (embed.image) {
+            formatted.image = { url: embed.image.url };
+          }
+
+          // Thumbnail
+          if (embed.thumbnail) {
+            formatted.thumbnail = { url: embed.thumbnail.url };
+          }
+
+          // Video
+          if (embed.video) {
+            formatted.video = { url: embed.video.url };
+          }
+
+          // Author
+          if (embed.author) {
+            formatted.author = {
+              name: String(embed.author.name || '').substring(0, 256),
+              url: embed.author.url,
+              icon_url: embed.author.icon_url
+            };
+          }
+
+          // Fields
+          if (Array.isArray(embed.fields)) {
+            formatted.fields = embed.fields.slice(0, 25).map(field => ({
+              name: String(field.name || '').substring(0, 256),
+              value: String(field.value || '').substring(0, 1024),
+              inline: Boolean(field.inline)
+            }));
+          }
+
+          return formatted;
+        });
+
+        // Store embeds in attachments array
+        messageData.attachments = [{
+          type: 'discord_embeds',
+          embeds: formattedEmbeds
+        }];
+      }
+
+      // Set message content
+      if (content) {
+        messageData.content = String(content).trim().substring(0, 2000);
+      } else if (messageData.attachments.length > 0) {
+        // If only embeds, create a preview text
+        const embed = messageData.attachments[0].embeds[0];
+        messageData.content = embed.title || embed.description || '[Embedded content]';
+      }
+
+      // Validate content
+      if (!messageData.content) {
+        return res.status(400).json({ error: 'message content is empty' });
+      }
+
+      // Override webhook username/avatar if provided
+      if (username) {
+        messageData.webhookUsername = String(username).substring(0, 80);
+      } else if (webhook.name) {
+        messageData.webhookUsername = webhook.name;
+      }
+
+      if (avatar_url) {
+        messageData.webhookAvatar = avatar_url;
+      } else if (webhook.avatarUrl) {
+        messageData.webhookAvatar = webhook.avatarUrl;
+      }
+
+      // Store TTS flag
+      if (tts) {
+        messageData.tts = true;
+      }
+
+      // Store allowed mentions
+      if (allowed_mentions) {
+        messageData.allowedMentions = allowed_mentions;
+      }
+
+      // Create message
+      const message = await Message.create(messageData);
+
+      // Update conversation
+      await Conversation.update(
+        { lastMessage: messageData.content, lastMessageAt: new Date() },
+        { where: { id: conversation.id } }
+      );
+
+      // Emit real-time event with full embed data
+      io.to(conversation.id).emit('new-message', {
+        ...message.toJSON(),
+        webhookUsername: messageData.webhookUsername,
+        webhookAvatar: messageData.webhookAvatar
       });
 
-      return res.status(200).json({ id: message.id, conversationId: conversation.id, delivered: true });
+      // Publish to Redis
+      redis.publish('messages', JSON.stringify({
+        ...message.toJSON(),
+        webhookUsername: messageData.webhookUsername,
+        webhookAvatar: messageData.webhookAvatar
+      }));
+
+      return res.status(200).json({
+        id: message.id,
+        conversationId: conversation.id,
+        channelId: conversation.id,
+        delivered: true,
+        timestamp: message.createdAt
+      });
     } catch (error) {
       console.error('Discord webhook execution failed:', error);
       return res.status(500).json({ error: 'Failed to execute webhook' });
