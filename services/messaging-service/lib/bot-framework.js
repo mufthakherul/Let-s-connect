@@ -1,11 +1,10 @@
 'use strict';
 
 /**
- * @fileoverview Advanced Bot Framework for Let's Connect
+ * @fileoverview Telegram-Style Bot Framework for Let's Connect
  *
  * Provides a comprehensive bot system with:
  * - Custom command registration with middleware
- * - AI-powered natural language processing
  * - Context-aware conversations with memory
  * - Plugin/extension system
  * - Rich interactive UI (buttons, forms, carousels)
@@ -16,8 +15,7 @@
  * - Multi-language support
  * - Webhook triggers
  * - Conversation flow builder
- * - Sentiment analysis
- * - Media processing
+ * - Bot creation system (BotFather)
  */
 
 const crypto = require('crypto');
@@ -75,10 +73,6 @@ class BotFramework extends EventEmitter {
 
     // Flow builder
     this.flows = new Map(); // flowId -> FlowDefinition
-
-    // AI integration
-    this.aiEnabled = options.aiEnabled || false;
-    this.aiModel = options.aiModel || null;
 
     // Setup default commands
     this._setupDefaultCommands();
@@ -187,10 +181,7 @@ class BotFramework extends EventEmitter {
 
     // Check if message starts with prefix
     if (!content.startsWith(this.prefix)) {
-      // Try AI processing if enabled
-      if (this.aiEnabled) {
-        return await this._processAI(message);
-      }
+      // Non-command messages are ignored (Telegram-style)
       return null;
     }
 
@@ -347,69 +338,6 @@ class BotFramework extends EventEmitter {
     };
 
     return context;
-  }
-
-  // ─── AI Integration ──────────────────────────────────────────────────────
-
-  async _processAI(message) {
-    if (!this.aiModel) {
-      return null;
-    }
-
-    const { content, userId, conversationId } = message;
-
-    try {
-      // Get conversation context
-      let conversation = this.conversations.get(userId);
-      if (!conversation) {
-        conversation = new ConversationContext(userId, conversationId);
-        this.conversations.set(userId, conversation);
-      }
-
-      // Add message to conversation
-      conversation.addMessage(content, 'user');
-
-      // Get conversation history
-      const history = conversation.getHistory(10);
-
-      // Call AI model
-      const aiResponse = await this.aiModel.generate({
-        prompt: content,
-        history,
-        context: {
-          botName: this.name,
-          availableCommands: Array.from(this.commands.keys()),
-          userContext: conversation.context
-        }
-      });
-
-      // Add bot response to conversation
-      conversation.addMessage(aiResponse.text, 'bot');
-
-      // Analyze sentiment
-      const sentiment = this._analyzeSentiment(content);
-      conversation.updateSentiment(sentiment);
-
-      // Emit event
-      this.emit('ai:response', { userId, prompt: content, response: aiResponse });
-
-      return {
-        success: true,
-        data: {
-          text: aiResponse.text,
-          confidence: aiResponse.confidence,
-          sentiment,
-          suggestions: aiResponse.suggestions || []
-        }
-      };
-
-    } catch (error) {
-      this.emit('ai:error', { userId, error });
-      return {
-        success: false,
-        error: 'AI processing failed'
-      };
-    }
   }
 
   // ─── Rate Limiting & Permissions ─────────────────────────────────────────

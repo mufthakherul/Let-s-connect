@@ -223,7 +223,6 @@ module.exports = function createBotRouter({ botService, models }) {
           version: bot.version,
           description: bot.description,
           prefix: bot.prefix,
-          aiEnabled: bot.aiEnabled,
           maxCommands: bot.maxCommands,
           rateLimitWindow: bot.rateLimitWindow,
           pluginCount: bot.plugins.size,
