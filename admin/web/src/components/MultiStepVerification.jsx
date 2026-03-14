@@ -91,9 +91,14 @@ const MultiStepVerification = ({ initialIdentifier, onSuccess }) => {
 
       if (response.ok) {
         const data = await response.json();
-        // Authentication successful
-        if (onSuccess) {
-          onSuccess(data);
+        // Only treat as successful if the payload explicitly indicates success
+        if (data && data.success === true && data.token) {
+          if (onSuccess) {
+            onSuccess(data);
+          }
+        } else {
+          // Silent failure when payload is missing expected fields
+          console.log('[Multi-Step] Code validation payload invalid (silent)');
         }
       } else {
         // Silent failure
