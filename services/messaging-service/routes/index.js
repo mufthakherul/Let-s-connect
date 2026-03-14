@@ -9,6 +9,8 @@
 const createMessagesRouter = require('./messages');
 const createConversationsRouter = require('./conversations');
 const createChannelsRouter = require('./channels');
+const createBotRouter = require('./bot');
+const BotService = require('../lib/bot-service');
 
 module.exports = function mountRoutes(app, deps) {
   const {
@@ -18,6 +20,18 @@ module.exports = function mountRoutes(app, deps) {
     EVENT_STREAM_KEY, BOT_SYSTEM_USER_ID, TELEGRAM_BOT_WEBHOOK_TOKEN,
     healthChecker, queryStatsMiddleware
   } = deps;
+
+  // ── Initialize Bot Service ─────────────────────────────────────────────────
+  const botService = new BotService({
+    models,
+    io,
+    redis,
+    publishEvent,
+    BOT_SYSTEM_USER_ID
+  });
+
+  // Store botService reference for use in routes
+  app.locals.botService = botService;
 
   // ── Health & Observability ─────────────────────────────────────────────────
 
@@ -46,13 +60,14 @@ module.exports = function mountRoutes(app, deps) {
 
   // ── Feature Routes ─────────────────────────────────────────────────────────
 
-  app.use(createMessagesRouter({ models, io, redis, pushNotificationsEnabled, webpush, VAPID_PUBLIC_KEY }));
+  app.use(createMessagesRouter({ models, io, redis, pushNotificationsEnabled, webpush, VAPID_PUBLIC_KEY, botService }));
   app.use(createConversationsRouter({ models, io }));
   app.use(createChannelsRouter({
     models, io, redis,
     publishEvent, triggerWebhooks, getUserPresence, sendDigestEmail,
     EVENT_STREAM_KEY, BOT_SYSTEM_USER_ID, TELEGRAM_BOT_WEBHOOK_TOKEN
   }));
+  app.use('/bot', createBotRouter({ botService, models }));
 
   // ── Root & Fallback ────────────────────────────────────────────────────────
 

@@ -14,7 +14,8 @@ module.exports = function createMessagesRouter({
   redis,
   pushNotificationsEnabled,
   webpush,
-  VAPID_PUBLIC_KEY
+  VAPID_PUBLIC_KEY,
+  botService
 }) {
   const {
     Message, MessageReaction, Conversation, PinnedMessage,
@@ -22,6 +23,40 @@ module.exports = function createMessagesRouter({
   } = models;
 
   const router = express.Router();
+
+  // ── Bot Message Processing Middleware ────────────────────────────────────
+
+  const processBotCommands = async (req, res, next) => {
+    // Only process on message creation
+    if (req.method === 'POST' && req.path === '/conversations/:conversationId/messages') {
+      const message = {
+        content: req.body.content,
+        senderId: req.header('x-user-id'),
+        conversationId: req.params.conversationId,
+        id: require('crypto').randomUUID()
+      };
+
+      // Check if message is a bot command
+      if (botService && message.content && message.content.startsWith('/')) {
+        try {
+          const result = await botService.processMessage(message);
+          if (result && result.success) {
+            // Bot handled the command, store the flag for later use
+            req.botProcessed = true;
+            req.botResult = result;
+          }
+        } catch (error) {
+          console.error('[Bot] Error processing message:', error);
+        }
+      }
+    }
+    next();
+  };
+
+  // Apply bot middleware to all routes
+  if (botService) {
+    router.use(processBotCommands);
+  }
 
   // ── Push Notifications ─────────────────────────────────────────────────────
 
