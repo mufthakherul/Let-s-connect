@@ -21,7 +21,6 @@ const { getRequiredEnv } = require('../shared/security-utils');
 const { assertEnvValid } = require('../shared/env-validator');
 const compression = require('compression');
 const { getServiceTimeout, executeWithRetry, getCircuitBreakerStates, resetCircuitBreaker } = require('./resilience-config');
-const { requestLoggingMiddleware } = require('../shared/logging-utils');
 const {
   routeGovernanceMiddleware,
   classificationAuthMiddleware,
