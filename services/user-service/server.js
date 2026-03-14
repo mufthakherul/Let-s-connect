@@ -299,8 +299,6 @@ async function startServer() {
   }
 }
 
-// Handle graceful shutdown logging
-process.on('SIGTERM', () => logShutdown('user-service', 'SIGTERM received'));
-process.on('SIGINT', () => logShutdown('user-service', 'SIGINT received'));
+// Signal handling and shutdown logging are managed by the shared graceful shutdown manager.
 
 startServer();
