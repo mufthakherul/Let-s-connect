@@ -15,12 +15,12 @@ import { motion, AnimatePresence } from 'framer-motion';
  * - Clean minimal interface
  */
 
-const MultiStepVerification = ({ initialIdentifier, initialSecret, onSuccess }) => {
+const MultiStepVerification = ({ initialIdentifier, onSuccess }) => {
   const [step, setStep] = useState(1);
   const [crossField, setCrossField] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [identifier, setIdentifier] = useState(initialIdentifier);
+  const [identifier] = useState(initialIdentifier);
 
   /**
    * Step 1: Submit username/email cross-validation
