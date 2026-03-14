@@ -11,6 +11,8 @@ const bcrypt = require('bcryptjs');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 require('dotenv').config({ quiet: true });
 
+let server;
+
 const { getRequiredEnv, isPlaceholderSecret } = require('../shared/security-utils');
 const { setupQueryMonitoring, queryStatsMiddleware } = require('../shared/query-monitor');
 const { getPoolConfig, monitorPoolHealth } = require('../shared/pool-config');
@@ -659,7 +661,7 @@ app.use('/:service', (req, res, next) => {
 
 app.use(errorLogger('security-service'));
 
-app.listen(PORT, () => {
+server = app.listen(PORT, () => {
     logStartup('security-service', PORT, {
         dbInitialized,
         ipWhitelisting: ALLOWED_IPS.length > 0 || ALLOWED_IP_RANGES.length > 0,
@@ -670,18 +672,37 @@ app.listen(PORT, () => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-    logShutdown('security-service', 'SIGTERM received');
-    if (adminSequelize) {
-        adminSequelize.close();
+async function gracefulShutdown(signal) {
+    logShutdown('security-service', `${signal} received`);
+
+    try {
+        if (server) {
+            await new Promise((resolve, reject) => {
+                server.close(err => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    resolve();
+                });
+            });
+        }
+
+        if (adminSequelize) {
+            await adminSequelize.close();
+        }
+    } catch (err) {
+        if (logger && typeof logger.error === 'function') {
+            logger.error({ err, signal }, 'Error during graceful shutdown');
+        }
+    } finally {
+        process.exit(0);
     }
-    process.exit(0);
+}
+
+process.on('SIGTERM', () => {
+    gracefulShutdown('SIGTERM');
 });
 
 process.on('SIGINT', () => {
-    logShutdown('security-service', 'SIGINT received');
-    if (adminSequelize) {
-        adminSequelize.close();
-    }
-    process.exit(0);
+    gracefulShutdown('SIGINT');
 });
