@@ -13,7 +13,7 @@
  */
 
 const { BotFramework } = require('./bot-framework');
-const { AIManager, LocalNLPModel } = require('./ai-integration');
+const BotFather = require('./botfather');
 const {
   AnalyticsPlugin,
   ModerationPlugin,
@@ -38,24 +38,15 @@ class BotService {
     this.publishEvent = publishEvent;
     this.BOT_SYSTEM_USER_ID = BOT_SYSTEM_USER_ID;
 
-    // Initialize AI
-    this.aiManager = new AIManager({
-      useOpenAI: process.env.OPENAI_API_KEY ? true : false,
-      openAIKey: process.env.OPENAI_API_KEY,
-      openAIOptions: {
-        model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
-        temperature: parseFloat(process.env.OPENAI_TEMPERATURE || '0.7')
-      }
-    });
+    // Initialize BotFather for bot creation
+    this.botFather = new BotFather({ models, redis });
 
-    // Initialize bot framework
+    // Initialize bot framework (Telegram-style, no AI)
     this.bot = new BotFramework({
       name: 'Let\'s Connect Bot',
       version: '2.0.0',
-      description: 'Advanced messaging bot with AI capabilities',
+      description: 'Telegram-style messaging bot',
       prefix: '/',
-      aiEnabled: true,
-      aiModel: this.aiManager.getModel(),
       maxCommands: 20,
       rateLimitWindow: 60000
     });
@@ -112,6 +103,162 @@ class BotService {
                 `User ID: ${ctx.userId}\n` +
                 `Active Conversations: ${conversations.length}\n` +
                 `Roles: ${ctx.getRoles().join(', ') || 'None'}`
+        };
+      }
+    });
+
+    // BotFather commands - Bot creation and management
+    this.bot.registerCommand({
+      name: 'newbot',
+      description: 'Create a new bot',
+      category: 'botfather',
+      handler: async (ctx) => {
+        if (ctx.args.length === 0) {
+          return {
+            text: '🤖 **Create New Bot**\n\n' +
+                  'Send me a name for your bot.\n\n' +
+                  'Example: `/newbot My Awesome Bot`'
+          };
+        }
+
+        const botName = ctx.args.join(' ');
+        const result = await this.botFather.createBot(ctx.userId, botName);
+
+        return {
+          text: result.message,
+          format: 'markdown'
+        };
+      }
+    });
+
+    this.bot.registerCommand({
+      name: 'mybots',
+      description: 'List your bots',
+      category: 'botfather',
+      handler: async (ctx) => {
+        const result = await this.botFather.listBots(ctx.userId);
+        return { text: result.message };
+      }
+    });
+
+    this.bot.registerCommand({
+      name: 'setdescription',
+      description: 'Set bot description',
+      category: 'botfather',
+      parameters: [
+        { name: 'botId', required: true },
+        { name: 'description', required: true }
+      ],
+      handler: async (ctx) => {
+        if (ctx.args.length < 2) {
+          return {
+            text: '❌ Usage: /setdescription <botId> <description>\n\n' +
+                  'Use /mybots to get your bot IDs'
+          };
+        }
+
+        const botId = ctx.args[0];
+        const description = ctx.args.slice(1).join(' ');
+        const result = await this.botFather.setDescription(ctx.userId, botId, description);
+
+        return { text: result.message };
+      }
+    });
+
+    this.bot.registerCommand({
+      name: 'setcommands',
+      description: 'Set bot commands',
+      category: 'botfather',
+      parameters: [
+        { name: 'botId', required: true },
+        { name: 'commands', required: true }
+      ],
+      examples: [
+        '/setcommands <botId> start - Start the bot\\nhelp - Get help'
+      ],
+      handler: async (ctx) => {
+        if (ctx.args.length < 2) {
+          return {
+            text: '❌ Usage: /setcommands <botId> <commands>\n\n' +
+                  'Format: command - description (one per line)\n' +
+                  'Example:\n' +
+                  'start - Start the bot\n' +
+                  'help - Get help\n\n' +
+                  'Use /mybots to get your bot IDs'
+          };
+        }
+
+        const botId = ctx.args[0];
+        const commandsText = ctx.args.slice(1).join(' ').replace(/\\n/g, '\n');
+        const result = await this.botFather.setCommands(ctx.userId, botId, commandsText);
+
+        return { text: result.message };
+      }
+    });
+
+    this.bot.registerCommand({
+      name: 'setwebhook',
+      description: 'Set bot webhook URL',
+      category: 'botfather',
+      parameters: [
+        { name: 'botId', required: true },
+        { name: 'url', required: true }
+      ],
+      handler: async (ctx) => {
+        if (ctx.args.length < 2) {
+          return {
+            text: '❌ Usage: /setwebhook <botId> <https://your-webhook-url>\n\n' +
+                  'Use /mybots to get your bot IDs'
+          };
+        }
+
+        const botId = ctx.args[0];
+        const webhookUrl = ctx.args[1];
+        const result = await this.botFather.setWebhook(ctx.userId, botId, webhookUrl);
+
+        return { text: result.message };
+      }
+    });
+
+    this.bot.registerCommand({
+      name: 'deletebot',
+      description: 'Delete a bot',
+      category: 'botfather',
+      parameters: [{ name: 'botId', required: true }],
+      handler: async (ctx) => {
+        if (ctx.args.length === 0) {
+          return {
+            text: '❌ Usage: /deletebot <botId>\n\n' +
+                  'Use /mybots to get your bot IDs'
+          };
+        }
+
+        const botId = ctx.args[0];
+        const result = await this.botFather.deleteBot(ctx.userId, botId);
+
+        return { text: result.message };
+      }
+    });
+
+    this.bot.registerCommand({
+      name: 'botinfo',
+      description: 'Get bot information',
+      category: 'botfather',
+      parameters: [{ name: 'botId', required: true }],
+      handler: async (ctx) => {
+        if (ctx.args.length === 0) {
+          return {
+            text: '❌ Usage: /botinfo <botId>\n\n' +
+                  'Use /mybots to get your bot IDs'
+          };
+        }
+
+        const botId = ctx.args[0];
+        const result = await this.botFather.getBotInfo(ctx.userId, botId);
+
+        return {
+          text: result.message,
+          format: 'markdown'
         };
       }
     });
@@ -257,68 +404,6 @@ class BotService {
                 `Original: ${text}\n` +
                 `Translated: ${translated}`
         };
-      }
-    });
-
-    // Summarize command
-    this.bot.registerCommand({
-      name: 'summarize',
-      description: 'Summarize recent conversation',
-      category: 'ai',
-      handler: async (ctx) => {
-        const messages = await this.models.Message.findAll({
-          where: { conversationId: ctx.conversationId },
-          limit: 20,
-          order: [['createdAt', 'DESC']]
-        });
-
-        if (messages.length < 5) {
-          return { text: '❌ Not enough messages to summarize (need at least 5)' };
-        }
-
-        const messageData = messages.map(m => ({
-          role: m.senderId === this.BOT_SYSTEM_USER_ID ? 'bot' : 'user',
-          content: m.content
-        }));
-
-        try {
-          const summary = await this.aiManager.getModel().summarize(messageData);
-          return {
-            text: `📝 **Conversation Summary**\n\n${summary}`,
-            format: 'markdown'
-          };
-        } catch (error) {
-          return { text: '❌ Failed to generate summary' };
-        }
-      }
-    });
-
-    // Sentiment command
-    this.bot.registerCommand({
-      name: 'sentiment',
-      description: 'Analyze sentiment of text',
-      category: 'ai',
-      parameters: [{ name: 'text', required: true }],
-      handler: async (ctx) => {
-        const text = ctx.args.join(' ');
-
-        try {
-          const analysis = await this.aiManager.analyze(text);
-
-          let emoji = '😐';
-          if (analysis.sentiment === 'positive') emoji = '😊';
-          if (analysis.sentiment === 'negative') emoji = '😞';
-
-          return {
-            text: `${emoji} **Sentiment Analysis**\n\n` +
-                  `Sentiment: ${analysis.sentiment}\n` +
-                  `Intent: ${analysis.intent}\n` +
-                  `Language: ${analysis.language}\n` +
-                  `Entities: ${analysis.entities.length} found`
-          };
-        } catch (error) {
-          return { text: '❌ Failed to analyze sentiment' };
-        }
       }
     });
 
