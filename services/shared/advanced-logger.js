@@ -15,7 +15,6 @@
  */
 
 const pino = require('pino');
-const path = require('path');
 
 // Determine environment
 const isDevelopment = process.env.NODE_ENV !== 'production';
