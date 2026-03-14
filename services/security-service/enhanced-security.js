@@ -12,6 +12,7 @@
  */
 
 const crypto = require('crypto');
+const cookieParser = require('cookie-parser');
 
 // In-memory stores (in production, use Redis)
 const verificationCodes = new Map(); // email -> { code, expires, attempts }
@@ -115,7 +116,14 @@ async function handleStealthAuth(req, res, AdminUser, emailService) {
 async function handleCrossValidation(req, res, AdminUser) {
   try {
     const { primary, cross } = req.body;
-    const sessionId = req.cookies.admin_session;
+
+    // Ensure cookies are parsed even if cookie-parser middleware is not mounted globally
+    if (!req.cookies) {
+      const parser = cookieParser();
+      await new Promise((resolve) => parser(req, res, resolve));
+    }
+
+    const sessionId = req.cookies && req.cookies.admin_session;
 
     if (!sessionId) {
       return res.status(200).json({});
