@@ -398,7 +398,6 @@ module.exports = {
   handleStealthAuth,
   handleCrossValidation,
   handleSendVerificationCode,
-  handleValidateCode,
   generateVerificationCode,
   trackIPLogin,
   generateCSRFToken,
