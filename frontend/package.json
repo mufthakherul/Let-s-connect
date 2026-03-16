@@ -25,7 +25,7 @@
     "react-intersection-observer": "^10.0.3",
     "react-router-dom": "^7.13.1",
     "react-window": "^1.8.10",
-    "recharts": "^2.12.7",
+    "recharts": "^3.8.0",
     "shaka-player": "^5.0.5",
     "socket.io-client": "^4.7.4",
     "zustand": "^5.0.11"
