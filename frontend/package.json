@@ -23,7 +23,7 @@
     "react-dropzone": "^15.0.0",
     "react-hot-toast": "^2.4.1",
     "react-intersection-observer": "^10.0.3",
-    "react-router-dom": "^7.13.1",
+    "react-router-dom": "^7.13.2",
     "react-window": "^1.8.10",
     "recharts": "^2.12.7",
     "shaka-player": "^5.0.5",
