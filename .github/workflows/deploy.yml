@@ -84,7 +84,7 @@ jobs:
       
       - name: Build and push Docker image
         if: steps.dockerfile.outputs.path
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ steps.dockerfile.outputs.context }}
           file: ${{ steps.dockerfile.outputs.path }}
